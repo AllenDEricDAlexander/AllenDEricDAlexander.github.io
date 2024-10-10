@@ -4,6 +4,73 @@
   
   
   <entry>
+    <title>Java奇技淫巧</title>
+    <link href="/2024/10/10/java_trick/"/>
+    <url>/2024/10/10/java_trick/</url>
+    
+    <content type="html"><![CDATA[<p>欢迎你来读这篇博客，这篇博客主要是关于<code>Java·奇技淫巧</code>。<br>其中包括了关于我的简介和收集的知识分享。</p><span id="more"></span><h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h3 id="分片上传"><a href="#分片上传" class="headerlink" title="分片上传"></a>分片上传</h3><h4 id="普通上传"><a href="#普通上传" class="headerlink" title="普通上传"></a>普通上传</h4><p>调用接口一次性完成一个文件的上传。</p><ul><li>缺点：文件无法续传、大文件上传太慢。</li></ul><p>解决方案：分片上传</p><h4 id="分片上传-1"><a href="#分片上传-1" class="headerlink" title="分片上传"></a>分片上传</h4><p>将源文件切分成很多分片，进行上传，待所有分片上传完毕之后，将所有分片合并，便可得到源文件。这里面的分片可以采用并行的方式上传，提示大文件上传的效率。</p><p>分片上传主要的过程(3步)</p><ol><li>创建分片上传任务(分片数量、每个分片文件大小、文件md5值)</li><li>上传所有分片</li><li>待所有分片上传完成后，合并文件，便可得到源文件</li></ol><p>实现分片上传需要两张表</p><p>分片上传任务表(t_shard_upload):每个分片任务会在此表创建一条记录</p><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">create</span> <span class="hljs-keyword">table</span> if <span class="hljs-keyword">not</span> exsits t_shard_upload(<br>    id <span class="hljs-type">varchar</span>(<span class="hljs-number">32</span>) <span class="hljs-keyword">primary</span> key comment <span class="hljs-string">&#x27;文件名称&#x27;</span>,<br>    file_name <span class="hljs-type">int</span> <span class="hljs-keyword">not</span> <span class="hljs-keyword">null</span> comment ‘分片数量’，<br>    part_num <span class="hljs-type">int</span> <span class="hljs-keyword">not</span> <span class="hljs-keyword">null</span> comment <span class="hljs-string">&#x27;分片数量&#x27;</span>,<br>    md5 <span class="hljs-type">varchar</span>(<span class="hljs-number">128</span>) comment ‘文件md5值’，<br>    file_full_path <span class="hljs-type">varchar</span>(<span class="hljs-number">512</span>) comment <span class="hljs-string">&#x27;文件完整路径&#x27;</span><br>) comment <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;分片上传任务表&#x27;</span>;<br></code></pre></td></tr></table></figure><p>分片文件表(t_shard_upload_part):这个表和上面的表是一对多的关系，用于记录每个分片的信息，比如一个文件被切分成十个分片，那么此表会产生十条记录。</p><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">create</span> <span class="hljs-keyword">table</span> if <span class="hljs-keyword">not</span> t_shard_upload_part(<br>    id <span class="hljs-type">varchar</span>(<span class="hljs-number">32</span>) <span class="hljs-keyword">primary</span> key,<br>    shard_upload_id <span class="hljs-type">varchar</span>(<span class="hljs-number">32</span>) <span class="hljs-keyword">not</span> <span class="hljs-keyword">null</span> comment <span class="hljs-string">&#x27;分片任务id&#x27;</span>,<br>    part_order <span class="hljs-type">int</span> <span class="hljs-keyword">not</span> <span class="hljs-keyword">null</span> comment ‘第几个分片，从<span class="hljs-number">1</span>开始’，<br>    file_full_path <span class="hljs-type">varchar</span>(<span class="hljs-number">512</span>) comment <span class="hljs-string">&#x27;文件完整路径&#x27;</span>,<br>    <span class="hljs-keyword">UNIQUE</span> KEY <span class="hljs-string">&#x27;uq_part_order&#x27;</span> (`shard_upload_id`,`part_order`)<br>) comment <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;分片文件表，每个分片文件对应一条记录&#x27;</span>;<br></code></pre></td></tr></table></figure><p>服务端需要提供四个接口</p><ol><li>创建分片上传任务(&#x2F;shardUpload&#x2F;init)  返回分片任务id，后续三个接口都要用</li><li>上传分片文件(&#x2F;shardUpload&#x2F;uploadPart)</li><li>合并分片、完成上传(shardUpload&#x2F;complete)</li><li>获取分片任务详细信息(&#x2F;shardUpload&#x2F;detail) 可以得到分片任务的状态信息，如分片任务是否上传完毕，哪些分片已上传，网络出现故障可以借助此接口恢复上传</li></ol><h3 id="多线程任务批处理通用工具类"><a href="#多线程任务批处理通用工具类" class="headerlink" title="多线程任务批处理通用工具类"></a>多线程任务批处理通用工具类</h3><h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p><code>富贵岂由人，时会高志须酬。</code></p><p><code>能成功于千载者，必以近察远。</code></p>]]></content>
+    
+    
+    <categories>
+      
+      <category>Java</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>Java</tag>
+      
+      <tag>编程</tag>
+      
+      <tag>杂谈</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>自建房指南</title>
+    <link href="/2024/10/10/sekf-build_house/"/>
+    <url>/2024/10/10/sekf-build_house/</url>
+    
+    <content type="html"><![CDATA[<p>欢迎你来读这篇博客，这篇博客主要是关于<code>自建房指南</code>。<br>其中包括了关于我的简介和收集的知识分享。</p><span id="more"></span><h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><p>欢迎来到我们的自建房指南博客！在这里，我们将为您提供全面的自建房知识，从选址、设计到施工，帮助您实现理想中的家园。无论您是首次尝试还是有经验的自建者，我们的内容都将为您提供实用的建议和技巧。我们将探讨最新的建筑趋势、材料选择、预算管理以及法规要求，确保您在整个过程中都能得心应手。让我们一起踏上这个激动人心的自建之旅吧！</p><h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h3 id="方案设计"><a href="#方案设计" class="headerlink" title="方案设计"></a>方案设计</h3><p>思维误区</p><ul><li>省钱:找设计师做太贵了</li><li>省事:只想简单大气就好</li><li>自信:船到桥头自然直嘛</li></ul><h3 id="chapter-2"><a href="#chapter-2" class="headerlink" title="chapter 2"></a>chapter 2</h3><h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p><code>富贵岂由人，时会高志须酬。</code></p><p><code>能成功于千载者，必以近察远。</code></p>]]></content>
+    
+    
+    <categories>
+      
+      <category>house</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>house</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
+  <entry>
+    <title>demo</title>
+    <link href="/2024/10/01/demo/"/>
+    <url>/2024/10/01/demo/</url>
+    
+    <content type="html"><![CDATA[<p>欢迎你来读这篇博客，这篇博客主要是关于<code>博客模板备份</code>。<br>其中包括了关于我的简介和收集的知识分享。</p><span id="more"></span><h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h3 id="chapter-1"><a href="#chapter-1" class="headerlink" title="chapter 1"></a>chapter 1</h3><h3 id="chapter-2"><a href="#chapter-2" class="headerlink" title="chapter 2"></a>chapter 2</h3><h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p><code>富贵岂由人，时会高志须酬。</code></p><p><code>能成功于千载者，必以近察远。</code></p>]]></content>
+    
+    
+    
+  </entry>
+  
+  
+  
+  <entry>
     <title>系统架构设计师备考-概述</title>
     <link href="/2024/05/27/system_architecture_designer1/"/>
     <url>/2024/05/27/system_architecture_designer1/</url>
@@ -527,19 +594,6 @@
     <url>/2024/04/01/yellow/</url>
     
     <content type="html"><![CDATA[<p>欢迎你来读这篇博客，这篇博客主要是关于<code>黄油</code>，慎入，不喜勿看，小圈子内部娱乐。</p><span id="more"></span><h2 id="黄油"><a href="#黄油" class="headerlink" title="黄油"></a>黄油</h2><ul><li><p>名称：滥交女 <del>我妹妹是bitch bitch biiiitch</del>（PC中文版.亲测畅玩）</p><p>描述：深山家的两亲和兄妹3人每天都愉♂悦♀的生活着。但就在长男圭已经很习惯了父亲再婚后和母親与义妹们之间平凡的高中生生活之时──某天，忘记带钥匙的圭走后门回家，在那里看见了像小偷一样摸索着圭内裤的妹妹诗帆・奈绪。对于圭理所当然的问询，诗帆的回答是──</p><p>链接：<a href="https://www.alipan.com/s/peQz9m3szYa">https://www.alipan.com/s/peQz9m3szYa</a></p></li><li><p>名称：DEVILS DEVEL CONCEPT（PC中文版.亲测畅玩）</p><p>描述：《DEVILS DEVEL<br>CONCEPT》是暁WORKS开发的一款游戏，发行时间为2009年。人类、怪物、非人类――“世界”不容许这些人的存在。奇异事件频发的不知名街道“鶴伎町”。这里是汇集了各种各样“灾难”，“诅咒”的战场。持有被称作“エンジャ”的能力的异能者。以及，那种族──“恶魔”。被无形的漩涡卷入的这些人们，汇集到了一起，厮杀着。時雨楚良，是个エンジャ少年。数年前，双亲亡故，现在独自生活着。就读于私立白嶺学园的他的日常生活，被平凡、安定以及破坏，镀上了一层色彩。和朋友们过着平凡的校园生活。每夜都会做的不可思议的梦。和在夜晚的街道上出现的恶魔殊死搏斗。他所拥有的“契约”，将他引入了悲剧、争斗、杀戮的地狱。同时，他又邂逅了新的“契约”。以及拥有这些契约的少女们。</p><p>链接：<a href="https://www.alipan.com/s/2UywTj2pvvq">https://www.alipan.com/s/2UywTj2pvvq</a></p></li><li><p>名称：美女 请别影响我学习Build.13867681+全DLC 解压即撸</p><p>描述： 《美女，请别影响我学习》是一款恋爱模拟类的全动态真人互动影像作品。你将阴差阳错之下成为“女子大学唯一男生”，以第一视角开启一段甜蜜与欢笑交织的校园恋爱之旅！</p><p>链接：<a href="https://pan.quark.cn/s/e33a4273bc1f">https://pan.quark.cn/s/e33a4273bc1f</a></p></li></ul><h2 id="不正经影视"><a href="#不正经影视" class="headerlink" title="不正经影视"></a>不正经影视</h2><h2 id="正经影视"><a href="#正经影视" class="headerlink" title="正经影视"></a>正经影视</h2><h3 id="喜剧"><a href="#喜剧" class="headerlink" title="喜剧"></a>喜剧</h3><ul><li><p>名称：豆瓣高分喜剧20部</p><p>描述：豆瓣高分喜剧20部</p><p>链接：<a href="https://pan.quark.cn/s/65abd25e9096">https://pan.quark.cn/s/65abd25e9096</a></p></li></ul><h3 id="动漫"><a href="#动漫" class="headerlink" title="动漫"></a>动漫</h3><ul><li><p>名称：姜子牙 (2020) 4K 60帧</p><p>描述：该片讲述了昆仑弟子姜子牙率领众神伐纣，赢得封神大战胜利，却因一时过失引得昆仑大乱，从此被贬北海，为世人所唾弃，十年后，为重回昆仑，姜子牙踏上旅途寻回自我，也发现了当年一切真相的故事。</p></li></ul><h3 id="动画"><a href="#动画" class="headerlink" title="动画"></a>动画</h3><ul><li><p>名称：新猫和老鼠 3季全 1080P 国语 中字硬字幕</p><p>描述：在过去的半个多世纪，汤姆和杰瑞培养了一代又一代忠实影迷。进入2014年，令坚实粉丝们振奋的消息传来。汤姆和杰瑞全新制作的新番上阵，这两个活宝自然不会缺席，而大狗斯派克、黑猫等老朋友也会悉数登场。总共52部全新短片上映，久别重逢的老朋友们将为我们带来新的快乐和感动！</p></li></ul><h3 id="不便于归类视频"><a href="#不便于归类视频" class="headerlink" title="不便于归类视频"></a>不便于归类视频</h3><ul><li><p>名称：《曾仕强》系列最全合集 视频+图文+音频共32个类目</p><p>描述：曾仕强，著名易学大师、国学大师、中国式管理大师，全球华人中国式管理第一人，被称为”中国式管理之父”，曾任台湾交通大学教授，台湾兴国管理学院校长。英国牛津大学管理哲学荣誉博士、英国莱斯特大学管理哲学博士、美国杜鲁门大学行政管理硕士、国立台湾师范大学教育学学士;著有《胡雪岩的启示》《易经的奥秘》《中国式管理》《家庭教育》《孙子兵法与人力自动化》等，而最让大家熟悉的是他在《百家讲坛》中的演讲。</p><p>链接：<a href="https://pan.quark.cn/s/f1c555d00675">https://pan.quark.cn/s/f1c555d00675</a></p></li></ul>]]></content>
-    
-    
-    
-  </entry>
-  
-  
-  
-  <entry>
-    <title>demo</title>
-    <link href="/2024/04/01/demo/"/>
-    <url>/2024/04/01/demo/</url>
-    
-    <content type="html"><![CDATA[<p>欢迎你来读这篇博客，这篇博客主要是关于<code>博客模板备份</code>。</p><span id="more"></span><h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h3 id="chapter-1"><a href="#chapter-1" class="headerlink" title="chapter 1"></a>chapter 1</h3><h3 id="chapter-2"><a href="#chapter-2" class="headerlink" title="chapter 2"></a>chapter 2</h3><h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p><code>富贵岂由人，时会高志须酬。</code></p><p><code>能成功于千载者，必以近察远。</code></p>]]></content>
     
     
     
