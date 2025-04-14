@@ -27,6 +27,7 @@
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="https://at-luo-fu-web-img.oss-cn-hangzhou.aliyuncs.com/hexo/javalog/dev-package-log-6.png">
 <meta property="og:image" content="https://at-luo-fu-web-img.oss-cn-hangzhou.aliyuncs.com/hexo/javalog/log.png">
+<meta property="og:image" content="https://allendericdalexander.github.io/images/img_7.png">
 <meta property="article:published_time" content="2024-01-06T08:30:00.000Z">
 <meta property="article:modified_time" content="2024-01-06T08:30:00.000Z">
 <meta property="article:author" content="AtLuoFu">
@@ -269,7 +270,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          5.5k 字
+          12k 字
         
       </span>
     
@@ -280,7 +281,7 @@
         
         
         
-          46 分钟
+          102 分钟
         
       </span>
     
@@ -338,11 +339,119 @@
 <li>应用日志：应用日志是指应用运行过程中的日志，比如用户登录，用户操作等。</li>
 <li>访问日志：访问日志是指用户访问系统的日志，比如用户访问的页面，用户访问的接口等。</li>
 </ul>
+<h3 id="好的日志习惯"><a href="#好的日志习惯" class="headerlink" title="好的日志习惯"></a>好的日志习惯</h3><ul>
+<li>日志格式统一</li>
+<li>日志文件大小拆分策略</li>
+<li>不打无用日志</li>
+<li>关键信息提到最前</li>
+<li>敏感信息和日期</li>
+<li>用好 debug 级别</li>
+<li>用好切面日志</li>
+</ul>
+<p>优化日志的输出格式</p>
+<p>官网对这几类模式的说明中反复强调了会影响性能。如果使用了如下属性输出，将极大的损耗性能：</p>
+<p>比如 log4j官网</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell"><span class="hljs-meta prompt_">%</span><span class="language-bash">C or <span class="hljs-variable">$class</span>, %F or %file, %l or %location, %L or %line, %M or %method</span><br></code></pre></td></tr></table></figure>
+
 <h3 id="Java日志框架总览"><a href="#Java日志框架总览" class="headerlink" title="Java日志框架总览"></a>Java日志框架总览</h3><p>理解日志库需要从下面三个角度去理解：</p>
 <ul>
 <li>最重要的一点是 区分日志系统和日志门面;</li>
 <li>其次是日志库的使用, 包含配置与API使用；配置侧重于日志系统的配置，API使用侧重于日志门面；</li>
 <li>最后是选型，改造和最佳实践等</li>
+</ul>
+<h3 id="日志的艺术"><a href="#日志的艺术" class="headerlink" title="日志的艺术"></a>日志的艺术</h3><p>理解日志并不是一件容易的事，开发人员在编写代码之时往往会纠结在某处打印的日志是不是有意义的，而 SRE 在面对缺少日志的生产问题时往往一筹莫展，Ops<br>在对面海量日志时往往需要花费更多的精力来维护，而项目的实际管理者在面对毫无实际业务价值的日志时，往往不想花费太多的人力和财力去管理它。</p>
+<p>因此，在开发应用程序时遵循良好的实践，在收集管理日志时选用成熟的方案，往往能让这些矛盾得以缓解，这也就有了这一篇的分享。</p>
+<h4 id="矛盾的开始"><a href="#矛盾的开始" class="headerlink" title="矛盾的开始"></a>矛盾的开始</h4><p>首先介绍的是为什么需要记录日志，日志的作用。其实关于日志的作用无需介绍太多，因为大多数的开发人员在调试代码问题时，解决不同环境的<br>Bug<br>时都有很明确的感受以及强烈的需求。日志作为调试的助手，生产环境的救星。笔者只见过嫌弃日志打的太少的，几乎没有见过嫌弃日志打的太多的开发和运维人员。通过查询日志的方式来确定代码的分支走向，API是否请求正确，核心业务的数据是否正确，是否有错误的堆栈信息，这些都构成开发和运维人员判断代码和生产问题的第一手段。笔者难以想象如果一个复杂庞大的系统没有记录任何日志，该如何排查生产环境的<br>Bug。</p>
+<p>如果有如此强烈的需求，那每一行代码都打日志来记录上下文不就行了吗？这样无论什么环境有什么代码有问题，通过搜索日志都可以排查出来。理论上这样确实可行，但是有一些问题目前无法解决，一是日志存储量的问题，常见的中大型系统日志大概在<br>TB 级，超大型系统的日志大概在 PB 级，根据 Cloudflare提供的数据，它每秒大概处理 4 千万的请求，这对于存储的费用来讲是一个巨大的挑战。二是搜索的性能下降，像<br>Elasticsearch 数据库这类常见的日志存储方案，海量的日志会导致其所维护的映射关系爆炸式增长，即使划分不同的 Index，分布式管理不同的<br>ElasticSearch 集群，也很难做到搜索性能不随数据量的增加而下降。三是海量日志的生成会在峰期时拖慢系统性能，增大出故障的风险。</p>
+<p>所以综上可以得出最简单的结论，即日志既不能打印太多导致存储和管理日志太难，也不应该因为打印太少导致运维人员无法排查问题，这听起来自相矛盾，但这就是关于日志的艺术！</p>
+<ul>
+<li>场景一<ul>
+<li>某工程师在调查生产环境中某个创建资源的 API 性能较低问题时，发现是由于该 API 在保存资源前做了写 INFO<br>级别的日志，将资源对象都写到日志中，由于资源的对象属性很多，所以导致在业务峰期时，代码打印出海量日志，耗尽Buffer区内存，从而拖慢主线程，造成服务性能整体下降。因此该工程师将该业务日志打印操作删除，以降低生产环境磁盘<br>IO 损耗，解决性能问题。</li>
+<li>但是某天由于修改了该 API 服务调用链路上的某服务代码，导致该 API 创建出来的对象有错误，并且由于缺少了生产环境保存该资源时的日志，无法排查出是<br>API 的请求参数有问题，还是后续的计算逻辑有问题。这时我们只能重新修改日志级别，重新构建发布上线吗？</li>
+</ul>
+</li>
+<li>场景二<ul>
+<li>假设将生产环境的日志设置为 ERROR 级别。某一时刻，依赖的下游服务故障，导致请求大量超时。又由于在业务峰期 QPS<br>非常高的时期，短时间内集中产生大量的错误日志，导致磁盘IO急剧提高，耗费大量CPU，进而导致整个服务瘫痪。我们应该如何处理？</li>
+</ul>
+</li>
+<li>场景三<ul>
+<li>某工程师在排查生产问题时，发现 INFO 级别的日志还无法满足排查 Root Cause，有一个 DEBUG 日志级别的日志是他需要的，但是生产环境只有<br>INFO 级别，这时只能修改级别然后重新启动服务吗？</li>
+</ul>
+</li>
+</ul>
+<h4 id="日志级别规范与动态调整"><a href="#日志级别规范与动态调整" class="headerlink" title="日志级别规范与动态调整"></a>日志级别规范与动态调整</h4><p>解决以上问题的方法，一是需要我们在项目中，明确日志级别的规范，不为了调试方便和减少存储随意使用日志级别。二是给日志级别加上动态调整的功能。也就是需要解决线上问题时，调低线上日志输出级别，获取全面的Debug日志，帮助工程师提高定位问题的效率。在生产日志海量增加拖慢服务性能时，调高线上日志输出级别，减少日志的生成，缓解磁盘<br>IO 压力和提高服务性能。</p>
+<p>以下是对于日志级别给出的建议：</p>
+<ul>
+<li>TRACE：应该在开发期间使用它来追踪错误，但永远不要提交到版本控制系统（VCS）中。</li>
+<li>DEBUG：记录程序中发生的任何事情。主要在调试期间使用，建议在进入生产阶段之前缩减调试语句的数量，只留下最有意义的条目，并可以在故障排除期间激活。</li>
+<li>INFO：记录所有由用户驱动的事件或特定于系统的操作（例如定期计划操作）。</li>
+<li>WARN：此级别记录所有可能成为错误的事件。例如，如果一个数据库调用花费的时间超过预定义的时间，或者如果内存缓存接近容量。这将允许适当的自动警报，并在故障排除期间允许更好地了解系统在故障之前的行为方式。</li>
+<li>ERROR：在此级别记录每个错误条件。这可以是返回错误或内部错误条件的 API 调用。</li>
+<li>FATAL：代表整个服务已经无法工作。请非常节制地使用这个级别。通常此级别记录表示程序的结束。</li>
+</ul>
+<h4 id="记录日志"><a href="#记录日志" class="headerlink" title="记录日志"></a>记录日志</h4><ul>
+<li>什么时候记录日志<ul>
+<li>什么时候记录日志并没有标准规范，需要开发人员根据业务和代码来自行判断，除了常规的记录事件，例如进行了哪些操作、发生了与预期不符的情况、运行期间出现未能处理的异常或警告、定期自动执行的任务外。笔者还建议在以下场景加上日志：</li>
+</ul>
+</li>
+<li>在调用第三方系统时，将调用 API 的 URL 带上 Request&#x2F;Response Body<br>和异常都记录到日志。原因是当发生故障时，能够有明确且清晰的的日志报告说明故障原因，减少不同系统服务运维人员或者不同公司之间的责任界定，以更顺畅的方式推动问题的解决。</li>
+<li>在重要核心业务的关键代码和分支加上日志，例如 if-then-else<br>语句，它可以帮助开发人员了解程序是否根据其当前状态遍历了预期路径。并且由于核心业务的数据普遍难以手动复现，了解代码分支的走向至关重要。</li>
+<li>核心业务的审计日志，如果某业务和法律或合同具有关联性，给对应的操作加上审计日志是非常有必要的。并且存储日志要求强一致性数据库。</li>
+<li>应用服务启动时输出配置信息。初始化配置的逻辑一般只会执行一次，不便于诊断时复现，所以应该输出到日志中。</li>
+</ul>
+<h4 id="日志属性"><a href="#日志属性" class="headerlink" title="日志属性"></a>日志属性</h4><p>除了在日志常规需要打印的 log level，timestamp，message，exception 和 stack trace 外，排查问题往往还需要其它的字段来帮助定位和查找<br>Root Cause，常见的额外字段有以下几种：</p>
+<ul>
+<li>trace id 即服务链路追踪的唯一 ID。在请求进入到系统 7 层网关时，即在 HTTP header 中加上对应请求整个生命周期唯一的 trace<br>id，并随着该请求调用一直携带。当请求链路过长，开发人员难以找到完整的请求日志时，trace id 有助于反向查找完整日志。</li>
+<li>span id 即表示 trac id 生命周期中拆分的单个操作。例如当请求到达每个服务后，服务都会为请求生成 spanid，第一个 spanid 称之为<br>root span，而随请求一起从上游传过来的 spanid 会被记录成 pspanid (parent-spanid)。当前服务生成的 spanid<br>随着请求一起再传到下游服务时，这个spanid 又会被下游服务当做 pspanid 记录。由此 span id 有助于当服务调用复杂时还原出整个请求的调用链路视图。</li>
+<li>user id 即用户的唯一 ID。确保当用户上报 Issue 或者提交 TIcket 的时候，可以根据当前用户的唯一 ID 直接查询对应错误日志，减少干扰项，缩短排查周期。</li>
+<li>tenant_id 这是租户 ID（如果存在）。对多租户系统非常有帮助</li>
+<li>request uri 即当前微服务请求 URI (用户一个业务操作可能对应着多个服务不同的 request uri)，当某业务出现问题时，通过该业务对应入口的<br>request uri 往往能很快拿到 trac id，再通过 trac id 去查找对应请求的日志往往能很快解决问题。</li>
+<li>application name 即当前微服务名称。有助于识别哪个服务生成了此日志，也有助于通过 application name 过滤日志，查询服务整体故障。</li>
+<li>pod name 即当前请求所在的 k8s 资源 Pod 名称（如果存在）。目前大多数微服务使用 k8s 来完成容器编排，打印 pod name 有助于当某个<br>pod 故障时，重启或者 Kill Pod。</li>
+<li>host name 即当前请求所在的机器名称。即使使用 k8s 托管微服务，也会出现由于 k8s 集群所在的某台机器出现磁盘或者网络故障时，服务无法正常工作的情况，打印<br>host name 有助于排查问题最后一公里，即由于机器硬件问题导致故障。</li>
+</ul>
+<h4 id="日志安全"><a href="#日志安全" class="headerlink" title="日志安全"></a>日志安全</h4><p>日志需要保证日志框架的安全和敏感信息处理。框架安全指的是使用成熟的，经过大量生产环境验证的日志框架库，而非自己造轮子。敏感信息处理是大部分公司的生命线，请牢记日志的安全性和合规性要求：</p>
+<ul>
+<li>不要泄露敏感的个人身份信息 (PII)。</li>
+<li>不要泄露加密密钥或秘密。</li>
+<li>确保公司的隐私政策涵盖日志数据。</li>
+<li>确保日志提供商满足合规性需求。</li>
+<li>确保满足数据存储时间要求。</li>
+</ul>
+<h4 id="日志的坏味道"><a href="#日志的坏味道" class="headerlink" title="日志的坏味道"></a>日志的坏味道</h4><ul>
+<li>使用中文或者非英文打印日志。<ul>
+<li>英文表示日志将以 ASCII 字符记录。这一点特别重要，因为像中文经过一系列处理后，它可能因为字符集或者编码集最终无法正确呈现。</li>
+<li>英文自带分词效果，像使用 ElasticSearch 这类倒排索引存储引擎存储日志，中文日志不仅需要添加专门的分词器，并且存储和查询效果不如英文。</li>
+</ul>
+</li>
+<li>没有上下文的日志。类似直接打印 Transaction failed 或者 User operation succeeds<br>这类日志。因为在写代码时通过代码上下文能够理解日志消息，但是当阅读日志本身时，这个上下文不存在，这些消息可能无法理解。</li>
+<li>将打印日志的操作放在循环当中。除非特定需求，否则打印出来的日志不仅难以阅读和查找，还会耗费大量存储资源。</li>
+<li>引用慢操作数据，如果当前上下文中没有打印日志需要的数据，需要调用远程服务或者从数据库获取，又或者通过大量计算，那应该先考虑这项信息放到日志中是不是必要且恰当的。</li>
+</ul>
+<h4 id="日志的可观测性"><a href="#日志的可观测性" class="headerlink" title="日志的可观测性"></a>日志的可观测性</h4><p>最近十年因为微服务和云原生的相继崛起，收集存储和分析日志领域发生了重大的变化。早期我们无需进行日志的收集，当时将单体服务的所有日志存储在文件当中，使用<br>tail、grep、awk 来从日志中挖掘信息。但是在系统日益复杂的今天，这种方式已经无法满足我们的需求。为了应对日益复杂的日志管理需求，开源社区和工业界也发展出一些列的方案，例如最为流行的<br>Elastic Stack 开源解决方案，云厂商提供的一站式解决方案像 AWS DataDog 和 Azure Dynatrace。</p>
+<p>无论使用哪种方案，日志管理都已经不再是一个简单的话题。在我们有明确感知的打印日志和查询分析日志之间，还包含着对日志进行收集、缓冲、聚合、加工、索引、存储等若干个步骤，并且每一步都蕴含着艰难曲折。</p>
+<h4 id="日志的收集"><a href="#日志的收集" class="headerlink" title="日志的收集"></a>日志的收集</h4><p>最早我们使用 Elastic Stack 中的 Logstash 来进行日志的收集和加工。系统中不同的服务通过使用 tcp&#x2F;udp 的协议，主动发送请求将日志推送到<br>Logstash 中，接着 Logstash 将日志进行转换加工(数据结构化)和输出。这种模式维持了很长一段时间，但是它也有比较严重的缺陷，那就是<br>Logstash 与它的插件是基于 JRuby 编写的，要跑在单独的 Java 虚拟机进程上，默认的堆大小就到了<br>1GB。如果需要部署成千上万个日志收集器，那么这种方案就显得太过沉重。所以后来 Elastic.co 公司使用 Golang<br>重写了一个功能较少，却更轻量高效的日志收集器 Filebeat 才缓解了这一矛盾。</p>
+<p>除此之外 Fluentd 通常是配合 Kubernetes 时的首选开源日志收集器。它是 Kubernetes 原生的，可以使用 DaemonSet 的方式部署与<br>Kubernetes 无缝集成。它允许从不同的地方像 Kubernetes 集群、MySQL、Apache2 等收集日志，并解析发送到所需位置如<br>Elasticsearch、Amazon S3 等。Fluentd 用 Ruby 编写的，在低容量下运行良好，但当需要增加节点和应用程序的数量时，也会有会性能问题。</p>
+<p>最后在日志收集时，有可能会因为业务峰期生成海量日志，影响服务稳定性和造成日志丢失。在这种情况下，我们还需要在 Logstash<br>或者存储日志数据库前加上一道缓冲层。在较小规模的系统中 Redis streams 是一个较好的选择，如果面对的规模更大的数据，那么 Kafka<br>集群或者云厂商提供的消息队列解决方案将是不二之选。</p>
+<h4 id="结构化日志"><a href="#结构化日志" class="headerlink" title="结构化日志"></a>结构化日志</h4><p>在收集完日志后，我们还需要进行结构化的处理。因为日志是非结构化数据，一行日志中通常会包含多项信息，如果不做处理，那只能以全文检索的原始方式去使用日志，这样既不利于统计对比，也不利于条件过滤。像下面这一行是<br>Nginx 服务器的 Access Log。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">10.209.21.28 - - [04/Mar/2023:18:12:11 +0800] &quot;GET /index.html HTTP/1.1&quot; 200 1314 &quot;https://guangzhengli.com&quot; Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36<br></code></pre></td></tr></table></figure>
+
+<p>尽管我们已经习惯了默认的 Nginx 格式，但上面的示例仍然难以阅读和处理。我们可以通过 Logstash 或者其它工具将它转换成结构化的数据，例如<br>JSON 格式。</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;RemoteIp&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;10.209.21.28&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;RemoteUser&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">null</span></span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;Datetime&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;04/Mar/2023:10:49:21 +0800&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;Method&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;GET&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;URL&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;/index.html&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;Protocol&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;HTTP/1.1&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;Status&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">200</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;Size&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1314</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;Refer&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;https://guangzhengli.com&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;Agent&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>经过结构化后，例如像 ElasticSearch 这类倒排索引数据库可以针对不同的数据项建立索引，进行查询统计、聚合等操作。</p>
+<p>除此之外还有一种工业界的做法像 Splunk 推荐将字段变为 key-value 对的形式放在同一个大的规范日志行中(logfmt)，如将 Nginx<br>日志作为规范日志行将变成如下这样：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">remote-ip=10.209.21.28 remote-user=null datetime=&quot;04/Mar/2023:10:49:21 +0800&quot; method=GET url=/index.html protocol=HTTP/1.1 status=200 size=1314 refer=https://guangzhengli.com agent=&quot;Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36&quot;<br></code></pre></td></tr></table></figure>
+
+<p>这类数据经过 Splunk 存储后，可以通过使用内置的查询语言进行检索，像使用 method&#x3D;get status&#x3D;500 查询所有返回 500 响应的 GET<br>方法。使用 method&#x3D;get method&#x3D;get status&#x3D;500 earliest&#x3D;-7d | timechart count 查询语句得到过去 7 天返回 500 响应的 GET<br>方法总数量和图表。</p>
+<p>日志的存储与查询<br>经过日志的数据结构化后，可以将数据存入数据库中并进行查询分析。在选择使用什么方案来存储和分析之前，我们先来看看日志数据的特点。</p>
+<ul>
+<li>日志是写入密集型的，超过 99% 的日志写入后不会被查询使用。</li>
+<li>日志是标准的时间流数据，需要顺序写入，存储到数据库后，不会再进行修改变动。</li>
+<li>日志是具有时效性的，一般只需要最近一段时间的日志来查询分析或者排查故障，一段时间以后会被保留策略清除或者归档。</li>
+<li>日志是半结构化的，尽管我们将所有应用服务的日志都进行结构化，还是还包含系统日志，网络日志等日志，它们字段各不相同。</li>
+<li>查询日志依赖全文检索和即席查询（Ad-hoc search）。</li>
+<li>查询日志不要求日志具有强时效性，但是也无法接受按小时甚至按天的延时。</li>
 </ul>
 <p><img src="https://at-luo-fu-web-img.oss-cn-hangzhou.aliyuncs.com/hexo/javalog/dev-package-log-6.png" srcset="/img/loading.gif" lazyload alt="总览"></p>
 <h2 id="日志框架-日志系统"><a href="#日志框架-日志系统" class="headerlink" title="日志框架-日志系统"></a>日志框架-日志系统</h2><h3 id="java-util-logging-JUL"><a href="#java-util-logging-JUL" class="headerlink" title="java.util.logging (JUL)"></a>java.util.logging (JUL)</h3><p>JDK1.4 开始，通过 java.util.logging 提供日志功能。虽然是官方自带的log lib，JUL的使用确不广泛。</p>
@@ -514,9 +623,57 @@
 <li>Logger节点用来单独指定日志的形式，比如要为指定包下的class指定不同的日志级别等。</li>
 <li>level:日志输出级别，共有8个级别，按照从低到高为：All &lt; Trace &lt; Debug &lt; Info &lt; Warn &lt; Error &lt; Fatal &lt; OFF.</li>
 <li>name:用来指定该Logger所适用的类或者类所在的包全路径,继承自Root节点.</li>
-<li>AppenderRef：Logger的子节点，用来指定该日志输出到哪个Appender,如果没有指定，就会默认继承自Root.如果指定了，那么会在指定的这个Appender和Root的Appender中都会输出，此时我们可以设置Logger的additivity&#x3D;”<br>  false”只在自定义的Appender中进行输出。</li>
+<li><code>AppenderRef</code><br>：Logger的子节点，用来指定该日志输出到哪个Appender,如果没有指定，就会默认继承自Root.如果指定了，那么会在指定的这个Appender和Root的Appender中都会输出，此时我们可以设置Logger的additivity&#x3D;”<br>false”只在自定义的Appender中进行输出。</li>
 </ul>
 </li>
+</ul>
+<h2 id="性能调优之日志打印的坑"><a href="#性能调优之日志打印的坑" class="headerlink" title="性能调优之日志打印的坑"></a>性能调优之日志打印的坑</h2><p>一是前段时间架构组同事的一次性能优化分享，单单日志（log4j2）这一项优化性能就提升了 19 倍，QPS 从1660 升到 32000，被震撼到了。</p>
+<p>二是最近接手的一个项目中，日志加了彩色打印，按日志的级别设置了不同的高亮颜色，看得我眼花缭乱，用 less<br>等一些命令查看时还会展示出来一堆 “ESC[m]”，这让有点强迫症的我看着很不爽。</p>
+<p>趁着技术优化，把这块也改一下，自己先爽了再说。顺便也重新认识一下在各种算法、秒杀设计大行其道的当下，这个不太起眼的小家伙。</p>
+<h3 id="综述"><a href="#综述" class="headerlink" title="综述"></a>综述</h3><p>在任何系统中，日志对服务的重要性不言而喻，它是反映系统运行情况的重要依据；它轻巧、简单，与我们形影不离，使得我们在排查问题时无需绞尽脑汁。被线上服务问题毒打过的人都认可日志的重要性，但看似不起眼的日志，却是一把双刃剑，隐藏着各式各样的“坑”，如果使用不当，不仅不能助我们一臂之力，反而会成为服务“杀手”，所以，你知道有哪些场景可能导致性能问题吗？今天楼兰胡杨和各位老铁聊聊高并发系统下<br>Java 日志性能那些事，同时提供一套异步+随机采样方案能让程序与日志“和谐共处”。</p>
+<p>Java 日志打印对服务的影响包括多种因素，例如日志级别、日志输出目标和日志格式等。下面的流程图展示了 Java 日志打印的一般流程和对<br>CPU 的影响。</p>
+<p><img src="/../images/img_7.png" srcset="/img/loading.gif" lazyload alt="image"></p>
+<p>根据以上流程图可以得出以下结论：</p>
+<p>Java 日志打印会增加代码的执行时间，因为需要执行额外的日志打印语句。</p>
+<p>日志级别的选择会影响 CPU 的占用率。较低的日志级别（如 INFO 或 DEBUG）会导致更多的日志打印语句被执行，增加 CPU 的负担。</p>
+<p>日志输出目标的选择也会影响 CPU 的占用率。将日志输出到控制台会导致额外的 I&#x2F;O 操作，增加 CPU 的负担。</p>
+<p>日志格式的复杂程度也会影响 CPU 的占用率。使用更复杂的日志格式可能会导致更多的字符串操作，增加 CPU 的负担。</p>
+<h3 id="影响性能的日志因素"><a href="#影响性能的日志因素" class="headerlink" title="影响性能的日志因素"></a>影响性能的日志因素</h3><h4 id="位置信息"><a href="#位置信息" class="headerlink" title="位置信息"></a>位置信息</h4><p>官网称作 Location Information，就是我们配置文件里的这类信息（%c{3}#%M %L），含义是当前这行日志是哪个类的哪个方法哪一行打印的。输出效果如下：</p>
+<p>可配置的模式有很多，具体见官网 <a target="_blank" rel="noopener" href="https://logging.apache.org/log4j/2.x/manual/layouts.html#Patterns">https://logging.apache.org/log4j/2.x/manual/layouts.html#Patterns</a> 。</p>
+<p>这里只说和位置相关的 %C or %class, %F or %file, %l or %location, %L or %line, %M or %method。</p>
+<p>官网这几个模式的说明中也都反复强调了会影响性能。同时也给出了具体的性能数据，比常用的同步 logger 慢 1.3 ~ 5 倍。如果在异步<br>logger 中使用位置信息，将会慢 30 ~ 100 倍。</p>
+<p>为什么会这么慢呢？</p>
+<p>我们都知道，java 程序执行时，每个线程都会有自己的栈，每个方法都会生成一个 frame，要获取位置信息，就要获取当前线程的栈帧信息，java<br>9 之前提供了两种获取栈帧的方法</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">java.lang.Throwable#getStackTrace()<br>java.lang.Thread#getStackTrace()<br></code></pre></td></tr></table></figure>
+
+<p>java 9 提供了 StackWalker 类，有网友说它的性能要好一些，我没找到有力证据，看到的都是介绍跳帧的功能，有兴趣的可以深究一下。</p>
+<p>我们就看一下 java 9 之前的 2 种方法：</p>
+<p>有网友说 java.lang.Throwable#getStackTrace() 的性能要好一些，我也没有找到直接证据，但从调用底层 native 的方法名字看 Thread<br>里调用的是 dumpThreads ，看到 dump 字眼，就会联想到 stop the world ，如果真挂起线程，那效率就低了。</p>
+<p>而且 log4j 里用的是java.lang.Throwable#getStackTrace()。</p>
+<p>不管是哪种方法获取堆栈信息，应该都不会太高效。</p>
+<p>想想我们一个请求，从框架层面交给一个线程后，动辄几十层方法才能调到我们的业务代码太正常不过了。</p>
+<p>既然这么低效，那我们不打位置信息，有问题怎么定位呢？</p>
+<p>我仔细回想了一下过往排查问题时，好像都是通过日志内容，定位到哪一行代码，几乎没有通过类名行号去定位代码，编译后的行号准不准确也另说。</p>
+<p>其实我们的主要目的是不通过框架获取堆栈的形式打印位置信息，我们完全可以在日志的内容中带上位置信息，通过一个切面就能搞定的事。</p>
+<h4 id="不同的-Appender"><a href="#不同的-Appender" class="headerlink" title="不同的 Appender"></a>不同的 Appender</h4><p>我们工作中一般都是把日志输出到文件中的，我们就挑 3 个文件相关的 Appender 说明一下，不同的 Appender 性能的差异主要在 I&#x2F;O 上。</p>
+<p>FileAppender 和 RollingFileAppender 内部使用的都是 BufferedOutputStream。</p>
+<p>而 RandomAccessFileAppender 内部使用了 ByteBuffer + RandomAccessFile 技术，与 FileAppender 相比，性能提高了20 ~ 200%。</p>
+<p>AsyncAppender 它不能独立存在，要依赖其他的 Appenders，配置在它们之后。</p>
+<p>它只是新起一个线程中把 LogEvents 交给了它所依赖的 Appenders。默认内部使用的是 ArrayBlockingQueue<br>，多线程并发打日志时，性能可能会变得更差。这种场景官方推荐使用无锁的 Asynchronous Loggers 。</p>
+<p>Asynchronous Loggers，它是 log4j2 新提供的功能，通过新起线程执行 I&#x2F;O 操作来提升性能，底层使用的是 Disruptor 框架，通过无锁线程通信，代替了<br>ArrayBlockingQueue 。</p>
+<p>它支持所有 Loggers 异步处理，也支持同步、异步 组合使用。可靠性要求高的比如异常信息就可以配成同步的，其他配成异步的。</p>
+<p>每个 Appender 的具体用法可以从官网查看，</p>
+<p><a target="_blank" rel="noopener" href="https://logging.apache.org/log4j/2.x/manual/appenders.html">https://logging.apache.org/log4j/2.x/manual/appenders.html</a></p>
+<h4 id="不同的刷盘策略"><a href="#不同的刷盘策略" class="headerlink" title="不同的刷盘策略"></a>不同的刷盘策略</h4><p>上面说到的 Appenders 的配置项中，都有一个 “immediateFlush”，默认 &#x3D; false，日志文件不像数据库那样追求高可靠性，可以忽略此配置，知道配置为<br>true 性能会变差就行。</p>
+<p>貌似所有涉及到刷盘的技术，都会提供这类的配置项，这里就不多说了。</p>
+<h3 id="不合理的书写方法"><a href="#不合理的书写方法" class="headerlink" title="不合理的书写方法"></a>不合理的书写方法</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs shell">// 格式1<br>log.debug(&quot;User id = &quot; + userId);<br><br>// 格式2<br>if (log.isdebugEnable()) &#123;<br>    log.debug(&quot;User id = &quot; + userId);<br>&#125;<br><br>// 格式3<br>log.debug(&quot;User msg &#123;&#125;!&quot;, JSON.toJSONString(user));<br><br>// 格式4，既然加了开关，说明是核心日志，打印info级别<br>if (日志开关已开启) &#123;<br>  log.info(&quot;User msg &#123;&#125;!&quot;, JSON.toJSONString(user));<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如上四种写法，我相信大家或多或少都在项目代码中看到过，那么它们之间有什么区别？对性能会造成什么影响？如果此时关闭 DEBUG<br>级别日志，差异就显露出来了。</p>
+<ul>
+<li>格式1 即使它不输出日志，依然需要执行字符串拼接，属于资源浪费。</li>
+<li>格式2 缺点是需要加入额外的判断逻辑，增加了废代码，一点不优雅。</li>
+<li>格式3 缺点是仍然需要根据系统配置的日志级别判断是否打印日志，并且需要提前序列化对象为JSON字符串，但是，不需要拼接字符串。</li>
+<li>格式4 推荐在高并发系统中使用，优点是根据Boolean类型日志开关判断是否走日志打印逻辑，开关关闭时，不必校验是否需要打印日志。</li>
 </ul>
 <h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
 <li>nx视频</li>
