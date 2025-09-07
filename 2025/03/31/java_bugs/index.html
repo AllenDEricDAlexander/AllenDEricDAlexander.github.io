@@ -265,7 +265,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          6.6k 字
+          7.3k 字
         
       </span>
     
@@ -276,7 +276,7 @@
         
         
         
-          55 分钟
+          61 分钟
         
       </span>
     
@@ -836,6 +836,179 @@
 </li>
 </ul>
 </li>
+</ul>
+<h3 id="Redis"><a href="#Redis" class="headerlink" title="Redis"></a>Redis</h3><p><strong>正确选择数据类型</strong></p>
+<ul>
+<li>string 几乎可以存储所有数据<ul>
+<li>浪费存储空间，key 也需要空间</li>
+<li>管理、维护噩梦，redis 存在大量 kv 对象</li>
+<li>key 冲突几率变高 业务线名+工程名+模块名+键名</li>
+</ul>
+</li>
+<li>hash</li>
+<li>list 队列、栈、有界队列</li>
+<li>set 去重、无序的数据集合 去重，共同关注</li>
+<li>sortedset 带有权重的集合，排行榜</li>
+</ul>
+<p><strong>使用了事务，怎么没回滚</strong></p>
+<p>redis 事务的基础，四个指令，multi、exec、discard、watch</p>
+<p>两类错误</p>
+<ul>
+<li>事务执行 exec 之前，入队命令错误（命令语法错误，服务器内存不足）</li>
+<li>命令在 exec 调用之后失败（事务不停止，命令继续执行）</li>
+</ul>
+<p><strong>Big Key 影响性能</strong></p>
+<ul>
+<li>数据量大的 key，比如：字符串 value 值非常大，哈希、列表、集合、有序集合元素多</li>
+<li>危害<ul>
+<li>内存不均</li>
+<li>超时阻塞</li>
+<li>网络流量拥塞</li>
+<li>国企删除</li>
+<li>迁移困难</li>
+</ul>
+</li>
+</ul>
+<p><strong>如何发现 Big key</strong></p>
+<p>redis-cli 使用 –bigkeys 命令</p>
+<p>key * 发现 key name<br>memory usage name 查看内存占用</p>
+<p><strong>删除 big key</strong></p>
+<ul>
+<li>string del 命令</li>
+<li>dict 使用 hscan 每次获取部分 field value 使用 hdel 删除每个 field</li>
+<li>list 使用 ltrim 命令渐进式删除</li>
+<li>set 使用 sscan 每次获取部分，再使用 srem 删除每个元素</li>
+<li>sortedset 使用 zscan 命令，每次获取部分元素，再使用 zremrangebyrank 命令删除元素</li>
+</ul>
+<p><strong>redis 内存耗尽</strong></p>
+<ul>
+<li>expire key seconds 设置生存时间，把 key 标记为易失的（volatile）</li>
+<li>对 key 值修改，不改 key，不会刷新过期时间</li>
+</ul>
+<p>redis 过期删除策略</p>
+<ul>
+<li>定时删除<ul>
+<li>惰性删除</li>
+<li>定期删除</li>
+</ul>
+</li>
+</ul>
+<p><strong>有了过期机制以后内存还不够用</strong></p>
+<ul>
+<li>业务需求量大</li>
+<li>不能及时失效</li>
+</ul>
+<p>配置 maxmemory maxmemory-policy</p>
+<p>常见的内存淘汰策略</p>
+<ul>
+<li>noevication</li>
+<li>allkeys-lru</li>
+<li>allkeys-random</li>
+<li>volatile-lru</li>
+<li>volatile-random</li>
+<li>volatile-ttl</li>
+</ul>
+<p>volatile 策略只会对带过期时间的 key 进行淘汰<br>allkeys 策略会对所有的 key 进行淘汰</p>
+<p>如果只是缓存，使用 allkeys。如果需要 redis 持久化，选择 volatile</p>
+<p><strong>频繁命令往返，造成性能瓶颈</strong></p>
+<p>redis pipline</p>
+<ul>
+<li>非原子的</li>
+<li>命令不能太多，不然会一直阻塞客户端</li>
+</ul>
+<p><strong>持久化</strong></p>
+<p>RBD</p>
+<table>
+<thead>
+<tr>
+<th>配置指令</th>
+<th>配置含义</th>
+<th>配置示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>save</td>
+<td>时间策略</td>
+<td>save 900 1<br>save 300 10</td>
+</tr>
+<tr>
+<td>dbfilename</td>
+<td>文件名称</td>
+<td>dbfilename dump.rdb</td>
+</tr>
+<tr>
+<td>dir</td>
+<td>文件保存路径</td>
+<td>dir &#x2F;home&#x2F;work&#x2F;redis&#x2F;</td>
+</tr>
+<tr>
+<td>stop-writes-on-bgsave-error</td>
+<td>如果持久化出错，主进程是否停止写入</td>
+<td>stop-writes-on-bgsave-error yes</td>
+</tr>
+<tr>
+<td>rdbcompression</td>
+<td>是否压缩</td>
+<td>rdbcompression yes</td>
+</tr>
+<tr>
+<td>rdbchecksum</td>
+<td>导入时是否检查</td>
+<td>rdbchecksum yes</td>
+</tr>
+</tbody></table>
+<p>AOF</p>
+<table>
+<thead>
+<tr>
+<th>配置指令</th>
+<th>配置含义</th>
+<th>配置示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>appendonly</td>
+<td>是否开启 aof</td>
+<td>appendonly yes</td>
+</tr>
+<tr>
+<td>appendfilename</td>
+<td>文件名称</td>
+<td>appendfilename “appendonly.aof”</td>
+</tr>
+<tr>
+<td>appendfsync</td>
+<td>同步方式</td>
+<td>appendfsync everysec&#x2F;always&#x2F;no</td>
+</tr>
+<tr>
+<td>no-appendfsync-on-rewrite</td>
+<td>aof 重写期间是否同步</td>
+<td>no-appendfsync-on-rewrite no</td>
+</tr>
+<tr>
+<td>auto-aof-rewrite-percentage<br>auto-aof-rewrite-min-size<br>aof-rewrite-incremental-fsync</td>
+<td>重写触发配置、文件重写策略</td>
+<td>auto-aof-rewrite-percentage 100<br>auto-aof-rewrite-min-size 64mb<br>aof-rewrite-incremental-fsync yes</td>
+</tr>
+<tr>
+<td>aof-load-truncated</td>
+<td>加载 aof 时如果有错如何处理</td>
+<td>aof-load-truncated yes</td>
+</tr>
+</tbody></table>
+<p><strong>缓存穿透</strong></p>
+<ul>
+<li>缓存穿透</li>
+<li>空的数据缓存默认值</li>
+<li>布隆过滤器</li>
+</ul>
+<p><strong>缓存雪崩</strong></p>
+<p>缓存集中失效</p>
+<ul>
+<li>错开过期时间</li>
+<li>限流&amp;降级</li>
+<li>本地缓存</li>
 </ul>
 <h2 id="Security"><a href="#Security" class="headerlink" title="Security"></a>Security</h2><h3 id="xss"><a href="#xss" class="headerlink" title="xss"></a>xss</h3><p>主要思路</p>
 <ul>
