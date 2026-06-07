@@ -1,0 +1,2149 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="欢迎你来读这篇博客。 这篇文章专门讲 Dockerfile。 前面的 Docker 基础文章更多关注容器、镜像、网络、数据卷、端口映射、常见部署这些内容；而 Dockerfile 是镜像构建的核心。一个 Dockerfile 写得好不好，会直接影响：  镜像体积 构建速度 构建缓存命中率 线上启动速度 安全风险 部署稳定性 CI&#x2F;CD 流水线效率 团队后续维护成本  很多人写 Docke">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Dockerfile 深度实践：从构建原理到镜像优化、缓存优化与生产级落地">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/06/07/devops/cri/dockerfile-deep-optimization-blog/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="欢迎你来读这篇博客。 这篇文章专门讲 Dockerfile。 前面的 Docker 基础文章更多关注容器、镜像、网络、数据卷、端口映射、常见部署这些内容；而 Dockerfile 是镜像构建的核心。一个 Dockerfile 写得好不好，会直接影响：  镜像体积 构建速度 构建缓存命中率 线上启动速度 安全风险 部署稳定性 CI&#x2F;CD 流水线效率 团队后续维护成本  很多人写 Docke">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-07T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-07T04:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Spring Boot">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="Docker">
+<meta property="article:tag" content="Container">
+<meta property="article:tag" content="Dockerfile">
+<meta property="article:tag" content="BuildKit">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Dockerfile 深度实践：从构建原理到镜像优化、缓存优化与生产级落地 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Dockerfile 深度实践：从构建原理到镜像优化、缓存优化与生产级落地"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-06-07 12:00" pubdate>
+          2026年6月7日 中午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          9.8k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          82 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Dockerfile 深度实践：从构建原理到镜像优化、缓存优化与生产级落地</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>欢迎你来读这篇博客。</p>
+<p>这篇文章专门讲 <code>Dockerfile</code>。</p>
+<p>前面的 Docker 基础文章更多关注容器、镜像、网络、数据卷、端口映射、常见部署这些内容；而 Dockerfile 是镜像构建的核心。一个 Dockerfile 写得好不好，会直接影响：</p>
+<ul>
+<li>镜像体积</li>
+<li>构建速度</li>
+<li>构建缓存命中率</li>
+<li>线上启动速度</li>
+<li>安全风险</li>
+<li>部署稳定性</li>
+<li>CI&#x2F;CD 流水线效率</li>
+<li>团队后续维护成本</li>
+</ul>
+<p>很多人写 Dockerfile 的第一阶段是：</p>
+<blockquote>
+<p>能跑就行。</p>
+</blockquote>
+<p>第二阶段是：</p>
+<blockquote>
+<p>镜像怎么这么大？</p>
+</blockquote>
+<p>第三阶段是：</p>
+<blockquote>
+<p>为什么每次构建都这么慢？</p>
+</blockquote>
+<p>第四阶段是：</p>
+<blockquote>
+<p>为什么线上容器停不掉、日志爆了、密码泄露了、构建缓存又失效了？</p>
+</blockquote>
+<p>这篇文章的目标就是把这些坑一次性讲清楚。</p>
+<span id="more"></span>
+
+<h2 id="一、Dockerfile-到底是什么？"><a href="#一、Dockerfile-到底是什么？" class="headerlink" title="一、Dockerfile 到底是什么？"></a>一、Dockerfile 到底是什么？</h2><p>Dockerfile 是一个文本文件，用来描述如何构建 Docker 镜像。</p>
+<p>它不是 shell 脚本，但里面包含很多类似 shell 的构建步骤。Docker 会按照 Dockerfile 中的指令，一步一步构建出镜像。</p>
+<p>一个最简单的 Java 应用 Dockerfile 可能是这样：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> eclipse-temurin:<span class="hljs-number">17</span>-jre<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> target/app.jar app.jar</span><br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span><br><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;java&quot;</span>, <span class="hljs-string">&quot;-jar&quot;</span>, <span class="hljs-string">&quot;app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>构建命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build -t demo-app:1.0.0 .<br></code></pre></td></tr></table></figure>
+
+<p>运行命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker run -d --name demo-app -p 8080:8080 demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<p>从表面看，Dockerfile 就几行内容。但它背后的东西不少：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[源码与构建上下文] --&gt; B[docker build]
+    B --&gt; C[读取 Dockerfile]
+    C --&gt; D[执行每条指令]
+    D --&gt; E[生成镜像层 Layer]
+    E --&gt; F[组合成最终镜像]
+    F --&gt; G[docker run]
+    G --&gt; H[容器运行实例]
+</code></pre>
+
+<p>要写好 Dockerfile，先记住一个核心认知：</p>
+<blockquote>
+<p>Dockerfile 不是部署脚本，而是镜像构建说明书。</p>
+</blockquote>
+<p>也就是说，它的目标不是“在服务器上装一遍环境”，而是“构建一个可复现、可分发、可运行的镜像”。</p>
+<hr>
+<h2 id="二、Dockerfile-的核心心智模型"><a href="#二、Dockerfile-的核心心智模型" class="headerlink" title="二、Dockerfile 的核心心智模型"></a>二、Dockerfile 的核心心智模型</h2><p>很多 Dockerfile 写得烂，不是因为命令不会，而是因为心智模型错了。</p>
+<p>写 Dockerfile 必须理解下面几个概念。</p>
+<h3 id="1-构建上下文-Build-Context"><a href="#1-构建上下文-Build-Context" class="headerlink" title="1. 构建上下文 Build Context"></a>1. 构建上下文 Build Context</h3><p>当你执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build -t demo-app:1.0.0 .<br></code></pre></td></tr></table></figure>
+
+<p>最后那个 <code>.</code> 表示当前目录会作为 build context 发送给 Docker 构建器。</p>
+<p>Dockerfile 中的：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> target/app.jar app.jar</span><br></code></pre></td></tr></table></figure>
+
+<p>只能复制 build context 里的文件。</p>
+<p>例如目录结构如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">demo/<br>├── Dockerfile<br>├── target/<br>│   └── app.jar<br>└── README.md<br></code></pre></td></tr></table></figure>
+
+<p>在 <code>demo</code> 目录执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build -t demo-app:1.0.0 .<br></code></pre></td></tr></table></figure>
+
+<p>此时 <code>Dockerfile</code> 可以访问 <code>target/app.jar</code>。</p>
+<p>但如果你写：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> ../app.jar app.jar</span><br></code></pre></td></tr></table></figure>
+
+<p>通常是不行的，因为 <code>../app.jar</code> 不在 build context 里面。</p>
+<p>构建上下文越大，构建越慢，缓存越容易失效。所以 <code>.dockerignore</code> 非常重要。</p>
+<h3 id="2-镜像层-Layer"><a href="#2-镜像层-Layer" class="headerlink" title="2. 镜像层 Layer"></a>2. 镜像层 Layer</h3><p>Docker 镜像不是一个单独的大文件，而是由多层组成。</p>
+<p>一般来说：</p>
+<ul>
+<li><code>FROM</code> 会确定基础镜像层</li>
+<li><code>RUN</code> 会产生新的文件系统层</li>
+<li><code>COPY</code> 和 <code>ADD</code> 会产生新的文件系统层</li>
+<li><code>CMD</code>、<code>ENTRYPOINT</code>、<code>ENV</code>、<code>EXPOSE</code> 等更多是修改镜像配置元数据</li>
+</ul>
+<p>示意图：</p>
+<pre><code class=" mermaid">flowchart TB
+    L1[基础镜像层: debian / alpine / ubuntu] --&gt; L2[安装运行时: JRE / Node / Nginx]
+    L2 --&gt; L3[复制依赖文件]
+    L3 --&gt; L4[复制应用文件]
+    L4 --&gt; L5[配置环境变量与启动命令]
+    L5 --&gt; IMG[最终镜像]
+</code></pre>
+
+<p>镜像层有两个重要特性：</p>
+<ol>
+<li>层可以复用</li>
+<li>层一旦创建，后续删除不一定真正减少历史层体积</li>
+</ol>
+<p>例如：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> apt-get update</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> apt-get install -y curl</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> <span class="hljs-built_in">rm</span> -rf /var/lib/apt/lists/*</span><br></code></pre></td></tr></table></figure>
+
+<p>这看起来最后删除了 apt 缓存，但缓存可能已经存在于前面的 layer 中。</p>
+<p>更好的写法是：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> apt-get update \</span><br><span class="language-bash">    &amp;&amp; apt-get install -y --no-install-recommends curl \</span><br><span class="language-bash">    &amp;&amp; <span class="hljs-built_in">rm</span> -rf /var/lib/apt/lists/*</span><br></code></pre></td></tr></table></figure>
+
+<p>因为安装和清理发生在同一层里。</p>
+<h3 id="3-构建缓存-Build-Cache"><a href="#3-构建缓存-Build-Cache" class="headerlink" title="3. 构建缓存 Build Cache"></a>3. 构建缓存 Build Cache</h3><p>Docker 构建时会尽量复用之前构建过的 layer。</p>
+<p>假设 Dockerfile：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> eclipse-temurin:<span class="hljs-number">17</span>-jre<br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> target/app.jar app.jar</span><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;java&quot;</span>, <span class="hljs-string">&quot;-jar&quot;</span>, <span class="hljs-string">&quot;app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>如果 <code>target/app.jar</code> 没变，那么 <code>COPY target/app.jar app.jar</code> 这一层可能复用缓存。</p>
+<p>如果 <code>target/app.jar</code> 变了，这一层和后续层都会重新构建。</p>
+<p>缓存规则可以简化理解为：</p>
+<blockquote>
+<p>前面的层没变，后面的层才可能复用；前面某层变了，后面基本都要重新来。</p>
+</blockquote>
+<p>所以 Dockerfile 的指令顺序非常重要。</p>
+<h3 id="4-构建阶段-Build-Stage"><a href="#4-构建阶段-Build-Stage" class="headerlink" title="4. 构建阶段 Build Stage"></a>4. 构建阶段 Build Stage</h3><p>多阶段构建允许一个 Dockerfile 里出现多个 <code>FROM</code>。</p>
+<p>例如：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> maven:<span class="hljs-number">3.9</span>-eclipse-temurin-<span class="hljs-number">17</span> AS builder<br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /build</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> mvn clean package -DskipTests</span><br><br><span class="hljs-keyword">FROM</span> eclipse-temurin:<span class="hljs-number">17</span>-jre<br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder /build/target/*.jar app.jar</span><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;java&quot;</span>, <span class="hljs-string">&quot;-jar&quot;</span>, <span class="hljs-string">&quot;app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>第一个阶段负责构建，第二个阶段负责运行。</p>
+<p>最终镜像只包含第二个阶段中的内容，不包含 Maven、不包含源码、不包含构建缓存。</p>
+<hr>
+<h2 id="三、Dockerfile-指令总览"><a href="#三、Dockerfile-指令总览" class="headerlink" title="三、Dockerfile 指令总览"></a>三、Dockerfile 指令总览</h2><p>常见指令如下：</p>
+<table>
+<thead>
+<tr>
+<th>指令</th>
+<th>作用</th>
+<th align="right">是否常用</th>
+<th>优化重点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>FROM</code></td>
+<td>指定基础镜像，开始一个构建阶段</td>
+<td align="right">是</td>
+<td>基础镜像体积、安全、版本固定</td>
+</tr>
+<tr>
+<td><code>RUN</code></td>
+<td>构建时执行命令</td>
+<td align="right">是</td>
+<td>缓存、层数、清理无用文件</td>
+</tr>
+<tr>
+<td><code>COPY</code></td>
+<td>从构建上下文复制文件</td>
+<td align="right">是</td>
+<td>精准复制，避免全量复制</td>
+</tr>
+<tr>
+<td><code>ADD</code></td>
+<td>类似 COPY，额外支持 URL 和自动解压</td>
+<td align="right">偶尔</td>
+<td>默认优先 COPY</td>
+</tr>
+<tr>
+<td><code>WORKDIR</code></td>
+<td>设置工作目录</td>
+<td align="right">是</td>
+<td>替代大量 <code>cd</code></td>
+</tr>
+<tr>
+<td><code>ENV</code></td>
+<td>设置环境变量</td>
+<td align="right">是</td>
+<td>不要存敏感信息</td>
+</tr>
+<tr>
+<td><code>ARG</code></td>
+<td>设置构建参数</td>
+<td align="right">是</td>
+<td>用于版本、构建开关</td>
+</tr>
+<tr>
+<td><code>EXPOSE</code></td>
+<td>声明容器监听端口</td>
+<td align="right">是</td>
+<td>只声明，不等于发布端口</td>
+</tr>
+<tr>
+<td><code>CMD</code></td>
+<td>默认命令或参数</td>
+<td align="right">是</td>
+<td>与 ENTRYPOINT 配合</td>
+</tr>
+<tr>
+<td><code>ENTRYPOINT</code></td>
+<td>容器入口命令</td>
+<td align="right">是</td>
+<td>推荐 exec 格式</td>
+</tr>
+<tr>
+<td><code>USER</code></td>
+<td>指定运行用户</td>
+<td align="right">强烈建议</td>
+<td>避免 root 运行</td>
+</tr>
+<tr>
+<td><code>HEALTHCHECK</code></td>
+<td>容器健康检查</td>
+<td align="right">建议</td>
+<td>提高可观测性</td>
+</tr>
+<tr>
+<td><code>LABEL</code></td>
+<td>镜像元数据</td>
+<td align="right">建议</td>
+<td>版本、作者、源码地址</td>
+</tr>
+<tr>
+<td><code>VOLUME</code></td>
+<td>声明挂载点</td>
+<td align="right">谨慎</td>
+<td>生产镜像不建议乱写</td>
+</tr>
+<tr>
+<td><code>SHELL</code></td>
+<td>修改默认 shell</td>
+<td align="right">少量</td>
+<td>Windows 或特殊 shell 场景</td>
+</tr>
+<tr>
+<td><code>STOPSIGNAL</code></td>
+<td>指定停止信号</td>
+<td align="right">偶尔</td>
+<td>优雅停机场景</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="四、FROM：基础镜像选择"><a href="#四、FROM：基础镜像选择" class="headerlink" title="四、FROM：基础镜像选择"></a>四、FROM：基础镜像选择</h2><p><code>FROM</code> 是 Dockerfile 的第一块地基。</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> eclipse-temurin:<span class="hljs-number">17</span>-jre<br></code></pre></td></tr></table></figure>
+
+<p>选基础镜像时要考虑：</p>
+<ul>
+<li>体积</li>
+<li>安全漏洞数量</li>
+<li>运行时依赖是否完整</li>
+<li>架构支持，例如 <code>amd64</code>、<code>arm64</code></li>
+<li>维护频率</li>
+<li>是否官方或可信发布者</li>
+<li>与应用技术栈是否匹配</li>
+</ul>
+<h3 id="1-常见基础镜像类型"><a href="#1-常见基础镜像类型" class="headerlink" title="1. 常见基础镜像类型"></a>1. 常见基础镜像类型</h3><table>
+<thead>
+<tr>
+<th>镜像类型</th>
+<th>示例</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>完整操作系统镜像</td>
+<td><code>ubuntu</code>、<code>debian</code></td>
+<td>兼容性好</td>
+<td>体积较大</td>
+</tr>
+<tr>
+<td>精简系统镜像</td>
+<td><code>debian:bookworm-slim</code></td>
+<td>兼顾兼容性和体积</td>
+<td>工具较少</td>
+</tr>
+<tr>
+<td>Alpine 镜像</td>
+<td><code>alpine</code></td>
+<td>很小</td>
+<td>musl libc 兼容性问题</td>
+</tr>
+<tr>
+<td>语言运行时镜像</td>
+<td><code>node</code>、<code>python</code>、<code>eclipse-temurin</code></td>
+<td>使用方便</td>
+<td>可能偏大</td>
+</tr>
+<tr>
+<td>distroless 镜像</td>
+<td><code>gcr.io/distroless/java17</code></td>
+<td>小、安全面低</td>
+<td>调试困难</td>
+</tr>
+<tr>
+<td>scratch</td>
+<td><code>scratch</code></td>
+<td>极小</td>
+<td>只适合静态二进制等场景</td>
+</tr>
+</tbody></table>
+<h3 id="2-不要盲目追求-Alpine"><a href="#2-不要盲目追求-Alpine" class="headerlink" title="2. 不要盲目追求 Alpine"></a>2. 不要盲目追求 Alpine</h3><p>很多人会觉得 Alpine 小，所以所有镜像都用 Alpine。</p>
+<p>这不总是对的。</p>
+<p>Alpine 使用 musl libc，而很多常见 Linux 发行版使用 glibc。部分 Java、Python、Node 原生依赖、字体、图像处理、DNS、时区、本地化相关行为可能会出现差异。</p>
+<p>建议：</p>
+<ul>
+<li>Go 静态二进制：可以考虑 Alpine 或 scratch</li>
+<li>Java 服务：优先考虑 <code>eclipse-temurin:17-jre</code>、<code>eclipse-temurin:17-jre-alpine</code> 需充分测试</li>
+<li>Python 有 native 依赖：谨慎使用 Alpine</li>
+<li>Node 有 native module：谨慎使用 Alpine</li>
+<li>生产稳定优先：slim 类镜像通常更稳</li>
+</ul>
+<h3 id="3-不要在生产中长期使用-latest"><a href="#3-不要在生产中长期使用-latest" class="headerlink" title="3. 不要在生产中长期使用 latest"></a>3. 不要在生产中长期使用 latest</h3><p>不推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> node:latest<br></code></pre></td></tr></table></figure>
+
+<p>推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> node:<span class="hljs-number">20</span>-bookworm-slim<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> eclipse-temurin:<span class="hljs-number">17.0</span>.<span class="hljs-number">11</span>_9-jre<br></code></pre></td></tr></table></figure>
+
+<p>更严格可以固定 digest：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> eclipse-temurin:<span class="hljs-number">17</span>-jre@sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx<br></code></pre></td></tr></table></figure>
+
+<p>优点：</p>
+<ul>
+<li>构建可复现</li>
+<li>避免上游 latest 变化导致线上构建不一致</li>
+<li>便于安全审计和版本回滚</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>digest 固定后需要主动升级基础镜像</li>
+<li>维护成本更高</li>
+</ul>
+<p>所以实际可以分层处理：</p>
+<ul>
+<li>开发环境：可以用较宽松 tag</li>
+<li>测试&#x2F;预发：固定主版本或小版本</li>
+<li>生产&#x2F;合规场景：固定 digest</li>
+</ul>
+<hr>
+<h2 id="五、WORKDIR：别在-RUN-里到处-cd"><a href="#五、WORKDIR：别在-RUN-里到处-cd" class="headerlink" title="五、WORKDIR：别在 RUN 里到处 cd"></a>五、WORKDIR：别在 RUN 里到处 cd</h2><p>不推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> <span class="hljs-built_in">mkdir</span> -p /app</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> <span class="hljs-built_in">cd</span> /app &amp;&amp; <span class="hljs-built_in">echo</span> hello &gt; a.txt</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> target/app.jar /app/app.jar</span><br></code></pre></td></tr></table></figure>
+
+<p>推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> <span class="hljs-built_in">echo</span> hello &gt; a.txt</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> target/app.jar app.jar</span><br></code></pre></td></tr></table></figure>
+
+<p><code>WORKDIR</code> 的好处：</p>
+<ul>
+<li>可读性更好</li>
+<li>后续 <code>RUN</code>、<code>COPY</code>、<code>CMD</code>、<code>ENTRYPOINT</code> 默认都基于该目录</li>
+<li>避免一堆 <code>cd /xxx &amp;&amp; ...</code></li>
+</ul>
+<p>如果目录不存在，<code>WORKDIR</code> 会创建目录。</p>
+<p>推荐始终显式设置：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br></code></pre></td></tr></table></figure>
+
+<p>不要依赖基础镜像默认工作目录。</p>
+<hr>
+<h2 id="六、COPY-和-ADD：优先-COPY，谨慎-ADD"><a href="#六、COPY-和-ADD：优先-COPY，谨慎-ADD" class="headerlink" title="六、COPY 和 ADD：优先 COPY，谨慎 ADD"></a>六、COPY 和 ADD：优先 COPY，谨慎 ADD</h2><h3 id="1-COPY"><a href="#1-COPY" class="headerlink" title="1. COPY"></a>1. COPY</h3><p><code>COPY</code> 用于把构建上下文中的文件复制到镜像中。</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> target/app.jar app.jar</span><br></code></pre></td></tr></table></figure>
+
+<p>也可以复制目录：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> config/ /app/config/</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="2-ADD"><a href="#2-ADD" class="headerlink" title="2. ADD"></a>2. ADD</h3><p><code>ADD</code> 功能更多：</p>
+<ul>
+<li>可以从 URL 添加文件</li>
+<li>可以自动解压本地 tar 包</li>
+</ul>
+<p>例如：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ADD</span><span class="language-bash"> app.tar.gz /app/</span><br></code></pre></td></tr></table></figure>
+
+<p>但也正因为它功能多，语义不够直接。大多数情况下推荐使用 <code>COPY</code>。</p>
+<h3 id="3-COPY-的优化原则"><a href="#3-COPY-的优化原则" class="headerlink" title="3. COPY 的优化原则"></a>3. COPY 的优化原则</h3><h4 id="原则一：不要一上来-COPY-全部"><a href="#原则一：不要一上来-COPY-全部" class="headerlink" title="原则一：不要一上来 COPY 全部"></a>原则一：不要一上来 COPY 全部</h4><p>不推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> mvn clean package -DskipTests</span><br></code></pre></td></tr></table></figure>
+
+<p>这样只要项目里任何文件变化，都会导致后续构建缓存失效。</p>
+<p>推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> pom.xml .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> mvn dependency:go-offline</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> src ./src</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> mvn clean package -DskipTests</span><br></code></pre></td></tr></table></figure>
+
+<p>这样如果只是源码变化，依赖下载层可以复用。</p>
+<h4 id="原则二：只复制运行需要的文件"><a href="#原则二：只复制运行需要的文件" class="headerlink" title="原则二：只复制运行需要的文件"></a>原则二：只复制运行需要的文件</h4><p>运行阶段不应该复制源码：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># 不推荐</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br></code></pre></td></tr></table></figure>
+
+<p>运行阶段更应该：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder /build/target/app.jar app.jar</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="原则三：合理使用-chown"><a href="#原则三：合理使用-chown" class="headerlink" title="原则三：合理使用 --chown"></a>原则三：合理使用 <code>--chown</code></h4><p>如果最终使用非 root 用户运行，可以在复制文件时直接设置 owner。</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> --<span class="hljs-built_in">chown</span>=app:app target/app.jar app.jar</span><br></code></pre></td></tr></table></figure>
+
+<p>这样可以避免额外的：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> <span class="hljs-built_in">chown</span> -R app:app /app</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="4-COPY-和缓存"><a href="#4-COPY-和缓存" class="headerlink" title="4. COPY 和缓存"></a>4. COPY 和缓存</h3><p><code>COPY</code> 会参与缓存校验。被复制文件的内容或相关元数据变化，会导致该层缓存失效。</p>
+<p>所以：</p>
+<ul>
+<li>高频变化的文件尽量放后面复制</li>
+<li>低频变化的依赖声明文件放前面复制</li>
+<li>大文件和无关文件不要进入 build context</li>
+</ul>
+<hr>
+<h2 id="七、RUN：构建时执行命令"><a href="#七、RUN：构建时执行命令" class="headerlink" title="七、RUN：构建时执行命令"></a>七、RUN：构建时执行命令</h2><p><code>RUN</code> 在镜像构建阶段执行。</p>
+<p>例如：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> apt-get update \</span><br><span class="language-bash">    &amp;&amp; apt-get install -y --no-install-recommends curl \</span><br><span class="language-bash">    &amp;&amp; <span class="hljs-built_in">rm</span> -rf /var/lib/apt/lists/*</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="1-RUN-的常见问题"><a href="#1-RUN-的常见问题" class="headerlink" title="1. RUN 的常见问题"></a>1. RUN 的常见问题</h3><h4 id="问题一：拆太多层"><a href="#问题一：拆太多层" class="headerlink" title="问题一：拆太多层"></a>问题一：拆太多层</h4><p>不推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> apt-get update</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> apt-get install -y curl</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> <span class="hljs-built_in">rm</span> -rf /var/lib/apt/lists/*</span><br></code></pre></td></tr></table></figure>
+
+<p>推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> apt-get update \</span><br><span class="language-bash">    &amp;&amp; apt-get install -y --no-install-recommends curl \</span><br><span class="language-bash">    &amp;&amp; <span class="hljs-built_in">rm</span> -rf /var/lib/apt/lists/*</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="问题二：安装推荐包导致镜像膨胀"><a href="#问题二：安装推荐包导致镜像膨胀" class="headerlink" title="问题二：安装推荐包导致镜像膨胀"></a>问题二：安装推荐包导致镜像膨胀</h4><p>不推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> apt-get install -y curl</span><br></code></pre></td></tr></table></figure>
+
+<p>推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> apt-get update \</span><br><span class="language-bash">    &amp;&amp; apt-get install -y --no-install-recommends curl \</span><br><span class="language-bash">    &amp;&amp; <span class="hljs-built_in">rm</span> -rf /var/lib/apt/lists/*</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="问题三：构建依赖进入运行镜像"><a href="#问题三：构建依赖进入运行镜像" class="headerlink" title="问题三：构建依赖进入运行镜像"></a>问题三：构建依赖进入运行镜像</h4><p>不推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> node:<span class="hljs-number">20</span><br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> npm install</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> npm run build</span><br><br><span class="hljs-keyword">CMD</span><span class="language-bash"> [<span class="hljs-string">&quot;npm&quot;</span>, <span class="hljs-string">&quot;run&quot;</span>, <span class="hljs-string">&quot;start&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>如果只是前端静态资源，最终不应该包含 Node、npm、源码和 node_modules。</p>
+<p>推荐多阶段构建：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> node:<span class="hljs-number">20</span> AS builder<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> package*.json ./</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> npm ci</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> npm run build</span><br><br><span class="hljs-keyword">FROM</span> nginx:stable-alpine<br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder /app/dist /usr/share/nginx/html</span><br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">80</span><br><br><span class="hljs-keyword">CMD</span><span class="language-bash"> [<span class="hljs-string">&quot;nginx&quot;</span>, <span class="hljs-string">&quot;-g&quot;</span>, <span class="hljs-string">&quot;daemon off;&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="2-RUN-的-shell-格式和-exec-格式"><a href="#2-RUN-的-shell-格式和-exec-格式" class="headerlink" title="2. RUN 的 shell 格式和 exec 格式"></a>2. RUN 的 shell 格式和 exec 格式</h3><p>shell 格式：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> <span class="hljs-built_in">echo</span> hello</span><br></code></pre></td></tr></table></figure>
+
+<p>等价于：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> /bin/sh -c <span class="hljs-string">&quot;echo hello&quot;</span></span><br></code></pre></td></tr></table></figure>
+
+<p>exec 格式：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> [<span class="hljs-string">&quot;echo&quot;</span>, <span class="hljs-string">&quot;hello&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>多数 Linux 镜像中，<code>RUN</code> 常用 shell 格式，因为方便写管道、变量和多命令。</p>
+<hr>
+<h2 id="八、ARG-和-ENV：构建参数与运行环境变量"><a href="#八、ARG-和-ENV：构建参数与运行环境变量" class="headerlink" title="八、ARG 和 ENV：构建参数与运行环境变量"></a>八、ARG 和 ENV：构建参数与运行环境变量</h2><h3 id="1-ARG"><a href="#1-ARG" class="headerlink" title="1. ARG"></a>1. ARG</h3><p><code>ARG</code> 是构建时参数。</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ARG</span> APP_VERSION=<span class="hljs-number">1.0</span>.<span class="hljs-number">0</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;build version: <span class="hljs-variable">$&#123;APP_VERSION&#125;</span>&quot;</span></span><br></code></pre></td></tr></table></figure>
+
+<p>构建时传入：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build --build-arg APP_VERSION=1.2.0 -t demo-app:1.2.0 .<br></code></pre></td></tr></table></figure>
+
+<p><code>ARG</code> 适合：</p>
+<ul>
+<li>版本号</li>
+<li>下载地址</li>
+<li>构建开关</li>
+<li>是否跳过测试</li>
+<li>构建环境标识</li>
+</ul>
+<h3 id="2-ENV"><a href="#2-ENV" class="headerlink" title="2. ENV"></a>2. ENV</h3><p><code>ENV</code> 是镜像环境变量，容器运行时也会存在。</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ENV</span> JAVA_OPTS=<span class="hljs-string">&quot;-Xms256m -Xmx512m&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>运行时可以覆盖：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker run -e JAVA_OPTS=<span class="hljs-string">&quot;-Xms512m -Xmx1024m&quot;</span> demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-ARG-和-ENV-的区别"><a href="#3-ARG-和-ENV-的区别" class="headerlink" title="3. ARG 和 ENV 的区别"></a>3. ARG 和 ENV 的区别</h3><table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>ARG</th>
+<th>ENV</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>生效阶段</td>
+<td>构建阶段</td>
+<td>构建阶段和运行阶段</td>
+</tr>
+<tr>
+<td>容器运行时是否存在</td>
+<td>通常不存在</td>
+<td>存在</td>
+</tr>
+<tr>
+<td>是否适合敏感信息</td>
+<td>不适合</td>
+<td>不适合</td>
+</tr>
+<tr>
+<td>典型用途</td>
+<td>构建版本、构建开关</td>
+<td>应用运行参数</td>
+</tr>
+</tbody></table>
+<p>注意：</p>
+<blockquote>
+<p>不要把密码、Token、私钥写进 ARG 或 ENV。</p>
+</blockquote>
+<p>因为它们可能出现在镜像历史、构建日志或运行环境中。</p>
+<p>错误示例：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ARG</span> GIT_TOKEN=xxxxx<br><span class="hljs-keyword">ENV</span> DB_PASSWORD=<span class="hljs-number">123456</span><br></code></pre></td></tr></table></figure>
+
+<p>正确思路：</p>
+<ul>
+<li>构建阶段需要密钥：使用 BuildKit secret mount</li>
+<li>运行阶段需要密钥：运行时注入、配置中心、密钥管理系统</li>
+</ul>
+<hr>
+<h2 id="九、EXPOSE：只是声明端口，不是端口映射"><a href="#九、EXPOSE：只是声明端口，不是端口映射" class="headerlink" title="九、EXPOSE：只是声明端口，不是端口映射"></a>九、EXPOSE：只是声明端口，不是端口映射</h2><p>Dockerfile 中：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span><br></code></pre></td></tr></table></figure>
+
+<p>只是说明这个镜像内的应用会监听 8080 端口。</p>
+<p>它不会自动让宿主机访问容器端口。</p>
+<p>真正端口映射要在运行时做：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker run -p 8080:8080 demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<p>可以这么理解：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[Dockerfile EXPOSE 8080] --&gt; B[镜像元数据声明]
+    C[docker run -p 8080:8080] --&gt; D[真正发布端口]
+</code></pre>
+
+<p>推荐写 <code>EXPOSE</code>，因为它是镜像文档的一部分。但不要误以为写了它就能访问服务。</p>
+<hr>
+<h2 id="十、CMD-和-ENTRYPOINT：容器启动命令"><a href="#十、CMD-和-ENTRYPOINT：容器启动命令" class="headerlink" title="十、CMD 和 ENTRYPOINT：容器启动命令"></a>十、CMD 和 ENTRYPOINT：容器启动命令</h2><p>这两个指令很容易混。</p>
+<h3 id="1-CMD"><a href="#1-CMD" class="headerlink" title="1. CMD"></a>1. CMD</h3><p><code>CMD</code> 表示容器默认命令。</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">CMD</span><span class="language-bash"> [<span class="hljs-string">&quot;java&quot;</span>, <span class="hljs-string">&quot;-jar&quot;</span>, <span class="hljs-string">&quot;app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>运行时可以覆盖：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker run demo-app:1.0.0 <span class="hljs-built_in">echo</span> hello<br></code></pre></td></tr></table></figure>
+
+<p>这时 <code>echo hello</code> 会替代原来的 CMD。</p>
+<h3 id="2-ENTRYPOINT"><a href="#2-ENTRYPOINT" class="headerlink" title="2. ENTRYPOINT"></a>2. ENTRYPOINT</h3><p><code>ENTRYPOINT</code> 表示容器入口程序。</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;java&quot;</span>, <span class="hljs-string">&quot;-jar&quot;</span>, <span class="hljs-string">&quot;app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>运行时追加的参数会接在 ENTRYPOINT 后面。</p>
+<h3 id="3-推荐使用-exec-格式"><a href="#3-推荐使用-exec-格式" class="headerlink" title="3. 推荐使用 exec 格式"></a>3. 推荐使用 exec 格式</h3><p>推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;java&quot;</span>, <span class="hljs-string">&quot;-jar&quot;</span>, <span class="hljs-string">&quot;app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>不推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> java -jar app.jar</span><br></code></pre></td></tr></table></figure>
+
+<p>原因是 shell 格式会启动一个 shell 作为 PID 1，信号转发可能不如 exec 格式直接，影响容器优雅停止。</p>
+<h3 id="4-ENTRYPOINT-CMD-组合"><a href="#4-ENTRYPOINT-CMD-组合" class="headerlink" title="4. ENTRYPOINT + CMD 组合"></a>4. ENTRYPOINT + CMD 组合</h3><p>可以把 ENTRYPOINT 当固定命令，把 CMD 当默认参数。</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;java&quot;</span>, <span class="hljs-string">&quot;-jar&quot;</span>, <span class="hljs-string">&quot;app.jar&quot;</span>]</span><br><span class="hljs-keyword">CMD</span><span class="language-bash"> [<span class="hljs-string">&quot;--spring.profiles.active=prod&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>运行时覆盖参数：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker run demo-app:1.0.0 --spring.profiles.active=<span class="hljs-built_in">test</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="5-Java-应用支持-JAVA-OPTS-的写法"><a href="#5-Java-应用支持-JAVA-OPTS-的写法" class="headerlink" title="5. Java 应用支持 JAVA_OPTS 的写法"></a>5. Java 应用支持 JAVA_OPTS 的写法</h3><p>如果想用环境变量控制 JVM 参数，经常会写：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;sh&quot;</span>, <span class="hljs-string">&quot;-c&quot;</span>, <span class="hljs-string">&quot;java <span class="hljs-variable">$JAVA_OPTS</span> -jar app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>这确实方便，但它用了 shell。</p>
+<p>更强一点的做法是写一个入口脚本，并在脚本最后使用 <code>exec</code>：</p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sh"><span class="hljs-meta">#!/usr/bin/env sh</span><br><span class="hljs-built_in">set</span> -e<br><br><span class="hljs-built_in">exec</span> java <span class="hljs-variable">$&#123;JAVA_OPTS&#125;</span> -jar /app/app.jar <span class="hljs-string">&quot;<span class="hljs-variable">$@</span>&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>Dockerfile：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> <span class="hljs-built_in">chmod</span> +x /usr/local/bin/docker-entrypoint.sh</span><br><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;docker-entrypoint.sh&quot;</span>]</span><br><span class="hljs-keyword">CMD</span><span class="language-bash"> []</span><br></code></pre></td></tr></table></figure>
+
+<p>这样既支持环境变量，又能让 Java 进程接收信号。</p>
+<hr>
+<h2 id="十一、USER：不要用-root-跑应用"><a href="#十一、USER：不要用-root-跑应用" class="headerlink" title="十一、USER：不要用 root 跑应用"></a>十一、USER：不要用 root 跑应用</h2><p>默认情况下，很多镜像里容器进程是 root 用户。</p>
+<p>这不推荐。</p>
+<p>更好的方式：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> eclipse-temurin:<span class="hljs-number">17</span>-jre<br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> groupadd -r app &amp;&amp; useradd -r -g app app</span><br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --<span class="hljs-built_in">chown</span>=app:app target/app.jar app.jar</span><br><br><span class="hljs-keyword">USER</span> app<br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span><br><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;java&quot;</span>, <span class="hljs-string">&quot;-jar&quot;</span>, <span class="hljs-string">&quot;app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>如果是 Alpine：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> addgroup -S app &amp;&amp; adduser -S app -G app</span><br></code></pre></td></tr></table></figure>
+
+<p>为什么要用非 root？</p>
+<ul>
+<li>降低容器逃逸后的破坏面</li>
+<li>降低误删系统文件的风险</li>
+<li>更符合最小权限原则</li>
+<li>生产安全扫描更容易通过</li>
+</ul>
+<p>注意：如果应用需要写目录，必须确保目录权限正确。</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> <span class="hljs-built_in">mkdir</span> -p /app/logs /app/tmp \</span><br><span class="language-bash">    &amp;&amp; <span class="hljs-built_in">chown</span> -R app:app /app</span><br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十二、HEALTHCHECK：让容器状态更可观测"><a href="#十二、HEALTHCHECK：让容器状态更可观测" class="headerlink" title="十二、HEALTHCHECK：让容器状态更可观测"></a>十二、HEALTHCHECK：让容器状态更可观测</h2><p>没有健康检查时，容器只要主进程没退出，Docker 就认为它还活着。</p>
+<p>但这不代表服务真的可用。</p>
+<p>比如：</p>
+<ul>
+<li>Java 进程在，但数据库连接池挂了</li>
+<li>Nginx 进程在，但配置错误</li>
+<li>应用启动了，但健康接口返回 500</li>
+<li>服务死锁了，但进程还没退出</li>
+</ul>
+<p>可以加健康检查：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">HEALTHCHECK</span><span class="language-bash"> --interval=30s --<span class="hljs-built_in">timeout</span>=3s --retries=3 --start-period=20s \</span><br><span class="language-bash">  CMD curl -f http://localhost:8080/actuator/health || <span class="hljs-built_in">exit</span> 1</span><br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker ps<br>docker inspect demo-app | grep -A 30 Health<br></code></pre></td></tr></table></figure>
+
+<p>问题是：很多精简镜像里没有 <code>curl</code>。</p>
+<p>可以选择：</p>
+<ol>
+<li>安装 curl&#x2F;wget</li>
+<li>应用自身提供轻量健康检查命令</li>
+<li>在编排层做健康检查</li>
+<li>使用 shell 的 <code>/dev/tcp</code>，但可移植性一般</li>
+</ol>
+<p>如果安装 curl：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> apt-get update \</span><br><span class="language-bash">    &amp;&amp; apt-get install -y --no-install-recommends curl \</span><br><span class="language-bash">    &amp;&amp; <span class="hljs-built_in">rm</span> -rf /var/lib/apt/lists/*</span><br></code></pre></td></tr></table></figure>
+
+<p>但这会增加镜像体积。生产上要权衡。</p>
+<hr>
+<h2 id="十三、LABEL：镜像元数据"><a href="#十三、LABEL：镜像元数据" class="headerlink" title="十三、LABEL：镜像元数据"></a>十三、LABEL：镜像元数据</h2><p><code>LABEL</code> 可以给镜像添加元数据。</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">LABEL</span><span class="language-bash"> org.opencontainers.image.title=<span class="hljs-string">&quot;demo-app&quot;</span> \</span><br><span class="language-bash">      org.opencontainers.image.description=<span class="hljs-string">&quot;Spring Boot demo application&quot;</span> \</span><br><span class="language-bash">      org.opencontainers.image.version=<span class="hljs-string">&quot;1.0.0&quot;</span> \</span><br><span class="language-bash">      org.opencontainers.image.source=<span class="hljs-string">&quot;https://git.example.com/backend/demo-app&quot;</span> \</span><br><span class="language-bash">      org.opencontainers.image.authors=<span class="hljs-string">&quot;team@example.com&quot;</span></span><br></code></pre></td></tr></table></figure>
+
+<p>常见用途：</p>
+<ul>
+<li>标记版本</li>
+<li>标记源码仓库</li>
+<li>标记构建时间</li>
+<li>标记维护者</li>
+<li>配合镜像扫描、SBOM、制品治理系统</li>
+</ul>
+<p>可以查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker inspect demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十四、VOLUME：为什么生产镜像里要谨慎写"><a href="#十四、VOLUME：为什么生产镜像里要谨慎写" class="headerlink" title="十四、VOLUME：为什么生产镜像里要谨慎写"></a>十四、VOLUME：为什么生产镜像里要谨慎写</h2><p>Dockerfile 可以写：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">VOLUME</span><span class="language-bash"> [<span class="hljs-string">&quot;/data&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>它表示该路径会作为挂载点。</p>
+<p>但生产镜像里不建议随便写 <code>VOLUME</code>。</p>
+<p>原因：</p>
+<ol>
+<li>它可能创建匿名卷</li>
+<li>匿名卷不容易管理</li>
+<li>后续在 Dockerfile 中对该目录写入可能不符合预期</li>
+<li>数据持久化应该由运行部署层明确声明</li>
+</ol>
+<p>比如数据库官方镜像会声明数据目录，这是合理的。<br>但普通业务应用镜像里，除非非常明确，否则可以不写 <code>VOLUME</code>。</p>
+<p>更推荐在运行时显式挂载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker run -v app-data:/app/data demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十五、STOPSIGNAL：优雅停机相关"><a href="#十五、STOPSIGNAL：优雅停机相关" class="headerlink" title="十五、STOPSIGNAL：优雅停机相关"></a>十五、STOPSIGNAL：优雅停机相关</h2><p>容器停止时，Docker 默认会给容器主进程发送 <code>SIGTERM</code>，等待一段时间后再发送 <code>SIGKILL</code>。</p>
+<p>可以通过 Dockerfile 指定停止信号：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">STOPSIGNAL</span> SIGTERM<br></code></pre></td></tr></table></figure>
+
+<p>大多数 Linux 服务默认 SIGTERM 即可。</p>
+<p>更关键的是：</p>
+<ul>
+<li>应用进程必须是容器的主进程</li>
+<li>ENTRYPOINT 推荐 exec 格式</li>
+<li>Java&#x2F;Spring Boot 要正确处理优雅停机</li>
+<li>不要让 shell 吞掉信号</li>
+</ul>
+<p>Spring Boot 可以配置：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">server:</span><br>  <span class="hljs-attr">shutdown:</span> <span class="hljs-string">graceful</span><br><br><span class="hljs-attr">spring:</span><br>  <span class="hljs-attr">lifecycle:</span><br>    <span class="hljs-attr">timeout-per-shutdown-phase:</span> <span class="hljs-string">30s</span><br></code></pre></td></tr></table></figure>
+
+<p>Dockerfile 层面负责信号可达，应用层面负责优雅退出。</p>
+<hr>
+<h2 id="十六、-dockerignore：被严重低估的优化点"><a href="#十六、-dockerignore：被严重低估的优化点" class="headerlink" title="十六、.dockerignore：被严重低估的优化点"></a>十六、.dockerignore：被严重低估的优化点</h2><p><code>.dockerignore</code> 用来排除不需要发送到构建上下文的文件。</p>
+<p>示例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs dockerignore">.git<br>.idea<br>.vscode<br>*.log<br>*.tmp<br>.DS_Store<br><br>target/classes<br>target/test-classes<br>target/surefire-reports<br><br>node_modules<br>dist<br>coverage<br><br>.env<br>.env.*<br>*.pem<br>*.key<br></code></pre></td></tr></table></figure>
+
+<h3 id="1-为什么它重要？"><a href="#1-为什么它重要？" class="headerlink" title="1. 为什么它重要？"></a>1. 为什么它重要？</h3><p>因为执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build -t demo-app:1.0.0 .<br></code></pre></td></tr></table></figure>
+
+<p>时，当前目录作为 build context 参与构建。</p>
+<p>如果你不写 <code>.dockerignore</code>，可能会把这些东西都发给构建器：</p>
+<ul>
+<li><code>.git</code></li>
+<li>IDE 配置</li>
+<li>本地日志</li>
+<li>测试报告</li>
+<li>node_modules</li>
+<li>临时文件</li>
+<li>密钥文件</li>
+<li>大型数据文件</li>
+</ul>
+<p>结果就是：</p>
+<ul>
+<li>构建变慢</li>
+<li>缓存更容易失效</li>
+<li>镜像可能泄露敏感信息</li>
+<li>CI&#x2F;CD 流水线浪费时间</li>
+</ul>
+<h3 id="2-常见错误"><a href="#2-常见错误" class="headerlink" title="2. 常见错误"></a>2. 常见错误</h3><p>错误示例：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br></code></pre></td></tr></table></figure>
+
+<p>然后项目中没有 <code>.dockerignore</code>。</p>
+<p>这等于把整个项目目录一股脑塞进去。<br>如果目录里有 <code>.env</code>、私钥、日志、测试数据，恭喜你，镜像变成了“赛博垃圾桶”。</p>
+<h3 id="3-Java-项目-dockerignore-推荐"><a href="#3-Java-项目-dockerignore-推荐" class="headerlink" title="3. Java 项目 .dockerignore 推荐"></a>3. Java 项目 .dockerignore 推荐</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs dockerignore">.git<br>.idea<br>.vscode<br>*.iml<br>*.log<br>.DS_Store<br><br>target/classes<br>target/generated-sources<br>target/generated-test-sources<br>target/maven-status<br>target/surefire-reports<br>target/test-classes<br><br>.env<br>.env.*<br>*.pem<br>*.key<br></code></pre></td></tr></table></figure>
+
+<p>如果是先在宿主机构建 jar，再 Docker build，可以保留：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs dockerignore">target/*<br>!target/*.jar<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-Node-项目-dockerignore-推荐"><a href="#4-Node-项目-dockerignore-推荐" class="headerlink" title="4. Node 项目 .dockerignore 推荐"></a>4. Node 项目 .dockerignore 推荐</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs dockerignore">.git<br>.idea<br>.vscode<br>*.log<br>.DS_Store<br><br>node_modules<br>dist<br>coverage<br><br>.env<br>.env.*<br>*.pem<br>*.key<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十七、Docker-构建缓存深度优化"><a href="#十七、Docker-构建缓存深度优化" class="headerlink" title="十七、Docker 构建缓存深度优化"></a>十七、Docker 构建缓存深度优化</h2><p>Dockerfile 优化里，缓存是核心。</p>
+<h3 id="1-基本规则"><a href="#1-基本规则" class="headerlink" title="1. 基本规则"></a>1. 基本规则</h3><p>Docker 构建缓存可以简化理解为：</p>
+<pre><code class=" mermaid">flowchart TB
+    A[FROM 是否命中缓存] --&gt; B[第一条指令是否命中缓存]
+    B --&gt; C[第二条指令是否命中缓存]
+    C --&gt; D[第三条指令是否命中缓存]
+    D --&gt; E[后续层继续判断]
+    C --&gt;|某层失效| F[该层之后全部重建]
+</code></pre>
+
+<p>一旦某一层缓存失效，后续层通常都要重新构建。</p>
+<h3 id="2-指令顺序原则"><a href="#2-指令顺序原则" class="headerlink" title="2. 指令顺序原则"></a>2. 指令顺序原则</h3><p>核心原则：</p>
+<blockquote>
+<p>低频变化的内容放前面，高频变化的内容放后面。</p>
+</blockquote>
+<p>例如 Java Maven 项目：</p>
+<p>不推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> mvn clean package -DskipTests</span><br></code></pre></td></tr></table></figure>
+
+<p>推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> pom.xml .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> mvn dependency:go-offline</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> src ./src</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> mvn clean package -DskipTests</span><br></code></pre></td></tr></table></figure>
+
+<p>因为：</p>
+<ul>
+<li><code>pom.xml</code> 变化频率低</li>
+<li><code>src</code> 变化频率高</li>
+<li>依赖下载很耗时</li>
+<li>源码变化不应该导致依赖重新下载</li>
+</ul>
+<h3 id="3-Node-项目缓存优化"><a href="#3-Node-项目缓存优化" class="headerlink" title="3. Node 项目缓存优化"></a>3. Node 项目缓存优化</h3><p>不推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> npm install</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> npm run build</span><br></code></pre></td></tr></table></figure>
+
+<p>推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> package.json package-lock.json ./</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> npm ci</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> npm run build</span><br></code></pre></td></tr></table></figure>
+
+<p>只要 <code>package-lock.json</code> 不变，<code>npm ci</code> 层可以复用。</p>
+<h3 id="4-Python-项目缓存优化"><a href="#4-Python-项目缓存优化" class="headerlink" title="4. Python 项目缓存优化"></a>4. Python 项目缓存优化</h3><p>不推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> pip install -r requirements.txt</span><br></code></pre></td></tr></table></figure>
+
+<p>推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> requirements.txt .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> pip install --no-cache-dir -r requirements.txt</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="5-缓存失效的常见来源"><a href="#5-缓存失效的常见来源" class="headerlink" title="5. 缓存失效的常见来源"></a>5. 缓存失效的常见来源</h3><table>
+<thead>
+<tr>
+<th>来源</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>COPY . .</code></td>
+<td>项目任意文件变化都可能导致缓存失效</td>
+</tr>
+<tr>
+<td>未写 <code>.dockerignore</code></td>
+<td>日志、临时文件变化导致缓存失效</td>
+</tr>
+<tr>
+<td>依赖和源码一起复制</td>
+<td>源码变化导致依赖层重建</td>
+</tr>
+<tr>
+<td><code>RUN apt-get update</code> 单独一层</td>
+<td>可能复用旧缓存，导致包索引不符合预期</td>
+</tr>
+<tr>
+<td>构建参数变化</td>
+<td><code>ARG</code> 被使用后会影响后续缓存</td>
+</tr>
+<tr>
+<td>基础镜像变化</td>
+<td><code>FROM</code> 变化导致整体重建</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="十八、BuildKit：现代-Dockerfile-优化能力"><a href="#十八、BuildKit：现代-Dockerfile-优化能力" class="headerlink" title="十八、BuildKit：现代 Dockerfile 优化能力"></a>十八、BuildKit：现代 Dockerfile 优化能力</h2><p>BuildKit 是 Docker 现代构建后端，提供更强的缓存、并行构建、secret、ssh mount、多平台构建等能力。</p>
+<p>建议 Dockerfile 顶部加：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br></code></pre></td></tr></table></figure>
+
+<p>这表示使用 Dockerfile frontend 的语法版本。</p>
+<h3 id="1-启用-BuildKit"><a href="#1-启用-BuildKit" class="headerlink" title="1. 启用 BuildKit"></a>1. 启用 BuildKit</h3><p>较新 Docker 版本一般默认启用。也可以显式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">DOCKER_BUILDKIT=1 docker build -t demo-app:1.0.0 .<br></code></pre></td></tr></table></figure>
+
+<p>使用 buildx：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker buildx build -t demo-app:1.0.0 .<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-cache-mount：依赖缓存优化神器"><a href="#2-cache-mount：依赖缓存优化神器" class="headerlink" title="2. cache mount：依赖缓存优化神器"></a>2. cache mount：依赖缓存优化神器</h3><p>传统写法里，依赖下载可能被 layer cache 影响。BuildKit 的 cache mount 可以提供一个跨构建复用的缓存目录。</p>
+<h4 id="Maven-缓存"><a href="#Maven-缓存" class="headerlink" title="Maven 缓存"></a>Maven 缓存</h4><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br><br><span class="hljs-keyword">FROM</span> maven:<span class="hljs-number">3.9</span>-eclipse-temurin-<span class="hljs-number">17</span> AS builder<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /build</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> pom.xml .</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.m2 \</span><br><span class="language-bash">    mvn -B dependency:go-offline</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> src ./src</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.m2 \</span><br><span class="language-bash">    mvn -B clean package -DskipTests</span><br></code></pre></td></tr></table></figure>
+
+<p>这样 Maven 本地仓库 <code>/root/.m2</code> 可以在多次构建间复用。</p>
+<h4 id="npm-缓存"><a href="#npm-缓存" class="headerlink" title="npm 缓存"></a>npm 缓存</h4><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br><br><span class="hljs-keyword">FROM</span> node:<span class="hljs-number">20</span> AS builder<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> package.json package-lock.json ./</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.npm \</span><br><span class="language-bash">    npm ci</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> npm run build</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="apt-缓存"><a href="#apt-缓存" class="headerlink" title="apt 缓存"></a>apt 缓存</h4><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/var/cache/apt \</span><br><span class="language-bash">    --mount=<span class="hljs-built_in">type</span>=cache,target=/var/lib/apt \</span><br><span class="language-bash">    apt-get update \</span><br><span class="language-bash">    &amp;&amp; apt-get install -y --no-install-recommends curl</span><br></code></pre></td></tr></table></figure>
+
+<p>注意：不同发行版、不同包管理器的缓存目录不一样，使用前要确认。</p>
+<h3 id="3-secret-mount：不要把密钥写进镜像"><a href="#3-secret-mount：不要把密钥写进镜像" class="headerlink" title="3. secret mount：不要把密钥写进镜像"></a>3. secret mount：不要把密钥写进镜像</h3><p>错误写法：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ARG</span> TOKEN<br><span class="hljs-keyword">RUN</span><span class="language-bash"> curl -H <span class="hljs-string">&quot;Authorization: Bearer <span class="hljs-variable">$&#123;TOKEN&#125;</span>&quot;</span> https://example.com/private.tar.gz</span><br></code></pre></td></tr></table></figure>
+
+<p>这个 token 可能进入构建历史或日志。</p>
+<p>BuildKit 推荐：</p>
+<p>构建：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build \<br>  --secret <span class="hljs-built_in">id</span>=api_token,src=./api_token.txt \<br>  -t demo-app:1.0.0 .<br></code></pre></td></tr></table></figure>
+
+<p>Dockerfile：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=secret,<span class="hljs-built_in">id</span>=api_token \</span><br><span class="language-bash">    TOKEN=<span class="hljs-string">&quot;<span class="hljs-subst">$(cat /run/secrets/api_token)</span>&quot;</span> \</span><br><span class="language-bash">    &amp;&amp; curl -H <span class="hljs-string">&quot;Authorization: Bearer <span class="hljs-variable">$&#123;TOKEN&#125;</span>&quot;</span> https://example.com/private.tar.gz -o private.tar.gz</span><br></code></pre></td></tr></table></figure>
+
+<p>secret mount 的特点：</p>
+<ul>
+<li>只在该 <code>RUN</code> 指令执行期间可见</li>
+<li>不会持久化到镜像层</li>
+<li>不应该出现在最终镜像里</li>
+</ul>
+<h3 id="4-ssh-mount：拉取私有-Git-仓库"><a href="#4-ssh-mount：拉取私有-Git-仓库" class="headerlink" title="4. ssh mount：拉取私有 Git 仓库"></a>4. ssh mount：拉取私有 Git 仓库</h3><p>构建：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker buildx build \<br>  --ssh default \<br>  -t demo-app:1.0.0 .<br></code></pre></td></tr></table></figure>
+
+<p>Dockerfile：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=ssh \</span><br><span class="language-bash">    git <span class="hljs-built_in">clone</span> git@github.com:example/private-repo.git</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="5-bind-mount：构建时临时挂载源码"><a href="#5-bind-mount：构建时临时挂载源码" class="headerlink" title="5. bind mount：构建时临时挂载源码"></a>5. bind mount：构建时临时挂载源码</h3><p>BuildKit 支持构建时 bind mount，适合某些只需要参与构建但不想进入镜像层和缓存的内容。</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=<span class="hljs-built_in">bind</span>,target=/src \</span><br><span class="language-bash">    <span class="hljs-built_in">cp</span> /src/some-file /app/some-file</span><br></code></pre></td></tr></table></figure>
+
+<p>多数业务场景用 <code>COPY</code> 足够，bind mount 属于高级优化。</p>
+<h3 id="6-external-cache：CI-CD-加速"><a href="#6-external-cache：CI-CD-加速" class="headerlink" title="6. external cache：CI&#x2F;CD 加速"></a>6. external cache：CI&#x2F;CD 加速</h3><p>CI&#x2F;CD 机器经常是临时环境，本地缓存没法长期保留。可以使用 registry cache。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker buildx build \<br>  --cache-from=<span class="hljs-built_in">type</span>=registry,ref=registry.example.com/demo-app:buildcache \<br>  --cache-to=<span class="hljs-built_in">type</span>=registry,ref=registry.example.com/demo-app:buildcache,mode=max \<br>  -t registry.example.com/demo-app:1.0.0 \<br>  --push .<br></code></pre></td></tr></table></figure>
+
+<p>这样不同 CI 构建任务之间可以复用远程缓存。</p>
+<hr>
+<h2 id="十九、多阶段构建深入"><a href="#十九、多阶段构建深入" class="headerlink" title="十九、多阶段构建深入"></a>十九、多阶段构建深入</h2><p>多阶段构建不是“高级技巧”，而是生产 Dockerfile 的基本功。</p>
+<h3 id="1-为什么要多阶段？"><a href="#1-为什么要多阶段？" class="headerlink" title="1. 为什么要多阶段？"></a>1. 为什么要多阶段？</h3><p>以 Java 项目为例，构建需要：</p>
+<ul>
+<li>Maven</li>
+<li>JDK</li>
+<li>源码</li>
+<li>测试依赖</li>
+<li>编译缓存</li>
+</ul>
+<p>运行只需要：</p>
+<ul>
+<li>JRE</li>
+<li>app.jar</li>
+<li>配置</li>
+<li>必要证书&#x2F;字体&#x2F;时区</li>
+</ul>
+<p>如果把构建环境也放进最终镜像，会导致：</p>
+<ul>
+<li>镜像体积大</li>
+<li>安全面变大</li>
+<li>源码泄露</li>
+<li>构建依赖污染运行环境</li>
+</ul>
+<h3 id="2-标准多阶段结构"><a href="#2-标准多阶段结构" class="headerlink" title="2. 标准多阶段结构"></a>2. 标准多阶段结构</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br><br><span class="hljs-keyword">FROM</span> maven:<span class="hljs-number">3.9</span>-eclipse-temurin-<span class="hljs-number">17</span> AS deps<br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /build</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> pom.xml .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.m2 \</span><br><span class="language-bash">    mvn -B dependency:go-offline</span><br><br><span class="hljs-keyword">FROM</span> deps AS builder<br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /build</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> src ./src</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.m2 \</span><br><span class="language-bash">    mvn -B clean package -DskipTests</span><br><br><span class="hljs-keyword">FROM</span> eclipse-temurin:<span class="hljs-number">17</span>-jre AS runtime<br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder /build/target/*.jar app.jar</span><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;java&quot;</span>, <span class="hljs-string">&quot;-jar&quot;</span>, <span class="hljs-string">&quot;app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>这里分了三个阶段：</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>deps</td>
+<td>下载依赖</td>
+</tr>
+<tr>
+<td>builder</td>
+<td>编译打包</td>
+</tr>
+<tr>
+<td>runtime</td>
+<td>最终运行</td>
+</tr>
+</tbody></table>
+<h3 id="3-命名阶段"><a href="#3-命名阶段" class="headerlink" title="3. 命名阶段"></a>3. 命名阶段</h3><p>推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> maven:<span class="hljs-number">3.9</span>-eclipse-temurin-<span class="hljs-number">17</span> AS builder<br></code></pre></td></tr></table></figure>
+
+<p>然后：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder /build/target/*.jar app.jar</span><br></code></pre></td></tr></table></figure>
+
+<p>不要用：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=0 /build/target/*.jar app.jar</span><br></code></pre></td></tr></table></figure>
+
+<p>因为阶段顺序一改，数字就可能错。</p>
+<h3 id="4-只构建某个阶段"><a href="#4-只构建某个阶段" class="headerlink" title="4. 只构建某个阶段"></a>4. 只构建某个阶段</h3><p>调试时可以：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build --target builder -t demo-app:builder .<br></code></pre></td></tr></table></figure>
+
+<p>这对排查构建阶段问题非常有用。</p>
+<h3 id="5-debug-stage-与-production-stage"><a href="#5-debug-stage-与-production-stage" class="headerlink" title="5. debug stage 与 production stage"></a>5. debug stage 与 production stage</h3><p>可以在一个 Dockerfile 里提供 debug 和 production 两种目标。</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> eclipse-temurin:<span class="hljs-number">17</span>-jre AS base<br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder /build/target/*.jar app.jar</span><br><br><span class="hljs-keyword">FROM</span> base AS debug<br><span class="hljs-keyword">RUN</span><span class="language-bash"> apt-get update \</span><br><span class="language-bash">    &amp;&amp; apt-get install -y --no-install-recommends curl vim procps \</span><br><span class="language-bash">    &amp;&amp; <span class="hljs-built_in">rm</span> -rf /var/lib/apt/lists/*</span><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;java&quot;</span>, <span class="hljs-string">&quot;-jar&quot;</span>, <span class="hljs-string">&quot;app.jar&quot;</span>]</span><br><br><span class="hljs-keyword">FROM</span> base AS production<br><span class="hljs-keyword">USER</span> app<br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;java&quot;</span>, <span class="hljs-string">&quot;-jar&quot;</span>, <span class="hljs-string">&quot;app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>构建 debug 镜像：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build --target debug -t demo-app:debug .<br></code></pre></td></tr></table></figure>
+
+<p>构建生产镜像：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build --target production -t demo-app:1.0.0 .<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="二十、Java-Spring-Boot-Dockerfile-深度优化"><a href="#二十、Java-Spring-Boot-Dockerfile-深度优化" class="headerlink" title="二十、Java &#x2F; Spring Boot Dockerfile 深度优化"></a>二十、Java &#x2F; Spring Boot Dockerfile 深度优化</h2><p>Java 是企业后端里非常常见的 Docker 化对象。这里重点讲 Spring Boot。</p>
+<h3 id="1-最粗糙写法"><a href="#1-最粗糙写法" class="headerlink" title="1. 最粗糙写法"></a>1. 最粗糙写法</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> openjdk:<span class="hljs-number">17</span><br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> target/app.jar app.jar</span><br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span><br><br><span class="hljs-keyword">CMD</span><span class="language-bash"> java -jar app.jar</span><br></code></pre></td></tr></table></figure>
+
+<p>问题：</p>
+<ul>
+<li>基础镜像可能偏大</li>
+<li>没有固定版本</li>
+<li>使用 shell 格式 CMD</li>
+<li>没有非 root 用户</li>
+<li>没有 JVM 参数入口</li>
+<li>没有健康检查</li>
+<li>没有镜像元数据</li>
+<li>没有利用 Spring Boot 分层 jar</li>
+<li>没有优雅停机考虑</li>
+</ul>
+<h3 id="2-基础生产写法"><a href="#2-基础生产写法" class="headerlink" title="2. 基础生产写法"></a>2. 基础生产写法</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> eclipse-temurin:<span class="hljs-number">17</span>-jre<br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> groupadd -r app &amp;&amp; useradd -r -g app app</span><br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --<span class="hljs-built_in">chown</span>=app:app target/app.jar app.jar</span><br><br><span class="hljs-keyword">USER</span> app<br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span><br><br><span class="hljs-keyword">ENV</span> JAVA_OPTS=<span class="hljs-string">&quot;-XX:MaxRAMPercentage=75.0&quot;</span><br><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;sh&quot;</span>, <span class="hljs-string">&quot;-c&quot;</span>, <span class="hljs-string">&quot;exec java <span class="hljs-variable">$JAVA_OPTS</span> -jar app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>这里已经做了几件事：</p>
+<ul>
+<li>使用 JRE 而不是完整 JDK</li>
+<li>非 root 用户运行</li>
+<li>支持 JVM 参数</li>
+<li>使用 <code>exec</code> 转发信号</li>
+<li>声明端口</li>
+</ul>
+<h3 id="3-Maven-多阶段构建版本"><a href="#3-Maven-多阶段构建版本" class="headerlink" title="3. Maven 多阶段构建版本"></a>3. Maven 多阶段构建版本</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br><br><span class="hljs-keyword">FROM</span> maven:<span class="hljs-number">3.9</span>-eclipse-temurin-<span class="hljs-number">17</span> AS builder<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /build</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> pom.xml .</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.m2 \</span><br><span class="language-bash">    mvn -B dependency:go-offline</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> src ./src</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.m2 \</span><br><span class="language-bash">    mvn -B clean package -DskipTests</span><br><br><span class="hljs-keyword">FROM</span> eclipse-temurin:<span class="hljs-number">17</span>-jre<br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> groupadd -r app &amp;&amp; useradd -r -g app app</span><br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder --<span class="hljs-built_in">chown</span>=app:app /build/target/*.jar app.jar</span><br><br><span class="hljs-keyword">USER</span> app<br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span><br><br><span class="hljs-keyword">ENV</span> JAVA_OPTS=<span class="hljs-string">&quot;-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC&quot;</span><br><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;sh&quot;</span>, <span class="hljs-string">&quot;-c&quot;</span>, <span class="hljs-string">&quot;exec java <span class="hljs-variable">$JAVA_OPTS</span> -jar app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="4-Spring-Boot-Layered-Jar-优化"><a href="#4-Spring-Boot-Layered-Jar-优化" class="headerlink" title="4. Spring Boot Layered Jar 优化"></a>4. Spring Boot Layered Jar 优化</h3><p>Spring Boot 支持 layered jar，可以把 jar 拆成不同层：</p>
+<ul>
+<li>dependencies</li>
+<li>spring-boot-loader</li>
+<li>snapshot-dependencies</li>
+<li>application</li>
+</ul>
+<p>这样应用代码变化时，不必让依赖层全部失效。</p>
+<p>Maven 插件配置：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">build</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">plugins</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-maven-plugin<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">configuration</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">layers</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">enabled</span>&gt;</span>true<span class="hljs-tag">&lt;/<span class="hljs-name">enabled</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">layers</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">configuration</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">plugins</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">build</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>Dockerfile：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br><br><span class="hljs-keyword">FROM</span> maven:<span class="hljs-number">3.9</span>-eclipse-temurin-<span class="hljs-number">17</span> AS builder<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /build</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> pom.xml .</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.m2 \</span><br><span class="language-bash">    mvn -B dependency:go-offline</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> src ./src</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.m2 \</span><br><span class="language-bash">    mvn -B clean package -DskipTests</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> <span class="hljs-built_in">mkdir</span> -p target/extracted \</span><br><span class="language-bash">    &amp;&amp; java -Djarmode=layertools -jar target/*.jar extract --destination target/extracted</span><br><br><span class="hljs-keyword">FROM</span> eclipse-temurin:<span class="hljs-number">17</span>-jre<br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> groupadd -r app &amp;&amp; useradd -r -g app app</span><br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder --<span class="hljs-built_in">chown</span>=app:app /build/target/extracted/dependencies/ ./</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder --<span class="hljs-built_in">chown</span>=app:app /build/target/extracted/spring-boot-loader/ ./</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder --<span class="hljs-built_in">chown</span>=app:app /build/target/extracted/snapshot-dependencies/ ./</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder --<span class="hljs-built_in">chown</span>=app:app /build/target/extracted/application/ ./</span><br><br><span class="hljs-keyword">USER</span> app<br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span><br><br><span class="hljs-keyword">ENV</span> JAVA_OPTS=<span class="hljs-string">&quot;-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC&quot;</span><br><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;sh&quot;</span>, <span class="hljs-string">&quot;-c&quot;</span>, <span class="hljs-string">&quot;exec java <span class="hljs-variable">$JAVA_OPTS</span> org.springframework.boot.loader.launch.JarLauncher&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>优化点：</p>
+<pre><code class=" mermaid">flowchart TB
+    A[dependencies 第三方依赖] --&gt; B[变化频率低，可长期缓存]
+    C[snapshot-dependencies 快照依赖] --&gt; D[变化频率中]
+    E[spring-boot-loader] --&gt; F[变化频率低]
+    G[application 业务代码] --&gt; H[变化频率高，放最后]
+</code></pre>
+
+<p>这样当你只改业务代码时，依赖层大概率可以复用。</p>
+<h3 id="5-Java-容器内存参数建议"><a href="#5-Java-容器内存参数建议" class="headerlink" title="5. Java 容器内存参数建议"></a>5. Java 容器内存参数建议</h3><p>不要简单写死：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-Xmx512m<br></code></pre></td></tr></table></figure>
+
+<p>如果容器运行时限制内存 512MB，JVM 堆也设置 512MB，就容易 OOM，因为还有：</p>
+<ul>
+<li>metaspace</li>
+<li>direct memory</li>
+<li>thread stack</li>
+<li>code cache</li>
+<li>native memory</li>
+</ul>
+<p>更容器友好的方式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-XX:MaxRAMPercentage=75.0<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ENV</span> JAVA_OPTS=<span class="hljs-string">&quot;-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>运行时再按环境覆盖：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker run \<br>  -e JAVA_OPTS=<span class="hljs-string">&quot;-XX:MaxRAMPercentage=70.0 -XX:+UseG1GC&quot;</span> \<br>  demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-Spring-Boot-优雅停机与-Dockerfile"><a href="#6-Spring-Boot-优雅停机与-Dockerfile" class="headerlink" title="6. Spring Boot 优雅停机与 Dockerfile"></a>6. Spring Boot 优雅停机与 Dockerfile</h3><p>Dockerfile：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;sh&quot;</span>, <span class="hljs-string">&quot;-c&quot;</span>, <span class="hljs-string">&quot;exec java <span class="hljs-variable">$JAVA_OPTS</span> -jar app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>Spring 配置：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">server:</span><br>  <span class="hljs-attr">shutdown:</span> <span class="hljs-string">graceful</span><br><br><span class="hljs-attr">spring:</span><br>  <span class="hljs-attr">lifecycle:</span><br>    <span class="hljs-attr">timeout-per-shutdown-phase:</span> <span class="hljs-string">30s</span><br></code></pre></td></tr></table></figure>
+
+<p>运行时：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker stop -t 35 demo-app<br></code></pre></td></tr></table></figure>
+
+<p>含义：</p>
+<ul>
+<li>Docker 发送 SIGTERM</li>
+<li>Java 进程收到信号</li>
+<li>Spring Boot 执行优雅停机</li>
+<li>35 秒后仍未退出才强杀</li>
+</ul>
+<hr>
+<h2 id="二十一、Node-前端项目-Dockerfile-优化"><a href="#二十一、Node-前端项目-Dockerfile-优化" class="headerlink" title="二十一、Node &#x2F; 前端项目 Dockerfile 优化"></a>二十一、Node &#x2F; 前端项目 Dockerfile 优化</h2><h3 id="1-错误写法"><a href="#1-错误写法" class="headerlink" title="1. 错误写法"></a>1. 错误写法</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> node:<span class="hljs-number">20</span><br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> npm install</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> npm run build</span><br><br><span class="hljs-keyword">CMD</span><span class="language-bash"> [<span class="hljs-string">&quot;npm&quot;</span>, <span class="hljs-string">&quot;run&quot;</span>, <span class="hljs-string">&quot;start&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>问题：</p>
+<ul>
+<li><code>COPY . .</code> 导致缓存容易失效</li>
+<li><code>npm install</code> 不如 <code>npm ci</code> 可复现</li>
+<li>最终镜像包含源码和 node_modules</li>
+<li>前端静态资源不需要 Node 运行时</li>
+<li>镜像大</li>
+</ul>
+<h3 id="2-优化写法：构建后交给-Nginx"><a href="#2-优化写法：构建后交给-Nginx" class="headerlink" title="2. 优化写法：构建后交给 Nginx"></a>2. 优化写法：构建后交给 Nginx</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br><br><span class="hljs-keyword">FROM</span> node:<span class="hljs-number">20</span>-bookworm-slim AS builder<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> package.json package-lock.json ./</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.npm \</span><br><span class="language-bash">    npm ci</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> npm run build</span><br><br><span class="hljs-keyword">FROM</span> nginx:stable-alpine AS runtime<br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder /app/dist /usr/share/nginx/html</span><br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">80</span><br><br><span class="hljs-keyword">CMD</span><span class="language-bash"> [<span class="hljs-string">&quot;nginx&quot;</span>, <span class="hljs-string">&quot;-g&quot;</span>, <span class="hljs-string">&quot;daemon off;&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="3-自定义-Nginx-配置"><a href="#3-自定义-Nginx-配置" class="headerlink" title="3. 自定义 Nginx 配置"></a>3. 自定义 Nginx 配置</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> nginx:stable-alpine<br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> nginx.conf /etc/nginx/conf.d/default.conf</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder /app/dist /usr/share/nginx/html</span><br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">80</span><br><br><span class="hljs-keyword">CMD</span><span class="language-bash"> [<span class="hljs-string">&quot;nginx&quot;</span>, <span class="hljs-string">&quot;-g&quot;</span>, <span class="hljs-string">&quot;daemon off;&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>nginx.conf：</p>
+<figure class="highlight nginx"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs nginx"><span class="hljs-section">server</span> &#123;<br>    <span class="hljs-attribute">listen</span> <span class="hljs-number">80</span>;<br>    <span class="hljs-attribute">server_name</span> _;<br><br>    <span class="hljs-attribute">root</span> /usr/share/nginx/html;<br>    <span class="hljs-attribute">index</span> index.html;<br><br>    <span class="hljs-section">location</span> / &#123;<br>        <span class="hljs-attribute">try_files</span> <span class="hljs-variable">$uri</span> <span class="hljs-variable">$uri</span>/ /index.html;<br>    &#125;<br><br>    <span class="hljs-section">location</span> /assets/ &#123;<br>        <span class="hljs-attribute">expires</span> <span class="hljs-number">7d</span>;<br>        <span class="hljs-attribute">add_header</span> Cache-Control <span class="hljs-string">&quot;public&quot;</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>适合 Vue、React、Vite 等单页应用。</p>
+<hr>
+<h2 id="二十二、Go-项目-Dockerfile-优化"><a href="#二十二、Go-项目-Dockerfile-优化" class="headerlink" title="二十二、Go 项目 Dockerfile 优化"></a>二十二、Go 项目 Dockerfile 优化</h2><p>Go 项目非常适合多阶段构建。</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br><br><span class="hljs-keyword">FROM</span> golang:<span class="hljs-number">1.22</span> AS builder<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /src</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> go.mod go.sum ./</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/go/pkg/mod \</span><br><span class="language-bash">    go mod download</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/go/pkg/mod \</span><br><span class="language-bash">    --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.cache/go-build \</span><br><span class="language-bash">    CGO_ENABLED=0 GOOS=linux go build -o /out/app ./cmd/app</span><br><br><span class="hljs-keyword">FROM</span> scratch<br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder /out/app /app</span><br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span><br><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;/app&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>如果需要 CA 证书：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> alpine:<span class="hljs-number">3.20</span> AS certs<br><span class="hljs-keyword">RUN</span><span class="language-bash"> apk --no-cache add ca-certificates</span><br><br><span class="hljs-keyword">FROM</span> scratch<br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder /out/app /app</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/</span><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;/app&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="二十三、Python-项目-Dockerfile-优化"><a href="#二十三、Python-项目-Dockerfile-优化" class="headerlink" title="二十三、Python 项目 Dockerfile 优化"></a>二十三、Python 项目 Dockerfile 优化</h2><p>Python 镜像优化重点：</p>
+<ul>
+<li>固定 Python 版本</li>
+<li>使用 slim 镜像</li>
+<li>单独复制 requirements</li>
+<li>使用 venv 或安装到系统路径</li>
+<li>避免 pip 缓存进入镜像</li>
+<li>多阶段处理编译依赖</li>
+</ul>
+<p>基础写法：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> python:<span class="hljs-number">3.12</span>-slim<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">ENV</span> PYTHONDONTWRITEBYTECODE=<span class="hljs-number">1</span> \<br>    PYTHONUNBUFFERED=<span class="hljs-number">1</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> requirements.txt .</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> pip install --no-cache-dir -r requirements.txt</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8000</span><br><br><span class="hljs-keyword">CMD</span><span class="language-bash"> [<span class="hljs-string">&quot;python&quot;</span>, <span class="hljs-string">&quot;app.py&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>带构建依赖的多阶段写法：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br><br><span class="hljs-keyword">FROM</span> python:<span class="hljs-number">3.12</span>-slim AS builder<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> apt-get update \</span><br><span class="language-bash">    &amp;&amp; apt-get install -y --no-install-recommends build-essential gcc \</span><br><span class="language-bash">    &amp;&amp; <span class="hljs-built_in">rm</span> -rf /var/lib/apt/lists/*</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> requirements.txt .</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.cache/pip \</span><br><span class="language-bash">    pip wheel --wheel-dir /wheels -r requirements.txt</span><br><br><span class="hljs-keyword">FROM</span> python:<span class="hljs-number">3.12</span>-slim<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">ENV</span> PYTHONDONTWRITEBYTECODE=<span class="hljs-number">1</span> \<br>    PYTHONUNBUFFERED=<span class="hljs-number">1</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder /wheels /wheels</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> requirements.txt .</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt \</span><br><span class="language-bash">    &amp;&amp; <span class="hljs-built_in">rm</span> -rf /wheels</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8000</span><br><br><span class="hljs-keyword">CMD</span><span class="language-bash"> [<span class="hljs-string">&quot;python&quot;</span>, <span class="hljs-string">&quot;app.py&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="二十四、镜像体积优化：不是越小越好，而是刚好够用"><a href="#二十四、镜像体积优化：不是越小越好，而是刚好够用" class="headerlink" title="二十四、镜像体积优化：不是越小越好，而是刚好够用"></a>二十四、镜像体积优化：不是越小越好，而是刚好够用</h2><h3 id="1-查看镜像大小"><a href="#1-查看镜像大小" class="headerlink" title="1. 查看镜像大小"></a>1. 查看镜像大小</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker images<br></code></pre></td></tr></table></figure>
+
+<p>查看层信息：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker <span class="hljs-built_in">history</span> demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<p>更好用的工具：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dive demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<p><code>dive</code> 可以分析每层文件变化和浪费空间。</p>
+<h3 id="2-常见瘦身手段"><a href="#2-常见瘦身手段" class="headerlink" title="2. 常见瘦身手段"></a>2. 常见瘦身手段</h3><table>
+<thead>
+<tr>
+<th>手段</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>使用更小基础镜像</td>
+<td>减少初始体积</td>
+</tr>
+<tr>
+<td>多阶段构建</td>
+<td>去掉构建工具和源码</td>
+</tr>
+<tr>
+<td>清理包管理器缓存</td>
+<td>减少无用文件</td>
+</tr>
+<tr>
+<td>精准 COPY</td>
+<td>避免复制无关文件</td>
+</tr>
+<tr>
+<td><code>.dockerignore</code></td>
+<td>减少上下文和泄露</td>
+</tr>
+<tr>
+<td>JRE 替代 JDK</td>
+<td>Java 运行镜像更小</td>
+</tr>
+<tr>
+<td>distroless</td>
+<td>进一步减少系统组件</td>
+</tr>
+<tr>
+<td>删除测试文件和文档</td>
+<td>减少产物体积</td>
+</tr>
+</tbody></table>
+<h3 id="3-瘦身反模式"><a href="#3-瘦身反模式" class="headerlink" title="3. 瘦身反模式"></a>3. 瘦身反模式</h3><h4 id="反模式一：为了小盲目-Alpine"><a href="#反模式一：为了小盲目-Alpine" class="headerlink" title="反模式一：为了小盲目 Alpine"></a>反模式一：为了小盲目 Alpine</h4><p>小不等于稳定。兼容性问题排查起来很贵。</p>
+<h4 id="反模式二：运行镜像里保留构建工具"><a href="#反模式二：运行镜像里保留构建工具" class="headerlink" title="反模式二：运行镜像里保留构建工具"></a>反模式二：运行镜像里保留构建工具</h4><p>例如最终镜像里还有：</p>
+<ul>
+<li>Maven</li>
+<li>npm</li>
+<li>gcc</li>
+<li>make</li>
+<li>git</li>
+<li>源码目录</li>
+</ul>
+<p>这基本说明没做好多阶段构建。</p>
+<h4 id="反模式三：先复制再删除"><a href="#反模式三：先复制再删除" class="headerlink" title="反模式三：先复制再删除"></a>反模式三：先复制再删除</h4><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> <span class="hljs-built_in">rm</span> -rf <span class="hljs-built_in">test</span> docs .git</span><br></code></pre></td></tr></table></figure>
+
+<p>如果 <code>.git</code> 已经在上一层复制进镜像，后面删掉不一定能减少历史层体积。应该用 <code>.dockerignore</code> 从源头排除。</p>
+<hr>
+<h2 id="二十五、Dockerfile-安全优化"><a href="#二十五、Dockerfile-安全优化" class="headerlink" title="二十五、Dockerfile 安全优化"></a>二十五、Dockerfile 安全优化</h2><h3 id="1-不要把密钥写进镜像"><a href="#1-不要把密钥写进镜像" class="headerlink" title="1. 不要把密钥写进镜像"></a>1. 不要把密钥写进镜像</h3><p>错误：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ENV</span> DB_PASSWORD=<span class="hljs-number">123456</span><br><span class="hljs-keyword">ARG</span> GITHUB_TOKEN=xxx<br><span class="hljs-keyword">COPY</span><span class="language-bash"> id_rsa /root/.ssh/id_rsa</span><br></code></pre></td></tr></table></figure>
+
+<p>风险：</p>
+<ul>
+<li><code>docker history</code> 可能看到</li>
+<li>镜像被推送后泄露</li>
+<li>CI 日志可能泄露</li>
+<li>镜像扫描可能记录</li>
+</ul>
+<p>正确：</p>
+<ul>
+<li>构建期使用 BuildKit secret</li>
+<li>运行期使用环境变量或密钥管理</li>
+<li>私钥不要进入镜像层</li>
+</ul>
+<h3 id="2-非-root-用户"><a href="#2-非-root-用户" class="headerlink" title="2. 非 root 用户"></a>2. 非 root 用户</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> groupadd -r app &amp;&amp; useradd -r -g app app</span><br><span class="hljs-keyword">USER</span> app<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-最小化安装包"><a href="#3-最小化安装包" class="headerlink" title="3. 最小化安装包"></a>3. 最小化安装包</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> apt-get update \</span><br><span class="language-bash">    &amp;&amp; apt-get install -y --no-install-recommends ca-certificates curl \</span><br><span class="language-bash">    &amp;&amp; <span class="hljs-built_in">rm</span> -rf /var/lib/apt/lists/*</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="4-使用可信基础镜像"><a href="#4-使用可信基础镜像" class="headerlink" title="4. 使用可信基础镜像"></a>4. 使用可信基础镜像</h3><p>优先：</p>
+<ul>
+<li>Docker Official Images</li>
+<li>Verified Publisher 镜像</li>
+<li>企业内部维护的基础镜像</li>
+<li>定期扫描和更新的镜像</li>
+</ul>
+<h3 id="5-镜像扫描"><a href="#5-镜像扫描" class="headerlink" title="5. 镜像扫描"></a>5. 镜像扫描</h3><p>常见工具：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker scout quickview demo-app:1.0.0<br>docker scout cves demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<p>也可以使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">trivy image demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-生成-SBOM"><a href="#6-生成-SBOM" class="headerlink" title="6. 生成 SBOM"></a>6. 生成 SBOM</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker sbom demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<p>或使用 Syft：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">syft demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-减少运行时能力"><a href="#7-减少运行时能力" class="headerlink" title="7. 减少运行时能力"></a>7. 减少运行时能力</h3><p>有些安全项不在 Dockerfile 里，而是在运行时配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker run \<br>  --read-only \<br>  --cap-drop=ALL \<br>  --security-opt=no-new-privileges \<br>  --tmpfs /tmp \<br>  demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<p>Dockerfile 可以配合：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">USER</span> app<br></code></pre></td></tr></table></figure>
+
+<p>但运行时安全策略仍要在部署层配置。</p>
+<hr>
+<h2 id="二十六、可复现构建优化"><a href="#二十六、可复现构建优化" class="headerlink" title="二十六、可复现构建优化"></a>二十六、可复现构建优化</h2><p>可复现构建的目标：</p>
+<blockquote>
+<p>同一份源码、同一份依赖、同一份 Dockerfile，在不同机器构建出尽可能一致的镜像。</p>
+</blockquote>
+<h3 id="1-固定基础镜像版本"><a href="#1-固定基础镜像版本" class="headerlink" title="1. 固定基础镜像版本"></a>1. 固定基础镜像版本</h3><p>不推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> node:latest<br></code></pre></td></tr></table></figure>
+
+<p>推荐：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> node:<span class="hljs-number">20</span>-bookworm-slim<br></code></pre></td></tr></table></figure>
+
+<p>更严格：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> node:<span class="hljs-number">20</span>-bookworm-slim@sha256:...<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-使用-lock-文件"><a href="#2-使用-lock-文件" class="headerlink" title="2. 使用 lock 文件"></a>2. 使用 lock 文件</h3><p>Node：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> package.json package-lock.json ./</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> npm ci</span><br></code></pre></td></tr></table></figure>
+
+<p>不要：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> npm install</span><br></code></pre></td></tr></table></figure>
+
+<p>Java：</p>
+<ul>
+<li>固定 Maven 插件版本</li>
+<li>固定依赖版本</li>
+<li>使用内部 Maven 仓库代理</li>
+<li>避免动态版本，例如 <code>1.0.+</code></li>
+</ul>
+<p>Python：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> requirements.txt .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> pip install --no-cache-dir -r requirements.txt</span><br></code></pre></td></tr></table></figure>
+
+<p>更严格可以使用 hash pin。</p>
+<h3 id="3-构建时写入版本信息"><a href="#3-构建时写入版本信息" class="headerlink" title="3. 构建时写入版本信息"></a>3. 构建时写入版本信息</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ARG</span> APP_VERSION<br><span class="hljs-keyword">ARG</span> GIT_COMMIT<br><span class="hljs-keyword">ARG</span> BUILD_TIME<br><br><span class="hljs-keyword">LABEL</span><span class="language-bash"> org.opencontainers.image.version=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;APP_VERSION&#125;</span>&quot;</span> \</span><br><span class="language-bash">      org.opencontainers.image.revision=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;GIT_COMMIT&#125;</span>&quot;</span> \</span><br><span class="language-bash">      org.opencontainers.image.created=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;BUILD_TIME&#125;</span>&quot;</span></span><br></code></pre></td></tr></table></figure>
+
+<p>构建：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build \<br>  --build-arg APP_VERSION=1.0.0 \<br>  --build-arg GIT_COMMIT=$(git rev-parse --short HEAD) \<br>  --build-arg BUILD_TIME=$(<span class="hljs-built_in">date</span> -u +<span class="hljs-string">&quot;%Y-%m-%dT%H:%M:%SZ&quot;</span>) \<br>  -t demo-app:1.0.0 .<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="二十七、Dockerfile-可维护性优化"><a href="#二十七、Dockerfile-可维护性优化" class="headerlink" title="二十七、Dockerfile 可维护性优化"></a>二十七、Dockerfile 可维护性优化</h2><p>好的 Dockerfile 应该让别人一眼看懂：</p>
+<ul>
+<li>用什么基础镜像</li>
+<li>哪个阶段负责构建</li>
+<li>哪个阶段负责测试</li>
+<li>哪个阶段负责运行</li>
+<li>复制了什么文件</li>
+<li>启动命令是什么</li>
+<li>端口是什么</li>
+<li>是否非 root</li>
+<li>如何传参数</li>
+</ul>
+<h3 id="1-推荐结构"><a href="#1-推荐结构" class="headerlink" title="1. 推荐结构"></a>1. 推荐结构</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br><br><span class="hljs-comment"># ========== build arguments ==========</span><br><span class="hljs-keyword">ARG</span> JAVA_VERSION=<span class="hljs-number">17</span><br><br><span class="hljs-comment"># ========== dependency stage ==========</span><br><span class="hljs-keyword">FROM</span> maven:<span class="hljs-number">3.9</span>-eclipse-temurin-$&#123;JAVA_VERSION&#125; AS deps<br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /build</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> pom.xml .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.m2 \</span><br><span class="language-bash">    mvn -B dependency:go-offline</span><br><br><span class="hljs-comment"># ========== build stage ==========</span><br><span class="hljs-keyword">FROM</span> deps AS builder<br><span class="hljs-keyword">COPY</span><span class="language-bash"> src ./src</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.m2 \</span><br><span class="language-bash">    mvn -B clean package -DskipTests</span><br><br><span class="hljs-comment"># ========== runtime stage ==========</span><br><span class="hljs-keyword">FROM</span> eclipse-temurin:$&#123;JAVA_VERSION&#125;-jre AS runtime<br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder /build/target/*.jar app.jar</span><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;java&quot;</span>, <span class="hljs-string">&quot;-jar&quot;</span>, <span class="hljs-string">&quot;app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="2-不要过度炫技"><a href="#2-不要过度炫技" class="headerlink" title="2. 不要过度炫技"></a>2. 不要过度炫技</h3><p>不要为了“高级”而把 Dockerfile 写成谜语。</p>
+<p>比如过度使用：</p>
+<ul>
+<li>复杂 shell</li>
+<li>动态下载</li>
+<li>大量 ARG 拼接</li>
+<li>多层嵌套脚本</li>
+<li>构建时访问不稳定外部资源</li>
+</ul>
+<p>Dockerfile 是基础设施代码，稳定和可读优先。</p>
+<hr>
+<h2 id="二十八、生产级-Spring-Boot-Dockerfile-完整模板"><a href="#二十八、生产级-Spring-Boot-Dockerfile-完整模板" class="headerlink" title="二十八、生产级 Spring Boot Dockerfile 完整模板"></a>二十八、生产级 Spring Boot Dockerfile 完整模板</h2><p>下面给一个较完整的 Spring Boot 模板。</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br><br><span class="hljs-keyword">ARG</span> JAVA_VERSION=<span class="hljs-number">17</span><br><span class="hljs-keyword">ARG</span> APP_NAME=demo-app<br><br><span class="hljs-comment"># ========== deps stage ==========</span><br><span class="hljs-keyword">FROM</span> maven:<span class="hljs-number">3.9</span>-eclipse-temurin-$&#123;JAVA_VERSION&#125; AS deps<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /build</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> pom.xml .</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.m2 \</span><br><span class="language-bash">    mvn -B dependency:go-offline</span><br><br><span class="hljs-comment"># ========== build stage ==========</span><br><span class="hljs-keyword">FROM</span> deps AS builder<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /build</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> src ./src</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.m2 \</span><br><span class="language-bash">    mvn -B clean package -DskipTests</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> <span class="hljs-built_in">mkdir</span> -p target/extracted \</span><br><span class="language-bash">    &amp;&amp; java -Djarmode=layertools -jar target/*.jar extract --destination target/extracted</span><br><br><span class="hljs-comment"># ========== runtime stage ==========</span><br><span class="hljs-keyword">FROM</span> eclipse-temurin:$&#123;JAVA_VERSION&#125;-jre AS runtime<br><br><span class="hljs-keyword">ARG</span> APP_NAME<br><span class="hljs-keyword">ARG</span> APP_VERSION=unknown<br><span class="hljs-keyword">ARG</span> GIT_COMMIT=unknown<br><span class="hljs-keyword">ARG</span> BUILD_TIME=unknown<br><br><span class="hljs-keyword">LABEL</span><span class="language-bash"> org.opencontainers.image.title=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;APP_NAME&#125;</span>&quot;</span> \</span><br><span class="language-bash">      org.opencontainers.image.version=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;APP_VERSION&#125;</span>&quot;</span> \</span><br><span class="language-bash">      org.opencontainers.image.revision=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;GIT_COMMIT&#125;</span>&quot;</span> \</span><br><span class="language-bash">      org.opencontainers.image.created=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;BUILD_TIME&#125;</span>&quot;</span></span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> groupadd -r app &amp;&amp; useradd -r -g app app</span><br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder --<span class="hljs-built_in">chown</span>=app:app /build/target/extracted/dependencies/ ./</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder --<span class="hljs-built_in">chown</span>=app:app /build/target/extracted/spring-boot-loader/ ./</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder --<span class="hljs-built_in">chown</span>=app:app /build/target/extracted/snapshot-dependencies/ ./</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder --<span class="hljs-built_in">chown</span>=app:app /build/target/extracted/application/ ./</span><br><br><span class="hljs-keyword">USER</span> app<br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span><br><br><span class="hljs-keyword">ENV</span> JAVA_OPTS=<span class="hljs-string">&quot;-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC&quot;</span> \<br>    TZ=<span class="hljs-string">&quot;Asia/Shanghai&quot;</span><br><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;sh&quot;</span>, <span class="hljs-string">&quot;-c&quot;</span>, <span class="hljs-string">&quot;exec java <span class="hljs-variable">$JAVA_OPTS</span> org.springframework.boot.loader.launch.JarLauncher&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>构建脚本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -e<br><br>APP_NAME=<span class="hljs-string">&quot;demo-app&quot;</span><br>APP_VERSION=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;1:-1.0.0&#125;</span>&quot;</span><br>GIT_COMMIT=<span class="hljs-string">&quot;<span class="hljs-subst">$(git rev-parse --short HEAD 2&gt;/dev/null || echo unknown)</span>&quot;</span><br>BUILD_TIME=<span class="hljs-string">&quot;<span class="hljs-subst">$(date -u +<span class="hljs-string">&quot;%Y-%m-%dT%H:%M:%SZ&quot;</span>)</span>&quot;</span><br><br>docker buildx build \<br>  --build-arg APP_NAME=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;APP_NAME&#125;</span>&quot;</span> \<br>  --build-arg APP_VERSION=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;APP_VERSION&#125;</span>&quot;</span> \<br>  --build-arg GIT_COMMIT=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;GIT_COMMIT&#125;</span>&quot;</span> \<br>  --build-arg BUILD_TIME=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;BUILD_TIME&#125;</span>&quot;</span> \<br>  -t <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;APP_NAME&#125;</span>:<span class="hljs-variable">$&#123;APP_VERSION&#125;</span>&quot;</span> \<br>  .<br></code></pre></td></tr></table></figure>
+
+<p>运行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker run -d \<br>  --name demo-app \<br>  -p 8080:8080 \<br>  -e JAVA_OPTS=<span class="hljs-string">&quot;-XX:MaxRAMPercentage=70.0 -XX:+UseG1GC&quot;</span> \<br>  demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="二十九、常见反模式总结"><a href="#二十九、常见反模式总结" class="headerlink" title="二十九、常见反模式总结"></a>二十九、常见反模式总结</h2><h3 id="反模式一：COPY-一把梭"><a href="#反模式一：COPY-一把梭" class="headerlink" title="反模式一：COPY . . 一把梭"></a>反模式一：COPY . . 一把梭</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br></code></pre></td></tr></table></figure>
+
+<p>如果没有 <code>.dockerignore</code>，这是事故源头。</p>
+<h3 id="反模式二：生产使用-latest"><a href="#反模式二：生产使用-latest" class="headerlink" title="反模式二：生产使用 latest"></a>反模式二：生产使用 latest</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> openjdk:latest<br></code></pre></td></tr></table></figure>
+
+<p>构建不可控。</p>
+<h3 id="反模式三：把密码写进镜像"><a href="#反模式三：把密码写进镜像" class="headerlink" title="反模式三：把密码写进镜像"></a>反模式三：把密码写进镜像</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ENV</span> DB_PASSWORD=<span class="hljs-number">123456</span><br></code></pre></td></tr></table></figure>
+
+<p>这是把密码做成“预制菜”，谁拉镜像谁吃到。</p>
+<h3 id="反模式四：构建和运行不分离"><a href="#反模式四：构建和运行不分离" class="headerlink" title="反模式四：构建和运行不分离"></a>反模式四：构建和运行不分离</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> maven:<span class="hljs-number">3.9</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> mvn package</span><br><span class="hljs-keyword">CMD</span><span class="language-bash"> [<span class="hljs-string">&quot;java&quot;</span>, <span class="hljs-string">&quot;-jar&quot;</span>, <span class="hljs-string">&quot;target/app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>最终镜像里带 Maven 和源码。</p>
+<h3 id="反模式五：容器里用-root-跑服务"><a href="#反模式五：容器里用-root-跑服务" class="headerlink" title="反模式五：容器里用 root 跑服务"></a>反模式五：容器里用 root 跑服务</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> ubuntu<br><span class="hljs-keyword">COPY</span><span class="language-bash"> app /app</span><br><span class="hljs-keyword">CMD</span><span class="language-bash"> [<span class="hljs-string">&quot;/app&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>没有 <code>USER</code>。</p>
+<h3 id="反模式六：shell-格式-ENTRYPOINT"><a href="#反模式六：shell-格式-ENTRYPOINT" class="headerlink" title="反模式六：shell 格式 ENTRYPOINT"></a>反模式六：shell 格式 ENTRYPOINT</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> java -jar app.jar</span><br></code></pre></td></tr></table></figure>
+
+<p>信号处理可能不理想。</p>
+<h3 id="反模式七：安装包不清理缓存"><a href="#反模式七：安装包不清理缓存" class="headerlink" title="反模式七：安装包不清理缓存"></a>反模式七：安装包不清理缓存</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> apt-get update &amp;&amp; apt-get install -y curl</span><br></code></pre></td></tr></table></figure>
+
+<p>会留下包索引缓存。</p>
+<h3 id="反模式八：镜像里装太多调试工具"><a href="#反模式八：镜像里装太多调试工具" class="headerlink" title="反模式八：镜像里装太多调试工具"></a>反模式八：镜像里装太多调试工具</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">RUN</span><span class="language-bash"> apt-get install -y vim net-tools telnet curl wget git procps</span><br></code></pre></td></tr></table></figure>
+
+<p>生产镜像不是瑞士军刀，越多越危险。</p>
+<h3 id="反模式九：使用-VOLUME-制造匿名卷"><a href="#反模式九：使用-VOLUME-制造匿名卷" class="headerlink" title="反模式九：使用 VOLUME 制造匿名卷"></a>反模式九：使用 VOLUME 制造匿名卷</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">VOLUME</span><span class="language-bash"> /app/data</span><br></code></pre></td></tr></table></figure>
+
+<p>业务镜像里随手写可能导致数据位置难追踪。</p>
+<hr>
+<h2 id="三十、Dockerfile-优化检查清单"><a href="#三十、Dockerfile-优化检查清单" class="headerlink" title="三十、Dockerfile 优化检查清单"></a>三十、Dockerfile 优化检查清单</h2><h3 id="1-构建速度"><a href="#1-构建速度" class="headerlink" title="1. 构建速度"></a>1. 构建速度</h3><ul>
+<li><input disabled="" type="checkbox"> 是否写了 <code>.dockerignore</code></li>
+<li><input disabled="" type="checkbox"> 是否避免 <code>COPY . .</code> 太早出现</li>
+<li><input disabled="" type="checkbox"> 是否先复制依赖声明文件</li>
+<li><input disabled="" type="checkbox"> Maven&#x2F;npm&#x2F;pip 是否利用缓存</li>
+<li><input disabled="" type="checkbox"> 是否使用 BuildKit cache mount</li>
+<li><input disabled="" type="checkbox"> CI&#x2F;CD 是否使用 remote cache</li>
+</ul>
+<h3 id="2-镜像体积"><a href="#2-镜像体积" class="headerlink" title="2. 镜像体积"></a>2. 镜像体积</h3><ul>
+<li><input disabled="" type="checkbox"> 是否使用多阶段构建</li>
+<li><input disabled="" type="checkbox"> 运行镜像是否不包含构建工具</li>
+<li><input disabled="" type="checkbox"> 是否使用 JRE 而非 JDK</li>
+<li><input disabled="" type="checkbox"> 是否清理 apt&#x2F;apk&#x2F;yum 缓存</li>
+<li><input disabled="" type="checkbox"> 是否避免复制源码和测试文件</li>
+<li><input disabled="" type="checkbox"> 是否检查 <code>docker history</code></li>
+</ul>
+<h3 id="3-安全"><a href="#3-安全" class="headerlink" title="3. 安全"></a>3. 安全</h3><ul>
+<li><input disabled="" type="checkbox"> 是否避免 root 用户运行</li>
+<li><input disabled="" type="checkbox"> 是否没有写死密码和 Token</li>
+<li><input disabled="" type="checkbox"> 是否使用可信基础镜像</li>
+<li><input disabled="" type="checkbox"> 是否固定基础镜像版本</li>
+<li><input disabled="" type="checkbox"> 是否定期扫描镜像漏洞</li>
+<li><input disabled="" type="checkbox"> 是否生成 SBOM</li>
+<li><input disabled="" type="checkbox"> 是否减少不必要系统工具</li>
+</ul>
+<h3 id="4-可维护性"><a href="#4-可维护性" class="headerlink" title="4. 可维护性"></a>4. 可维护性</h3><ul>
+<li><input disabled="" type="checkbox"> 阶段命名是否清晰</li>
+<li><input disabled="" type="checkbox"> ENTRYPOINT 是否明确</li>
+<li><input disabled="" type="checkbox"> 是否有 LABEL 元数据</li>
+<li><input disabled="" type="checkbox"> 是否有必要注释</li>
+<li><input disabled="" type="checkbox"> 是否能通过 <code>--target</code> 调试构建阶段</li>
+<li><input disabled="" type="checkbox"> 是否支持构建参数注入版本信息</li>
+</ul>
+<h3 id="5-运行可靠性"><a href="#5-运行可靠性" class="headerlink" title="5. 运行可靠性"></a>5. 运行可靠性</h3><ul>
+<li><input disabled="" type="checkbox"> 是否使用 exec 格式或入口脚本中 <code>exec</code></li>
+<li><input disabled="" type="checkbox"> 是否支持优雅停机</li>
+<li><input disabled="" type="checkbox"> 是否声明 EXPOSE</li>
+<li><input disabled="" type="checkbox"> 是否支持环境变量覆盖</li>
+<li><input disabled="" type="checkbox"> 是否有健康检查或编排层健康检查</li>
+<li><input disabled="" type="checkbox"> Java 内存参数是否适配容器限制</li>
+</ul>
+<hr>
+<h2 id="三十一、排查-Dockerfile-构建问题的命令"><a href="#三十一、排查-Dockerfile-构建问题的命令" class="headerlink" title="三十一、排查 Dockerfile 构建问题的命令"></a>三十一、排查 Dockerfile 构建问题的命令</h2><h3 id="1-构建时显示详细日志"><a href="#1-构建时显示详细日志" class="headerlink" title="1. 构建时显示详细日志"></a>1. 构建时显示详细日志</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build --progress=plain -t demo-app:1.0.0 .<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-不使用缓存构建"><a href="#2-不使用缓存构建" class="headerlink" title="2. 不使用缓存构建"></a>2. 不使用缓存构建</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build --no-cache -t demo-app:1.0.0 .<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-只构建某个阶段"><a href="#3-只构建某个阶段" class="headerlink" title="3. 只构建某个阶段"></a>3. 只构建某个阶段</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build --target builder -t demo-app:builder .<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-进入中间阶段调试"><a href="#4-进入中间阶段调试" class="headerlink" title="4. 进入中间阶段调试"></a>4. 进入中间阶段调试</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker run -it --<span class="hljs-built_in">rm</span> demo-app:builder sh<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-查看镜像层"><a href="#5-查看镜像层" class="headerlink" title="5. 查看镜像层"></a>5. 查看镜像层</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker <span class="hljs-built_in">history</span> demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-查看镜像配置"><a href="#6-查看镜像配置" class="headerlink" title="6. 查看镜像配置"></a>6. 查看镜像配置</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker inspect demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-查看最终容器文件"><a href="#7-查看最终容器文件" class="headerlink" title="7. 查看最终容器文件"></a>7. 查看最终容器文件</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker run --<span class="hljs-built_in">rm</span> -it demo-app:1.0.0 sh<br></code></pre></td></tr></table></figure>
+
+<p>如果运行镜像没有 shell，比如 distroless，就不能这样调试。这也是 distroless 的权衡。</p>
+<hr>
+<h2 id="三十二、完整示例：从差-Dockerfile-到好-Dockerfile"><a href="#三十二、完整示例：从差-Dockerfile-到好-Dockerfile" class="headerlink" title="三十二、完整示例：从差 Dockerfile 到好 Dockerfile"></a>三十二、完整示例：从差 Dockerfile 到好 Dockerfile</h2><h3 id="1-初始版本"><a href="#1-初始版本" class="headerlink" title="1. 初始版本"></a>1. 初始版本</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> maven:<span class="hljs-number">3.9</span>-eclipse-temurin-<span class="hljs-number">17</span><br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> . .</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> mvn clean package -DskipTests</span><br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span><br><br><span class="hljs-keyword">CMD</span><span class="language-bash"> java -jar target/demo.jar</span><br></code></pre></td></tr></table></figure>
+
+<p>问题：</p>
+<ul>
+<li>运行镜像带 Maven</li>
+<li>运行镜像带源码</li>
+<li><code>COPY . .</code> 导致缓存差</li>
+<li>shell 格式 CMD</li>
+<li>root 用户</li>
+<li>没有 JVM 参数入口</li>
+<li>没有构建缓存优化</li>
+<li>没有元数据</li>
+<li>没有 <code>.dockerignore</code></li>
+</ul>
+<h3 id="2-中级版本"><a href="#2-中级版本" class="headerlink" title="2. 中级版本"></a>2. 中级版本</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> maven:<span class="hljs-number">3.9</span>-eclipse-temurin-<span class="hljs-number">17</span> AS builder<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /build</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> pom.xml .</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> mvn dependency:go-offline</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> src ./src</span><br><span class="hljs-keyword">RUN</span><span class="language-bash"> mvn clean package -DskipTests</span><br><br><span class="hljs-keyword">FROM</span> eclipse-temurin:<span class="hljs-number">17</span>-jre<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder /build/target/*.jar app.jar</span><br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span><br><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;java&quot;</span>, <span class="hljs-string">&quot;-jar&quot;</span>, <span class="hljs-string">&quot;app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>已经解决：</p>
+<ul>
+<li>多阶段构建</li>
+<li>依赖缓存更好</li>
+<li>运行镜像不带 Maven</li>
+<li>ENTRYPOINT exec 格式</li>
+</ul>
+<p>但还可以继续优化：</p>
+<ul>
+<li>非 root</li>
+<li>BuildKit cache mount</li>
+<li>Spring Boot layered jar</li>
+<li>JVM 参数</li>
+<li>LABEL</li>
+<li>优雅停机</li>
+</ul>
+<h3 id="3-生产优化版本"><a href="#3-生产优化版本" class="headerlink" title="3. 生产优化版本"></a>3. 生产优化版本</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-comment"># syntax=docker/dockerfile:1</span><br><br><span class="hljs-keyword">ARG</span> JAVA_VERSION=<span class="hljs-number">17</span><br><br><span class="hljs-keyword">FROM</span> maven:<span class="hljs-number">3.9</span>-eclipse-temurin-$&#123;JAVA_VERSION&#125; AS deps<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /build</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> pom.xml .</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.m2 \</span><br><span class="language-bash">    mvn -B dependency:go-offline</span><br><br><span class="hljs-keyword">FROM</span> deps AS builder<br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /build</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> src ./src</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> --mount=<span class="hljs-built_in">type</span>=cache,target=/root/.m2 \</span><br><span class="language-bash">    mvn -B clean package -DskipTests</span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> <span class="hljs-built_in">mkdir</span> -p target/extracted \</span><br><span class="language-bash">    &amp;&amp; java -Djarmode=layertools -jar target/*.jar extract --destination target/extracted</span><br><br><span class="hljs-keyword">FROM</span> eclipse-temurin:$&#123;JAVA_VERSION&#125;-jre AS runtime<br><br><span class="hljs-keyword">ARG</span> APP_VERSION=unknown<br><span class="hljs-keyword">ARG</span> GIT_COMMIT=unknown<br><span class="hljs-keyword">ARG</span> BUILD_TIME=unknown<br><br><span class="hljs-keyword">LABEL</span><span class="language-bash"> org.opencontainers.image.title=<span class="hljs-string">&quot;demo-app&quot;</span> \</span><br><span class="language-bash">      org.opencontainers.image.version=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;APP_VERSION&#125;</span>&quot;</span> \</span><br><span class="language-bash">      org.opencontainers.image.revision=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;GIT_COMMIT&#125;</span>&quot;</span> \</span><br><span class="language-bash">      org.opencontainers.image.created=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;BUILD_TIME&#125;</span>&quot;</span></span><br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> groupadd -r app &amp;&amp; useradd -r -g app app</span><br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder --<span class="hljs-built_in">chown</span>=app:app /build/target/extracted/dependencies/ ./</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder --<span class="hljs-built_in">chown</span>=app:app /build/target/extracted/spring-boot-loader/ ./</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder --<span class="hljs-built_in">chown</span>=app:app /build/target/extracted/snapshot-dependencies/ ./</span><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --from=builder --<span class="hljs-built_in">chown</span>=app:app /build/target/extracted/application/ ./</span><br><br><span class="hljs-keyword">USER</span> app<br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span><br><br><span class="hljs-keyword">ENV</span> JAVA_OPTS=<span class="hljs-string">&quot;-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC&quot;</span><br><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;sh&quot;</span>, <span class="hljs-string">&quot;-c&quot;</span>, <span class="hljs-string">&quot;exec java <span class="hljs-variable">$JAVA_OPTS</span> org.springframework.boot.loader.launch.JarLauncher&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="三十三、Dockerfile-优化的本质"><a href="#三十三、Dockerfile-优化的本质" class="headerlink" title="三十三、Dockerfile 优化的本质"></a>三十三、Dockerfile 优化的本质</h2><p>Dockerfile 优化不是简单地“少几行”或“镜像小一点”。</p>
+<p>它本质上是在平衡六件事：</p>
+<pre><code class=" mermaid">mindmap
+  root((Dockerfile 优化))
+    构建速度
+      缓存命中
+      BuildKit
+      .dockerignore
+      remote cache
+    镜像体积
+      多阶段构建
+      精简基础镜像
+      清理缓存
+      只保留运行产物
+    安全性
+      非 root
+      不写密钥
+      漏洞扫描
+      最小权限
+    可复现
+      固定版本
+      lock 文件
+      构建参数
+      元数据
+    可维护
+      阶段命名
+      清晰结构
+      少炫技
+      可调试
+    运行可靠
+      exec ENTRYPOINT
+      优雅停机
+      健康检查
+      容器内存参数
+</code></pre>
+
+<p>工程上真正好的 Dockerfile，通常有这些特征：</p>
+<ol>
+<li>构建阶段和运行阶段分离。</li>
+<li>构建缓存命中率高。</li>
+<li>镜像只包含运行所需文件。</li>
+<li>使用非 root 用户运行。</li>
+<li>不包含密码、私钥、Token。</li>
+<li>基础镜像版本明确。</li>
+<li>支持版本信息追踪。</li>
+<li>支持 CI&#x2F;CD 快速构建。</li>
+<li>支持容器优雅停止。</li>
+<li>出问题时能够快速定位。</li>
+</ol>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>Dockerfile 是容器化工程的核心之一。</p>
+<p>刚开始学 Dockerfile，可以先记住指令：</p>
+<ul>
+<li><code>FROM</code></li>
+<li><code>WORKDIR</code></li>
+<li><code>COPY</code></li>
+<li><code>RUN</code></li>
+<li><code>EXPOSE</code></li>
+<li><code>CMD</code></li>
+<li><code>ENTRYPOINT</code></li>
+</ul>
+<p>但真正写好 Dockerfile，要进一步理解：</p>
+<ul>
+<li>构建上下文</li>
+<li>镜像分层</li>
+<li>构建缓存</li>
+<li>多阶段构建</li>
+<li>BuildKit</li>
+<li><code>.dockerignore</code></li>
+<li>非 root 用户</li>
+<li>密钥管理</li>
+<li>基础镜像选择</li>
+<li>Java&#x2F;Node&#x2F;Python 等语言的构建特性</li>
+</ul>
+<p>一份差的 Dockerfile 也许能跑，但会慢、胖、不安全、不可复现，还会在 CI&#x2F;CD 和生产环境里给你上强度。</p>
+<p>一份好的 Dockerfile 应该是：</p>
+<blockquote>
+<p>构建快、镜像小、安全、稳定、可复现、可维护。</p>
+</blockquote>
+<p>最后给一个最实用的判断标准：</p>
+<blockquote>
+<p>如果你修改一行业务代码，Docker 却重新下载全部依赖，那 Dockerfile 还有优化空间。<br>如果你最终镜像里还有 Maven、npm、gcc、源码和私钥，那已经不是优化空间了，那是事故现场。</p>
+</blockquote>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>Docker Docs: Dockerfile reference<br><a target="_blank" rel="noopener" href="https://docs.docker.com/reference/dockerfile/">https://docs.docker.com/reference/dockerfile/</a></li>
+<li>Docker Docs: Dockerfile overview<br><a target="_blank" rel="noopener" href="https://docs.docker.com/build/concepts/dockerfile/">https://docs.docker.com/build/concepts/dockerfile/</a></li>
+<li>Docker Docs: Building best practices<br><a target="_blank" rel="noopener" href="https://docs.docker.com/build/building/best-practices/">https://docs.docker.com/build/building/best-practices/</a></li>
+<li>Docker Docs: Multi-stage builds<br><a target="_blank" rel="noopener" href="https://docs.docker.com/build/building/multi-stage/">https://docs.docker.com/build/building/multi-stage/</a></li>
+<li>Docker Docs: Docker build cache<br><a target="_blank" rel="noopener" href="https://docs.docker.com/build/cache/">https://docs.docker.com/build/cache/</a></li>
+<li>Docker Docs: Optimize cache usage in builds<br><a target="_blank" rel="noopener" href="https://docs.docker.com/build/cache/optimize/">https://docs.docker.com/build/cache/optimize/</a></li>
+<li>Docker Docs: Build cache invalidation<br><a target="_blank" rel="noopener" href="https://docs.docker.com/build/cache/invalidation/">https://docs.docker.com/build/cache/invalidation/</a></li>
+<li>Docker Docs: Build secrets<br><a target="_blank" rel="noopener" href="https://docs.docker.com/build/building/secrets/">https://docs.docker.com/build/building/secrets/</a></li>
+<li>Docker Docs: BuildKit<br><a target="_blank" rel="noopener" href="https://docs.docker.com/build/buildkit/">https://docs.docker.com/build/buildkit/</a></li>
+<li>Spring Boot Maven Plugin: Layered JARs<br><a target="_blank" rel="noopener" href="https://docs.spring.io/spring-boot/docs/current/maven-plugin/reference/htmlsingle/">https://docs.spring.io/spring-boot/docs/current/maven-plugin/reference/htmlsingle/</a></li>
+</ul>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/DevOps/" class="category-chain-item">DevOps</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Spring-Boot/" class="print-no-link">#Spring Boot</a>
+      
+        <a href="/tags/Java/" class="print-no-link">#Java</a>
+      
+        <a href="/tags/Docker/" class="print-no-link">#Docker</a>
+      
+        <a href="/tags/Container/" class="print-no-link">#Container</a>
+      
+        <a href="/tags/Dockerfile/" class="print-no-link">#Dockerfile</a>
+      
+        <a href="/tags/BuildKit/" class="print-no-link">#BuildKit</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Dockerfile 深度实践：从构建原理到镜像优化、缓存优化与生产级落地</div>
+      <div>https://allendericdalexander.github.io/2026/06/07/devops/cri/dockerfile-deep-optimization-blog/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年6月7日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/06/07/devops/cri/docker-tools-deep-dive-blog/" title="Docker Tools 深度实践：Portainer、Dockge、IDEA、私有仓库、GitLab 与服务器面板">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Docker Tools 深度实践：Portainer、Dockge、IDEA、私有仓库、GitLab 与服务器面板</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/06/07/devops/management/docker-compose-deep-dive-blog/" title="Docker Compose 深度实战：从编排模型、网络卷、环境变量到生产部署">
+                        <span class="hidden-mobile">Docker Compose 深度实战：从编排模型、网络卷、环境变量到生产部署</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

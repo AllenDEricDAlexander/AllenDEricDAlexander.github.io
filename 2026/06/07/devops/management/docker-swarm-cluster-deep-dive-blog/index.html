@@ -1,0 +1,2380 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="欢迎你来读这篇博客。 前面几篇文章分别讲了 Docker 基础、Docker Compose、Dockerfile、Docker Tools。这一篇专门讲 Docker Swarm，也就是 Docker原生的集群编排能力。 本文核心内容包括：  Docker Swarm 是什么 Docker Swarm 和 Docker Compose、Kubernetes 的区别 Swarm 集群架构 Mana">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Docker Swarm 深度实践：从集群搭建、服务编排到生产级运维">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/06/07/devops/management/docker-swarm-cluster-deep-dive-blog/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="欢迎你来读这篇博客。 前面几篇文章分别讲了 Docker 基础、Docker Compose、Dockerfile、Docker Tools。这一篇专门讲 Docker Swarm，也就是 Docker原生的集群编排能力。 本文核心内容包括：  Docker Swarm 是什么 Docker Swarm 和 Docker Compose、Kubernetes 的区别 Swarm 集群架构 Mana">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-07T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-07T04:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Docker">
+<meta property="article:tag" content="Container">
+<meta property="article:tag" content="Docker Swarm">
+<meta property="article:tag" content="Cluster">
+<meta property="article:tag" content="Service Discovery">
+<meta property="article:tag" content="Overlay Network">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Docker Swarm 深度实践：从集群搭建、服务编排到生产级运维 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Docker Swarm 深度实践：从集群搭建、服务编排到生产级运维"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-06-07 12:00" pubdate>
+          2026年6月7日 中午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          9.1k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          76 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Docker Swarm 深度实践：从集群搭建、服务编排到生产级运维</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>欢迎你来读这篇博客。</p>
+<p>前面几篇文章分别讲了 Docker 基础、Docker Compose、Dockerfile、Docker Tools。这一篇专门讲 Docker Swarm，也就是 Docker<br>原生的集群编排能力。</p>
+<p>本文核心内容包括：</p>
+<ul>
+<li>Docker Swarm 是什么</li>
+<li>Docker Swarm 和 Docker Compose、Kubernetes 的区别</li>
+<li>Swarm 集群架构</li>
+<li>Manager、Worker、Raft、Quorum</li>
+<li>Service、Task、Container 的关系</li>
+<li>集群端口、防火墙和节点规划</li>
+<li>搭建 Docker Swarm 集群</li>
+<li>服务部署、扩缩容、滚动更新、回滚</li>
+<li>Overlay 网络、Ingress 网络和 Routing Mesh</li>
+<li>服务发现、VIP、DNSRR</li>
+<li>Secret、Config</li>
+<li>Stack 部署</li>
+<li>数据卷和有状态服务的坑</li>
+<li>节点维护、Drain、Label、Placement</li>
+<li>高可用、备份、恢复、故障排查</li>
+<li>生产实践和常用脚本</li>
+</ul>
+<p>Docker Swarm 的定位可以用一句话概括：</p>
+<blockquote>
+<p>用 Docker 原生命令，把多台 Docker 主机变成一个可以调度服务的集群。</p>
+</blockquote>
+<p>如果 Docker Compose 是“单机多容器编排”，那么 Docker Swarm 就是“多机服务编排”。<br>它没有 Kubernetes 那么庞大，也没有 Kubernetes 那么复杂。优点是简单、内置、Docker 原生；缺点是生态和扩展能力没有 Kubernetes 强。</p>
+<p>Swarm 就像一把短刀：不花哨，但拔出来就能用。<br>Kubernetes 更像一套军械库：功能强，但你得先学会别把自己炸了。</p>
+<span id="more"></span>
+
+<h2 id="一、Docker-Swarm-是什么？"><a href="#一、Docker-Swarm-是什么？" class="headerlink" title="一、Docker Swarm 是什么？"></a>一、Docker Swarm 是什么？</h2><p>Docker Swarm 是 Docker Engine 内置的集群管理和服务编排能力。</p>
+<p>它可以把多台安装了 Docker Engine 的机器组成一个集群，然后在集群上运行服务。</p>
+<p>Docker Swarm 能做这些事情：</p>
+<ul>
+<li>创建多节点 Docker 集群</li>
+<li>管理 manager 和 worker 节点</li>
+<li>部署服务</li>
+<li>扩缩容服务副本</li>
+<li>服务发现</li>
+<li>负载均衡</li>
+<li>滚动更新</li>
+<li>服务回滚</li>
+<li>节点故障迁移</li>
+<li>Overlay 跨主机网络</li>
+<li>Secret 和 Config 管理</li>
+<li>Stack 应用部署</li>
+<li>基于约束的服务调度</li>
+</ul>
+<h3 id="1-Docker-Swarm-的基本结构"><a href="#1-Docker-Swarm-的基本结构" class="headerlink" title="1. Docker Swarm 的基本结构"></a>1. Docker Swarm 的基本结构</h3><pre><code class=" mermaid">flowchart TB
+    subgraph SwarmCluster[Docker Swarm Cluster]
+        subgraph Managers[Manager Nodes]
+            M1[manager-1 Leader]
+            M2[manager-2 Reachable]
+            M3[manager-3 Reachable]
+        end
+
+        subgraph Workers[Worker Nodes]
+            W1[worker-1]
+            W2[worker-2]
+            W3[worker-3]
+        end
+
+        M1 &lt;--&gt;|Raft| M2
+        M2 &lt;--&gt;|Raft| M3
+        M1 &lt;--&gt;|Raft| M3
+        M1 --&gt;|Schedule Tasks| W1
+        M1 --&gt;|Schedule Tasks| W2
+        M1 --&gt;|Schedule Tasks| W3
+    end
+
+    USER[Docker CLI / API] --&gt; M1
+</code></pre>
+
+<h3 id="2-Swarm-mode-不是-Classic-Swarm"><a href="#2-Swarm-mode-不是-Classic-Swarm" class="headerlink" title="2. Swarm mode 不是 Classic Swarm"></a>2. Swarm mode 不是 Classic Swarm</h3><p>这里要特别说明：</p>
+<ul>
+<li>Swarm mode 是 Docker Engine 内置的现代 Swarm 能力。</li>
+<li>Classic Swarm 是早期项目，已经不是现在主流讨论的对象。</li>
+</ul>
+<p>我们平时说 Docker Swarm，一般默认指 Docker Engine 的 Swarm mode。</p>
+<h3 id="3-Docker-Swarm-适合什么场景？"><a href="#3-Docker-Swarm-适合什么场景？" class="headerlink" title="3. Docker Swarm 适合什么场景？"></a>3. Docker Swarm 适合什么场景？</h3><p>适合：</p>
+<ul>
+<li>中小规模服务部署</li>
+<li>内部系统</li>
+<li>自托管服务集群</li>
+<li>简单微服务集群</li>
+<li>边缘节点集群</li>
+<li>已经熟悉 Docker CLI 的团队</li>
+<li>不想引入 Kubernetes 复杂度的场景</li>
+<li>需要比 Compose 更强的多机编排能力</li>
+</ul>
+<p>不太适合：</p>
+<ul>
+<li>大规模云原生平台</li>
+<li>极复杂服务治理</li>
+<li>复杂 Operator 生态</li>
+<li>强依赖 Kubernetes 生态的公司</li>
+<li>多租户、强隔离、复杂权限场景</li>
+<li>超大规模弹性调度</li>
+</ul>
+<p>可以这样理解：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>定位</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Docker CLI</td>
+<td>单容器操作</td>
+</tr>
+<tr>
+<td>Docker Compose</td>
+<td>单机多容器编排</td>
+</tr>
+<tr>
+<td>Docker Swarm</td>
+<td>多机 Docker 原生编排</td>
+</tr>
+<tr>
+<td>Kubernetes</td>
+<td>大规模云原生编排平台</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="二、Docker-Swarm-核心概念"><a href="#二、Docker-Swarm-核心概念" class="headerlink" title="二、Docker Swarm 核心概念"></a>二、Docker Swarm 核心概念</h2><p>学习 Swarm 先不要急着敲命令。<br>先把几个对象之间的关系搞清楚，不然后面看到 Service、Task、Container 很容易乱。</p>
+<h3 id="1-Swarm"><a href="#1-Swarm" class="headerlink" title="1. Swarm"></a>1. Swarm</h3><p>Swarm 是一个 Docker Engine 集群。</p>
+<p>一个 Swarm 由多个 Node 组成，每个 Node 本质上都是一台运行 Docker Engine 的机器。</p>
+<h3 id="2-Node"><a href="#2-Node" class="headerlink" title="2. Node"></a>2. Node</h3><p>Node 是 Swarm 集群中的一台主机，可以是物理机，也可以是虚拟机。</p>
+<p>Node 分为两类：</p>
+<ul>
+<li>Manager Node</li>
+<li>Worker Node</li>
+</ul>
+<h3 id="3-Manager-Node"><a href="#3-Manager-Node" class="headerlink" title="3. Manager Node"></a>3. Manager Node</h3><p>Manager 节点负责集群管理。</p>
+<p>职责包括：</p>
+<ul>
+<li>维护集群状态</li>
+<li>调度 Service</li>
+<li>分配 Task</li>
+<li>管理节点加入和退出</li>
+<li>保存 Raft 状态</li>
+<li>处理 Docker Swarm API 请求</li>
+<li>管理 Secret 和 Config</li>
+<li>参与 Leader 选举</li>
+</ul>
+<p>Manager 节点也可以运行容器任务。<br>但生产环境通常建议把 Manager 设置为 Drain，让它只做管理，不跑业务。</p>
+<h3 id="4-Worker-Node"><a href="#4-Worker-Node" class="headerlink" title="4. Worker Node"></a>4. Worker Node</h3><p>Worker 节点负责执行任务。</p>
+<p>它不参与 Raft，不做调度决策，也不维护全局集群状态。<br>它接收 Manager 分配的 Task，然后运行对应容器。</p>
+<h3 id="5-Service"><a href="#5-Service" class="headerlink" title="5. Service"></a>5. Service</h3><p>Service 是 Swarm 里最核心的部署对象。</p>
+<p>它描述的是“期望状态”，例如：</p>
+<ul>
+<li>用哪个镜像</li>
+<li>运行几个副本</li>
+<li>暴露哪个端口</li>
+<li>挂载哪些卷</li>
+<li>使用哪些网络</li>
+<li>使用哪些 Secret</li>
+<li>部署到哪些节点</li>
+<li>如何滚动更新</li>
+<li>失败后如何重启</li>
+</ul>
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name web \<br>  --replicas 3 \<br>  --publish published=8080,target=80 \<br>  nginx:latest<br></code></pre></td></tr></table></figure>
+
+<p>这表示：</p>
+<blockquote>
+<p>我希望集群里运行一个名为 web 的服务，副本数为 3，对外发布 8080 端口，容器里监听 80 端口，镜像是 nginx。</p>
+</blockquote>
+<h3 id="6-Task"><a href="#6-Task" class="headerlink" title="6. Task"></a>6. Task</h3><p>Task 是 Service 的一次具体调度执行。</p>
+<p>一个 Service 有多个副本，每个副本对应一个 Task。<br>Task 再对应一个实际运行的 Container。</p>
+<p>关系如下：</p>
+<pre><code class=" mermaid">flowchart LR
+    S[Service: web replicas=3] --&gt; T1[Task web.1]
+    S --&gt; T2[Task web.2]
+    S --&gt; T3[Task web.3]
+    T1 --&gt; C1[Container on worker-1]
+    T2 --&gt; C2[Container on worker-2]
+    T3 --&gt; C3[Container on worker-3]
+</code></pre>
+
+<h3 id="7-Container"><a href="#7-Container" class="headerlink" title="7. Container"></a>7. Container</h3><p>Container 是最终运行的容器实例。</p>
+<p>在 Swarm 中，不建议直接用 <code>docker run</code> 管理业务容器。<br>应该用 <code>docker service create</code> 或 <code>docker stack deploy</code>。</p>
+<p>因为：</p>
+<ul>
+<li><code>docker run</code> 是单机行为</li>
+<li><code>docker service</code> 是集群行为</li>
+<li>Swarm 只会维护 Service 的期望状态，不会维护你手工 <code>docker run</code> 的容器</li>
+</ul>
+<h3 id="8-Desired-State-期望状态"><a href="#8-Desired-State-期望状态" class="headerlink" title="8. Desired State 期望状态"></a>8. Desired State 期望状态</h3><p>Swarm 的核心思想是 Desired State。</p>
+<p>你告诉 Swarm：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">我要 3 个 nginx 副本<br></code></pre></td></tr></table></figure>
+
+<p>Swarm 会尽力让真实状态保持为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">当前确实有 3 个 nginx task 运行<br></code></pre></td></tr></table></figure>
+
+<p>如果某个 worker 挂了，上面的 task 消失，Manager 会把 task 重新调度到其他可用节点。</p>
+<p>这就是编排系统和普通容器启动命令最大的区别。</p>
+<hr>
+<h2 id="三、Docker-Swarm-工作机制"><a href="#三、Docker-Swarm-工作机制" class="headerlink" title="三、Docker Swarm 工作机制"></a>三、Docker Swarm 工作机制</h2><h3 id="1-服务创建流程"><a href="#1-服务创建流程" class="headerlink" title="1. 服务创建流程"></a>1. 服务创建流程</h3><pre><code class=" mermaid">sequenceDiagram
+    participant User as 用户 / Docker CLI
+    participant Manager as Manager Leader
+    participant Raft as Raft 状态存储
+    participant Scheduler as Scheduler
+    participant Worker1 as Worker 1
+    participant Worker2 as Worker 2
+    User -&gt;&gt; Manager: docker service create
+    Manager -&gt;&gt; Raft: 写入 Service 期望状态
+    Manager -&gt;&gt; Scheduler: 根据副本数和约束调度 Task
+    Scheduler -&gt;&gt; Worker1: 分配 Task web.1
+    Scheduler -&gt;&gt; Worker2: 分配 Task web.2
+    Worker1 -&gt;&gt; Worker1: 拉取镜像并启动容器
+    Worker2 -&gt;&gt; Worker2: 拉取镜像并启动容器
+    Worker1 --&gt;&gt; Manager: 上报 Task 状态
+    Worker2 --&gt;&gt; Manager: 上报 Task 状态
+</code></pre>
+
+<h3 id="2-节点故障流程"><a href="#2-节点故障流程" class="headerlink" title="2. 节点故障流程"></a>2. 节点故障流程</h3><p>假设 worker-1 挂了：</p>
+<pre><code class=" mermaid">flowchart TB
+    A[worker-1 故障] --&gt; B[Manager 检测节点不可用]
+    B --&gt; C[worker-1 上的 Task 变为失败/不可达]
+    C --&gt; D[Manager 根据 Service 期望状态重新调度]
+    D --&gt; E[在 worker-2 或 worker-3 创建新 Task]
+    E --&gt; F[副本数恢复到期望状态]
+</code></pre>
+
+<p>这个过程体现了 Swarm 的编排能力。</p>
+<hr>
+<h2 id="四、Raft、Quorum-和-Manager-高可用"><a href="#四、Raft、Quorum-和-Manager-高可用" class="headerlink" title="四、Raft、Quorum 和 Manager 高可用"></a>四、Raft、Quorum 和 Manager 高可用</h2><p>Swarm Manager 通过 Raft 维护一致的集群状态。</p>
+<p>这部分非常重要。很多 Swarm 集群出问题，不是容器问题，而是 Manager 规划错了。</p>
+<h3 id="1-为什么需要-Raft？"><a href="#1-为什么需要-Raft？" class="headerlink" title="1. 为什么需要 Raft？"></a>1. 为什么需要 Raft？</h3><p>Swarm 集群的状态包括：</p>
+<ul>
+<li>有哪些节点</li>
+<li>有哪些服务</li>
+<li>服务副本数是多少</li>
+<li>Task 分配到哪里</li>
+<li>网络、Secret、Config 等对象</li>
+<li>当前哪个节点是 Leader</li>
+</ul>
+<p>这些状态必须在多个 Manager 中保持一致。<br>Raft 就是用来让多个 Manager 对集群状态达成一致。</p>
+<h3 id="2-Leader-和-Reachable"><a href="#2-Leader-和-Reachable" class="headerlink" title="2. Leader 和 Reachable"></a>2. Leader 和 Reachable</h3><p>Manager 节点常见状态：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Leader</td>
+<td>当前主 Manager，负责调度和写入决策</td>
+</tr>
+<tr>
+<td>Reachable</td>
+<td>可达 Manager，参与 Raft，同步状态</td>
+</tr>
+<tr>
+<td>Unreachable</td>
+<td>不可达 Manager，需要排查</td>
+</tr>
+<tr>
+<td>Down</td>
+<td>节点不可用</td>
+</tr>
+</tbody></table>
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node <span class="hljs-built_in">ls</span><br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">ID                            HOSTNAME    STATUS    AVAILABILITY   MANAGER STATUS<br>abc123 *                      manager-1   Ready     Active         Leader<br>def456                        manager-2   Ready     Active         Reachable<br>ghi789                        manager-3   Ready     Active         Reachable<br>jkl111                        worker-1    Ready     Active<br>mno222                        worker-2    Ready     Active<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-Quorum-多数派"><a href="#3-Quorum-多数派" class="headerlink" title="3. Quorum 多数派"></a>3. Quorum 多数派</h3><p>Raft 需要多数 Manager 可用才能处理管理操作。</p>
+<p>如果 Manager 数量是 N，那么需要超过一半可用。</p>
+<table>
+<thead>
+<tr>
+<th align="right">Manager 数量</th>
+<th align="right">多数派 Quorum</th>
+<th align="right">可容忍 Manager 故障数</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">1</td>
+<td align="right">1</td>
+<td align="right">0</td>
+</tr>
+<tr>
+<td align="right">2</td>
+<td align="right">2</td>
+<td align="right">0</td>
+</tr>
+<tr>
+<td align="right">3</td>
+<td align="right">2</td>
+<td align="right">1</td>
+</tr>
+<tr>
+<td align="right">4</td>
+<td align="right">3</td>
+<td align="right">1</td>
+</tr>
+<tr>
+<td align="right">5</td>
+<td align="right">3</td>
+<td align="right">2</td>
+</tr>
+<tr>
+<td align="right">6</td>
+<td align="right">4</td>
+<td align="right">2</td>
+</tr>
+<tr>
+<td align="right">7</td>
+<td align="right">4</td>
+<td align="right">3</td>
+</tr>
+</tbody></table>
+<p>所以生产环境建议：</p>
+<ul>
+<li>1 个 Manager：只适合测试或极小环境</li>
+<li>3 个 Manager：常见生产起步</li>
+<li>5 个 Manager：更高可用</li>
+<li>7 个 Manager：官方建议的较高上限</li>
+<li>不建议 2、4、6 这种偶数 Manager，因为不会提升对应容错能力</li>
+</ul>
+<h3 id="4-为什么不是-Manager-越多越好？"><a href="#4-为什么不是-Manager-越多越好？" class="headerlink" title="4. 为什么不是 Manager 越多越好？"></a>4. 为什么不是 Manager 越多越好？</h3><p>Manager 越多，需要达成一致的节点越多，写入性能反而会下降。</p>
+<p>比如：</p>
+<ul>
+<li>创建服务</li>
+<li>更新服务</li>
+<li>节点加入</li>
+<li>节点删除</li>
+<li>Secret 更新</li>
+</ul>
+<p>这些都涉及 Raft 状态变更，需要 Manager 多数派确认。</p>
+<p>所以 Manager 不是越多越强。<br>多了以后不是“高可用”，是“高沟通成本”。</p>
+<h3 id="5-Manager-是否应该跑业务？"><a href="#5-Manager-是否应该跑业务？" class="headerlink" title="5. Manager 是否应该跑业务？"></a>5. Manager 是否应该跑业务？</h3><p>默认情况下，Manager 也可以跑业务 Task。<br>小集群可以这样做，但生产建议 Manager 专职管理。</p>
+<p>设置 Manager 不接收业务任务：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node update --availability drain manager-1<br>docker node update --availability drain manager-2<br>docker node update --availability drain manager-3<br></code></pre></td></tr></table></figure>
+
+<p>恢复可调度：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node update --availability active manager-1<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="五、Docker-Swarm-网络端口规划"><a href="#五、Docker-Swarm-网络端口规划" class="headerlink" title="五、Docker Swarm 网络端口规划"></a>五、Docker Swarm 网络端口规划</h2><p>搭 Swarm 之前，必须先规划网络和防火墙。</p>
+<h3 id="1-Swarm-常用端口"><a href="#1-Swarm-常用端口" class="headerlink" title="1. Swarm 常用端口"></a>1. Swarm 常用端口</h3><table>
+<thead>
+<tr>
+<th align="right">端口</th>
+<th>协议</th>
+<th>用途</th>
+<th>是否必须</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">2377</td>
+<td>TCP</td>
+<td>集群管理通信，节点加入 Manager</td>
+<td>Manager 需要</td>
+</tr>
+<tr>
+<td align="right">7946</td>
+<td>TCP&#x2F;UDP</td>
+<td>节点间通信、服务发现、Gossip</td>
+<td>所有节点需要</td>
+</tr>
+<tr>
+<td align="right">4789</td>
+<td>UDP</td>
+<td>Overlay 网络 VXLAN 数据面</td>
+<td>所有节点需要</td>
+</tr>
+<tr>
+<td align="right">发布端口</td>
+<td>TCP&#x2F;UDP</td>
+<td>业务服务对外端口</td>
+<td>按业务需要</td>
+</tr>
+</tbody></table>
+<h3 id="2-防火墙示例"><a href="#2-防火墙示例" class="headerlink" title="2. 防火墙示例"></a>2. 防火墙示例</h3><p>假设集群内网网段：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">10.0.0.0/24<br></code></pre></td></tr></table></figure>
+
+<p>UFW 示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># Manager 节点</span><br>sudo ufw allow from 10.0.0.0/24 to any port 2377 proto tcp<br><br><span class="hljs-comment"># 所有节点</span><br>sudo ufw allow from 10.0.0.0/24 to any port 7946 proto tcp<br>sudo ufw allow from 10.0.0.0/24 to any port 7946 proto udp<br>sudo ufw allow from 10.0.0.0/24 to any port 4789 proto udp<br><br><span class="hljs-comment"># 业务端口，例如 80 和 443</span><br>sudo ufw allow 80/tcp<br>sudo ufw allow 443/tcp<br></code></pre></td></tr></table></figure>
+
+<p>如果业务端口只给负载均衡器访问：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">sudo ufw allow from 10.0.1.10 to any port 80 proto tcp<br>sudo ufw allow from 10.0.1.10 to any port 443 proto tcp<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-Manager-建议使用固定-IP"><a href="#3-Manager-建议使用固定-IP" class="headerlink" title="3. Manager 建议使用固定 IP"></a>3. Manager 建议使用固定 IP</h3><p>Manager 节点用于维护集群状态和节点通信，建议使用固定 IP。</p>
+<p>初始化时：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm init --advertise-addr 10.0.0.11<br></code></pre></td></tr></table></figure>
+
+<p>如果 Manager IP 经常变化，其他节点可能找不到它，集群稳定性会受影响。</p>
+<p>Worker 可以使用动态 IP，但生产环境也建议尽量稳定。</p>
+<hr>
+<h2 id="六、搭建-Docker-Swarm-集群"><a href="#六、搭建-Docker-Swarm-集群" class="headerlink" title="六、搭建 Docker Swarm 集群"></a>六、搭建 Docker Swarm 集群</h2><p>下面以 3 台机器为例：</p>
+<table>
+<thead>
+<tr>
+<th>主机名</th>
+<th>IP</th>
+<th>角色</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>manager-1</td>
+<td>10.0.0.11</td>
+<td>Manager</td>
+</tr>
+<tr>
+<td>worker-1</td>
+<td>10.0.0.21</td>
+<td>Worker</td>
+</tr>
+<tr>
+<td>worker-2</td>
+<td>10.0.0.22</td>
+<td>Worker</td>
+</tr>
+</tbody></table>
+<p>所有机器都安装 Docker Engine。</p>
+<h3 id="1-设置主机名"><a href="#1-设置主机名" class="headerlink" title="1. 设置主机名"></a>1. 设置主机名</h3><p>在 manager-1：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">sudo hostnamectl set-hostname manager-1<br></code></pre></td></tr></table></figure>
+
+<p>在 worker-1：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">sudo hostnamectl set-hostname worker-1<br></code></pre></td></tr></table></figure>
+
+<p>在 worker-2：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">sudo hostnamectl set-hostname worker-2<br></code></pre></td></tr></table></figure>
+
+<p>可以配置 <code>/etc/hosts</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">10.0.0.11 manager-1<br>10.0.0.21 worker-1<br>10.0.0.22 worker-2<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-初始化-Swarm"><a href="#2-初始化-Swarm" class="headerlink" title="2. 初始化 Swarm"></a>2. 初始化 Swarm</h3><p>在 manager-1 执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm init --advertise-addr 10.0.0.11<br></code></pre></td></tr></table></figure>
+
+<p>输出类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Swarm initialized: current node is now a manager.<br><br>To add a worker to this swarm, run the following command:<br><br>docker swarm join \<br>  --token SWMTKN-xxx \<br>  10.0.0.11:2377<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-Worker-加入集群"><a href="#3-Worker-加入集群" class="headerlink" title="3. Worker 加入集群"></a>3. Worker 加入集群</h3><p>在 worker-1 和 worker-2 执行上面输出的 join 命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm <span class="hljs-built_in">join</span> \<br>  --token SWMTKN-xxx \<br>  10.0.0.11:2377<br></code></pre></td></tr></table></figure>
+
+<p>如果忘了 join 命令，在 Manager 上查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm join-token worker<br></code></pre></td></tr></table></figure>
+
+<p>查看 Manager 加入命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm join-token manager<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-查看节点"><a href="#4-查看节点" class="headerlink" title="4. 查看节点"></a>4. 查看节点</h3><p>在 manager-1 执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node <span class="hljs-built_in">ls</span><br></code></pre></td></tr></table></figure>
+
+<p>输出类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">ID                            HOSTNAME    STATUS    AVAILABILITY   MANAGER STATUS<br>abc123 *                      manager-1   Ready     Active         Leader<br>def456                        worker-1    Ready     Active<br>ghi789                        worker-2    Ready     Active<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-新增-Manager-节点"><a href="#5-新增-Manager-节点" class="headerlink" title="5. 新增 Manager 节点"></a>5. 新增 Manager 节点</h3><p>如果后续要把 worker-1 提升为 Manager：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node promote worker-1<br></code></pre></td></tr></table></figure>
+
+<p>或者在新节点上使用 manager join token：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm join-token manager<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-降级-Manager"><a href="#6-降级-Manager" class="headerlink" title="6. 降级 Manager"></a>6. 降级 Manager</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node demote manager-2<br></code></pre></td></tr></table></figure>
+
+<p>注意：不要把 Manager 降到没有 quorum。别在生产上练胆量，集群不是练习簿。</p>
+<h3 id="7-节点退出-Swarm"><a href="#7-节点退出-Swarm" class="headerlink" title="7. 节点退出 Swarm"></a>7. 节点退出 Swarm</h3><p>Worker 主动退出：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm leave<br></code></pre></td></tr></table></figure>
+
+<p>Manager 强制退出：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm leave --force<br></code></pre></td></tr></table></figure>
+
+<p>从 Manager 删除节点：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node <span class="hljs-built_in">rm</span> worker-1<br></code></pre></td></tr></table></figure>
+
+<p>强制删除不可达节点：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node <span class="hljs-built_in">rm</span> --force worker-1<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="七、部署第一个-Swarm-Service"><a href="#七、部署第一个-Swarm-Service" class="headerlink" title="七、部署第一个 Swarm Service"></a>七、部署第一个 Swarm Service</h2><h3 id="1-创建-Nginx-服务"><a href="#1-创建-Nginx-服务" class="headerlink" title="1. 创建 Nginx 服务"></a>1. 创建 Nginx 服务</h3><p>在 Manager 上执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name web \<br>  --replicas 3 \<br>  --publish published=8080,target=80 \<br>  nginx:latest<br></code></pre></td></tr></table></figure>
+
+<p>含义：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--name web</code></td>
+<td>服务名</td>
+</tr>
+<tr>
+<td><code>--replicas 3</code></td>
+<td>运行 3 个副本</td>
+</tr>
+<tr>
+<td><code>--publish published=8080,target=80</code></td>
+<td>对外发布 8080，容器内 80</td>
+</tr>
+<tr>
+<td><code>nginx:latest</code></td>
+<td>镜像</td>
+</tr>
+</tbody></table>
+<h3 id="2-查看服务"><a href="#2-查看服务" class="headerlink" title="2. 查看服务"></a>2. 查看服务</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service <span class="hljs-built_in">ls</span><br></code></pre></td></tr></table></figure>
+
+<p>查看具体 Task：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service ps web<br></code></pre></td></tr></table></figure>
+
+<p>输出类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">ID        NAME      IMAGE          NODE       DESIRED STATE   CURRENT STATE<br>aaa       web.1     nginx:latest   worker-1   Running         Running<br>bbb       web.2     nginx:latest   worker-2   Running         Running<br>ccc       web.3     nginx:latest   manager-1  Running         Running<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-访问服务"><a href="#3-访问服务" class="headerlink" title="3. 访问服务"></a>3. 访问服务</h3><p>在任意节点访问：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">curl http://10.0.0.11:8080<br>curl http://10.0.0.21:8080<br>curl http://10.0.0.22:8080<br></code></pre></td></tr></table></figure>
+
+<p>如果使用 ingress routing mesh，只要服务发布了端口，任意节点都可以接收该端口流量，并转发给实际运行 Task 的节点。</p>
+<h3 id="4-查看服务详情"><a href="#4-查看服务详情" class="headerlink" title="4. 查看服务详情"></a>4. 查看服务详情</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service inspect web --pretty<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-查看日志"><a href="#5-查看日志" class="headerlink" title="5. 查看日志"></a>5. 查看日志</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service logs web<br>docker service logs -f web<br>docker service logs --<span class="hljs-built_in">tail</span> 100 web<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-删除服务"><a href="#6-删除服务" class="headerlink" title="6. 删除服务"></a>6. 删除服务</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service <span class="hljs-built_in">rm</span> web<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="八、服务扩缩容"><a href="#八、服务扩缩容" class="headerlink" title="八、服务扩缩容"></a>八、服务扩缩容</h2><h3 id="1-扩容"><a href="#1-扩容" class="headerlink" title="1. 扩容"></a>1. 扩容</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service scale web=5<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service ps web<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-缩容"><a href="#2-缩容" class="headerlink" title="2. 缩容"></a>2. 缩容</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service scale web=2<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-多服务一起扩缩容"><a href="#3-多服务一起扩缩容" class="headerlink" title="3. 多服务一起扩缩容"></a>3. 多服务一起扩缩容</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service scale web=3 api=5 worker=2<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-扩缩容背后的机制"><a href="#4-扩缩容背后的机制" class="headerlink" title="4. 扩缩容背后的机制"></a>4. 扩缩容背后的机制</h3><pre><code class=" mermaid">flowchart LR
+    A[docker service scale web=5] --&gt; B[Manager 更新期望状态 replicas=5]
+    B --&gt; C[Scheduler 计算需要新增 Task]
+    C --&gt; D[分配 Task 到合适节点]
+    D --&gt; E[Worker 拉镜像并启动容器]
+    E --&gt; F[服务副本数达到 5]
+</code></pre>
+
+<hr>
+<h2 id="九、滚动更新与回滚"><a href="#九、滚动更新与回滚" class="headerlink" title="九、滚动更新与回滚"></a>九、滚动更新与回滚</h2><p>滚动更新是 Swarm 很实用的能力。</p>
+<h3 id="1-创建带更新策略的服务"><a href="#1-创建带更新策略的服务" class="headerlink" title="1. 创建带更新策略的服务"></a>1. 创建带更新策略的服务</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name web \<br>  --replicas 4 \<br>  --publish published=8080,target=80 \<br>  --update-parallelism 1 \<br>  --update-delay 10s \<br>  --update-failure-action rollback \<br>  nginx:1.25<br></code></pre></td></tr></table></figure>
+
+<p>参数说明：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--update-parallelism 1</code></td>
+<td>每次更新 1 个 Task</td>
+</tr>
+<tr>
+<td><code>--update-delay 10s</code></td>
+<td>每批更新之间等待 10 秒</td>
+</tr>
+<tr>
+<td><code>--update-failure-action rollback</code></td>
+<td>更新失败时自动回滚</td>
+</tr>
+<tr>
+<td><code>--replicas 4</code></td>
+<td>副本数为 4</td>
+</tr>
+</tbody></table>
+<h3 id="2-更新镜像"><a href="#2-更新镜像" class="headerlink" title="2. 更新镜像"></a>2. 更新镜像</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service update \<br>  --image nginx:1.26 \<br>  web<br></code></pre></td></tr></table></figure>
+
+<p>查看更新过程：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service ps web<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-更新环境变量"><a href="#3-更新环境变量" class="headerlink" title="3. 更新环境变量"></a>3. 更新环境变量</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service update \<br>  --env-add APP_ENV=prod \<br>  web<br></code></pre></td></tr></table></figure>
+
+<p>删除环境变量：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service update \<br>  --env-rm APP_ENV \<br>  web<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-更新资源限制"><a href="#4-更新资源限制" class="headerlink" title="4. 更新资源限制"></a>4. 更新资源限制</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service update \<br>  --limit-cpu 0.5 \<br>  --limit-memory 512M \<br>  web<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-强制重启服务"><a href="#5-强制重启服务" class="headerlink" title="5. 强制重启服务"></a>5. 强制重启服务</h3><p>有时候镜像 tag 没变，但想重启全部 Task：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service update --force web<br></code></pre></td></tr></table></figure>
+
+<p>这也可以触发重新调度。</p>
+<h3 id="6-回滚服务"><a href="#6-回滚服务" class="headerlink" title="6. 回滚服务"></a>6. 回滚服务</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service rollback web<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service ps web<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-更精细的更新策略"><a href="#7-更精细的更新策略" class="headerlink" title="7. 更精细的更新策略"></a>7. 更精细的更新策略</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service update \<br>  --update-parallelism 2 \<br>  --update-delay 15s \<br>  --update-monitor 30s \<br>  --update-max-failure-ratio 0.2 \<br>  --update-failure-action rollback \<br>  web<br></code></pre></td></tr></table></figure>
+
+<p>说明：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--update-parallelism</code></td>
+<td>同时更新几个 Task</td>
+</tr>
+<tr>
+<td><code>--update-delay</code></td>
+<td>每批更新时间间隔</td>
+</tr>
+<tr>
+<td><code>--update-monitor</code></td>
+<td>更新后观察多久判断是否失败</td>
+</tr>
+<tr>
+<td><code>--update-max-failure-ratio</code></td>
+<td>可接受失败比例</td>
+</tr>
+<tr>
+<td><code>--update-failure-action</code></td>
+<td>失败后 pause &#x2F; continue &#x2F; rollback</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="十、Routing-Mesh：Swarm-的入口流量机制"><a href="#十、Routing-Mesh：Swarm-的入口流量机制" class="headerlink" title="十、Routing Mesh：Swarm 的入口流量机制"></a>十、Routing Mesh：Swarm 的入口流量机制</h2><p>Routing Mesh 是 Swarm 的核心特性之一。</p>
+<p>当你发布一个服务端口时：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name web \<br>  --replicas 2 \<br>  --publish published=8080,target=80 \<br>  nginx<br></code></pre></td></tr></table></figure>
+
+<p>Swarm 会让集群中所有节点都监听 <code>8080</code>。</p>
+<p>即使某个节点没有运行 web 任务，访问这个节点的 8080 端口，也会被转发到真正运行 web task 的节点。</p>
+<h3 id="1-Routing-Mesh-示意图"><a href="#1-Routing-Mesh-示意图" class="headerlink" title="1. Routing Mesh 示意图"></a>1. Routing Mesh 示意图</h3><pre><code class=" mermaid">flowchart LR
+    Client[客户端] --&gt;|访问 worker - 2:8080| W2[worker-2]
+    W2 --&gt;|Routing Mesh| W1[worker-1]
+    W1 --&gt; C1[web task container]
+    Client2[客户端] --&gt;|访问 manager - 1:8080| M1[manager-1]
+    M1 --&gt;|Routing Mesh| W3[worker-3]
+    W3 --&gt; C2[web task container]
+</code></pre>
+
+<h3 id="2-Routing-Mesh-的优点"><a href="#2-Routing-Mesh-的优点" class="headerlink" title="2. Routing Mesh 的优点"></a>2. Routing Mesh 的优点</h3><ul>
+<li>任意节点都可以作为入口</li>
+<li>服务端口统一</li>
+<li>不需要知道容器实际在哪个节点</li>
+<li>外部负载均衡器可以把流量打到所有节点</li>
+<li>服务副本迁移后入口不变</li>
+</ul>
+<h3 id="3-Routing-Mesh-的缺点"><a href="#3-Routing-Mesh-的缺点" class="headerlink" title="3. Routing Mesh 的缺点"></a>3. Routing Mesh 的缺点</h3><ul>
+<li>多一层转发</li>
+<li>排查链路更复杂</li>
+<li>对某些需要源 IP 的场景不友好</li>
+<li>高性能场景可能希望绕过它</li>
+<li>需要所有节点开放发布端口</li>
+</ul>
+<h3 id="4-Ingress-模式发布端口"><a href="#4-Ingress-模式发布端口" class="headerlink" title="4. Ingress 模式发布端口"></a>4. Ingress 模式发布端口</h3><p>默认就是 ingress：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name web \<br>  --publish published=8080,target=80,mode=ingress \<br>  --replicas 3 \<br>  nginx<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-Host-模式发布端口"><a href="#5-Host-模式发布端口" class="headerlink" title="5. Host 模式发布端口"></a>5. Host 模式发布端口</h3><p>绕过 routing mesh，直接在运行 Task 的节点上发布端口：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name web \<br>  --publish published=8080,target=80,mode=host \<br>  --replicas 3 \<br>  nginx<br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<p>如果 <code>mode=host</code> 且所有副本都要绑定同一个宿主机端口，那么同一个节点不能运行多个绑定同端口的 Task。</p>
+<p>适合：</p>
+<ul>
+<li>高性能入口</li>
+<li>需要保留源 IP</li>
+<li>配合外部负载均衡器</li>
+<li>每个节点跑一个实例的 global 服务</li>
+</ul>
+<hr>
+<h2 id="十一、Overlay-网络"><a href="#十一、Overlay-网络" class="headerlink" title="十一、Overlay 网络"></a>十一、Overlay 网络</h2><p>Docker 单机默认 bridge 网络只能在一台机器上工作。<br>Swarm 需要跨主机容器通信，所以使用 Overlay 网络。</p>
+<h3 id="1-创建-Overlay-网络"><a href="#1-创建-Overlay-网络" class="headerlink" title="1. 创建 Overlay 网络"></a>1. 创建 Overlay 网络</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker network create \<br>  --driver overlay \<br>  app-net<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker network <span class="hljs-built_in">ls</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="2-服务加入-Overlay-网络"><a href="#2-服务加入-Overlay-网络" class="headerlink" title="2. 服务加入 Overlay 网络"></a>2. 服务加入 Overlay 网络</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name redis \<br>  --network app-net \<br>  redis:7<br><br>docker service create \<br>  --name app \<br>  --network app-net \<br>  --<span class="hljs-built_in">env</span> REDIS_HOST=redis \<br>  demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<p>在同一个 Overlay 网络中，服务可以通过服务名访问：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">redis:6379<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-Overlay-网络通信图"><a href="#3-Overlay-网络通信图" class="headerlink" title="3. Overlay 网络通信图"></a>3. Overlay 网络通信图</h3><pre><code class=" mermaid">flowchart TB
+    subgraph Node1[worker-1]
+        A[app task]
+    end
+
+    subgraph Node2[worker-2]
+        R[redis task]
+    end
+
+    A --&gt;|redis:6379| R
+
+    subgraph Overlay[Overlay Network app-net]
+        A
+        R
+    end
+</code></pre>
+
+<h3 id="4-创建可被普通容器连接的-Overlay-网络"><a href="#4-创建可被普通容器连接的-Overlay-网络" class="headerlink" title="4. 创建可被普通容器连接的 Overlay 网络"></a>4. 创建可被普通容器连接的 Overlay 网络</h3><p>默认 overlay 网络用于 swarm service。<br>如果普通容器也要连接，需要 <code>--attachable</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker network create \<br>  --driver overlay \<br>  --attachable \<br>  app-net<br></code></pre></td></tr></table></figure>
+
+<p>然后普通容器可以：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker run -it --<span class="hljs-built_in">rm</span> \<br>  --network app-net \<br>  alpine sh<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-加密-Overlay-网络"><a href="#5-加密-Overlay-网络" class="headerlink" title="5. 加密 Overlay 网络"></a>5. 加密 Overlay 网络</h3><p>可以开启 overlay 网络加密：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker network create \<br>  --driver overlay \<br>  --opt encrypted \<br>  secure-net<br></code></pre></td></tr></table></figure>
+
+<p>加密会增加 CPU 开销。<br>是否开启要看安全需求和性能要求。</p>
+<h3 id="6-Ingress-网络和自定义-Overlay-网络"><a href="#6-Ingress-网络和自定义-Overlay-网络" class="headerlink" title="6. Ingress 网络和自定义 Overlay 网络"></a>6. Ingress 网络和自定义 Overlay 网络</h3><table>
+<thead>
+<tr>
+<th>网络</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ingress</td>
+<td>Swarm 内置，用于 routing mesh 和发布端口</td>
+</tr>
+<tr>
+<td>自定义 overlay</td>
+<td>业务服务之间通信</td>
+</tr>
+<tr>
+<td>docker_gwbridge</td>
+<td>容器连接宿主机网络的桥接网络</td>
+</tr>
+</tbody></table>
+<p>业务服务之间建议使用自定义 overlay 网络，不要直接依赖默认 ingress 网络。</p>
+<hr>
+<h2 id="十二、服务发现和负载均衡"><a href="#十二、服务发现和负载均衡" class="headerlink" title="十二、服务发现和负载均衡"></a>十二、服务发现和负载均衡</h2><p>Swarm 内置 DNS 服务发现。</p>
+<h3 id="1-通过服务名访问"><a href="#1-通过服务名访问" class="headerlink" title="1. 通过服务名访问"></a>1. 通过服务名访问</h3><p>创建网络：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker network create --driver overlay app-net<br></code></pre></td></tr></table></figure>
+
+<p>创建 Redis：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name redis \<br>  --network app-net \<br>  redis:7<br></code></pre></td></tr></table></figure>
+
+<p>创建应用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name app \<br>  --network app-net \<br>  --<span class="hljs-built_in">env</span> REDIS_HOST=redis \<br>  demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<p>应用中可以配置：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">spring.data.redis.host</span>=<span class="hljs-string">redis</span><br><span class="hljs-attr">spring.data.redis.port</span>=<span class="hljs-string">6379</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="2-VIP-模式"><a href="#2-VIP-模式" class="headerlink" title="2. VIP 模式"></a>2. VIP 模式</h3><p>默认 endpoint mode 是 VIP。</p>
+<p>服务名会解析到一个虚拟 IP，Swarm 内部负载均衡再转发到具体 Task。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service inspect redis --pretty<br></code></pre></td></tr></table></figure>
+
+<p>创建 VIP 模式服务：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name web \<br>  --endpoint-mode vip \<br>  --network app-net \<br>  --replicas 3 \<br>  nginx<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-DNSRR-模式"><a href="#3-DNSRR-模式" class="headerlink" title="3. DNSRR 模式"></a>3. DNSRR 模式</h3><p>DNSRR 会让 DNS 查询返回多个 Task IP，由客户端自己负载均衡。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name web \<br>  --endpoint-mode dnsrr \<br>  --network app-net \<br>  --replicas 3 \<br>  nginx<br></code></pre></td></tr></table></figure>
+
+<p>适合：</p>
+<ul>
+<li>客户端自己做负载均衡</li>
+<li>某些服务发现框架</li>
+<li>不想使用 VIP 负载均衡</li>
+</ul>
+<p>注意：DNSRR 和 ingress 发布端口并不是所有组合都适合，需要根据实际服务设计。</p>
+<hr>
+<h2 id="十三、Secret：敏感配置管理"><a href="#十三、Secret：敏感配置管理" class="headerlink" title="十三、Secret：敏感配置管理"></a>十三、Secret：敏感配置管理</h2><p>不要把密码写进镜像，也不要直接写在命令里。</p>
+<p>错误示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name mysql \<br>  --<span class="hljs-built_in">env</span> MYSQL_ROOT_PASSWORD=123456 \<br>  mysql:8<br></code></pre></td></tr></table></figure>
+
+<p>更推荐使用 Secret。</p>
+<h3 id="1-创建-Secret"><a href="#1-创建-Secret" class="headerlink" title="1. 创建 Secret"></a>1. 创建 Secret</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;StrongPassword123!&quot;</span> | docker secret create mysql_root_password -<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker secret <span class="hljs-built_in">ls</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="2-服务使用-Secret"><a href="#2-服务使用-Secret" class="headerlink" title="2. 服务使用 Secret"></a>2. 服务使用 Secret</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name mysql \<br>  --secret mysql_root_password \<br>  --<span class="hljs-built_in">env</span> MYSQL_ROOT_PASSWORD_FILE=/run/secrets/mysql_root_password \<br>  mysql:8<br></code></pre></td></tr></table></figure>
+
+<p>Secret 默认挂载在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/run/secrets/&lt;secret_name&gt;<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-在应用服务中读取-Secret"><a href="#3-在应用服务中读取-Secret" class="headerlink" title="3. 在应用服务中读取 Secret"></a>3. 在应用服务中读取 Secret</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name app \<br>  --secret db_password \<br>  demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<p>容器内：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /run/secrets/db_password<br></code></pre></td></tr></table></figure>
+
+<p>应用可以读取该文件。</p>
+<h3 id="4-Secret-轮换"><a href="#4-Secret-轮换" class="headerlink" title="4. Secret 轮换"></a>4. Secret 轮换</h3><p>Swarm Secret 不支持直接修改内容。<br>通常做法是创建新版本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;NewPassword456!&quot;</span> | docker secret create mysql_root_password_v2 -<br></code></pre></td></tr></table></figure>
+
+<p>更新服务：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service update \<br>  --secret-rm mysql_root_password \<br>  --secret-add <span class="hljs-built_in">source</span>=mysql_root_password_v2,target=mysql_root_password \<br>  mysql<br></code></pre></td></tr></table></figure>
+
+<p>确认服务正常后删除旧 Secret：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker secret <span class="hljs-built_in">rm</span> mysql_root_password<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-Secret-使用建议"><a href="#5-Secret-使用建议" class="headerlink" title="5. Secret 使用建议"></a>5. Secret 使用建议</h3><ul>
+<li>Secret 用于密码、Token、私钥等敏感信息</li>
+<li>不要把 Secret 写进镜像</li>
+<li>不要把 Secret 放进 Git</li>
+<li>Secret 命名建议带版本</li>
+<li>轮换时使用新 Secret 替换旧 Secret</li>
+<li>服务不用的 Secret 要及时移除</li>
+</ul>
+<hr>
+<h2 id="十四、Config：非敏感配置管理"><a href="#十四、Config：非敏感配置管理" class="headerlink" title="十四、Config：非敏感配置管理"></a>十四、Config：非敏感配置管理</h2><p>Config 类似 Secret，但用于非敏感配置。</p>
+<p>适合：</p>
+<ul>
+<li>Nginx 配置</li>
+<li>应用配置模板</li>
+<li>Prometheus 配置</li>
+<li>Fluent Bit 配置</li>
+<li>静态配置文件</li>
+</ul>
+<h3 id="1-创建-Config"><a href="#1-创建-Config" class="headerlink" title="1. 创建 Config"></a>1. 创建 Config</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker config create nginx_conf ./nginx.conf<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker config <span class="hljs-built_in">ls</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="2-服务使用-Config"><a href="#2-服务使用-Config" class="headerlink" title="2. 服务使用 Config"></a>2. 服务使用 Config</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name nginx \<br>  --config <span class="hljs-built_in">source</span>=nginx_conf,target=/etc/nginx/nginx.conf \<br>  --publish published=80,target=80 \<br>  nginx<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-Config-和-Secret-的区别"><a href="#3-Config-和-Secret-的区别" class="headerlink" title="3. Config 和 Secret 的区别"></a>3. Config 和 Secret 的区别</h3><table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>Config</th>
+<th>Secret</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>用途</td>
+<td>非敏感配置</td>
+<td>敏感信息</td>
+</tr>
+<tr>
+<td>是否加密存储</td>
+<td>不按 Secret 语义处理</td>
+<td>加密存储在 Raft 日志</td>
+</tr>
+<tr>
+<td>默认挂载位置</td>
+<td><code>/&lt;config_name&gt;</code></td>
+<td><code>/run/secrets/&lt;secret_name&gt;</code></td>
+</tr>
+<tr>
+<td>示例</td>
+<td>nginx.conf</td>
+<td>db_password</td>
+</tr>
+</tbody></table>
+<h3 id="4-Config-轮换"><a href="#4-Config-轮换" class="headerlink" title="4. Config 轮换"></a>4. Config 轮换</h3><p>和 Secret 一样，不直接修改内容，而是创建新版本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker config create nginx_conf_v2 ./nginx.conf<br></code></pre></td></tr></table></figure>
+
+<p>更新服务：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service update \<br>  --config-rm nginx_conf \<br>  --config-add <span class="hljs-built_in">source</span>=nginx_conf_v2,target=/etc/nginx/nginx.conf \<br>  nginx<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十五、使用-Stack-部署应用"><a href="#十五、使用-Stack-部署应用" class="headerlink" title="十五、使用 Stack 部署应用"></a>十五、使用 Stack 部署应用</h2><p>虽然这篇文章不是讲 Compose，但 Swarm 的 <code>docker stack deploy</code> 会使用 Compose 文件格式来描述一组服务。</p>
+<h3 id="1-Stack-是什么？"><a href="#1-Stack-是什么？" class="headerlink" title="1. Stack 是什么？"></a>1. Stack 是什么？</h3><p>Stack 是一组 Service、Network、Volume、Config、Secret 的集合。</p>
+<p>如果 <code>docker service create</code> 是一个一个创建服务，<code>docker stack deploy</code> 就是一次部署一组服务。</p>
+<h3 id="2-一个简单-Stack-示例"><a href="#2-一个简单-Stack-示例" class="headerlink" title="2. 一个简单 Stack 示例"></a>2. 一个简单 Stack 示例</h3><p><code>stack.yml</code>：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">version:</span> <span class="hljs-string">&quot;3.8&quot;</span><br><br><span class="hljs-attr">services:</span><br>  <span class="hljs-attr">web:</span><br>    <span class="hljs-attr">image:</span> <span class="hljs-string">nginx:1.26</span><br>    <span class="hljs-attr">ports:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-attr">target:</span> <span class="hljs-number">80</span><br>        <span class="hljs-attr">published:</span> <span class="hljs-number">8080</span><br>        <span class="hljs-attr">protocol:</span> <span class="hljs-string">tcp</span><br>        <span class="hljs-attr">mode:</span> <span class="hljs-string">ingress</span><br>    <span class="hljs-attr">networks:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">app-net</span><br>    <span class="hljs-attr">deploy:</span><br>      <span class="hljs-attr">replicas:</span> <span class="hljs-number">3</span><br>      <span class="hljs-attr">update_config:</span><br>        <span class="hljs-attr">parallelism:</span> <span class="hljs-number">1</span><br>        <span class="hljs-attr">delay:</span> <span class="hljs-string">10s</span><br>        <span class="hljs-attr">failure_action:</span> <span class="hljs-string">rollback</span><br>      <span class="hljs-attr">rollback_config:</span><br>        <span class="hljs-attr">parallelism:</span> <span class="hljs-number">1</span><br>        <span class="hljs-attr">delay:</span> <span class="hljs-string">10s</span><br>      <span class="hljs-attr">restart_policy:</span><br>        <span class="hljs-attr">condition:</span> <span class="hljs-string">on-failure</span><br>      <span class="hljs-attr">resources:</span><br>        <span class="hljs-attr">limits:</span><br>          <span class="hljs-attr">cpus:</span> <span class="hljs-string">&quot;0.50&quot;</span><br>          <span class="hljs-attr">memory:</span> <span class="hljs-string">256M</span><br>        <span class="hljs-attr">reservations:</span><br>          <span class="hljs-attr">memory:</span> <span class="hljs-string">128M</span><br><br><span class="hljs-attr">networks:</span><br>  <span class="hljs-attr">app-net:</span><br>    <span class="hljs-attr">driver:</span> <span class="hljs-string">overlay</span><br></code></pre></td></tr></table></figure>
+
+<p>部署：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker stack deploy -c stack.yml demo<br></code></pre></td></tr></table></figure>
+
+<p>查看 Stack：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker stack <span class="hljs-built_in">ls</span><br>docker stack services demo<br>docker stack ps demo<br></code></pre></td></tr></table></figure>
+
+<p>删除 Stack：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker stack <span class="hljs-built_in">rm</span> demo<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-注意-stack-deploy-和-Compose-的差异"><a href="#3-注意-stack-deploy-和-Compose-的差异" class="headerlink" title="3. 注意 stack deploy 和 Compose 的差异"></a>3. 注意 stack deploy 和 Compose 的差异</h3><p><code>docker stack deploy</code> 使用的是 Swarm Stack 部署能力，它不是本地 <code>docker compose up</code> 的完全替代。</p>
+<p>常见差异：</p>
+<ul>
+<li><code>build</code> 通常不适合 stack 部署，生产应提前构建并推送镜像到 Registry</li>
+<li><code>container_name</code> 在 Swarm 中不适合使用</li>
+<li><code>depends_on</code> 不提供 Compose 本地编排那种启动顺序语义</li>
+<li><code>deploy</code> 字段在 Swarm 中生效，而在很多本地 Compose 场景下行为不同</li>
+<li>Stack 部署要在 Manager 节点执行</li>
+<li>镜像必须能被所有节点拉取</li>
+</ul>
+<h3 id="4-为什么生产要用私有镜像仓库？"><a href="#4-为什么生产要用私有镜像仓库？" class="headerlink" title="4. 为什么生产要用私有镜像仓库？"></a>4. 为什么生产要用私有镜像仓库？</h3><p>如果你在 manager-1 本地 build 了镜像：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build -t demo-app:1.0.0 .<br></code></pre></td></tr></table></figure>
+
+<p>然后部署：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create --name app demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<p>Task 可能被调度到 worker-1。<br>但 worker-1 上没有这个镜像，就会拉取失败。</p>
+<p>生产流程应该是：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[构建镜像] --&gt; B[推送到 Harbor / Registry]
+    B --&gt; C[Swarm 部署 Service]
+    C --&gt; D[各 Worker 从 Registry 拉取镜像]
+</code></pre>
+
+<p>示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build -t harbor.example.com/backend/demo-app:1.0.0 .<br>docker push harbor.example.com/backend/demo-app:1.0.0<br>docker service update --image harbor.example.com/backend/demo-app:1.0.0 app<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十六、部署-Spring-Boot-到-Swarm"><a href="#十六、部署-Spring-Boot-到-Swarm" class="headerlink" title="十六、部署 Spring Boot 到 Swarm"></a>十六、部署 Spring Boot 到 Swarm</h2><h3 id="1-Dockerfile"><a href="#1-Dockerfile" class="headerlink" title="1. Dockerfile"></a>1. Dockerfile</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> eclipse-temurin:<span class="hljs-number">17</span>-jre<br><br><span class="hljs-keyword">RUN</span><span class="language-bash"> groupadd -r app &amp;&amp; useradd -r -g app app</span><br><br><span class="hljs-keyword">WORKDIR</span><span class="language-bash"> /app</span><br><br><span class="hljs-keyword">COPY</span><span class="language-bash"> --<span class="hljs-built_in">chown</span>=app:app target/app.jar app.jar</span><br><br><span class="hljs-keyword">USER</span> app<br><br><span class="hljs-keyword">EXPOSE</span> <span class="hljs-number">8080</span><br><br><span class="hljs-keyword">ENV</span> JAVA_OPTS=<span class="hljs-string">&quot;-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC&quot;</span><br><br><span class="hljs-keyword">ENTRYPOINT</span><span class="language-bash"> [<span class="hljs-string">&quot;sh&quot;</span>, <span class="hljs-string">&quot;-c&quot;</span>, <span class="hljs-string">&quot;exec java <span class="hljs-variable">$JAVA_OPTS</span> -jar app.jar&quot;</span>]</span><br></code></pre></td></tr></table></figure>
+
+<p>构建并推送：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker build -t harbor.example.com/backend/demo-app:1.0.0 .<br>docker push harbor.example.com/backend/demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-创建-Overlay-网络"><a href="#2-创建-Overlay-网络" class="headerlink" title="2. 创建 Overlay 网络"></a>2. 创建 Overlay 网络</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker network create \<br>  --driver overlay \<br>  app-net<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-创建-Secret"><a href="#3-创建-Secret" class="headerlink" title="3. 创建 Secret"></a>3. 创建 Secret</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;db-password&quot;</span> | docker secret create db_password -<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-部署服务"><a href="#4-部署服务" class="headerlink" title="4. 部署服务"></a>4. 部署服务</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name demo-app \<br>  --replicas 3 \<br>  --network app-net \<br>  --publish published=8080,target=8080 \<br>  --secret db_password \<br>  --<span class="hljs-built_in">env</span> SPRING_PROFILES_ACTIVE=prod \<br>  --<span class="hljs-built_in">env</span> DB_PASSWORD_FILE=/run/secrets/db_password \<br>  --limit-memory 768M \<br>  --limit-cpu 1 \<br>  --update-parallelism 1 \<br>  --update-delay 10s \<br>  --update-failure-action rollback \<br>  harbor.example.com/backend/demo-app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-更新服务"><a href="#5-更新服务" class="headerlink" title="5. 更新服务"></a>5. 更新服务</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service update \<br>  --image harbor.example.com/backend/demo-app:1.0.1 \<br>  demo-app<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-查看状态"><a href="#6-查看状态" class="headerlink" title="6. 查看状态"></a>6. 查看状态</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service <span class="hljs-built_in">ls</span><br>docker service ps demo-app<br>docker service logs -f demo-app<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-回滚"><a href="#7-回滚" class="headerlink" title="7. 回滚"></a>7. 回滚</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service rollback demo-app<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十七、有状态服务和数据卷的坑"><a href="#十七、有状态服务和数据卷的坑" class="headerlink" title="十七、有状态服务和数据卷的坑"></a>十七、有状态服务和数据卷的坑</h2><p>Swarm 跑无状态服务很舒服，但跑有状态服务要谨慎。</p>
+<h3 id="1-本地-Volume-的问题"><a href="#1-本地-Volume-的问题" class="headerlink" title="1. 本地 Volume 的问题"></a>1. 本地 Volume 的问题</h3><p>比如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name mysql \<br>  --mount <span class="hljs-built_in">type</span>=volume,<span class="hljs-built_in">source</span>=mysql-data,target=/var/lib/mysql \<br>  mysql:8<br></code></pre></td></tr></table></figure>
+
+<p>这个 <code>mysql-data</code> 是每个节点本地的 volume。</p>
+<p>如果 MySQL task 从 worker-1 漂移到 worker-2：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">worker-1: mysql-data 有数据<br>worker-2: mysql-data 是新的空卷<br></code></pre></td></tr></table></figure>
+
+<p>结果可能是灾难。</p>
+<h3 id="2-有状态服务的几种方案"><a href="#2-有状态服务的几种方案" class="headerlink" title="2. 有状态服务的几种方案"></a>2. 有状态服务的几种方案</h3><table>
+<thead>
+<tr>
+<th>方案</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>固定节点运行</td>
+<td>使用 placement constraint，把服务固定到某个节点</td>
+</tr>
+<tr>
+<td>外部数据库</td>
+<td>数据库不跑在 Swarm 里，使用云数据库或独立集群</td>
+</tr>
+<tr>
+<td>分布式存储</td>
+<td>使用 NFS、Ceph、GlusterFS、Longhorn 等</td>
+</tr>
+<tr>
+<td>专业中间件集群</td>
+<td>MySQL 主从、Redis Cluster、Kafka 集群等单独规划</td>
+</tr>
+<tr>
+<td>Docker Volume Plugin</td>
+<td>使用支持多节点存储的插件</td>
+</tr>
+</tbody></table>
+<h3 id="3-使用节点标签固定-MySQL"><a href="#3-使用节点标签固定-MySQL" class="headerlink" title="3. 使用节点标签固定 MySQL"></a>3. 使用节点标签固定 MySQL</h3><p>给节点打标签：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node update \<br>  --label-add storage=mysql \<br>  worker-1<br></code></pre></td></tr></table></figure>
+
+<p>部署 MySQL：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name mysql \<br>  --constraint node.labels.storage==mysql \<br>  --mount <span class="hljs-built_in">type</span>=volume,<span class="hljs-built_in">source</span>=mysql-data,target=/var/lib/mysql \<br>  --<span class="hljs-built_in">env</span> MYSQL_ROOT_PASSWORD_FILE=/run/secrets/mysql_root_password \<br>  --secret mysql_root_password \<br>  mysql:8<br></code></pre></td></tr></table></figure>
+
+<p>这可以避免 MySQL 随意漂移到其他节点。</p>
+<p>但它不等于高可用。<br>worker-1 挂了，MySQL 还是不可用。</p>
+<h3 id="4-推荐实践"><a href="#4-推荐实践" class="headerlink" title="4. 推荐实践"></a>4. 推荐实践</h3><p>生产环境建议：</p>
+<ul>
+<li>Web&#x2F;API&#x2F;Worker 这类无状态服务跑 Swarm</li>
+<li>MySQL&#x2F;PostgreSQL&#x2F;Redis&#x2F;Kafka 等状态服务单独规划</li>
+<li>小团队可以用固定节点 + 强备份</li>
+<li>关键业务使用云数据库或专门的数据库集群</li>
+<li>不要以为 Swarm 自动迁移就等于数据自动迁移</li>
+</ul>
+<p>容器会漂移，数据不会自己长腿跟上。别给数据安排它做不到的事情。</p>
+<hr>
+<h2 id="十八、节点标签和调度约束"><a href="#十八、节点标签和调度约束" class="headerlink" title="十八、节点标签和调度约束"></a>十八、节点标签和调度约束</h2><h3 id="1-给节点打标签"><a href="#1-给节点打标签" class="headerlink" title="1. 给节点打标签"></a>1. 给节点打标签</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node update \<br>  --label-add region=shanghai \<br>  worker-1<br><br>docker node update \<br>  --label-add disk=ssd \<br>  worker-1<br><br>docker node update \<br>  --label-add app=<span class="hljs-literal">true</span> \<br>  worker-2<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node inspect worker-1 --pretty<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-使用约束部署服务"><a href="#2-使用约束部署服务" class="headerlink" title="2. 使用约束部署服务"></a>2. 使用约束部署服务</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name api \<br>  --replicas 3 \<br>  --constraint node.labels.app==<span class="hljs-literal">true</span> \<br>  harbor.example.com/backend/api:1.0.0<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-多约束"><a href="#3-多约束" class="headerlink" title="3. 多约束"></a>3. 多约束</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name order-service \<br>  --replicas 2 \<br>  --constraint node.labels.region==shanghai \<br>  --constraint node.labels.disk==ssd \<br>  harbor.example.com/backend/order-service:1.0.0<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-排除某些节点"><a href="#4-排除某些节点" class="headerlink" title="4. 排除某些节点"></a>4. 排除某些节点</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name test-service \<br>  --constraint node.labels.env!=prod \<br>  nginx<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-Global-服务"><a href="#5-Global-服务" class="headerlink" title="5. Global 服务"></a>5. Global 服务</h3><p>Global 服务会在每个符合条件的节点上运行一个 Task。</p>
+<p>适合：</p>
+<ul>
+<li>日志采集 Agent</li>
+<li>监控 Agent</li>
+<li>节点 Exporter</li>
+<li>安全扫描 Agent</li>
+</ul>
+<p>示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name node-exporter \<br>  --mode global \<br>  --publish published=9100,target=9100,mode=host \<br>  prom/node-exporter<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-Replicated-vs-Global"><a href="#6-Replicated-vs-Global" class="headerlink" title="6. Replicated vs Global"></a>6. Replicated vs Global</h3><table>
+<thead>
+<tr>
+<th>模式</th>
+<th>说明</th>
+<th>场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>replicated</td>
+<td>指定副本数</td>
+<td>Web&#x2F;API&#x2F;Worker</td>
+</tr>
+<tr>
+<td>global</td>
+<td>每个节点一个</td>
+<td>Agent&#x2F;Exporter&#x2F;日志采集</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="十九、节点维护：Drain、Pause、Active"><a href="#十九、节点维护：Drain、Pause、Active" class="headerlink" title="十九、节点维护：Drain、Pause、Active"></a>十九、节点维护：Drain、Pause、Active</h2><p>节点有可用性状态：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Active</td>
+<td>可以接收新 Task</td>
+</tr>
+<tr>
+<td>Pause</td>
+<td>不接收新 Task，但已有 Task 继续运行</td>
+</tr>
+<tr>
+<td>Drain</td>
+<td>不接收新 Task，并迁移已有 Task</td>
+</tr>
+</tbody></table>
+<h3 id="1-Drain-节点"><a href="#1-Drain-节点" class="headerlink" title="1. Drain 节点"></a>1. Drain 节点</h3><p>维护 worker-1 前：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node update --availability drain worker-1<br></code></pre></td></tr></table></figure>
+
+<p>Swarm 会把 worker-1 上的 Task 调度到其他 Active 节点。</p>
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service ps web<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-恢复节点"><a href="#2-恢复节点" class="headerlink" title="2. 恢复节点"></a>2. 恢复节点</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node update --availability active worker-1<br></code></pre></td></tr></table></figure>
+
+<p>注意：恢复 Active 后，Swarm 不一定立刻把 Task 迁回该节点。<br>Swarm 追求最小扰动，不会为了“看起来平均”随便迁移正在跑的任务。</p>
+<p>如果需要强制重新分布：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service update --force web<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-Pause-节点"><a href="#3-Pause-节点" class="headerlink" title="3. Pause 节点"></a>3. Pause 节点</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node update --availability pause worker-1<br></code></pre></td></tr></table></figure>
+
+<p>Pause 不会迁移已有 Task，只是不再接新 Task。</p>
+<h3 id="4-维护流程建议"><a href="#4-维护流程建议" class="headerlink" title="4. 维护流程建议"></a>4. 维护流程建议</h3><pre><code class=" mermaid">flowchart TB
+    A[准备维护节点] --&gt; B[设置 Drain]
+    B --&gt; C[等待 Task 迁移完成]
+    C --&gt; D[确认服务副本正常]
+    D --&gt; E[维护系统/升级 Docker/重启机器]
+    E --&gt; F[节点恢复]
+    F --&gt; G[设置 Active]
+    G --&gt; H[观察集群状态]
+</code></pre>
+
+<hr>
+<h2 id="二十、Swarm-安全机制"><a href="#二十、Swarm-安全机制" class="headerlink" title="二十、Swarm 安全机制"></a>二十、Swarm 安全机制</h2><h3 id="1-节点间-mTLS"><a href="#1-节点间-mTLS" class="headerlink" title="1. 节点间 mTLS"></a>1. 节点间 mTLS</h3><p>Swarm 内置 PKI。<br>节点加入 Swarm 时，Manager 会给节点签发证书。节点之间使用双向 TLS 认证和加密通信。</p>
+<p>这比很多人想象的要完整。<br>Swarm 简单，不代表它在安全上裸奔。</p>
+<h3 id="2-Join-Token"><a href="#2-Join-Token" class="headerlink" title="2. Join Token"></a>2. Join Token</h3><p>Swarm 有两类 token：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm join-token worker<br>docker swarm join-token manager<br></code></pre></td></tr></table></figure>
+
+<p>Worker token 用于加入 Worker。<br>Manager token 用于加入 Manager。</p>
+<p>Manager token 权限更高，必须保护好。</p>
+<h3 id="3-轮换-Token"><a href="#3-轮换-Token" class="headerlink" title="3. 轮换 Token"></a>3. 轮换 Token</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm join-token --rotate worker<br>docker swarm join-token --rotate manager<br></code></pre></td></tr></table></figure>
+
+<p>如果 token 泄露，立即轮换。</p>
+<h3 id="4-轮换-CA"><a href="#4-轮换-CA" class="headerlink" title="4. 轮换 CA"></a>4. 轮换 CA</h3><p>如果 CA 或 Manager 被怀疑泄露：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm ca --rotate<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-Auto-lock"><a href="#5-Auto-lock" class="headerlink" title="5. Auto-lock"></a>5. Auto-lock</h3><p>Swarm 的 Raft 日志包含敏感数据，比如 Secret。<br>可以开启 auto-lock，保护 Manager 本地加密密钥。</p>
+<p>初始化时开启：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm init \<br>  --advertise-addr 10.0.0.11 \<br>  --autolock<br></code></pre></td></tr></table></figure>
+
+<p>已有 Swarm 开启：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm update --autolock=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>查看 unlock key：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm unlock-key<br></code></pre></td></tr></table></figure>
+
+<p>Manager 重启后需要解锁：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm unlock<br></code></pre></td></tr></table></figure>
+
+<p>轮换 unlock key：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm unlock-key --rotate<br></code></pre></td></tr></table></figure>
+
+<p>注意：unlock key 必须安全保存。<br>别开启 auto-lock 后自己把钥匙丢了，那就是给自己集群上了一把精致的锁，然后把钥匙扔进了海里。</p>
+<hr>
+<h2 id="二十一、Swarm-备份与恢复"><a href="#二十一、Swarm-备份与恢复" class="headerlink" title="二十一、Swarm 备份与恢复"></a>二十一、Swarm 备份与恢复</h2><h3 id="1-需要备份什么？"><a href="#1-需要备份什么？" class="headerlink" title="1. 需要备份什么？"></a>1. 需要备份什么？</h3><p>Manager 节点的 Swarm 状态保存在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/var/lib/docker/swarm<br></code></pre></td></tr></table></figure>
+
+<p>这里包含：</p>
+<ul>
+<li>Raft 日志</li>
+<li>集群状态</li>
+<li>网络对象</li>
+<li>服务对象</li>
+<li>Secret&#x2F;Config 元数据</li>
+<li>加密相关 key</li>
+</ul>
+<h3 id="2-备份-Swarm-状态"><a href="#2-备份-Swarm-状态" class="headerlink" title="2. 备份 Swarm 状态"></a>2. 备份 Swarm 状态</h3><p>建议停止 Docker 后备份，避免状态变化。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -e<br><br>BACKUP_DIR=<span class="hljs-string">&quot;/opt/backups/swarm&quot;</span><br>DATE=<span class="hljs-string">&quot;<span class="hljs-subst">$(date +%Y%m%d_%H%M%S)</span>&quot;</span><br><br><span class="hljs-built_in">mkdir</span> -p <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;BACKUP_DIR&#125;</span>&quot;</span><br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Stopping Docker...&quot;</span><br>sudo systemctl stop docker<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Backing up /var/lib/docker/swarm...&quot;</span><br>sudo tar czf <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;BACKUP_DIR&#125;</span>/swarm-<span class="hljs-variable">$&#123;DATE&#125;</span>.tar.gz&quot;</span> -C /var/lib/docker swarm<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Starting Docker...&quot;</span><br>sudo systemctl start docker<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Backup created: <span class="hljs-variable">$&#123;BACKUP_DIR&#125;</span>/swarm-<span class="hljs-variable">$&#123;DATE&#125;</span>.tar.gz&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果开启了 auto-lock，记得保存 unlock key：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm unlock-key<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-恢复-Swarm"><a href="#3-恢复-Swarm" class="headerlink" title="3. 恢复 Swarm"></a>3. 恢复 Swarm</h3><p>恢复到新 Manager：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash">sudo systemctl stop docker<br><br>sudo <span class="hljs-built_in">rm</span> -rf /var/lib/docker/swarm<br>sudo tar xzf swarm-20260607_120000.tar.gz -C /var/lib/docker<br><br>sudo systemctl start docker<br></code></pre></td></tr></table></figure>
+
+<p>如果需要强制形成新集群：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm init --force-new-cluster --advertise-addr 10.0.0.11<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-丢失-Quorum-怎么办？"><a href="#4-丢失-Quorum-怎么办？" class="headerlink" title="4. 丢失 Quorum 怎么办？"></a>4. 丢失 Quorum 怎么办？</h3><p>如果 Manager 多数派丢失，集群不能执行管理操作：</p>
+<ul>
+<li>不能创建服务</li>
+<li>不能更新服务</li>
+<li>不能扩缩容</li>
+<li>不能添加节点</li>
+<li>不能删除节点</li>
+</ul>
+<p>但已有 Worker 上的任务可能继续运行。</p>
+<p>恢复优先级：</p>
+<ol>
+<li>尽量恢复原 Manager 节点。</li>
+<li>如果无法恢复，在保留完整状态的 Manager 上执行 <code>--force-new-cluster</code>。</li>
+<li>重新加入 Manager 和 Worker。</li>
+<li>检查服务状态。</li>
+<li>重新建立备份策略。</li>
+</ol>
+<p>命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm init --force-new-cluster --advertise-addr 10.0.0.11<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="二十二、监控与日志"><a href="#二十二、监控与日志" class="headerlink" title="二十二、监控与日志"></a>二十二、监控与日志</h2><p>Swarm 原生可以查看服务状态，但生产还需要监控系统。</p>
+<h3 id="1-常用原生命令"><a href="#1-常用原生命令" class="headerlink" title="1. 常用原生命令"></a>1. 常用原生命令</h3><p>查看节点：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node <span class="hljs-built_in">ls</span><br></code></pre></td></tr></table></figure>
+
+<p>查看服务：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service <span class="hljs-built_in">ls</span><br></code></pre></td></tr></table></figure>
+
+<p>查看任务：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service ps &lt;service&gt;<br></code></pre></td></tr></table></figure>
+
+<p>查看日志：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service logs -f &lt;service&gt;<br></code></pre></td></tr></table></figure>
+
+<p>查看节点详情：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node inspect &lt;node&gt; --pretty<br></code></pre></td></tr></table></figure>
+
+<p>查看服务详情：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service inspect &lt;service&gt; --pretty<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-监控建议"><a href="#2-监控建议" class="headerlink" title="2. 监控建议"></a>2. 监控建议</h3><p>常用组合：</p>
+<ul>
+<li>Prometheus</li>
+<li>Grafana</li>
+<li>cAdvisor</li>
+<li>Node Exporter</li>
+<li>Alertmanager</li>
+</ul>
+<p>Node Exporter 适合 global 模式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name node-exporter \<br>  --mode global \<br>  --publish published=9100,target=9100,mode=host \<br>  prom/node-exporter<br></code></pre></td></tr></table></figure>
+
+<p>cAdvisor 示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name cadvisor \<br>  --mode global \<br>  --publish published=8081,target=8080,mode=host \<br>  --mount <span class="hljs-built_in">type</span>=<span class="hljs-built_in">bind</span>,src=/,dst=/rootfs,ro \<br>  --mount <span class="hljs-built_in">type</span>=<span class="hljs-built_in">bind</span>,src=/var/run,dst=/var/run,ro \<br>  --mount <span class="hljs-built_in">type</span>=<span class="hljs-built_in">bind</span>,src=/sys,dst=/sys,ro \<br>  --mount <span class="hljs-built_in">type</span>=<span class="hljs-built_in">bind</span>,src=/var/lib/docker,dst=/var/lib/docker,ro \<br>  gcr.io/cadvisor/cadvisor<br></code></pre></td></tr></table></figure>
+
+<p>注意：这些监控容器通常要挂载宿主机目录，权限较高，要控制访问。</p>
+<h3 id="3-日志建议"><a href="#3-日志建议" class="headerlink" title="3. 日志建议"></a>3. 日志建议</h3><p>Swarm 里的服务日志可以用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service logs<br></code></pre></td></tr></table></figure>
+
+<p>但生产更推荐集中日志：</p>
+<ul>
+<li>Loki + Promtail</li>
+<li>ELK &#x2F; EFK</li>
+<li>Fluent Bit</li>
+<li>Vector</li>
+<li>Graylog</li>
+</ul>
+<p>日志采集 Agent 适合 global 模式，每个节点一个。</p>
+<hr>
+<h2 id="二十三、Swarm-常见故障排查"><a href="#二十三、Swarm-常见故障排查" class="headerlink" title="二十三、Swarm 常见故障排查"></a>二十三、Swarm 常见故障排查</h2><h3 id="1-节点-Not-Ready"><a href="#1-节点-Not-Ready" class="headerlink" title="1. 节点 Not Ready"></a>1. 节点 Not Ready</h3><p>查看节点：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node <span class="hljs-built_in">ls</span><br></code></pre></td></tr></table></figure>
+
+<p>排查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status docker<br>journalctl -u docker -f<br></code></pre></td></tr></table></figure>
+
+<p>检查端口：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">nc -zv manager-1 2377<br>nc -zv worker-1 7946<br></code></pre></td></tr></table></figure>
+
+<p>检查 UDP 端口需要用专门工具，例如 <code>nc -u</code> 或 <code>tcpdump</code>。</p>
+<h3 id="2-服务一直-Pending"><a href="#2-服务一直-Pending" class="headerlink" title="2. 服务一直 Pending"></a>2. 服务一直 Pending</h3><p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service ps &lt;service&gt; --no-trunc<br></code></pre></td></tr></table></figure>
+
+<p>常见原因：</p>
+<ul>
+<li>节点资源不足</li>
+<li>placement constraint 无节点满足</li>
+<li>镜像拉取失败</li>
+<li>私有仓库未登录</li>
+<li>端口冲突</li>
+<li>网络创建失败</li>
+<li>Secret&#x2F;Config 不存在</li>
+</ul>
+<h3 id="3-镜像拉取失败"><a href="#3-镜像拉取失败" class="headerlink" title="3. 镜像拉取失败"></a>3. 镜像拉取失败</h3><p>如果使用私有仓库，所有节点都要能拉取镜像。</p>
+<p>每个节点登录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker login harbor.example.com<br></code></pre></td></tr></table></figure>
+
+<p>或者使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --with-registry-auth \<br>  --name app \<br>  harbor.example.com/backend/app:1.0.0<br></code></pre></td></tr></table></figure>
+
+<p>更新服务：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service update \<br>  --with-registry-auth \<br>  --image harbor.example.com/backend/app:1.0.1 \<br>  app<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-服务端口访问不了"><a href="#4-服务端口访问不了" class="headerlink" title="4. 服务端口访问不了"></a>4. 服务端口访问不了</h3><p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service <span class="hljs-built_in">ls</span><br>docker service ps web<br>docker service inspect web --pretty<br></code></pre></td></tr></table></figure>
+
+<p>检查端口发布：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service inspect web --format <span class="hljs-string">&#x27;&#123;&#123;json .Endpoint.Ports&#125;&#125;&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>检查防火墙：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">sudo ufw status<br>sudo iptables -L -n<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-Overlay-网络不通"><a href="#5-Overlay-网络不通" class="headerlink" title="5. Overlay 网络不通"></a>5. Overlay 网络不通</h3><p>检查端口：</p>
+<ul>
+<li>7946 TCP&#x2F;UDP</li>
+<li>4789 UDP</li>
+</ul>
+<p>查看网络：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker network <span class="hljs-built_in">ls</span><br>docker network inspect app-net<br></code></pre></td></tr></table></figure>
+
+<p>抓包：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">sudo tcpdump -i any port 4789<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-Manager-Unreachable"><a href="#6-Manager-Unreachable" class="headerlink" title="6. Manager Unreachable"></a>6. Manager Unreachable</h3><p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node <span class="hljs-built_in">ls</span><br></code></pre></td></tr></table></figure>
+
+<p>查看 Docker 日志：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">journalctl -u docker -f<br></code></pre></td></tr></table></figure>
+
+<p>检查 Manager 之间网络：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">ping manager-2<br>nc -zv manager-2 2377<br></code></pre></td></tr></table></figure>
+
+<p>如果 Manager 长期不可恢复：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node demote manager-2<br>docker node <span class="hljs-built_in">rm</span> manager-2<br></code></pre></td></tr></table></figure>
+
+<p>注意保持 quorum。</p>
+<h3 id="7-服务没有重新均衡"><a href="#7-服务没有重新均衡" class="headerlink" title="7. 服务没有重新均衡"></a>7. 服务没有重新均衡</h3><p>Swarm 不会为了平均而随便迁移正在运行的任务。<br>如果新增节点后想重新分布：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service update --force web<br></code></pre></td></tr></table></figure>
+
+<p>或滚动更新服务。</p>
+<hr>
+<h2 id="二十四、生产部署架构建议"><a href="#二十四、生产部署架构建议" class="headerlink" title="二十四、生产部署架构建议"></a>二十四、生产部署架构建议</h2><h3 id="1-推荐架构"><a href="#1-推荐架构" class="headerlink" title="1. 推荐架构"></a>1. 推荐架构</h3><pre><code class=" mermaid">flowchart TB
+    LB[外部负载均衡器 Nginx/HAProxy/云LB] --&gt; N1[manager-1 / worker]
+    LB --&gt; N2[worker-1]
+    LB --&gt; N3[worker-2]
+
+    subgraph Swarm[Docker Swarm Cluster]
+        M1[manager-1]
+        M2[manager-2]
+        M3[manager-3]
+        W1[worker-1]
+        W2[worker-2]
+        W3[worker-3]
+        M1 &lt;--&gt;|Raft| M2
+        M2 &lt;--&gt;|Raft| M3
+        M1 &lt;--&gt;|Raft| M3
+        W1 --&gt; APP1[app task]
+        W2 --&gt; APP2[app task]
+        W3 --&gt; APP3[app task]
+    end
+
+    REG[Harbor / Registry] --&gt; Swarm
+    DB[(外部数据库)]
+    APP1 --&gt; DB
+    APP2 --&gt; DB
+    APP3 --&gt; DB
+</code></pre>
+
+<h3 id="2-节点规划建议"><a href="#2-节点规划建议" class="headerlink" title="2. 节点规划建议"></a>2. 节点规划建议</h3><table>
+<thead>
+<tr>
+<th>环境</th>
+<th align="right">Manager</th>
+<th align="right">Worker</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>测试</td>
+<td align="right">1</td>
+<td align="right">0-2</td>
+<td>可以单节点</td>
+</tr>
+<tr>
+<td>小生产</td>
+<td align="right">3</td>
+<td align="right">2+</td>
+<td>起步推荐</td>
+</tr>
+<tr>
+<td>中等生产</td>
+<td align="right">3 或 5</td>
+<td align="right">多个</td>
+<td>Manager 分散部署</td>
+</tr>
+<tr>
+<td>高可用</td>
+<td align="right">5</td>
+<td align="right">多个</td>
+<td>跨可用区部署</td>
+</tr>
+</tbody></table>
+<h3 id="3-Manager-分布建议"><a href="#3-Manager-分布建议" class="headerlink" title="3. Manager 分布建议"></a>3. Manager 分布建议</h3><p>3 Manager：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">AZ-A: manager-1<br>AZ-B: manager-2<br>AZ-C: manager-3<br></code></pre></td></tr></table></figure>
+
+<p>5 Manager：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">AZ-A: manager-1, manager-2<br>AZ-B: manager-3, manager-4<br>AZ-C: manager-5<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-服务部署建议"><a href="#4-服务部署建议" class="headerlink" title="4. 服务部署建议"></a>4. 服务部署建议</h3><ul>
+<li>无状态服务使用 replicated</li>
+<li>Agent 类服务使用 global</li>
+<li>重要服务设置资源限制</li>
+<li>服务设置 update&#x2F;rollback 策略</li>
+<li>使用 overlay 网络隔离业务</li>
+<li>使用 Secret 管理敏感信息</li>
+<li>使用 Config 管理配置文件</li>
+<li>使用 Harbor&#x2F;Registry 分发镜像</li>
+<li>数据库优先外置</li>
+<li>生产入口优先使用外部 LB + Swarm 服务</li>
+</ul>
+<h3 id="5-命名规范建议"><a href="#5-命名规范建议" class="headerlink" title="5. 命名规范建议"></a>5. 命名规范建议</h3><p>Service：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">业务-模块-环境<br>order-api-prod<br>pay-worker-prod<br>gateway-prod<br></code></pre></td></tr></table></figure>
+
+<p>Network：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">prod_backend_net<br>prod_frontend_net<br>monitor_net<br></code></pre></td></tr></table></figure>
+
+<p>Secret：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">prod_mysql_password_v20260607<br>prod_redis_password_v20260607<br></code></pre></td></tr></table></figure>
+
+<p>Config：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">nginx_conf_v20260607<br>prometheus_conf_v20260607<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="二十五、完整实战：部署一个-API-集群"><a href="#二十五、完整实战：部署一个-API-集群" class="headerlink" title="二十五、完整实战：部署一个 API 集群"></a>二十五、完整实战：部署一个 API 集群</h2><p>假设我们有：</p>
+<ul>
+<li>Spring Boot API</li>
+<li>镜像：<code>harbor.example.com/backend/demo-api:1.0.0</code></li>
+<li>对外端口：8080</li>
+<li>副本数：3</li>
+<li>使用 Secret 读取数据库密码</li>
+<li>使用 Overlay 网络</li>
+<li>使用滚动更新和失败回滚</li>
+</ul>
+<h3 id="1-创建网络"><a href="#1-创建网络" class="headerlink" title="1. 创建网络"></a>1. 创建网络</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker network create \<br>  --driver overlay \<br>  --attachable \<br>  prod-net<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-创建-Secret"><a href="#2-创建-Secret" class="headerlink" title="2. 创建 Secret"></a>2. 创建 Secret</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;StrongDbPassword!&quot;</span> | docker secret create prod_db_password_v1 -<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-部署服务"><a href="#3-部署服务" class="headerlink" title="3. 部署服务"></a>3. 部署服务</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create \<br>  --name demo-api \<br>  --replicas 3 \<br>  --network prod-net \<br>  --publish published=8080,target=8080,mode=ingress \<br>  --secret <span class="hljs-built_in">source</span>=prod_db_password_v1,target=db_password \<br>  --<span class="hljs-built_in">env</span> SPRING_PROFILES_ACTIVE=prod \<br>  --<span class="hljs-built_in">env</span> DB_PASSWORD_FILE=/run/secrets/db_password \<br>  --limit-cpu 1 \<br>  --limit-memory 768M \<br>  --reserve-memory 256M \<br>  --update-parallelism 1 \<br>  --update-delay 15s \<br>  --update-monitor 30s \<br>  --update-failure-action rollback \<br>  --restart-condition on-failure \<br>  harbor.example.com/backend/demo-api:1.0.0<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-查看状态"><a href="#4-查看状态" class="headerlink" title="4. 查看状态"></a>4. 查看状态</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service <span class="hljs-built_in">ls</span><br>docker service ps demo-api<br>docker service logs -f demo-api<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-扩容"><a href="#5-扩容" class="headerlink" title="5. 扩容"></a>5. 扩容</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service scale demo-api=5<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-发布新版本"><a href="#6-发布新版本" class="headerlink" title="6. 发布新版本"></a>6. 发布新版本</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service update \<br>  --with-registry-auth \<br>  --image harbor.example.com/backend/demo-api:1.0.1 \<br>  demo-api<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-回滚-1"><a href="#7-回滚-1" class="headerlink" title="7. 回滚"></a>7. 回滚</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service rollback demo-api<br></code></pre></td></tr></table></figure>
+
+<h3 id="8-更新-Secret"><a href="#8-更新-Secret" class="headerlink" title="8. 更新 Secret"></a>8. 更新 Secret</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;NewStrongDbPassword!&quot;</span> | docker secret create prod_db_password_v2 -<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service update \<br>  --secret-rm prod_db_password_v1 \<br>  --secret-add <span class="hljs-built_in">source</span>=prod_db_password_v2,target=db_password \<br>  demo-api<br></code></pre></td></tr></table></figure>
+
+<p>确认正常后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker secret <span class="hljs-built_in">rm</span> prod_db_password_v1<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="二十六、使用-Stack-部署完整应用"><a href="#二十六、使用-Stack-部署完整应用" class="headerlink" title="二十六、使用 Stack 部署完整应用"></a>二十六、使用 Stack 部署完整应用</h2><p><code>demo-stack.yml</code>：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">version:</span> <span class="hljs-string">&quot;3.8&quot;</span><br><br><span class="hljs-attr">services:</span><br>  <span class="hljs-attr">api:</span><br>    <span class="hljs-attr">image:</span> <span class="hljs-string">harbor.example.com/backend/demo-api:1.0.0</span><br>    <span class="hljs-attr">networks:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">prod-net</span><br>    <span class="hljs-attr">ports:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-attr">target:</span> <span class="hljs-number">8080</span><br>        <span class="hljs-attr">published:</span> <span class="hljs-number">8080</span><br>        <span class="hljs-attr">protocol:</span> <span class="hljs-string">tcp</span><br>        <span class="hljs-attr">mode:</span> <span class="hljs-string">ingress</span><br>    <span class="hljs-attr">environment:</span><br>      <span class="hljs-attr">SPRING_PROFILES_ACTIVE:</span> <span class="hljs-string">prod</span><br>      <span class="hljs-attr">DB_PASSWORD_FILE:</span> <span class="hljs-string">/run/secrets/db_password</span><br>    <span class="hljs-attr">secrets:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-attr">source:</span> <span class="hljs-string">db_password</span><br>        <span class="hljs-attr">target:</span> <span class="hljs-string">db_password</span><br>    <span class="hljs-attr">deploy:</span><br>      <span class="hljs-attr">replicas:</span> <span class="hljs-number">3</span><br>      <span class="hljs-attr">update_config:</span><br>        <span class="hljs-attr">parallelism:</span> <span class="hljs-number">1</span><br>        <span class="hljs-attr">delay:</span> <span class="hljs-string">15s</span><br>        <span class="hljs-attr">monitor:</span> <span class="hljs-string">30s</span><br>        <span class="hljs-attr">failure_action:</span> <span class="hljs-string">rollback</span><br>      <span class="hljs-attr">rollback_config:</span><br>        <span class="hljs-attr">parallelism:</span> <span class="hljs-number">1</span><br>        <span class="hljs-attr">delay:</span> <span class="hljs-string">10s</span><br>      <span class="hljs-attr">restart_policy:</span><br>        <span class="hljs-attr">condition:</span> <span class="hljs-string">on-failure</span><br>        <span class="hljs-attr">delay:</span> <span class="hljs-string">5s</span><br>        <span class="hljs-attr">max_attempts:</span> <span class="hljs-number">3</span><br>      <span class="hljs-attr">resources:</span><br>        <span class="hljs-attr">limits:</span><br>          <span class="hljs-attr">cpus:</span> <span class="hljs-string">&quot;1.0&quot;</span><br>          <span class="hljs-attr">memory:</span> <span class="hljs-string">768M</span><br>        <span class="hljs-attr">reservations:</span><br>          <span class="hljs-attr">memory:</span> <span class="hljs-string">256M</span><br>      <span class="hljs-attr">placement:</span><br>        <span class="hljs-attr">constraints:</span><br>          <span class="hljs-bullet">-</span> <span class="hljs-string">node.labels.app</span> <span class="hljs-string">==</span> <span class="hljs-literal">true</span><br><br>  <span class="hljs-attr">worker:</span><br>    <span class="hljs-attr">image:</span> <span class="hljs-string">harbor.example.com/backend/demo-worker:1.0.0</span><br>    <span class="hljs-attr">networks:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">prod-net</span><br>    <span class="hljs-attr">environment:</span><br>      <span class="hljs-attr">SPRING_PROFILES_ACTIVE:</span> <span class="hljs-string">prod</span><br>    <span class="hljs-attr">deploy:</span><br>      <span class="hljs-attr">replicas:</span> <span class="hljs-number">2</span><br>      <span class="hljs-attr">restart_policy:</span><br>        <span class="hljs-attr">condition:</span> <span class="hljs-string">on-failure</span><br>      <span class="hljs-attr">placement:</span><br>        <span class="hljs-attr">constraints:</span><br>          <span class="hljs-bullet">-</span> <span class="hljs-string">node.labels.worker</span> <span class="hljs-string">==</span> <span class="hljs-literal">true</span><br><br><span class="hljs-attr">networks:</span><br>  <span class="hljs-attr">prod-net:</span><br>    <span class="hljs-attr">driver:</span> <span class="hljs-string">overlay</span><br><br><span class="hljs-attr">secrets:</span><br>  <span class="hljs-attr">db_password:</span><br>    <span class="hljs-attr">external:</span> <span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>创建 Secret：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;StrongDbPassword!&quot;</span> | docker secret create db_password -<br></code></pre></td></tr></table></figure>
+
+<p>给节点打标签：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node update --label-add app=<span class="hljs-literal">true</span> worker-1<br>docker node update --label-add app=<span class="hljs-literal">true</span> worker-2<br>docker node update --label-add worker=<span class="hljs-literal">true</span> worker-3<br></code></pre></td></tr></table></figure>
+
+<p>部署：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker stack deploy \<br>  --with-registry-auth \<br>  -c demo-stack.yml \<br>  demo<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker stack <span class="hljs-built_in">ls</span><br>docker stack services demo<br>docker stack ps demo<br></code></pre></td></tr></table></figure>
+
+<p>删除：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker stack <span class="hljs-built_in">rm</span> demo<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="二十七、Docker-Swarm-常用命令清单"><a href="#二十七、Docker-Swarm-常用命令清单" class="headerlink" title="二十七、Docker Swarm 常用命令清单"></a>二十七、Docker Swarm 常用命令清单</h2><h3 id="1-Swarm-集群"><a href="#1-Swarm-集群" class="headerlink" title="1. Swarm 集群"></a>1. Swarm 集群</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker swarm init --advertise-addr &lt;MANAGER-IP&gt;<br>docker swarm join-token worker<br>docker swarm join-token manager<br>docker swarm <span class="hljs-built_in">join</span> --token &lt;TOKEN&gt; &lt;MANAGER-IP&gt;:2377<br>docker swarm leave<br>docker swarm leave --force<br>docker swarm update --autolock=<span class="hljs-literal">true</span><br>docker swarm unlock-key<br>docker swarm unlock<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-节点管理"><a href="#2-节点管理" class="headerlink" title="2. 节点管理"></a>2. 节点管理</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker node <span class="hljs-built_in">ls</span><br>docker node inspect &lt;node&gt; --pretty<br>docker node promote &lt;node&gt;<br>docker node demote &lt;node&gt;<br>docker node update --availability drain &lt;node&gt;<br>docker node update --availability active &lt;node&gt;<br>docker node update --label-add key=value &lt;node&gt;<br>docker node update --label-rm key &lt;node&gt;<br>docker node <span class="hljs-built_in">rm</span> &lt;node&gt;<br>docker node <span class="hljs-built_in">rm</span> --force &lt;node&gt;<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-服务管理"><a href="#3-服务管理" class="headerlink" title="3. 服务管理"></a>3. 服务管理</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker service create --name web --replicas 3 nginx<br>docker service <span class="hljs-built_in">ls</span><br>docker service ps web<br>docker service inspect web --pretty<br>docker service logs -f web<br>docker service scale web=5<br>docker service update --image nginx:1.26 web<br>docker service update --force web<br>docker service rollback web<br>docker service <span class="hljs-built_in">rm</span> web<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-网络管理"><a href="#4-网络管理" class="headerlink" title="4. 网络管理"></a>4. 网络管理</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker network create --driver overlay app-net<br>docker network create --driver overlay --attachable app-net<br>docker network create --driver overlay --opt encrypted secure-net<br>docker network <span class="hljs-built_in">ls</span><br>docker network inspect app-net<br>docker network <span class="hljs-built_in">rm</span> app-net<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-Secret-管理"><a href="#5-Secret-管理" class="headerlink" title="5. Secret 管理"></a>5. Secret 管理</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;password&quot;</span> | docker secret create db_password -<br>docker secret <span class="hljs-built_in">ls</span><br>docker secret inspect db_password<br>docker secret <span class="hljs-built_in">rm</span> db_password<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-Config-管理"><a href="#6-Config-管理" class="headerlink" title="6. Config 管理"></a>6. Config 管理</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker config create nginx_conf ./nginx.conf<br>docker config <span class="hljs-built_in">ls</span><br>docker config inspect nginx_conf<br>docker config <span class="hljs-built_in">rm</span> nginx_conf<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-Stack-管理"><a href="#7-Stack-管理" class="headerlink" title="7. Stack 管理"></a>7. Stack 管理</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker stack deploy -c stack.yml demo<br>docker stack deploy --with-registry-auth -c stack.yml demo<br>docker stack <span class="hljs-built_in">ls</span><br>docker stack services demo<br>docker stack ps demo<br>docker stack <span class="hljs-built_in">rm</span> demo<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="二十八、自动化脚本合集"><a href="#二十八、自动化脚本合集" class="headerlink" title="二十八、自动化脚本合集"></a>二十八、自动化脚本合集</h2><h3 id="1-初始化-Manager"><a href="#1-初始化-Manager" class="headerlink" title="1. 初始化 Manager"></a>1. 初始化 Manager</h3><p><code>init-manager.sh</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -e<br><br>MANAGER_IP=<span class="hljs-string">&quot;<span class="hljs-variable">$1</span>&quot;</span><br><br><span class="hljs-keyword">if</span> [ -z <span class="hljs-string">&quot;<span class="hljs-variable">$MANAGER_IP</span>&quot;</span> ]; <span class="hljs-keyword">then</span><br>  <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Usage: ./init-manager.sh &lt;manager-ip&gt;&quot;</span><br>  <span class="hljs-built_in">exit</span> 1<br><span class="hljs-keyword">fi</span><br><br>docker swarm init --advertise-addr <span class="hljs-string">&quot;<span class="hljs-variable">$MANAGER_IP</span>&quot;</span><br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Worker join command:&quot;</span><br>docker swarm join-token worker<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Manager join command:&quot;</span><br>docker swarm join-token manager<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-打印-Join-Token"><a href="#2-打印-Join-Token" class="headerlink" title="2. 打印 Join Token"></a>2. 打印 Join Token</h3><p><code>show-tokens.sh</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -e<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;== Worker token ==&quot;</span><br>docker swarm join-token worker<br><br><span class="hljs-built_in">echo</span><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;== Manager token ==&quot;</span><br>docker swarm join-token manager<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-节点巡检"><a href="#3-节点巡检" class="headerlink" title="3. 节点巡检"></a>3. 节点巡检</h3><p><code>swarm-check.sh</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -e<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;== Docker info ==&quot;</span><br>docker info --format <span class="hljs-string">&#x27;Swarm: &#123;&#123;.Swarm.LocalNodeState&#125;&#125;&#x27;</span><br><br><span class="hljs-built_in">echo</span><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;== Nodes ==&quot;</span><br>docker node <span class="hljs-built_in">ls</span><br><br><span class="hljs-built_in">echo</span><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;== Services ==&quot;</span><br>docker service <span class="hljs-built_in">ls</span><br><br><span class="hljs-built_in">echo</span><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;== Failed tasks ==&quot;</span><br>docker service <span class="hljs-built_in">ls</span> --format <span class="hljs-string">&#x27;&#123;&#123;.Name&#125;&#125;&#x27;</span> | <span class="hljs-keyword">while</span> <span class="hljs-built_in">read</span> svc; <span class="hljs-keyword">do</span><br>  <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;-- <span class="hljs-variable">$svc</span>&quot;</span><br>  docker service ps <span class="hljs-string">&quot;<span class="hljs-variable">$svc</span>&quot;</span> --filter desired-state=shutdown --no-trunc || <span class="hljs-literal">true</span><br><span class="hljs-keyword">done</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="4-服务发布脚本"><a href="#4-服务发布脚本" class="headerlink" title="4. 服务发布脚本"></a>4. 服务发布脚本</h3><p><code>deploy-service.sh</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -e<br><br>SERVICE_NAME=<span class="hljs-string">&quot;<span class="hljs-variable">$1</span>&quot;</span><br>IMAGE=<span class="hljs-string">&quot;<span class="hljs-variable">$2</span>&quot;</span><br>REPLICAS=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;3:-3&#125;</span>&quot;</span><br>PUBLISHED_PORT=<span class="hljs-string">&quot;<span class="hljs-variable">$4</span>&quot;</span><br>TARGET_PORT=<span class="hljs-string">&quot;<span class="hljs-variable">$5</span>&quot;</span><br><br><span class="hljs-keyword">if</span> [ -z <span class="hljs-string">&quot;<span class="hljs-variable">$SERVICE_NAME</span>&quot;</span> ] || [ -z <span class="hljs-string">&quot;<span class="hljs-variable">$IMAGE</span>&quot;</span> ] || [ -z <span class="hljs-string">&quot;<span class="hljs-variable">$PUBLISHED_PORT</span>&quot;</span> ] || [ -z <span class="hljs-string">&quot;<span class="hljs-variable">$TARGET_PORT</span>&quot;</span> ]; <span class="hljs-keyword">then</span><br>  <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Usage: ./deploy-service.sh &lt;service-name&gt; &lt;image&gt; &lt;replicas&gt; &lt;published-port&gt; &lt;target-port&gt;&quot;</span><br>  <span class="hljs-built_in">exit</span> 1<br><span class="hljs-keyword">fi</span><br><br><span class="hljs-keyword">if</span> docker service inspect <span class="hljs-string">&quot;<span class="hljs-variable">$SERVICE_NAME</span>&quot;</span> &gt;/dev/null 2&gt;&amp;1; <span class="hljs-keyword">then</span><br>  <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Updating service <span class="hljs-variable">$&#123;SERVICE_NAME&#125;</span>...&quot;</span><br>  docker service update \<br>    --with-registry-auth \<br>    --image <span class="hljs-string">&quot;<span class="hljs-variable">$IMAGE</span>&quot;</span> \<br>    <span class="hljs-string">&quot;<span class="hljs-variable">$SERVICE_NAME</span>&quot;</span><br><span class="hljs-keyword">else</span><br>  <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Creating service <span class="hljs-variable">$&#123;SERVICE_NAME&#125;</span>...&quot;</span><br>  docker service create \<br>    --name <span class="hljs-string">&quot;<span class="hljs-variable">$SERVICE_NAME</span>&quot;</span> \<br>    --replicas <span class="hljs-string">&quot;<span class="hljs-variable">$REPLICAS</span>&quot;</span> \<br>    --publish published=<span class="hljs-string">&quot;<span class="hljs-variable">$PUBLISHED_PORT</span>&quot;</span>,target=<span class="hljs-string">&quot;<span class="hljs-variable">$TARGET_PORT</span>&quot;</span>,mode=ingress \<br>    --update-parallelism 1 \<br>    --update-delay 10s \<br>    --update-failure-action rollback \<br>    <span class="hljs-string">&quot;<span class="hljs-variable">$IMAGE</span>&quot;</span><br><span class="hljs-keyword">fi</span><br><br>docker service ps <span class="hljs-string">&quot;<span class="hljs-variable">$SERVICE_NAME</span>&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="5-Swarm-备份脚本"><a href="#5-Swarm-备份脚本" class="headerlink" title="5. Swarm 备份脚本"></a>5. Swarm 备份脚本</h3><p><code>backup-swarm.sh</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -e<br><br>BACKUP_DIR=<span class="hljs-string">&quot;/opt/backups/swarm&quot;</span><br>DATE=<span class="hljs-string">&quot;<span class="hljs-subst">$(date +%Y%m%d_%H%M%S)</span>&quot;</span><br>BACKUP_FILE=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;BACKUP_DIR&#125;</span>/swarm-<span class="hljs-variable">$&#123;DATE&#125;</span>.tar.gz&quot;</span><br><br><span class="hljs-built_in">mkdir</span> -p <span class="hljs-string">&quot;<span class="hljs-variable">$BACKUP_DIR</span>&quot;</span><br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Warning: Docker will be stopped during backup.&quot;</span><br><span class="hljs-built_in">sleep</span> 3<br><br>sudo systemctl stop docker<br>sudo tar czf <span class="hljs-string">&quot;<span class="hljs-variable">$BACKUP_FILE</span>&quot;</span> -C /var/lib/docker swarm<br>sudo systemctl start docker<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Backup created: <span class="hljs-variable">$BACKUP_FILE</span>&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="6-节点维护脚本"><a href="#6-节点维护脚本" class="headerlink" title="6. 节点维护脚本"></a>6. 节点维护脚本</h3><p><code>drain-node.sh</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -e<br><br>NODE=<span class="hljs-string">&quot;<span class="hljs-variable">$1</span>&quot;</span><br><br><span class="hljs-keyword">if</span> [ -z <span class="hljs-string">&quot;<span class="hljs-variable">$NODE</span>&quot;</span> ]; <span class="hljs-keyword">then</span><br>  <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Usage: ./drain-node.sh &lt;node&gt;&quot;</span><br>  <span class="hljs-built_in">exit</span> 1<br><span class="hljs-keyword">fi</span><br><br>docker node update --availability drain <span class="hljs-string">&quot;<span class="hljs-variable">$NODE</span>&quot;</span><br>docker node inspect <span class="hljs-string">&quot;<span class="hljs-variable">$NODE</span>&quot;</span> --pretty<br></code></pre></td></tr></table></figure>
+
+<p><code>active-node.sh</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -e<br><br>NODE=<span class="hljs-string">&quot;<span class="hljs-variable">$1</span>&quot;</span><br><br><span class="hljs-keyword">if</span> [ -z <span class="hljs-string">&quot;<span class="hljs-variable">$NODE</span>&quot;</span> ]; <span class="hljs-keyword">then</span><br>  <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Usage: ./active-node.sh &lt;node&gt;&quot;</span><br>  <span class="hljs-built_in">exit</span> 1<br><span class="hljs-keyword">fi</span><br><br>docker node update --availability active <span class="hljs-string">&quot;<span class="hljs-variable">$NODE</span>&quot;</span><br>docker node inspect <span class="hljs-string">&quot;<span class="hljs-variable">$NODE</span>&quot;</span> --pretty<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="二十九、Docker-Swarm-和-Kubernetes-对比"><a href="#二十九、Docker-Swarm-和-Kubernetes-对比" class="headerlink" title="二十九、Docker Swarm 和 Kubernetes 对比"></a>二十九、Docker Swarm 和 Kubernetes 对比</h2><h3 id="1-对比表"><a href="#1-对比表" class="headerlink" title="1. 对比表"></a>1. 对比表</h3><table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>Docker Swarm</th>
+<th>Kubernetes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>上手难度</td>
+<td>低</td>
+<td>高</td>
+</tr>
+<tr>
+<td>与 Docker CLI 集成</td>
+<td>原生</td>
+<td>间接</td>
+</tr>
+<tr>
+<td>单机到集群迁移</td>
+<td>简单</td>
+<td>复杂一些</td>
+</tr>
+<tr>
+<td>网络模型</td>
+<td>Overlay + Routing Mesh</td>
+<td>CNI</td>
+</tr>
+<tr>
+<td>服务发现</td>
+<td>内置 DNS&#x2F;VIP</td>
+<td>Service&#x2F;CoreDNS</td>
+</tr>
+<tr>
+<td>配置管理</td>
+<td>Config&#x2F;Secret</td>
+<td>ConfigMap&#x2F;Secret</td>
+</tr>
+<tr>
+<td>滚动更新</td>
+<td>支持</td>
+<td>支持且更强</td>
+</tr>
+<tr>
+<td>自动伸缩</td>
+<td>弱</td>
+<td>强</td>
+</tr>
+<tr>
+<td>生态</td>
+<td>较小</td>
+<td>极强</td>
+</tr>
+<tr>
+<td>Operator</td>
+<td>基本没有</td>
+<td>丰富</td>
+</tr>
+<tr>
+<td>多租户治理</td>
+<td>弱</td>
+<td>强</td>
+</tr>
+<tr>
+<td>学习成本</td>
+<td>低</td>
+<td>高</td>
+</tr>
+<tr>
+<td>适合场景</td>
+<td>中小集群、简单编排</td>
+<td>大规模云原生平台</td>
+</tr>
+</tbody></table>
+<h3 id="2-什么时候选-Swarm？"><a href="#2-什么时候选-Swarm？" class="headerlink" title="2. 什么时候选 Swarm？"></a>2. 什么时候选 Swarm？</h3><p>选择 Swarm，如果你：</p>
+<ul>
+<li>已经熟悉 Docker</li>
+<li>服务规模不大</li>
+<li>希望快速搭一个可用集群</li>
+<li>不想引入 K8s 学习和维护成本</li>
+<li>主要跑无状态服务</li>
+<li>团队没有专职平台工程能力</li>
+<li>更重视简单、直接、够用</li>
+</ul>
+<h3 id="3-什么时候选-Kubernetes？"><a href="#3-什么时候选-Kubernetes？" class="headerlink" title="3. 什么时候选 Kubernetes？"></a>3. 什么时候选 Kubernetes？</h3><p>选择 Kubernetes，如果你：</p>
+<ul>
+<li>有复杂微服务治理需求</li>
+<li>有大规模集群</li>
+<li>要使用云原生生态</li>
+<li>需要 HPA、Operator、CRD</li>
+<li>需要复杂网络和存储插件</li>
+<li>需要完善多租户和策略治理</li>
+<li>团队具备 K8s 运维能力</li>
+</ul>
+<h3 id="4-一句实话"><a href="#4-一句实话" class="headerlink" title="4. 一句实话"></a>4. 一句实话</h3><p>很多团队不是需要 Kubernetes，而是想显得自己需要 Kubernetes。<br>如果只是几个 Spring Boot 服务、一个 Redis、一个 MySQL、一个 Nginx，上来就 K8s，可能还没服务出问题，集群自己先开始教育你。</p>
+<p>Swarm 的价值在于：</p>
+<blockquote>
+<p>它把多机容器编排做到足够简单。</p>
+</blockquote>
+<p>但如果你的系统已经复杂到 Swarm 不够用，就不要硬撑，该上 Kubernetes 就上 Kubernetes。</p>
+<hr>
+<h2 id="三十、生产实践检查清单"><a href="#三十、生产实践检查清单" class="headerlink" title="三十、生产实践检查清单"></a>三十、生产实践检查清单</h2><h3 id="1-集群规划"><a href="#1-集群规划" class="headerlink" title="1. 集群规划"></a>1. 集群规划</h3><ul>
+<li><input disabled="" type="checkbox"> Manager 使用固定 IP</li>
+<li><input disabled="" type="checkbox"> Manager 数量为 3 或 5</li>
+<li><input disabled="" type="checkbox"> Manager 分布在不同可用区或不同物理机</li>
+<li><input disabled="" type="checkbox"> Worker 资源足够</li>
+<li><input disabled="" type="checkbox"> 防火墙开放 2377、7946、4789</li>
+<li><input disabled="" type="checkbox"> 业务端口按需开放</li>
+<li><input disabled="" type="checkbox"> 节点时间同步正常</li>
+</ul>
+<h3 id="2-安全"><a href="#2-安全" class="headerlink" title="2. 安全"></a>2. 安全</h3><ul>
+<li><input disabled="" type="checkbox"> 保护 manager join token</li>
+<li><input disabled="" type="checkbox"> 定期轮换 join token</li>
+<li><input disabled="" type="checkbox"> 使用 Secret 管理敏感数据</li>
+<li><input disabled="" type="checkbox"> 不把密码写进镜像和环境变量</li>
+<li><input disabled="" type="checkbox"> 关键集群开启 auto-lock</li>
+<li><input disabled="" type="checkbox"> 私有 Registry 使用 HTTPS</li>
+<li><input disabled="" type="checkbox"> 所有节点使用可信镜像仓库</li>
+<li><input disabled="" type="checkbox"> 限制 Docker Socket 访问</li>
+</ul>
+<h3 id="3-服务部署"><a href="#3-服务部署" class="headerlink" title="3. 服务部署"></a>3. 服务部署</h3><ul>
+<li><input disabled="" type="checkbox"> 使用私有镜像仓库</li>
+<li><input disabled="" type="checkbox"> 镜像 tag 明确，不滥用 latest</li>
+<li><input disabled="" type="checkbox"> 配置 update 和 rollback 策略</li>
+<li><input disabled="" type="checkbox"> 配置资源限制</li>
+<li><input disabled="" type="checkbox"> 无状态服务多副本</li>
+<li><input disabled="" type="checkbox"> 有状态服务固定节点或外置</li>
+<li><input disabled="" type="checkbox"> 使用节点 label 管理调度</li>
+<li><input disabled="" type="checkbox"> 使用 overlay 网络隔离服务</li>
+</ul>
+<h3 id="4-运维"><a href="#4-运维" class="headerlink" title="4. 运维"></a>4. 运维</h3><ul>
+<li><input disabled="" type="checkbox"> 配置集中日志</li>
+<li><input disabled="" type="checkbox"> 配置监控和告警</li>
+<li><input disabled="" type="checkbox"> 定期备份 <code>/var/lib/docker/swarm</code></li>
+<li><input disabled="" type="checkbox"> 保存 auto-lock unlock key</li>
+<li><input disabled="" type="checkbox"> 定期演练恢复</li>
+<li><input disabled="" type="checkbox"> 节点维护前先 Drain</li>
+<li><input disabled="" type="checkbox"> 变更前确认 quorum</li>
+<li><input disabled="" type="checkbox"> 记录服务部署配置</li>
+</ul>
+<h3 id="5-排错"><a href="#5-排错" class="headerlink" title="5. 排错"></a>5. 排错</h3><ul>
+<li><input disabled="" type="checkbox"> 会使用 <code>docker node ls</code></li>
+<li><input disabled="" type="checkbox"> 会使用 <code>docker service ps --no-trunc</code></li>
+<li><input disabled="" type="checkbox"> 会使用 <code>docker service logs</code></li>
+<li><input disabled="" type="checkbox"> 会检查 overlay 网络端口</li>
+<li><input disabled="" type="checkbox"> 会处理镜像拉取失败</li>
+<li><input disabled="" type="checkbox"> 会排查 placement constraint</li>
+<li><input disabled="" type="checkbox"> 会恢复 quorum</li>
+</ul>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>Docker Swarm 是 Docker 原生的集群编排能力。</p>
+<p>它的核心不是“多台机器跑容器”这么简单，而是围绕 Service 的期望状态进行调度和维护：</p>
+<ul>
+<li>你声明服务应该是什么状态</li>
+<li>Manager 把状态写入 Raft</li>
+<li>Scheduler 把 Task 分配到节点</li>
+<li>Worker 运行容器</li>
+<li>节点故障后重新调度</li>
+<li>服务更新时滚动替换</li>
+<li>入口流量通过 Routing Mesh 转发</li>
+<li>服务之间通过 Overlay 网络通信</li>
+<li>Secret 和 Config 由 Swarm 管理</li>
+</ul>
+<p>Swarm 的优点很明确：</p>
+<ol>
+<li>简单。</li>
+<li>Docker 原生。</li>
+<li>CLI 统一。</li>
+<li>上手快。</li>
+<li>适合中小规模。</li>
+<li>比 Compose 更适合多机。</li>
+<li>比 Kubernetes 更轻量。</li>
+</ol>
+<p>Swarm 的短板也要诚实面对：</p>
+<ol>
+<li>生态没有 Kubernetes 丰富。</li>
+<li>自动伸缩能力弱。</li>
+<li>存储编排能力有限。</li>
+<li>复杂服务治理能力有限。</li>
+<li>大规模平台化不如 Kubernetes。</li>
+</ol>
+<p>所以最合理的态度是：</p>
+<blockquote>
+<p>小规模别强上 Kubernetes，大规模别硬撑 Swarm。</p>
+</blockquote>
+<p>如果你要的是简单、稳定、Docker 原生、多机编排，Docker Swarm 依然是一个很实用的选择。<br>如果你已经需要复杂云原生生态、Operator、多租户、自动伸缩和精细化策略，那么 Kubernetes 才是更长期的路线。</p>
+<p>最后记住三句话：</p>
+<ol>
+<li>Manager 保持奇数，Quorum 是 Swarm 的命根子。</li>
+<li>无状态服务适合 Swarm，有状态服务要认真规划存储。</li>
+<li>Swarm 很简单，但生产环境的网络、安全、备份、监控一点都不能简单。</li>
+</ol>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>Docker Docs: Swarm mode<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/swarm/">https://docs.docker.com/engine/swarm/</a></li>
+<li>Docker Docs: Swarm mode key concepts<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/swarm/key-concepts/">https://docs.docker.com/engine/swarm/key-concepts/</a></li>
+<li>Docker Docs: How nodes work<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/swarm/how-swarm-mode-works/nodes/">https://docs.docker.com/engine/swarm/how-swarm-mode-works/nodes/</a></li>
+<li>Docker Docs: How services work<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/swarm/how-swarm-mode-works/services/">https://docs.docker.com/engine/swarm/how-swarm-mode-works/services/</a></li>
+<li>Docker Docs: Create a swarm<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/swarm/swarm-tutorial/create-swarm/">https://docs.docker.com/engine/swarm/swarm-tutorial/create-swarm/</a></li>
+<li>Docker Docs: Add nodes to the swarm<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/swarm/swarm-tutorial/add-nodes/">https://docs.docker.com/engine/swarm/swarm-tutorial/add-nodes/</a></li>
+<li>Docker Docs: Deploy services to a swarm<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/swarm/services/">https://docs.docker.com/engine/swarm/services/</a></li>
+<li>Docker Docs: Use Swarm mode routing mesh<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/swarm/ingress/">https://docs.docker.com/engine/swarm/ingress/</a></li>
+<li>Docker Docs: Overlay network driver<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/network/drivers/overlay/">https://docs.docker.com/engine/network/drivers/overlay/</a></li>
+<li>Docker Docs: Manage sensitive data with Docker secrets<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/swarm/secrets/">https://docs.docker.com/engine/swarm/secrets/</a></li>
+<li>Docker Docs: Store configuration data using Docker Configs<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/swarm/configs/">https://docs.docker.com/engine/swarm/configs/</a></li>
+<li>Docker Docs: Apply rolling updates to a service<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/swarm/swarm-tutorial/rolling-update/">https://docs.docker.com/engine/swarm/swarm-tutorial/rolling-update/</a></li>
+<li>Docker Docs: Drain a node on the swarm<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/swarm/swarm-tutorial/drain-node/">https://docs.docker.com/engine/swarm/swarm-tutorial/drain-node/</a></li>
+<li>Docker Docs: Deploy a stack to a swarm<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/swarm/stack-deploy/">https://docs.docker.com/engine/swarm/stack-deploy/</a></li>
+<li>Docker Docs: Administer and maintain a swarm of Docker Engines<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/swarm/admin_guide/">https://docs.docker.com/engine/swarm/admin_guide/</a></li>
+<li>Docker Docs: Manage swarm security with PKI<br><a target="_blank" rel="noopener" href="https://docs.docker.com/engine/swarm/how-swarm-mode-works/pki/">https://docs.docker.com/engine/swarm/how-swarm-mode-works/pki/</a></li>
+</ul>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/DevOps/" class="category-chain-item">DevOps</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Docker/" class="print-no-link">#Docker</a>
+      
+        <a href="/tags/Container/" class="print-no-link">#Container</a>
+      
+        <a href="/tags/Docker-Swarm/" class="print-no-link">#Docker Swarm</a>
+      
+        <a href="/tags/Cluster/" class="print-no-link">#Cluster</a>
+      
+        <a href="/tags/Service-Discovery/" class="print-no-link">#Service Discovery</a>
+      
+        <a href="/tags/Overlay-Network/" class="print-no-link">#Overlay Network</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Docker Swarm 深度实践：从集群搭建、服务编排到生产级运维</div>
+      <div>https://allendericdalexander.github.io/2026/06/07/devops/management/docker-swarm-cluster-deep-dive-blog/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年6月7日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/06/07/devops/management/docker-compose-deep-dive-blog/" title="Docker Compose 深度实战：从编排模型、网络卷、环境变量到生产部署">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Docker Compose 深度实战：从编排模型、网络卷、环境变量到生产部署</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/06/07/java/utils/java_util/" title="Java 常用工具类深度盘点：从 JDK、Apache Commons 到 Guava、Hutool、Spring、MyBatis">
+                        <span class="hidden-mobile">Java 常用工具类深度盘点：从 JDK、Apache Commons 到 Guava、Hutool、Spring、MyBatis</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
