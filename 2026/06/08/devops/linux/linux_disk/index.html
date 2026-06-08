@@ -1,0 +1,2375 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="欢迎你来读这篇博客，这篇博客主要是关于 Linux 磁盘挂载、分区、分卷和 LVM 管理。 在服务器运维、Docker 数据目录迁移、数据库磁盘扩容、日志盘挂载、云服务器数据盘初始化这些场景里，磁盘管理都是绕不开的基础能力。 这块知识看起来命令很多：mount、fdisk、parted、mkfs、blkid、lsblk、fstab、pvcreate、vgcreate、lvcreate、lvexte">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 磁盘挂载、分区与 LVM 分卷实战">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/06/08/devops/linux/linux_disk/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="欢迎你来读这篇博客，这篇博客主要是关于 Linux 磁盘挂载、分区、分卷和 LVM 管理。 在服务器运维、Docker 数据目录迁移、数据库磁盘扩容、日志盘挂载、云服务器数据盘初始化这些场景里，磁盘管理都是绕不开的基础能力。 这块知识看起来命令很多：mount、fdisk、parted、mkfs、blkid、lsblk、fstab、pvcreate、vgcreate、lvcreate、lvexte">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-08T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-08T04:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Disk">
+<meta property="article:tag" content="Fdisk">
+<meta property="article:tag" content="LVM">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Mount">
+<meta property="article:tag" content="Parted">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Linux 磁盘挂载、分区与 LVM 分卷实战 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Linux 磁盘挂载、分区与 LVM 分卷实战"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-06-08 12:00" pubdate>
+          2026年6月8日 中午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          7.2k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          60 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Linux 磁盘挂载、分区与 LVM 分卷实战</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>欢迎你来读这篇博客，这篇博客主要是关于 Linux 磁盘挂载、分区、分卷和 LVM 管理。</p>
+<p>在服务器运维、Docker 数据目录迁移、数据库磁盘扩容、日志盘挂载、云服务器数据盘初始化这些场景里，磁盘管理都是绕不开的基础能力。</p>
+<p>这块知识看起来命令很多：<code>mount</code>、<code>fdisk</code>、<code>parted</code>、<code>mkfs</code>、<code>blkid</code>、<code>lsblk</code>、<code>fstab</code>、<code>pvcreate</code>、<code>vgcreate</code>、<code>lvcreate</code>、<br><code>lvextend</code>……<br>但只要把它们放到一条主线里，其实很清晰：</p>
+<blockquote>
+<p>磁盘来了，先识别；<br>要用它，先分区；<br>要存文件，建文件系统；<br>要访问它，挂载到目录；<br>要开机还在，写入 fstab；<br>要灵活扩容，交给 LVM。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><p>Linux 里有一句非常经典的话：</p>
+<blockquote>
+<p>Everything is a file.</p>
+</blockquote>
+<p>磁盘也不例外。</p>
+<p>我们平时看到的 <code>/dev/sda</code>、<code>/dev/vda</code>、<code>/dev/nvme0n1</code>、<code>/dev/sdb1</code>，本质上都是块设备文件。</p>
+<p>但是，磁盘并不是插上去就能直接优雅使用。一个完整的磁盘使用链路通常是这样的：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[物理磁盘 /dev/sdb] --&gt; B[分区表 GPT/MBR]
+    B --&gt; C[分区 /dev/sdb1]
+    C --&gt; D[文件系统 ext4/xfs]
+    D --&gt; E[挂载点 /data]
+    E --&gt; F[业务读写文件]
+</code></pre>
+
+<p>如果使用 LVM，链路会变成这样：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[物理磁盘 /dev/sdb] --&gt; B[分区 /dev/sdb1]
+    B --&gt; C[PV 物理卷]
+    C --&gt; D[VG 卷组]
+    D --&gt; E[LV 逻辑卷]
+    E --&gt; F[文件系统 ext4/xfs]
+    F --&gt; G[挂载点 /data]
+</code></pre>
+
+<p>这篇文章会围绕以下几个核心工具展开：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>lsblk</code></td>
+<td>查看块设备结构</td>
+</tr>
+<tr>
+<td><code>blkid</code></td>
+<td>查看文件系统 UUID、类型</td>
+</tr>
+<tr>
+<td><code>df</code></td>
+<td>查看已挂载文件系统空间</td>
+</tr>
+<tr>
+<td><code>findmnt</code></td>
+<td>查看挂载关系</td>
+</tr>
+<tr>
+<td><code>fdisk</code></td>
+<td>交互式分区工具，常用于普通磁盘分区</td>
+</tr>
+<tr>
+<td><code>parted</code></td>
+<td>分区工具，适合 GPT、大磁盘、脚本化、调整分区</td>
+</tr>
+<tr>
+<td><code>mkfs</code></td>
+<td>创建文件系统</td>
+</tr>
+<tr>
+<td><code>mount</code></td>
+<td>临时挂载文件系统</td>
+</tr>
+<tr>
+<td><code>umount</code></td>
+<td>卸载文件系统</td>
+</tr>
+<tr>
+<td><code>/etc/fstab</code></td>
+<td>配置开机自动挂载</td>
+</tr>
+<tr>
+<td><code>pvcreate</code></td>
+<td>创建 LVM 物理卷</td>
+</tr>
+<tr>
+<td><code>vgcreate</code></td>
+<td>创建 LVM 卷组</td>
+</tr>
+<tr>
+<td><code>lvcreate</code></td>
+<td>创建 LVM 逻辑卷</td>
+</tr>
+<tr>
+<td><code>lvextend</code></td>
+<td>扩容 LVM 逻辑卷</td>
+</tr>
+<tr>
+<td><code>pvresize</code></td>
+<td>调整 LVM 物理卷大小</td>
+</tr>
+</tbody></table>
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h2 id="一、先理解-Linux-磁盘命名"><a href="#一、先理解-Linux-磁盘命名" class="headerlink" title="一、先理解 Linux 磁盘命名"></a>一、先理解 Linux 磁盘命名</h2><p>Linux 中常见磁盘命名如下：</p>
+<table>
+<thead>
+<tr>
+<th>设备名</th>
+<th>常见场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/dev/sda</code></td>
+<td>SATA、SCSI、传统虚拟磁盘</td>
+</tr>
+<tr>
+<td><code>/dev/sdb</code></td>
+<td>第二块 SATA&#x2F;SCSI 磁盘</td>
+</tr>
+<tr>
+<td><code>/dev/vda</code></td>
+<td>KVM、VirtIO 虚拟磁盘</td>
+</tr>
+<tr>
+<td><code>/dev/xvda</code></td>
+<td>Xen 虚拟化环境</td>
+</tr>
+<tr>
+<td><code>/dev/nvme0n1</code></td>
+<td>NVMe SSD</td>
+</tr>
+<tr>
+<td><code>/dev/sda1</code></td>
+<td><code>/dev/sda</code> 的第一个分区</td>
+</tr>
+<tr>
+<td><code>/dev/nvme0n1p1</code></td>
+<td>NVMe 磁盘的第一个分区</td>
+</tr>
+</tbody></table>
+<p>普通磁盘分区命名一般是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">/dev/sdb<br>/dev/sdb1<br>/dev/sdb2<br></code></pre></td></tr></table></figure>
+
+<p>NVMe 磁盘命名一般是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">/dev/nvme0n1<br>/dev/nvme0n1p1<br>/dev/nvme0n1p2<br></code></pre></td></tr></table></figure>
+
+<p>这里要注意一个细节：</p>
+<blockquote>
+<p><code>/dev/sdb</code> 是整块磁盘，<code>/dev/sdb1</code> 是这块磁盘上的第一个分区。</p>
+</blockquote>
+<p>千万不要看到一个设备名就直接 <code>mkfs</code>，不然你可能一键把生产环境打成“考古现场”。命令不背锅，手才背锅。</p>
+<h2 id="二、磁盘管理的基本流程"><a href="#二、磁盘管理的基本流程" class="headerlink" title="二、磁盘管理的基本流程"></a>二、磁盘管理的基本流程</h2><p>一般新增一块磁盘后，标准流程如下：</p>
+<pre><code class=" mermaid">flowchart TD
+    A[新增磁盘] --&gt; B[lsblk 查看磁盘]
+    B --&gt; C[fdisk/parted 创建分区]
+    C --&gt; D[partprobe 重新读取分区表]
+    D --&gt; E[mkfs 创建文件系统]
+    E --&gt; F[mkdir 创建挂载点]
+    F --&gt; G[mount 临时挂载]
+    G --&gt; H[blkid 获取 UUID]
+    H --&gt; I[写入 /etc/fstab]
+    I --&gt; J[mount -a 测试开机挂载配置]
+</code></pre>
+
+<p>对应命令大致如下：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 1. 查看磁盘</span><br>lsblk<br><br><span class="hljs-comment"># 2. 创建分区</span><br>fdisk /dev/sdb<br><br><span class="hljs-comment"># 3. 通知内核重新读取分区表</span><br>partprobe /dev/sdb<br><br><span class="hljs-comment"># 4. 创建文件系统</span><br>mkfs.xfs /dev/sdb1<br><br><span class="hljs-comment"># 5. 创建挂载目录</span><br><span class="hljs-built_in">mkdir</span> -p /data<br><br><span class="hljs-comment"># 6. 临时挂载</span><br>mount /dev/sdb1 /data<br><br><span class="hljs-comment"># 7. 查看 UUID</span><br>blkid /dev/sdb1<br><br><span class="hljs-comment"># 8. 写入 /etc/fstab</span><br>vim /etc/fstab<br><br><span class="hljs-comment"># 9. 验证 fstab</span><br>mount -a<br></code></pre></td></tr></table></figure>
+
+<h2 id="三、查看磁盘信息"><a href="#三、查看磁盘信息" class="headerlink" title="三、查看磁盘信息"></a>三、查看磁盘信息</h2><h3 id="1-lsblk：查看块设备结构"><a href="#1-lsblk：查看块设备结构" class="headerlink" title="1. lsblk：查看块设备结构"></a>1. lsblk：查看块设备结构</h3><p><code>lsblk</code> 是最常用的磁盘查看命令。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk<br></code></pre></td></tr></table></figure>
+
+<p>输出示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT<br>sda      8:0    0   80G  0 disk<br>├─sda1   8:1    0    1G  0 part /boot<br>└─sda2   8:2    0   79G  0 part /<br>sdb      8:16   0  200G  0 disk<br></code></pre></td></tr></table></figure>
+
+<p>更推荐使用详细格式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk -f<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,UUID,MOUNTPOINT<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">NAME   SIZE TYPE FSTYPE LABEL UUID                                 MOUNTPOINT<br>sda     80G disk<br>├─sda1   1G part xfs          4e1b2c3d-xxxx-xxxx-xxxx-xxxxxxxxxxxx /boot<br>└─sda2  79G part xfs          6a7b8c9d-xxxx-xxxx-xxxx-xxxxxxxxxxxx /<br>sdb    200G disk<br></code></pre></td></tr></table></figure>
+
+<p>如果看到 <code>sdb</code> 没有分区、没有文件系统、没有挂载点，就说明它大概率是一块新盘。</p>
+<h3 id="2-fdisk-l：查看分区表"><a href="#2-fdisk-l：查看分区表" class="headerlink" title="2. fdisk -l：查看分区表"></a>2. fdisk -l：查看分区表</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">fdisk -l<br></code></pre></td></tr></table></figure>
+
+<p>查看指定磁盘：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">fdisk -l /dev/sdb<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">Disk /dev/sdb: 200 GiB<br>Disk model: Virtual Disk<br>Disklabel <span class="hljs-built_in">type</span>: gpt<br>Device       Start       End   Sectors  Size Type<br>/dev/sdb1     2048 419430366 419428319  200G Linux filesystem<br></code></pre></td></tr></table></figure>
+
+<p>重点看：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Disk</code></td>
+<td>磁盘名称和大小</td>
+</tr>
+<tr>
+<td><code>Disklabel type</code></td>
+<td>分区表类型，如 <code>dos</code> 或 <code>gpt</code></td>
+</tr>
+<tr>
+<td><code>Device</code></td>
+<td>分区名称</td>
+</tr>
+<tr>
+<td><code>Size</code></td>
+<td>分区大小</td>
+</tr>
+<tr>
+<td><code>Type</code></td>
+<td>分区类型</td>
+</tr>
+</tbody></table>
+<h3 id="3-blkid：查看-UUID-和文件系统类型"><a href="#3-blkid：查看-UUID-和文件系统类型" class="headerlink" title="3. blkid：查看 UUID 和文件系统类型"></a>3. blkid：查看 UUID 和文件系统类型</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">blkid<br></code></pre></td></tr></table></figure>
+
+<p>查看指定分区：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">blkid /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<p>输出示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/dev/sdb1: UUID=<span class="hljs-string">&quot;a3f4e5d6-xxxx-xxxx-xxxx-xxxxxxxxxxxx&quot;</span> TYPE=<span class="hljs-string">&quot;xfs&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p><code>UUID</code> 非常重要，因为后面写 <code>/etc/fstab</code> 时，推荐使用 UUID，而不是 <code>/dev/sdb1</code>。</p>
+<p>原因是：</p>
+<blockquote>
+<p><code>/dev/sdb1</code> 这种设备名可能会因为磁盘识别顺序变化而改变，但 UUID 基本稳定。</p>
+</blockquote>
+<h3 id="4-df：查看文件系统空间"><a href="#4-df：查看文件系统空间" class="headerlink" title="4. df：查看文件系统空间"></a>4. df：查看文件系统空间</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">df</span> -h<br></code></pre></td></tr></table></figure>
+
+<p>带文件系统类型：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">df</span> -hT<br></code></pre></td></tr></table></figure>
+
+<p>输出示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">Filesystem     Type  Size  Used Avail Use% Mounted on<br>/dev/sda2      xfs    79G   20G   59G  26% /<br>/dev/sdb1      xfs   200G   10G  190G   5% /data<br></code></pre></td></tr></table></figure>
+
+<p><code>df</code> 看的是“已经挂载的文件系统”，不是所有磁盘。<br>所以新磁盘如果还没挂载，<code>df -h</code> 里是看不到的。</p>
+<h3 id="5-findmnt：查看挂载关系"><a href="#5-findmnt：查看挂载关系" class="headerlink" title="5. findmnt：查看挂载关系"></a>5. findmnt：查看挂载关系</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt<br></code></pre></td></tr></table></figure>
+
+<p>查看指定目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt /data<br></code></pre></td></tr></table></figure>
+
+<p>输出示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">TARGET SOURCE    FSTYPE OPTIONS<br>/data  /dev/sdb1 xfs    rw,relatime<br></code></pre></td></tr></table></figure>
+
+<p><code>findmnt</code> 比 <code>mount</code> 命令输出更清晰，非常适合排查挂载问题。</p>
+<h2 id="四、分区表：MBR-与-GPT"><a href="#四、分区表：MBR-与-GPT" class="headerlink" title="四、分区表：MBR 与 GPT"></a>四、分区表：MBR 与 GPT</h2><p>在给磁盘分区之前，先要理解分区表。</p>
+<p>常见分区表有两种：</p>
+<table>
+<thead>
+<tr>
+<th>分区表</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>MBR &#x2F; DOS</td>
+<td>老式分区表，兼容性好，但限制较多</td>
+</tr>
+<tr>
+<td>GPT</td>
+<td>新式分区表，适合大磁盘和现代系统</td>
+</tr>
+</tbody></table>
+<h3 id="1-MBR"><a href="#1-MBR" class="headerlink" title="1. MBR"></a>1. MBR</h3><p>MBR 也叫 DOS 分区表。</p>
+<p>特点：</p>
+<table>
+<thead>
+<tr>
+<th>特点</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>兼容性</td>
+<td>很好</td>
+</tr>
+<tr>
+<td>最大磁盘支持</td>
+<td>通常不适合超过 2TB 的磁盘</td>
+</tr>
+<tr>
+<td>主分区数量</td>
+<td>最多 4 个主分区</td>
+</tr>
+<tr>
+<td>扩展分区</td>
+<td>可以通过扩展分区绕过主分区数量限制</td>
+</tr>
+</tbody></table>
+<h3 id="2-GPT"><a href="#2-GPT" class="headerlink" title="2. GPT"></a>2. GPT</h3><p>GPT 是现代 Linux 服务器更推荐的分区表。</p>
+<p>特点：</p>
+<table>
+<thead>
+<tr>
+<th>特点</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>支持大磁盘</td>
+<td>适合 TB 级、PB 级磁盘</td>
+</tr>
+<tr>
+<td>分区数量多</td>
+<td>不再受 MBR 4 个主分区的传统限制</td>
+</tr>
+<tr>
+<td>可靠性更好</td>
+<td>分区表有主备结构</td>
+</tr>
+<tr>
+<td>现代系统推荐</td>
+<td>云服务器、NVMe、大容量数据盘更适合 GPT</td>
+</tr>
+</tbody></table>
+<p>一般建议：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>推荐</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>新数据盘</td>
+<td>GPT</td>
+</tr>
+<tr>
+<td>大于 2TB 的磁盘</td>
+<td>GPT</td>
+</tr>
+<tr>
+<td>老系统兼容</td>
+<td>MBR</td>
+</tr>
+<tr>
+<td>生产服务器</td>
+<td>GPT</td>
+</tr>
+<tr>
+<td>自动化脚本</td>
+<td>parted + GPT</td>
+</tr>
+</tbody></table>
+<h2 id="五、fdisk-分区实战"><a href="#五、fdisk-分区实战" class="headerlink" title="五、fdisk 分区实战"></a>五、fdisk 分区实战</h2><p><code>fdisk</code> 是一个交互式分区工具，适合手动创建和修改分区。</p>
+<p>假设现在新增一块磁盘 <code>/dev/sdb</code>，我们要把它分成一个完整的数据分区并挂载到 <code>/data</code>。</p>
+<h3 id="1-查看磁盘"><a href="#1-查看磁盘" class="headerlink" title="1. 查看磁盘"></a>1. 查看磁盘</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk<br></code></pre></td></tr></table></figure>
+
+<p>确认 <code>/dev/sdb</code> 是新磁盘：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">NAME   SIZE TYPE MOUNTPOINT<br>sda     80G disk<br>├─sda1   1G part /boot<br>└─sda2  79G part /<br>sdb    200G disk<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-进入-fdisk"><a href="#2-进入-fdisk" class="headerlink" title="2. 进入 fdisk"></a>2. 进入 fdisk</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> fdisk /dev/sdb<br></code></pre></td></tr></table></figure>
+
+<p>进入后输入 <code>m</code> 可以查看帮助：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">Command (m <span class="hljs-keyword">for</span> <span class="hljs-built_in">help</span>): m<br></code></pre></td></tr></table></figure>
+
+<p>常用命令：</p>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>m</code></td>
+<td>查看帮助</td>
+</tr>
+<tr>
+<td><code>p</code></td>
+<td>打印当前分区表</td>
+</tr>
+<tr>
+<td><code>g</code></td>
+<td>创建 GPT 分区表</td>
+</tr>
+<tr>
+<td><code>o</code></td>
+<td>创建 MBR&#x2F;DOS 分区表</td>
+</tr>
+<tr>
+<td><code>n</code></td>
+<td>新建分区</td>
+</tr>
+<tr>
+<td><code>d</code></td>
+<td>删除分区</td>
+</tr>
+<tr>
+<td><code>t</code></td>
+<td>修改分区类型</td>
+</tr>
+<tr>
+<td><code>w</code></td>
+<td>保存并退出</td>
+</tr>
+<tr>
+<td><code>q</code></td>
+<td>不保存退出</td>
+</tr>
+</tbody></table>
+<h3 id="3-创建-GPT-分区表"><a href="#3-创建-GPT-分区表" class="headerlink" title="3. 创建 GPT 分区表"></a>3. 创建 GPT 分区表</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">Command (m <span class="hljs-keyword">for</span> <span class="hljs-built_in">help</span>): g<br></code></pre></td></tr></table></figure>
+
+<p>提示：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">Created a new GPT disklabel.<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-新建分区"><a href="#4-新建分区" class="headerlink" title="4. 新建分区"></a>4. 新建分区</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">Command (m <span class="hljs-keyword">for</span> <span class="hljs-built_in">help</span>): n<br></code></pre></td></tr></table></figure>
+
+<p>一路回车，使用默认值，表示创建一个占满整块磁盘的分区。</p>
+<p>如果只想创建 100G 分区，可以在 <code>Last sector</code> 的地方输入：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">+100G<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-查看分区"><a href="#5-查看分区" class="headerlink" title="5. 查看分区"></a>5. 查看分区</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">Command (m <span class="hljs-keyword">for</span> <span class="hljs-built_in">help</span>): p<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">Device       Start       End   Sectors  Size Type<br>/dev/sdb1     2048 419430366 419428319  200G Linux filesystem<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-保存分区表"><a href="#6-保存分区表" class="headerlink" title="6. 保存分区表"></a>6. 保存分区表</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">Command (m <span class="hljs-keyword">for</span> <span class="hljs-built_in">help</span>): w<br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<blockquote>
+<p><code>fdisk</code> 在输入 <code>w</code> 之前通常不会真正写入分区表。<br>但一旦 <code>w</code> 写入，就不是“试试看”了，而是“真动刀”了。</p>
+</blockquote>
+<h3 id="7-重新读取分区表"><a href="#7-重新读取分区表" class="headerlink" title="7. 重新读取分区表"></a>7. 重新读取分区表</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> partprobe /dev/sdb<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> partx -a /dev/sdb<br></code></pre></td></tr></table></figure>
+
+<p>再查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk<br></code></pre></td></tr></table></figure>
+
+<p>应该能看到：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">sdb    200G disk<br>└─sdb1 200G part<br></code></pre></td></tr></table></figure>
+
+<h2 id="六、parted-分区实战"><a href="#六、parted-分区实战" class="headerlink" title="六、parted 分区实战"></a>六、parted 分区实战</h2><p><code>parted</code> 也是分区工具，相比 <code>fdisk</code>，它更适合：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>是否推荐 parted</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>大于 2TB 的磁盘</td>
+<td>推荐</td>
+</tr>
+<tr>
+<td>GPT 分区</td>
+<td>推荐</td>
+</tr>
+<tr>
+<td>脚本化创建分区</td>
+<td>推荐</td>
+</tr>
+<tr>
+<td>调整分区大小</td>
+<td>推荐</td>
+</tr>
+<tr>
+<td>临时手动分一个小盘</td>
+<td>fdisk 也可以</td>
+</tr>
+</tbody></table>
+<h3 id="1-交互式使用-parted"><a href="#1-交互式使用-parted" class="headerlink" title="1. 交互式使用 parted"></a>1. 交互式使用 parted</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> parted /dev/sdb<br></code></pre></td></tr></table></figure>
+
+<p>查看当前信息：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">(parted) <span class="hljs-built_in">print</span><br></code></pre></td></tr></table></figure>
+
+<p>创建 GPT 分区表：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">(parted) mklabel gpt<br></code></pre></td></tr></table></figure>
+
+<p>创建分区：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">(parted) mkpart primary xfs 1MiB 100%<br></code></pre></td></tr></table></figure>
+
+<p>退出：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">(parted) quit<br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<blockquote>
+<p><code>parted</code> 的很多操作是立即生效的，不像 <code>fdisk</code> 那样最后输入 <code>w</code> 才统一写入。<br>所以使用 <code>parted</code> 前一定要确认磁盘名，别拿生产盘练手。</p>
+</blockquote>
+<h3 id="2-parted-脚本化分区"><a href="#2-parted-脚本化分区" class="headerlink" title="2. parted 脚本化分区"></a>2. parted 脚本化分区</h3><p>创建一整块数据盘分区：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> parted -s /dev/sdb mklabel gpt<br><span class="hljs-built_in">sudo</span> parted -a optimal -s /dev/sdb mkpart primary xfs 1MiB 100%<br><span class="hljs-built_in">sudo</span> partprobe /dev/sdb<br></code></pre></td></tr></table></figure>
+
+<p>解释一下：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>-s</code></td>
+<td>script 模式，不进入交互</td>
+</tr>
+<tr>
+<td><code>mklabel gpt</code></td>
+<td>创建 GPT 分区表</td>
+</tr>
+<tr>
+<td><code>-a optimal</code></td>
+<td>使用最优对齐</td>
+</tr>
+<tr>
+<td><code>mkpart primary xfs 1MiB 100%</code></td>
+<td>创建从 1MiB 到磁盘末尾的分区</td>
+</tr>
+</tbody></table>
+<h3 id="3-parted-查看分区"><a href="#3-parted-查看分区" class="headerlink" title="3. parted 查看分区"></a>3. parted 查看分区</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> parted /dev/sdb <span class="hljs-built_in">print</span><br></code></pre></td></tr></table></figure>
+
+<p>输出示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash">Model: Virtio Block Device<br>Disk /dev/sdb: 215GB<br>Sector size: 512B/512B<br>Partition Table: gpt<br><br>Number  Start   End    Size   File system  Name     Flags<br> 1      1049kB  215GB  215GB               primary<br></code></pre></td></tr></table></figure>
+
+<p>这里有个细节：</p>
+<blockquote>
+<p><code>parted mkpart</code> 只是创建分区，不会创建文件系统。<br>文件系统需要用 <code>mkfs.ext4</code> 或 <code>mkfs.xfs</code> 单独创建。</p>
+</blockquote>
+<h2 id="七、创建文件系统：mkfs"><a href="#七、创建文件系统：mkfs" class="headerlink" title="七、创建文件系统：mkfs"></a>七、创建文件系统：mkfs</h2><p>分区完成之后，磁盘还不能直接存文件。<br>还需要创建文件系统。</p>
+<p>常见文件系统：</p>
+<table>
+<thead>
+<tr>
+<th>文件系统</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ext4</td>
+<td>通用、稳定、兼容性好、支持缩容</td>
+</tr>
+<tr>
+<td>xfs</td>
+<td>高性能，适合大文件、大容量场景，但不支持缩容</td>
+</tr>
+<tr>
+<td>btrfs</td>
+<td>支持快照、压缩等高级特性</td>
+</tr>
+<tr>
+<td>swap</td>
+<td>交换分区，不是普通文件系统</td>
+</tr>
+</tbody></table>
+<h3 id="1-创建-XFS-文件系统"><a href="#1-创建-XFS-文件系统" class="headerlink" title="1. 创建 XFS 文件系统"></a>1. 创建 XFS 文件系统</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mkfs.xfs /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<p>如果磁盘上已有文件系统，需要强制格式化：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mkfs.xfs -f /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<p>慎用 <code>-f</code>。<br>它的意思不是“放心”，而是“我知道我在毁灭什么”。</p>
+<h3 id="2-创建-ext4-文件系统"><a href="#2-创建-ext4-文件系统" class="headerlink" title="2. 创建 ext4 文件系统"></a>2. 创建 ext4 文件系统</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mkfs.ext4 /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<p>指定 Label：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mkfs.ext4 -L data /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-查看文件系统"><a href="#3-查看文件系统" class="headerlink" title="3. 查看文件系统"></a>3. 查看文件系统</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">blkid /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<p>输出示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/dev/sdb1: UUID=<span class="hljs-string">&quot;a3f4e5d6-xxxx-xxxx-xxxx-xxxxxxxxxxxx&quot;</span> TYPE=<span class="hljs-string">&quot;xfs&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h2 id="八、mount-挂载实战"><a href="#八、mount-挂载实战" class="headerlink" title="八、mount 挂载实战"></a>八、mount 挂载实战</h2><p>Linux 不是像 Windows 那样通过 C 盘、D 盘访问磁盘。<br>Linux 是把文件系统挂载到某个目录上。</p>
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/dev/sdb1  --&gt;  /data<br></code></pre></td></tr></table></figure>
+
+<p>访问 <code>/data</code>，实际就是访问 <code>/dev/sdb1</code> 这个分区里的文件系统。</p>
+<h3 id="1-创建挂载点"><a href="#1-创建挂载点" class="headerlink" title="1. 创建挂载点"></a>1. 创建挂载点</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /data<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-临时挂载"><a href="#2-临时挂载" class="headerlink" title="2. 临时挂载"></a>2. 临时挂载</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount /dev/sdb1 /data<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">df</span> -hT /data<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt /data<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-指定文件系统类型挂载"><a href="#3-指定文件系统类型挂载" class="headerlink" title="3. 指定文件系统类型挂载"></a>3. 指定文件系统类型挂载</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount -t xfs /dev/sdb1 /data<br></code></pre></td></tr></table></figure>
+
+<p>一般情况下，系统可以自动识别文件系统类型，不写 <code>-t</code> 也可以。</p>
+<h3 id="4-只读挂载"><a href="#4-只读挂载" class="headerlink" title="4. 只读挂载"></a>4. 只读挂载</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount -o ro /dev/sdb1 /data<br></code></pre></td></tr></table></figure>
+
+<p>适合数据恢复、排查问题时避免误写。</p>
+<h3 id="5-重新挂载"><a href="#5-重新挂载" class="headerlink" title="5. 重新挂载"></a>5. 重新挂载</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount -o remount,rw /data<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount -o remount,ro /data<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-bind-mount"><a href="#6-bind-mount" class="headerlink" title="6. bind mount"></a>6. bind mount</h3><p><code>bind mount</code> 可以把一个目录挂载到另一个目录。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /mnt/app-logs<br><span class="hljs-built_in">sudo</span> mount --<span class="hljs-built_in">bind</span> /var/log/app /mnt/app-logs<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt /mnt/app-logs<br></code></pre></td></tr></table></figure>
+
+<p>这种方式在容器、chroot、目录隔离、日志目录映射中很常见。</p>
+<h3 id="7-tmpfs-挂载"><a href="#7-tmpfs-挂载" class="headerlink" title="7. tmpfs 挂载"></a>7. tmpfs 挂载</h3><p><code>tmpfs</code> 是内存文件系统，适合临时缓存。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /mnt/cache<br><span class="hljs-built_in">sudo</span> mount -t tmpfs -o size=1G tmpfs /mnt/cache<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">df</span> -hT /mnt/cache<br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<blockquote>
+<p>tmpfs 数据在重启后会消失，不要把数据库放进去。<br>除非你想体验一次“缓存即人生，重启即空”。</p>
+</blockquote>
+<h2 id="九、umount-卸载文件系统"><a href="#九、umount-卸载文件系统" class="headerlink" title="九、umount 卸载文件系统"></a>九、umount 卸载文件系统</h2><p>卸载命令是 <code>umount</code>，不是 <code>unmount</code>。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> umount /data<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> umount /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<h3 id="1-device-is-busy-问题"><a href="#1-device-is-busy-问题" class="headerlink" title="1. device is busy 问题"></a>1. device is busy 问题</h3><p>如果提示：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">umount: /data: target is busy.<br></code></pre></td></tr></table></figure>
+
+<p>说明有进程正在使用这个目录。</p>
+<p>查看占用进程：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> lsof +f -- /data<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> fuser -vm /data<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">                     USER        PID ACCESS COMMAND<br>/data:               root       1234 ..c..  bash<br></code></pre></td></tr></table></figure>
+
+<p>如果是自己 shell 当前就在 <code>/data</code> 目录下，也会导致卸载失败。</p>
+<p>解决：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cd</span> /<br><span class="hljs-built_in">sudo</span> umount /data<br></code></pre></td></tr></table></figure>
+
+<p>强制杀进程要非常谨慎：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> fuser -km /data<br></code></pre></td></tr></table></figure>
+
+<p>生产环境不要随手用这个命令。<br>它很有效，也很“缺德”。</p>
+<h3 id="2-懒卸载"><a href="#2-懒卸载" class="headerlink" title="2. 懒卸载"></a>2. 懒卸载</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> umount -l /data<br></code></pre></td></tr></table></figure>
+
+<p><code>-l</code> 表示 lazy unmount。<br>它会先从目录树中解除挂载关系，等设备不再忙时再清理。</p>
+<p>这个命令适合某些卡住的场景，但不要把它当常规手段。</p>
+<h2 id="十、-etc-fstab：开机自动挂载"><a href="#十、-etc-fstab：开机自动挂载" class="headerlink" title="十、&#x2F;etc&#x2F;fstab：开机自动挂载"></a>十、&#x2F;etc&#x2F;fstab：开机自动挂载</h2><p><code>mount</code> 命令只是临时挂载。<br>重启之后，挂载关系会消失。</p>
+<p>如果想开机自动挂载，需要写入：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/etc/fstab<br></code></pre></td></tr></table></figure>
+
+<h3 id="1-fstab-格式"><a href="#1-fstab-格式" class="headerlink" title="1. fstab 格式"></a>1. fstab 格式</h3><p><code>/etc/fstab</code> 每一行格式如下：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">&lt;设备&gt;  &lt;挂载点&gt;  &lt;文件系统类型&gt;  &lt;挂载参数&gt;  &lt;dump&gt;  &lt;fsck&gt;<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">UUID=a3f4e5d6-xxxx-xxxx-xxxx-xxxxxxxxxxxx /data xfs defaults,nofail 0 0<br></code></pre></td></tr></table></figure>
+
+<p>字段解释：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>UUID=...</code></td>
+<td>要挂载的设备</td>
+</tr>
+<tr>
+<td><code>/data</code></td>
+<td>挂载点</td>
+</tr>
+<tr>
+<td><code>xfs</code></td>
+<td>文件系统类型</td>
+</tr>
+<tr>
+<td><code>defaults,nofail</code></td>
+<td>挂载参数</td>
+</tr>
+<tr>
+<td><code>0</code></td>
+<td>dump 备份标记，通常为 0</td>
+</tr>
+<tr>
+<td><code>0</code></td>
+<td>fsck 检查顺序，根分区通常为 1，普通分区可为 2 或 0</td>
+</tr>
+</tbody></table>
+<h3 id="2-为什么推荐-UUID"><a href="#2-为什么推荐-UUID" class="headerlink" title="2. 为什么推荐 UUID"></a>2. 为什么推荐 UUID</h3><p>不推荐这样写：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/dev/sdb1 /data xfs defaults 0 0<br></code></pre></td></tr></table></figure>
+
+<p>更推荐这样写：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">UUID=a3f4e5d6-xxxx-xxxx-xxxx-xxxxxxxxxxxx /data xfs defaults,nofail 0 0<br></code></pre></td></tr></table></figure>
+
+<p>原因是：</p>
+<blockquote>
+<p><code>/dev/sdb1</code> 可能因为磁盘识别顺序变化变成 <code>/dev/sdc1</code>，但 UUID 不会轻易变化。</p>
+</blockquote>
+<p>获取 UUID：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> blkid /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-常用挂载参数"><a href="#3-常用挂载参数" class="headerlink" title="3. 常用挂载参数"></a>3. 常用挂载参数</h3><table>
+<thead>
+<tr>
+<th>参数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>defaults</code></td>
+<td>默认参数</td>
+</tr>
+<tr>
+<td><code>rw</code></td>
+<td>可读写</td>
+</tr>
+<tr>
+<td><code>ro</code></td>
+<td>只读</td>
+</tr>
+<tr>
+<td><code>nofail</code></td>
+<td>挂载失败不阻塞启动</td>
+</tr>
+<tr>
+<td><code>noatime</code></td>
+<td>不更新访问时间，减少写入</td>
+</tr>
+<tr>
+<td><code>relatime</code></td>
+<td>相对访问时间，常见默认值</td>
+</tr>
+<tr>
+<td><code>nodev</code></td>
+<td>不解析设备文件</td>
+</tr>
+<tr>
+<td><code>nosuid</code></td>
+<td>禁用 suid</td>
+</tr>
+<tr>
+<td><code>noexec</code></td>
+<td>禁止执行二进制文件</td>
+</tr>
+<tr>
+<td><code>x-systemd.automount</code></td>
+<td>systemd 自动挂载</td>
+</tr>
+<tr>
+<td><code>x-systemd.device-timeout=10s</code></td>
+<td>设备等待超时时间</td>
+</tr>
+</tbody></table>
+<p>普通数据盘示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">UUID=a3f4e5d6-xxxx-xxxx-xxxx-xxxxxxxxxxxx /data xfs defaults,nofail 0 0<br></code></pre></td></tr></table></figure>
+
+<p>日志盘示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">UUID=b4c5d6e7-xxxx-xxxx-xxxx-xxxxxxxxxxxx /var/log/app xfs defaults,nofail,noatime 0 0<br></code></pre></td></tr></table></figure>
+
+<p>更安全的临时上传目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">UUID=c5d6e7f8-xxxx-xxxx-xxxx-xxxxxxxxxxxx /upload ext4 defaults,nofail,nodev,nosuid,noexec 0 2<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-修改-fstab-后一定要测试"><a href="#4-修改-fstab-后一定要测试" class="headerlink" title="4. 修改 fstab 后一定要测试"></a>4. 修改 fstab 后一定要测试</h3><p>修改 <code>/etc/fstab</code> 后，千万不要直接重启。</p>
+<p>先执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount -a<br></code></pre></td></tr></table></figure>
+
+<p>如果没有报错，再检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">df</span> -hT<br>findmnt /data<br></code></pre></td></tr></table></figure>
+
+<p>也可以使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt --verify<br></code></pre></td></tr></table></figure>
+
+<p>如果 <code>fstab</code> 写错，服务器可能启动时卡住。<br>所以改 <code>fstab</code> 的原则是：</p>
+<blockquote>
+<p>写完不测试，重启两行泪。</p>
+</blockquote>
+<h2 id="十一、fdisk-mount-完整案例：挂载一块普通数据盘"><a href="#十一、fdisk-mount-完整案例：挂载一块普通数据盘" class="headerlink" title="十一、fdisk + mount 完整案例：挂载一块普通数据盘"></a>十一、fdisk + mount 完整案例：挂载一块普通数据盘</h2><p>目标：</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>新磁盘</td>
+<td><code>/dev/sdb</code></td>
+</tr>
+<tr>
+<td>分区</td>
+<td><code>/dev/sdb1</code></td>
+</tr>
+<tr>
+<td>文件系统</td>
+<td><code>xfs</code></td>
+</tr>
+<tr>
+<td>挂载点</td>
+<td><code>/data</code></td>
+</tr>
+<tr>
+<td>开机自动挂载</td>
+<td>是</td>
+</tr>
+</tbody></table>
+<h3 id="1-查看磁盘-1"><a href="#1-查看磁盘-1" class="headerlink" title="1. 查看磁盘"></a>1. 查看磁盘</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT<br></code></pre></td></tr></table></figure>
+
+<p>确认 <code>/dev/sdb</code> 是新盘。</p>
+<h3 id="2-分区"><a href="#2-分区" class="headerlink" title="2. 分区"></a>2. 分区</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> fdisk /dev/sdb<br></code></pre></td></tr></table></figure>
+
+<p>交互流程：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash">g      <span class="hljs-comment"># 创建 GPT 分区表</span><br>n      <span class="hljs-comment"># 新建分区</span><br>回车   <span class="hljs-comment"># 默认分区号</span><br>回车   <span class="hljs-comment"># 默认起始扇区</span><br>回车   <span class="hljs-comment"># 默认使用全部空间</span><br>p      <span class="hljs-comment"># 查看分区</span><br>w      <span class="hljs-comment"># 保存</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="3-重新读取分区"><a href="#3-重新读取分区" class="headerlink" title="3. 重新读取分区"></a>3. 重新读取分区</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> partprobe /dev/sdb<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-创建文件系统"><a href="#4-创建文件系统" class="headerlink" title="4. 创建文件系统"></a>4. 创建文件系统</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mkfs.xfs /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-创建挂载点"><a href="#5-创建挂载点" class="headerlink" title="5. 创建挂载点"></a>5. 创建挂载点</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /data<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-临时挂载"><a href="#6-临时挂载" class="headerlink" title="6. 临时挂载"></a>6. 临时挂载</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount /dev/sdb1 /data<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-查看结果"><a href="#7-查看结果" class="headerlink" title="7. 查看结果"></a>7. 查看结果</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">df</span> -hT /data<br>findmnt /data<br></code></pre></td></tr></table></figure>
+
+<h3 id="8-获取-UUID"><a href="#8-获取-UUID" class="headerlink" title="8. 获取 UUID"></a>8. 获取 UUID</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> blkid /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/dev/sdb1: UUID=<span class="hljs-string">&quot;a3f4e5d6-xxxx-xxxx-xxxx-xxxxxxxxxxxx&quot;</span> TYPE=<span class="hljs-string">&quot;xfs&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="9-写入-fstab"><a href="#9-写入-fstab" class="headerlink" title="9. 写入 fstab"></a>9. 写入 fstab</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> vim /etc/fstab<br></code></pre></td></tr></table></figure>
+
+<p>追加：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">UUID=a3f4e5d6-xxxx-xxxx-xxxx-xxxxxxxxxxxx /data xfs defaults,nofail 0 0<br></code></pre></td></tr></table></figure>
+
+<h3 id="10-测试"><a href="#10-测试" class="headerlink" title="10. 测试"></a>10. 测试</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount -a<br><span class="hljs-built_in">df</span> -hT /data<br></code></pre></td></tr></table></figure>
+
+<p>完成。</p>
+<h2 id="十二、parted-完整案例：脚本化初始化数据盘"><a href="#十二、parted-完整案例：脚本化初始化数据盘" class="headerlink" title="十二、parted 完整案例：脚本化初始化数据盘"></a>十二、parted 完整案例：脚本化初始化数据盘</h2><p>目标：</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>新磁盘</td>
+<td><code>/dev/sdb</code></td>
+</tr>
+<tr>
+<td>分区表</td>
+<td>GPT</td>
+</tr>
+<tr>
+<td>分区大小</td>
+<td>使用整块磁盘</td>
+</tr>
+<tr>
+<td>文件系统</td>
+<td>ext4</td>
+</tr>
+<tr>
+<td>挂载点</td>
+<td><code>/data</code></td>
+</tr>
+</tbody></table>
+<p>脚本如下：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -euo pipefail<br><br>DISK=<span class="hljs-string">&quot;/dev/sdb&quot;</span><br>PART=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;DISK&#125;</span>1&quot;</span><br>MOUNT_POINT=<span class="hljs-string">&quot;/data&quot;</span><br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;当前磁盘信息：&quot;</span><br>lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;即将初始化磁盘：<span class="hljs-variable">$&#123;DISK&#125;</span>&quot;</span><br><span class="hljs-built_in">read</span> -r -p <span class="hljs-string">&quot;确认继续？这会清空目标磁盘分区表！输入 yes 继续: &quot;</span> CONFIRM<br><br><span class="hljs-keyword">if</span> [ <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;CONFIRM&#125;</span>&quot;</span> != <span class="hljs-string">&quot;yes&quot;</span> ]; <span class="hljs-keyword">then</span><br>  <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;已取消&quot;</span><br>  <span class="hljs-built_in">exit</span> 1<br><span class="hljs-keyword">fi</span><br><br><span class="hljs-built_in">sudo</span> parted -s <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;DISK&#125;</span>&quot;</span> mklabel gpt<br><span class="hljs-built_in">sudo</span> parted -a optimal -s <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;DISK&#125;</span>&quot;</span> mkpart primary ext4 1MiB 100%<br><span class="hljs-built_in">sudo</span> partprobe <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;DISK&#125;</span>&quot;</span><br><br><span class="hljs-built_in">sudo</span> mkfs.ext4 -F <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;PART&#125;</span>&quot;</span><br><br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;MOUNT_POINT&#125;</span>&quot;</span><br><span class="hljs-built_in">sudo</span> mount <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;PART&#125;</span>&quot;</span> <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;MOUNT_POINT&#125;</span>&quot;</span><br><br>UUID=$(<span class="hljs-built_in">sudo</span> blkid -s UUID -o value <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;PART&#125;</span>&quot;</span>)<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;UUID=<span class="hljs-variable">$&#123;UUID&#125;</span> <span class="hljs-variable">$&#123;MOUNT_POINT&#125;</span> ext4 defaults,nofail 0 2&quot;</span> | <span class="hljs-built_in">sudo</span> <span class="hljs-built_in">tee</span> -a /etc/fstab<br><br><span class="hljs-built_in">sudo</span> mount -a<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;挂载完成：&quot;</span><br><span class="hljs-built_in">df</span> -hT <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;MOUNT_POINT&#125;</span>&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>保存为：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">init-disk.sh<br></code></pre></td></tr></table></figure>
+
+<p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">chmod</span> +x init-disk.sh<br>./init-disk.sh<br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<blockquote>
+<p>这个脚本会清空目标磁盘分区表，只适合新盘初始化。<br>不要对已有数据盘直接执行。</p>
+</blockquote>
+<h2 id="十三、LVM-是什么？"><a href="#十三、LVM-是什么？" class="headerlink" title="十三、LVM 是什么？"></a>十三、LVM 是什么？</h2><p>LVM 全称是 Logical Volume Manager，逻辑卷管理器。</p>
+<p>普通分区模式是：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[磁盘] --&gt; B[分区]
+    B --&gt; C[文件系统]
+    C --&gt; D[挂载点]
+</code></pre>
+
+<p>LVM 模式是：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[磁盘1] --&gt; C[PV]
+    B[磁盘2] --&gt; D[PV]
+    C --&gt; E[VG 卷组]
+    D --&gt; E
+    E --&gt; F[LV 逻辑卷1]
+    E --&gt; G[LV 逻辑卷2]
+    F --&gt; H[文件系统]
+    H --&gt; I[挂载点 /data]
+</code></pre>
+
+<p>LVM 的核心价值是：</p>
+<blockquote>
+<p>把底层物理磁盘抽象成资源池，然后从资源池里切逻辑卷使用。</p>
+</blockquote>
+<p>这就像你不再直接拿一块块砖头盖房子，而是先把砖头、钢筋、水泥都放进一个材料仓库，然后按需要建卧室、厨房、车库。<br>当然，前提是你别把厨房建在数据库日志盘上，生活已经够难了。</p>
+<h2 id="十四、LVM-三层模型：PV、VG、LV"><a href="#十四、LVM-三层模型：PV、VG、LV" class="headerlink" title="十四、LVM 三层模型：PV、VG、LV"></a>十四、LVM 三层模型：PV、VG、LV</h2><p>LVM 主要有三层：</p>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>全称</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>PV</td>
+<td>Physical Volume</td>
+<td>物理卷，由磁盘或分区初始化而来</td>
+</tr>
+<tr>
+<td>VG</td>
+<td>Volume Group</td>
+<td>卷组，把多个 PV 聚合成一个存储池</td>
+</tr>
+<tr>
+<td>LV</td>
+<td>Logical Volume</td>
+<td>逻辑卷，从 VG 中划分出来给文件系统使用</td>
+</tr>
+</tbody></table>
+<p>关系如下：</p>
+<pre><code class=" mermaid">flowchart TD
+    A[&#x27;/dev/sdb1&#x27;] --&gt; B[PV]
+    C[&#x27;/dev/sdc1&#x27;] --&gt; D[PV]
+    B --&gt; E[VG: vg_data]
+    D --&gt; E
+    E --&gt; F[LV: lv_app]
+    E --&gt; G[LV: lv_log]
+    F --&gt; H[&#x27;/app&#x27;]
+    G --&gt; I[&#x27;/log&#x27;]
+</code></pre>
+
+<p>简单理解：</p>
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>类比</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>PV</td>
+<td>一块原材料</td>
+</tr>
+<tr>
+<td>VG</td>
+<td>一个资源池</td>
+</tr>
+<tr>
+<td>LV</td>
+<td>从资源池切出来的虚拟磁盘</td>
+</tr>
+<tr>
+<td>文件系统</td>
+<td>给虚拟磁盘铺格式</td>
+</tr>
+<tr>
+<td>挂载点</td>
+<td>对外使用入口</td>
+</tr>
+</tbody></table>
+<h2 id="十五、LVM-常用命令"><a href="#十五、LVM-常用命令" class="headerlink" title="十五、LVM 常用命令"></a>十五、LVM 常用命令</h2><h3 id="1-查看命令"><a href="#1-查看命令" class="headerlink" title="1. 查看命令"></a>1. 查看命令</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 查看 PV</span><br>pvs<br>pvdisplay<br><br><span class="hljs-comment"># 查看 VG</span><br>vgs<br>vgdisplay<br><br><span class="hljs-comment"># 查看 LV</span><br>lvs<br>lvdisplay<br><br><span class="hljs-comment"># 查看块设备关系</span><br>lsblk<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-创建命令"><a href="#2-创建命令" class="headerlink" title="2. 创建命令"></a>2. 创建命令</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 创建 PV</span><br>pvcreate /dev/sdb1<br><br><span class="hljs-comment"># 创建 VG</span><br>vgcreate vg_data /dev/sdb1<br><br><span class="hljs-comment"># 创建 LV</span><br>lvcreate -n lv_app -L 100G vg_data<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-扩容命令"><a href="#3-扩容命令" class="headerlink" title="3. 扩容命令"></a>3. 扩容命令</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 扩展 VG</span><br>vgextend vg_data /dev/sdc1<br><br><span class="hljs-comment"># 扩展 LV</span><br>lvextend -L +50G /dev/vg_data/lv_app<br><br><span class="hljs-comment"># 使用 VG 剩余所有空间扩展 LV</span><br>lvextend -l +100%FREE /dev/vg_data/lv_app<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-文件系统扩容"><a href="#4-文件系统扩容" class="headerlink" title="4. 文件系统扩容"></a>4. 文件系统扩容</h3><p>XFS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">xfs_growfs /data<br></code></pre></td></tr></table></figure>
+
+<p>ext4：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">resize2fs /dev/vg_data/lv_app<br></code></pre></td></tr></table></figure>
+
+<p>也可以使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lvextend -r -L +50G /dev/vg_data/lv_app<br></code></pre></td></tr></table></figure>
+
+<p><code>-r</code> 表示扩容 LV 后同时尝试扩容文件系统。</p>
+<h2 id="十六、LVM-完整案例：创建逻辑卷并挂载"><a href="#十六、LVM-完整案例：创建逻辑卷并挂载" class="headerlink" title="十六、LVM 完整案例：创建逻辑卷并挂载"></a>十六、LVM 完整案例：创建逻辑卷并挂载</h2><p>目标：</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>磁盘</td>
+<td><code>/dev/sdb</code></td>
+</tr>
+<tr>
+<td>分区</td>
+<td><code>/dev/sdb1</code></td>
+</tr>
+<tr>
+<td>PV</td>
+<td><code>/dev/sdb1</code></td>
+</tr>
+<tr>
+<td>VG</td>
+<td><code>vg_data</code></td>
+</tr>
+<tr>
+<td>LV</td>
+<td><code>lv_app</code></td>
+</tr>
+<tr>
+<td>文件系统</td>
+<td><code>xfs</code></td>
+</tr>
+<tr>
+<td>挂载点</td>
+<td><code>/data</code></td>
+</tr>
+</tbody></table>
+<h3 id="1-创建分区"><a href="#1-创建分区" class="headerlink" title="1. 创建分区"></a>1. 创建分区</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> parted -s /dev/sdb mklabel gpt<br><span class="hljs-built_in">sudo</span> parted -a optimal -s /dev/sdb mkpart primary 1MiB 100%<br><span class="hljs-built_in">sudo</span> partprobe /dev/sdb<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-创建-PV"><a href="#2-创建-PV" class="headerlink" title="2. 创建 PV"></a>2. 创建 PV</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> pvcreate /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> pvs<br></code></pre></td></tr></table></figure>
+
+<p>输出示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">PV         VG       Fmt  Attr PSize    PFree<br>/dev/sdb1           lvm2 ---  200.00g 200.00g<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-创建-VG"><a href="#3-创建-VG" class="headerlink" title="3. 创建 VG"></a>3. 创建 VG</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> vgcreate vg_data /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> vgs<br></code></pre></td></tr></table></figure>
+
+<p>输出示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">VG      <span class="hljs-comment">#PV #LV #SN Attr   VSize   VFree</span><br>vg_data   1   0   0 wz--n- 200.00g 200.00g<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-创建-LV"><a href="#4-创建-LV" class="headerlink" title="4. 创建 LV"></a>4. 创建 LV</h3><p>创建 100G 逻辑卷：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> lvcreate -n lv_app -L 100G vg_data<br></code></pre></td></tr></table></figure>
+
+<p>如果要使用全部空间：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> lvcreate -n lv_app -l 100%FREE vg_data<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> lvs<br></code></pre></td></tr></table></figure>
+
+<p>输出示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">LV     VG      Attr       LSize<br>lv_app vg_data -wi-a----- 100.00g<br></code></pre></td></tr></table></figure>
+
+<p>逻辑卷路径通常是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/dev/vg_data/lv_app<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/dev/mapper/vg_data-lv_app<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-创建文件系统"><a href="#5-创建文件系统" class="headerlink" title="5. 创建文件系统"></a>5. 创建文件系统</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mkfs.xfs /dev/vg_data/lv_app<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-创建挂载点并挂载"><a href="#6-创建挂载点并挂载" class="headerlink" title="6. 创建挂载点并挂载"></a>6. 创建挂载点并挂载</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /data<br><span class="hljs-built_in">sudo</span> mount /dev/vg_data/lv_app /data<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-写入-fstab"><a href="#7-写入-fstab" class="headerlink" title="7. 写入 fstab"></a>7. 写入 fstab</h3><p>获取 UUID：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> blkid /dev/vg_data/lv_app<br></code></pre></td></tr></table></figure>
+
+<p>追加到 <code>/etc/fstab</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx /data xfs defaults,nofail 0 0<br></code></pre></td></tr></table></figure>
+
+<p>测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount -a<br><span class="hljs-built_in">df</span> -hT /data<br></code></pre></td></tr></table></figure>
+
+<h2 id="十七、LVM-扩容场景一：新增一块磁盘扩容"><a href="#十七、LVM-扩容场景一：新增一块磁盘扩容" class="headerlink" title="十七、LVM 扩容场景一：新增一块磁盘扩容"></a>十七、LVM 扩容场景一：新增一块磁盘扩容</h2><p>这是生产环境非常常见的场景。</p>
+<p>当前：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/data 100G<br></code></pre></td></tr></table></figure>
+
+<p>新增一块 <code>/dev/sdc</code>，想扩容到 <code>/data</code>。</p>
+<h3 id="1-给新磁盘分区"><a href="#1-给新磁盘分区" class="headerlink" title="1. 给新磁盘分区"></a>1. 给新磁盘分区</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> parted -s /dev/sdc mklabel gpt<br><span class="hljs-built_in">sudo</span> parted -a optimal -s /dev/sdc mkpart primary 1MiB 100%<br><span class="hljs-built_in">sudo</span> partprobe /dev/sdc<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-创建-PV-1"><a href="#2-创建-PV-1" class="headerlink" title="2. 创建 PV"></a>2. 创建 PV</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> pvcreate /dev/sdc1<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-加入已有-VG"><a href="#3-加入已有-VG" class="headerlink" title="3. 加入已有 VG"></a>3. 加入已有 VG</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> vgextend vg_data /dev/sdc1<br></code></pre></td></tr></table></figure>
+
+<p>查看 VG 空间：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> vgs<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-扩展-LV"><a href="#4-扩展-LV" class="headerlink" title="4. 扩展 LV"></a>4. 扩展 LV</h3><p>把所有空闲空间都给 <code>/data</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> lvextend -l +100%FREE /dev/vg_data/lv_app<br></code></pre></td></tr></table></figure>
+
+<p>也可以只增加 100G：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> lvextend -L +100G /dev/vg_data/lv_app<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-扩展文件系统"><a href="#5-扩展文件系统" class="headerlink" title="5. 扩展文件系统"></a>5. 扩展文件系统</h3><p>如果是 XFS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> xfs_growfs /data<br></code></pre></td></tr></table></figure>
+
+<p>如果是 ext4：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> resize2fs /dev/vg_data/lv_app<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-查看结果"><a href="#6-查看结果" class="headerlink" title="6. 查看结果"></a>6. 查看结果</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">df</span> -hT /data<br>lvs<br>vgs<br></code></pre></td></tr></table></figure>
+
+<p>完整流程：</p>
+<pre><code class=" mermaid">flowchart TD
+    A[新增磁盘 /dev/sdc] --&gt; B[创建分区 /dev/sdc1]
+    B --&gt; C[pvcreate /dev/sdc1]
+    C --&gt; D[vgextend vg_data /dev/sdc1]
+    D --&gt; E[lvextend lv_app]
+    E --&gt; F[xfs_growfs 或 resize2fs]
+    F --&gt; G[/data 容量变大]
+</code></pre>
+
+<h2 id="十八、LVM-扩容场景二：云盘本身扩容"><a href="#十八、LVM-扩容场景二：云盘本身扩容" class="headerlink" title="十八、LVM 扩容场景二：云盘本身扩容"></a>十八、LVM 扩容场景二：云盘本身扩容</h2><p>云服务器里还有一种常见情况：</p>
+<blockquote>
+<p>不是新增一块磁盘，而是在云控制台把原来的磁盘从 100G 扩到了 200G。</p>
+</blockquote>
+<p>比如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/dev/sdb 100G -&gt; 200G<br></code></pre></td></tr></table></figure>
+
+<p>这时系统里可能看到磁盘变大了，但分区、PV、LV、文件系统还没变大。</p>
+<p>整体流程：</p>
+<pre><code class=" mermaid">flowchart TD
+    A[云控制台扩容磁盘] --&gt; B[系统识别磁盘变大]
+    B --&gt; C[扩展分区]
+    C --&gt; D[pvresize 扩展 PV]
+    D --&gt; E[lvextend 扩展 LV]
+    E --&gt; F[扩展文件系统]
+</code></pre>
+
+<h3 id="1-查看磁盘-2"><a href="#1-查看磁盘-2" class="headerlink" title="1. 查看磁盘"></a>1. 查看磁盘</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk<br></code></pre></td></tr></table></figure>
+
+<p>假设看到：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">sdb     200G disk<br>└─sdb1  100G part<br></code></pre></td></tr></table></figure>
+
+<p>说明磁盘已经是 200G，但分区还是 100G。</p>
+<h3 id="2-扩展分区"><a href="#2-扩展分区" class="headerlink" title="2. 扩展分区"></a>2. 扩展分区</h3><p>使用 parted：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> parted /dev/sdb<br></code></pre></td></tr></table></figure>
+
+<p>进入后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">(parted) <span class="hljs-built_in">print</span><br>(parted) resizepart 1 100%<br>(parted) quit<br></code></pre></td></tr></table></figure>
+
+<p>重新读取分区表：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> partprobe /dev/sdb<br></code></pre></td></tr></table></figure>
+
+<p>再次查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk<br></code></pre></td></tr></table></figure>
+
+<p>应该变成：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">sdb     200G disk<br>└─sdb1  200G part<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-扩展-PV"><a href="#3-扩展-PV" class="headerlink" title="3. 扩展 PV"></a>3. 扩展 PV</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> pvresize /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> pvs<br><span class="hljs-built_in">sudo</span> vgs<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-扩展-LV-1"><a href="#4-扩展-LV-1" class="headerlink" title="4. 扩展 LV"></a>4. 扩展 LV</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> lvextend -l +100%FREE /dev/vg_data/lv_app<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-扩展文件系统-1"><a href="#5-扩展文件系统-1" class="headerlink" title="5. 扩展文件系统"></a>5. 扩展文件系统</h3><p>XFS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> xfs_growfs /data<br></code></pre></td></tr></table></figure>
+
+<p>ext4：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> resize2fs /dev/vg_data/lv_app<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-验证"><a href="#6-验证" class="headerlink" title="6. 验证"></a>6. 验证</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">df</span> -hT /data<br></code></pre></td></tr></table></figure>
+
+<h2 id="十九、LVM-缩容要非常谨慎"><a href="#十九、LVM-缩容要非常谨慎" class="headerlink" title="十九、LVM 缩容要非常谨慎"></a>十九、LVM 缩容要非常谨慎</h2><p>扩容一般比较安全，缩容就危险得多。</p>
+<p>尤其是 XFS：</p>
+<blockquote>
+<p>XFS 不支持缩容。</p>
+</blockquote>
+<p>ext4 支持缩容，但流程也比较危险，通常需要：</p>
+<ol>
+<li>备份数据</li>
+<li>卸载文件系统</li>
+<li>检查文件系统</li>
+<li>先缩文件系统</li>
+<li>再缩 LV</li>
+<li>重新挂载</li>
+</ol>
+<p>大致流程：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> umount /data<br><span class="hljs-built_in">sudo</span> e2fsck -f /dev/vg_data/lv_app<br><span class="hljs-built_in">sudo</span> resize2fs /dev/vg_data/lv_app 80G<br><span class="hljs-built_in">sudo</span> lvreduce -L 80G /dev/vg_data/lv_app<br><span class="hljs-built_in">sudo</span> mount /data<br></code></pre></td></tr></table></figure>
+
+<p>更稳妥的方式是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> lvreduce --resizefs -L 80G /dev/vg_data/lv_app<br></code></pre></td></tr></table></figure>
+
+<p>但是，即使用 <code>--resizefs</code>，也不代表可以不备份。</p>
+<p>缩容原则：</p>
+<blockquote>
+<p>先缩文件系统，再缩块设备。<br>顺序反了，数据就没了。<br>数据没了，人也安静了。</p>
+</blockquote>
+<p>生产环境里，如果不是非常必要，尽量不要缩容。<br>更推荐新建小卷、迁移数据、验证后切换。</p>
+<h2 id="二十、普通分区和-LVM-怎么选？"><a href="#二十、普通分区和-LVM-怎么选？" class="headerlink" title="二十、普通分区和 LVM 怎么选？"></a>二十、普通分区和 LVM 怎么选？</h2><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>推荐方案</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>临时测试机</td>
+<td>普通分区</td>
+</tr>
+<tr>
+<td>简单数据盘</td>
+<td>普通分区</td>
+</tr>
+<tr>
+<td>Docker 数据目录</td>
+<td>LVM 或独立数据盘</td>
+</tr>
+<tr>
+<td>数据库数据盘</td>
+<td>LVM，或者云盘直接管理</td>
+</tr>
+<tr>
+<td>日志盘</td>
+<td>LVM</td>
+</tr>
+<tr>
+<td>经常扩容</td>
+<td>LVM</td>
+</tr>
+<tr>
+<td>多块盘合并管理</td>
+<td>LVM</td>
+</tr>
+<tr>
+<td>要做快照</td>
+<td>LVM 或云盘快照</td>
+</tr>
+<tr>
+<td>对运维能力要求低</td>
+<td>普通分区</td>
+</tr>
+<tr>
+<td>追求长期灵活性</td>
+<td>LVM</td>
+</tr>
+</tbody></table>
+<p>我的建议：</p>
+<blockquote>
+<p>单机简单业务，普通分区够用。<br>生产环境长期跑服务，尤其是数据目录、日志目录、数据库目录，优先考虑 LVM 或云厂商块存储方案。</p>
+</blockquote>
+<h2 id="二十一、文件系统选择：ext4-还是-xfs？"><a href="#二十一、文件系统选择：ext4-还是-xfs？" class="headerlink" title="二十一、文件系统选择：ext4 还是 xfs？"></a>二十一、文件系统选择：ext4 还是 xfs？</h2><h3 id="1-ext4"><a href="#1-ext4" class="headerlink" title="1. ext4"></a>1. ext4</h3><p>优点：</p>
+<table>
+<thead>
+<tr>
+<th>优点</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>稳定成熟</td>
+<td>使用广泛</td>
+</tr>
+<tr>
+<td>兼容性好</td>
+<td>各类发行版支持好</td>
+</tr>
+<tr>
+<td>支持缩容</td>
+<td>相比 XFS 更灵活</td>
+</tr>
+<tr>
+<td>适合普通场景</td>
+<td>中小型数据盘非常合适</td>
+</tr>
+</tbody></table>
+<h3 id="2-xfs"><a href="#2-xfs" class="headerlink" title="2. xfs"></a>2. xfs</h3><p>优点：</p>
+<table>
+<thead>
+<tr>
+<th>优点</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>大文件性能好</td>
+<td>适合大容量、大文件</td>
+</tr>
+<tr>
+<td>扩容方便</td>
+<td>在线扩容体验好</td>
+</tr>
+<tr>
+<td>适合日志&#x2F;数据盘</td>
+<td>生产环境常见</td>
+</tr>
+<tr>
+<td>元数据性能好</td>
+<td>大目录、大文件场景表现不错</td>
+</tr>
+</tbody></table>
+<p>缺点：</p>
+<table>
+<thead>
+<tr>
+<th>缺点</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>不支持缩容</td>
+<td>一旦建大了，不能直接缩小</td>
+</tr>
+</tbody></table>
+<p>选择建议：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>推荐</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>普通 Web 服务数据盘</td>
+<td>ext4 &#x2F; xfs 都可以</td>
+</tr>
+<tr>
+<td>大日志目录</td>
+<td>xfs</td>
+</tr>
+<tr>
+<td>数据库数据盘</td>
+<td>xfs 常见</td>
+</tr>
+<tr>
+<td>需要可能缩容</td>
+<td>ext4</td>
+</tr>
+<tr>
+<td>RHEL&#x2F;CentOS 系</td>
+<td>xfs 很常见</td>
+</tr>
+<tr>
+<td>Debian&#x2F;Ubuntu 普通场景</td>
+<td>ext4 很常见</td>
+</tr>
+</tbody></table>
+<h2 id="二十二、挂载-Docker-数据目录案例"><a href="#二十二、挂载-Docker-数据目录案例" class="headerlink" title="二十二、挂载 Docker 数据目录案例"></a>二十二、挂载 Docker 数据目录案例</h2><p>Docker 默认数据目录通常是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/var/lib/docker<br></code></pre></td></tr></table></figure>
+
+<p>如果根分区空间不大，Docker 镜像、容器、日志很容易把 <code>/</code> 撑爆。</p>
+<p>可以把新盘挂载到 <code>/var/lib/docker</code>。</p>
+<h3 id="1-停止-Docker"><a href="#1-停止-Docker" class="headerlink" title="1. 停止 Docker"></a>1. 停止 Docker</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl stop docker<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-准备新磁盘并挂载到临时目录"><a href="#2-准备新磁盘并挂载到临时目录" class="headerlink" title="2. 准备新磁盘并挂载到临时目录"></a>2. 准备新磁盘并挂载到临时目录</h3><p>假设新盘已经格式化为 <code>/dev/sdb1</code>。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /mnt/docker-data<br><span class="hljs-built_in">sudo</span> mount /dev/sdb1 /mnt/docker-data<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-迁移原数据"><a href="#3-迁移原数据" class="headerlink" title="3. 迁移原数据"></a>3. 迁移原数据</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> rsync -aHAX --numeric-ids /var/lib/docker/ /mnt/docker-data/<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-备份旧目录"><a href="#4-备份旧目录" class="headerlink" title="4. 备份旧目录"></a>4. 备份旧目录</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mv</span> /var/lib/docker /var/lib/docker.bak<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /var/lib/docker<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-卸载临时目录并挂载到正式目录"><a href="#5-卸载临时目录并挂载到正式目录" class="headerlink" title="5. 卸载临时目录并挂载到正式目录"></a>5. 卸载临时目录并挂载到正式目录</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> umount /mnt/docker-data<br><span class="hljs-built_in">sudo</span> mount /dev/sdb1 /var/lib/docker<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-写入-fstab"><a href="#6-写入-fstab" class="headerlink" title="6. 写入 fstab"></a>6. 写入 fstab</h3><p>获取 UUID：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> blkid /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<p>写入：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx /var/lib/docker xfs defaults,nofail 0 0<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-测试并启动-Docker"><a href="#7-测试并启动-Docker" class="headerlink" title="7. 测试并启动 Docker"></a>7. 测试并启动 Docker</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount -a<br><span class="hljs-built_in">sudo</span> systemctl start docker<br><span class="hljs-built_in">sudo</span> docker info | grep <span class="hljs-string">&quot;Docker Root Dir&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>确认：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">Docker Root Dir: /var/lib/docker<br></code></pre></td></tr></table></figure>
+
+<h3 id="8-验证没有问题后删除备份"><a href="#8-验证没有问题后删除备份" class="headerlink" title="8. 验证没有问题后删除备份"></a>8. 验证没有问题后删除备份</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">rm</span> -rf /var/lib/docker.bak<br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<blockquote>
+<p>删除备份前一定要确认容器、镜像、数据卷都正常。<br>不要为了省几 GB，省出一个通宵事故。</p>
+</blockquote>
+<h2 id="二十三、挂载数据库数据盘案例"><a href="#二十三、挂载数据库数据盘案例" class="headerlink" title="二十三、挂载数据库数据盘案例"></a>二十三、挂载数据库数据盘案例</h2><p>以 MySQL 为例，假设要把数据目录放到 <code>/data/mysql</code>。</p>
+<h3 id="1-创建挂载点-1"><a href="#1-创建挂载点-1" class="headerlink" title="1. 创建挂载点"></a>1. 创建挂载点</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /data<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-挂载数据盘"><a href="#2-挂载数据盘" class="headerlink" title="2. 挂载数据盘"></a>2. 挂载数据盘</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount /dev/vg_data/lv_mysql /data<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-创建-MySQL-数据目录"><a href="#3-创建-MySQL-数据目录" class="headerlink" title="3. 创建 MySQL 数据目录"></a>3. 创建 MySQL 数据目录</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /data/mysql<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chown</span> -R mysql:mysql /data/mysql<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-修改-MySQL-配置"><a href="#4-修改-MySQL-配置" class="headerlink" title="4. 修改 MySQL 配置"></a>4. 修改 MySQL 配置</h3><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-section">[mysqld]</span><br><span class="hljs-attr">datadir</span>=/data/mysql<br><span class="hljs-attr">socket</span>=/data/mysql/mysql.sock<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-fstab-示例"><a href="#5-fstab-示例" class="headerlink" title="5. fstab 示例"></a>5. fstab 示例</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx /data xfs defaults,nofail,noatime 0 0<br></code></pre></td></tr></table></figure>
+
+<p>数据库目录建议：</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>独立磁盘</td>
+<td>推荐</td>
+</tr>
+<tr>
+<td>独立挂载点</td>
+<td>推荐</td>
+</tr>
+<tr>
+<td>使用 UUID</td>
+<td>推荐</td>
+</tr>
+<tr>
+<td>noatime</td>
+<td>可以考虑</td>
+</tr>
+<tr>
+<td>随便迁移</td>
+<td>不推荐</td>
+</tr>
+<tr>
+<td>没备份就操作</td>
+<td>强烈不推荐</td>
+</tr>
+</tbody></table>
+<h2 id="二十四、swap-分区和-swap-文件"><a href="#二十四、swap-分区和-swap-文件" class="headerlink" title="二十四、swap 分区和 swap 文件"></a>二十四、swap 分区和 swap 文件</h2><p>除了普通数据盘，Linux 还可以配置 swap。</p>
+<h3 id="1-创建-swap-分区"><a href="#1-创建-swap-分区" class="headerlink" title="1. 创建 swap 分区"></a>1. 创建 swap 分区</h3><p>假设 <code>/dev/sdb2</code> 是 swap 分区：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mkswap /dev/sdb2<br><span class="hljs-built_in">sudo</span> swapon /dev/sdb2<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">swapon --show<br>free -h<br></code></pre></td></tr></table></figure>
+
+<p>写入 <code>/etc/fstab</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx none swap defaults 0 0<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-创建-swap-文件"><a href="#2-创建-swap-文件" class="headerlink" title="2. 创建 swap 文件"></a>2. 创建 swap 文件</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> fallocate -l 4G /swapfile<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chmod</span> 600 /swapfile<br><span class="hljs-built_in">sudo</span> mkswap /swapfile<br><span class="hljs-built_in">sudo</span> swapon /swapfile<br></code></pre></td></tr></table></figure>
+
+<p>写入 <code>/etc/fstab</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/swapfile none swap sw 0 0<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">free -h<br>swapon --show<br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<blockquote>
+<p>swap 不是内存平替。<br>它是兜底，不是性能加速器。<br>真缺内存，最终还是要加内存或者优化程序。</p>
+</blockquote>
+<h2 id="二十五、常见故障排查"><a href="#二十五、常见故障排查" class="headerlink" title="二十五、常见故障排查"></a>二十五、常见故障排查</h2><h3 id="1-df-看不到新磁盘"><a href="#1-df-看不到新磁盘" class="headerlink" title="1. df 看不到新磁盘"></a>1. df 看不到新磁盘</h3><p>原因：</p>
+<p><code>df</code> 只显示已挂载文件系统。</p>
+<p>排查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk<br>blkid<br>findmnt<br></code></pre></td></tr></table></figure>
+
+<p>如果 <code>lsblk</code> 能看到新盘，但 <code>df</code> 看不到，说明还没挂载。</p>
+<h3 id="2-mount-报错-unknown-filesystem-type"><a href="#2-mount-报错-unknown-filesystem-type" class="headerlink" title="2. mount 报错 unknown filesystem type"></a>2. mount 报错 unknown filesystem type</h3><p>示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mount: unknown filesystem <span class="hljs-built_in">type</span> <span class="hljs-string">&#x27;xfs&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>可能原因：</p>
+<ol>
+<li>系统缺少对应文件系统工具包</li>
+<li>文件系统类型写错</li>
+<li>分区还没格式化</li>
+<li>分区损坏</li>
+</ol>
+<p>排查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">blkid /dev/sdb1<br>file -s /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<p>安装工具：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># RHEL/CentOS</span><br><span class="hljs-built_in">sudo</span> yum install -y xfsprogs e2fsprogs<br><br><span class="hljs-comment"># Ubuntu/Debian</span><br><span class="hljs-built_in">sudo</span> apt install -y xfsprogs e2fsprogs<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-mount-报错-already-mounted"><a href="#3-mount-报错-already-mounted" class="headerlink" title="3. mount 报错 already mounted"></a>3. mount 报错 already mounted</h3><p>查看挂载关系：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt /data<br>findmnt /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<p>如果已经挂载，不要重复挂载。</p>
+<h3 id="4-umount-报错-target-is-busy"><a href="#4-umount-报错-target-is-busy" class="headerlink" title="4. umount 报错 target is busy"></a>4. umount 报错 target is busy</h3><p>查看占用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> lsof +f -- /data<br><span class="hljs-built_in">sudo</span> fuser -vm /data<br></code></pre></td></tr></table></figure>
+
+<p>常见原因：</p>
+<ol>
+<li>当前 shell 在 <code>/data</code> 目录下</li>
+<li>应用进程正在读写</li>
+<li>Docker 容器占用</li>
+<li>NFS 或其他服务占用</li>
+</ol>
+<h3 id="5-fstab-写错导致启动失败"><a href="#5-fstab-写错导致启动失败" class="headerlink" title="5. fstab 写错导致启动失败"></a>5. fstab 写错导致启动失败</h3><p>解决思路：</p>
+<ol>
+<li>进入救援模式</li>
+<li>重新挂载根分区为读写</li>
+<li>修改 <code>/etc/fstab</code></li>
+<li>注释错误挂载项</li>
+<li>重启</li>
+</ol>
+<p>所以修改后一定要测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount -a<br>findmnt --verify<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-挂载到非空目录后文件“不见了”"><a href="#6-挂载到非空目录后文件“不见了”" class="headerlink" title="6. 挂载到非空目录后文件“不见了”"></a>6. 挂载到非空目录后文件“不见了”</h3><p>比如 <code>/data</code> 里原来有文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/data/a.txt<br></code></pre></td></tr></table></figure>
+
+<p>然后你执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mount /dev/sdb1 /data<br></code></pre></td></tr></table></figure>
+
+<p>这时 <code>/data/a.txt</code> 看起来“不见了”。</p>
+<p>其实不是删除了，而是被新挂载的文件系统遮住了。</p>
+<p>卸载后又会出现：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">umount /data<br><span class="hljs-built_in">ls</span> /data<br></code></pre></td></tr></table></figure>
+
+<p>所以挂载点最好使用空目录。</p>
+<h3 id="7-删除分区后空间没变化"><a href="#7-删除分区后空间没变化" class="headerlink" title="7. 删除分区后空间没变化"></a>7. 删除分区后空间没变化</h3><p>你可能只是删了分区表，文件系统和挂载关系还在内核中。<br>排查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk<br>findmnt<br>mount<br></code></pre></td></tr></table></figure>
+
+<p>必要时：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">partprobe<br></code></pre></td></tr></table></figure>
+
+<p>或者重启。</p>
+<h3 id="8-LVM-扩容后-df-没变"><a href="#8-LVM-扩容后-df-没变" class="headerlink" title="8. LVM 扩容后 df 没变"></a>8. LVM 扩容后 df 没变</h3><p>可能你只扩了 LV，没有扩文件系统。</p>
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">lvs<br><span class="hljs-built_in">df</span> -hT<br></code></pre></td></tr></table></figure>
+
+<p>如果 <code>lvs</code> 变大了，但 <code>df</code> 没变，说明文件系统还没扩。</p>
+<p>XFS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">xfs_growfs /data<br></code></pre></td></tr></table></figure>
+
+<p>ext4：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">resize2fs /dev/vg_data/lv_app<br></code></pre></td></tr></table></figure>
+
+<h2 id="二十六、生产环境操作建议"><a href="#二十六、生产环境操作建议" class="headerlink" title="二十六、生产环境操作建议"></a>二十六、生产环境操作建议</h2><h3 id="1-操作前先确认磁盘"><a href="#1-操作前先确认磁盘" class="headerlink" title="1. 操作前先确认磁盘"></a>1. 操作前先确认磁盘</h3><p>至少执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT<br><span class="hljs-built_in">sudo</span> fdisk -l<br></code></pre></td></tr></table></figure>
+
+<p>确认：</p>
+<ol>
+<li>哪块是系统盘</li>
+<li>哪块是新盘</li>
+<li>有没有文件系统</li>
+<li>有没有挂载点</li>
+<li>有没有业务数据</li>
+</ol>
+<h3 id="2-危险命令前先停一下"><a href="#2-危险命令前先停一下" class="headerlink" title="2. 危险命令前先停一下"></a>2. 危险命令前先停一下</h3><p>危险命令包括：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs bash">mkfs<br>fdisk<br>parted mklabel<br>parted <span class="hljs-built_in">rm</span><br>pvcreate<br>wipefs<br><span class="hljs-built_in">dd</span><br>lvremove<br>vgremove<br>pvremove<br></code></pre></td></tr></table></figure>
+
+<p>这些命令执行前都要确认：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk<br>blkid<br><span class="hljs-built_in">df</span> -hT<br>findmnt<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-生产环境优先使用-UUID"><a href="#3-生产环境优先使用-UUID" class="headerlink" title="3. 生产环境优先使用 UUID"></a>3. 生产环境优先使用 UUID</h3><p><code>/etc/fstab</code> 推荐：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">UUID=xxxx /data xfs defaults,nofail 0 0<br></code></pre></td></tr></table></figure>
+
+<p>不推荐：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/dev/sdb1 /data xfs defaults 0 0<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-修改-fstab-后必须测试"><a href="#4-修改-fstab-后必须测试" class="headerlink" title="4. 修改 fstab 后必须测试"></a>4. 修改 fstab 后必须测试</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount -a<br>findmnt --verify<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-数据盘建议独立挂载"><a href="#5-数据盘建议独立挂载" class="headerlink" title="5. 数据盘建议独立挂载"></a>5. 数据盘建议独立挂载</h3><p>常见目录：</p>
+<table>
+<thead>
+<tr>
+<th>目录</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/data</code></td>
+<td>通用数据目录</td>
+</tr>
+<tr>
+<td><code>/var/lib/docker</code></td>
+<td>Docker 数据目录</td>
+</tr>
+<tr>
+<td><code>/var/lib/mysql</code></td>
+<td>MySQL 数据目录</td>
+</tr>
+<tr>
+<td><code>/data/mysql</code></td>
+<td>自定义 MySQL 数据目录</td>
+</tr>
+<tr>
+<td><code>/data/postgresql</code></td>
+<td>PostgreSQL 数据目录</td>
+</tr>
+<tr>
+<td><code>/data/redis</code></td>
+<td>Redis 持久化目录</td>
+</tr>
+<tr>
+<td><code>/var/log</code></td>
+<td>日志目录</td>
+</tr>
+<tr>
+<td><code>/backup</code></td>
+<td>备份目录</td>
+</tr>
+</tbody></table>
+<h3 id="6-数据库和日志尽量不要挤在根分区"><a href="#6-数据库和日志尽量不要挤在根分区" class="headerlink" title="6. 数据库和日志尽量不要挤在根分区"></a>6. 数据库和日志尽量不要挤在根分区</h3><p>根分区爆了，系统会出现很多奇怪问题：</p>
+<ol>
+<li>SSH 登录异常</li>
+<li>日志写不进去</li>
+<li>服务无法启动</li>
+<li>数据库无法写入</li>
+<li>Docker 无法创建容器</li>
+<li>包管理器无法安装软件</li>
+</ol>
+<p>根分区爆满不是“小问题”，它是很多事故的“起手式”。</p>
+<h2 id="二十七、常用命令速查表"><a href="#二十七、常用命令速查表" class="headerlink" title="二十七、常用命令速查表"></a>二十七、常用命令速查表</h2><h3 id="1-查看类"><a href="#1-查看类" class="headerlink" title="1. 查看类"></a>1. 查看类</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk<br>lsblk -f<br>lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,UUID,MOUNTPOINT<br><br>blkid<br>blkid /dev/sdb1<br><br><span class="hljs-built_in">df</span> -h<br><span class="hljs-built_in">df</span> -hT<br><br>findmnt<br>findmnt /data<br><br>fdisk -l<br>parted -l<br><br>pvs<br>vgs<br>lvs<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-分区类"><a href="#2-分区类" class="headerlink" title="2. 分区类"></a>2. 分区类</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs bash">fdisk /dev/sdb<br><br>parted /dev/sdb <span class="hljs-built_in">print</span><br>parted -s /dev/sdb mklabel gpt<br>parted -a optimal -s /dev/sdb mkpart primary xfs 1MiB 100%<br>parted /dev/sdb resizepart 1 100%<br><br>partprobe /dev/sdb<br>partx -a /dev/sdb<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-文件系统类"><a href="#3-文件系统类" class="headerlink" title="3. 文件系统类"></a>3. 文件系统类</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs bash">mkfs.xfs /dev/sdb1<br>mkfs.xfs -f /dev/sdb1<br><br>mkfs.ext4 /dev/sdb1<br>mkfs.ext4 -L data /dev/sdb1<br><br>xfs_info /data<br>tune2fs -l /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-挂载类"><a href="#4-挂载类" class="headerlink" title="4. 挂载类"></a>4. 挂载类</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">mkdir</span> -p /data<br>mount /dev/sdb1 /data<br>mount -t xfs /dev/sdb1 /data<br>mount -o ro /dev/sdb1 /data<br>mount -o remount,rw /data<br>mount --<span class="hljs-built_in">bind</span> /src /target<br><br>umount /data<br>umount -l /data<br><br>mount -a<br>findmnt --verify<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-LVM-类"><a href="#5-LVM-类" class="headerlink" title="5. LVM 类"></a>5. LVM 类</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs bash">pvcreate /dev/sdb1<br>pvs<br>pvdisplay<br><br>vgcreate vg_data /dev/sdb1<br>vgextend vg_data /dev/sdc1<br>vgs<br>vgdisplay<br><br>lvcreate -n lv_app -L 100G vg_data<br>lvcreate -n lv_app -l 100%FREE vg_data<br>lvextend -L +50G /dev/vg_data/lv_app<br>lvextend -l +100%FREE /dev/vg_data/lv_app<br>lvextend -r -L +50G /dev/vg_data/lv_app<br>lvs<br>lvdisplay<br><br>xfs_growfs /data<br>resize2fs /dev/vg_data/lv_app<br><br>pvresize /dev/sdb1<br></code></pre></td></tr></table></figure>
+
+<h2 id="二十八、完整推荐流程"><a href="#二十八、完整推荐流程" class="headerlink" title="二十八、完整推荐流程"></a>二十八、完整推荐流程</h2><h3 id="场景一：普通数据盘"><a href="#场景一：普通数据盘" class="headerlink" title="场景一：普通数据盘"></a>场景一：普通数据盘</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk<br>fdisk /dev/sdb<br>partprobe /dev/sdb<br>mkfs.xfs /dev/sdb1<br><span class="hljs-built_in">mkdir</span> -p /data<br>mount /dev/sdb1 /data<br>blkid /dev/sdb1<br>vim /etc/fstab<br>mount -a<br><span class="hljs-built_in">df</span> -hT<br></code></pre></td></tr></table></figure>
+
+<h3 id="场景二：大磁盘或脚本化"><a href="#场景二：大磁盘或脚本化" class="headerlink" title="场景二：大磁盘或脚本化"></a>场景二：大磁盘或脚本化</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk<br>parted -s /dev/sdb mklabel gpt<br>parted -a optimal -s /dev/sdb mkpart primary xfs 1MiB 100%<br>partprobe /dev/sdb<br>mkfs.xfs /dev/sdb1<br><span class="hljs-built_in">mkdir</span> -p /data<br>mount /dev/sdb1 /data<br>blkid /dev/sdb1<br>vim /etc/fstab<br>mount -a<br><span class="hljs-built_in">df</span> -hT<br></code></pre></td></tr></table></figure>
+
+<h3 id="场景三：LVM-数据盘"><a href="#场景三：LVM-数据盘" class="headerlink" title="场景三：LVM 数据盘"></a>场景三：LVM 数据盘</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk<br>parted -s /dev/sdb mklabel gpt<br>parted -a optimal -s /dev/sdb mkpart primary 1MiB 100%<br>partprobe /dev/sdb<br><br>pvcreate /dev/sdb1<br>vgcreate vg_data /dev/sdb1<br>lvcreate -n lv_app -l 100%FREE vg_data<br><br>mkfs.xfs /dev/vg_data/lv_app<br><span class="hljs-built_in">mkdir</span> -p /data<br>mount /dev/vg_data/lv_app /data<br><br>blkid /dev/vg_data/lv_app<br>vim /etc/fstab<br>mount -a<br><span class="hljs-built_in">df</span> -hT<br></code></pre></td></tr></table></figure>
+
+<h3 id="场景四：LVM-新增磁盘扩容"><a href="#场景四：LVM-新增磁盘扩容" class="headerlink" title="场景四：LVM 新增磁盘扩容"></a>场景四：LVM 新增磁盘扩容</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk<br><br>parted -s /dev/sdc mklabel gpt<br>parted -a optimal -s /dev/sdc mkpart primary 1MiB 100%<br>partprobe /dev/sdc<br><br>pvcreate /dev/sdc1<br>vgextend vg_data /dev/sdc1<br>lvextend -l +100%FREE /dev/vg_data/lv_app<br><br>xfs_growfs /data<br><span class="hljs-built_in">df</span> -hT /data<br></code></pre></td></tr></table></figure>
+
+<h3 id="场景五：云盘原盘扩容"><a href="#场景五：云盘原盘扩容" class="headerlink" title="场景五：云盘原盘扩容"></a>场景五：云盘原盘扩容</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsblk<br><br>parted /dev/sdb<br><span class="hljs-comment"># print</span><br><span class="hljs-comment"># resizepart 1 100%</span><br><span class="hljs-comment"># quit</span><br><br>partprobe /dev/sdb<br><br>pvresize /dev/sdb1<br>lvextend -l +100%FREE /dev/vg_data/lv_app<br>xfs_growfs /data<br><br><span class="hljs-built_in">df</span> -hT /data<br></code></pre></td></tr></table></figure>
+
+<h2 id="二十九、启示录"><a href="#二十九、启示录" class="headerlink" title="二十九、启示录"></a>二十九、启示录</h2><p>Linux 磁盘管理看起来命令很多，但真正核心的就两条线。</p>
+<p>第一条是普通分区线：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">磁盘 -&gt; 分区 -&gt; 文件系统 -&gt; 挂载点 -&gt; fstab<br></code></pre></td></tr></table></figure>
+
+<p>第二条是 LVM 线：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">磁盘 -&gt; 分区 -&gt; PV -&gt; VG -&gt; LV -&gt; 文件系统 -&gt; 挂载点 -&gt; fstab<br></code></pre></td></tr></table></figure>
+
+<p>如果只是临时挂一块小数据盘，<code>fdisk + mkfs + mount + fstab</code> 就够了。<br>如果是生产服务器，尤其是数据库、Docker、日志、备份目录，建议认真考虑 LVM，因为后续扩容会舒服很多。</p>
+<p>最后记住几个原则：</p>
+<ol>
+<li>操作前先 <code>lsblk</code></li>
+<li>格式化前先 <code>blkid</code></li>
+<li>挂载后用 <code>df -hT</code> 和 <code>findmnt</code> 验证</li>
+<li>开机挂载用 UUID</li>
+<li>改完 <code>/etc/fstab</code> 必须 <code>mount -a</code></li>
+<li>XFS 可以在线扩容，但不能缩容</li>
+<li>LVM 扩容容易，缩容危险</li>
+<li>生产环境动磁盘前必须备份</li>
+</ol>
+<p>磁盘管理不是炫技，它是服务器稳定性的地基。<br>地基打好了，上层服务才不会一边跑业务，一边表演“根分区爆满行为艺术”。</p>
+<p><code>富贵岂由人，时会高志须酬。</code></p>
+<p><code>能成功于千载者，必以近察远。</code></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Linux/" class="category-chain-item">Linux</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Linux/" class="print-no-link">#Linux</a>
+      
+        <a href="/tags/Disk/" class="print-no-link">#Disk</a>
+      
+        <a href="/tags/Mount/" class="print-no-link">#Mount</a>
+      
+        <a href="/tags/Parted/" class="print-no-link">#Parted</a>
+      
+        <a href="/tags/Fdisk/" class="print-no-link">#Fdisk</a>
+      
+        <a href="/tags/LVM/" class="print-no-link">#LVM</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Linux 磁盘挂载、分区与 LVM 分卷实战</div>
+      <div>https://allendericdalexander.github.io/2026/06/08/devops/linux/linux_disk/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年6月8日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/06/07/devops/cri/docker-deep-dive-blog/" title="Docker 深度入门：从环境、核心原理到镜像构建与生产部署">
+                        <span class="hidden-mobile">Docker 深度入门：从环境、核心原理到镜像构建与生产部署</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
