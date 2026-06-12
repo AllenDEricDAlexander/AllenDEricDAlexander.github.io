@@ -1,0 +1,1545 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="欢迎你来读这篇博客，这篇博客主要是关于 OWASP Dependency-Check。 在日常 Java 开发中，我们经常关注业务代码有没有问题、SQL 是否慢、接口是否超时、线程池是否打满，却容易忽略一个非常现实的问题：  项目里引入的第三方依赖，本身可能已经存在公开漏洞。  比如 log4j-core、jackson-databind、fastjson、spring-security、nett">
+<meta property="og:type" content="article">
+<meta property="og:title" content="深入理解 OWASP Dependency-Check：给 Java 项目做依赖漏洞扫描">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/06/12/java/sec/owasp-dependency-check-blog/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="欢迎你来读这篇博客，这篇博客主要是关于 OWASP Dependency-Check。 在日常 Java 开发中，我们经常关注业务代码有没有问题、SQL 是否慢、接口是否超时、线程池是否打满，却容易忽略一个非常现实的问题：  项目里引入的第三方依赖，本身可能已经存在公开漏洞。  比如 log4j-core、jackson-databind、fastjson、spring-security、nett">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-12T06:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-12T06:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Dependency-Check">
+<meta property="article:tag" content="DevSecOps">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="Maven">
+<meta property="article:tag" content="OWASP">
+<meta property="article:tag" content="SCA">
+<meta property="article:tag" content="Spring Boot">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>深入理解 OWASP Dependency-Check：给 Java 项目做依赖漏洞扫描 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="深入理解 OWASP Dependency-Check：给 Java 项目做依赖漏洞扫描"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-06-12 14:00" pubdate>
+          2026年6月12日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          7.2k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          61 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">深入理解 OWASP Dependency-Check：给 Java 项目做依赖漏洞扫描</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>欢迎你来读这篇博客，这篇博客主要是关于 <code>OWASP Dependency-Check</code>。</p>
+<p>在日常 Java 开发中，我们经常关注业务代码有没有问题、SQL 是否慢、接口是否超时、线程池是否打满，却容易忽略一个非常现实的问题：</p>
+<blockquote>
+<p>项目里引入的第三方依赖，本身可能已经存在公开漏洞。</p>
+</blockquote>
+<p>比如 <code>log4j-core</code>、<code>jackson-databind</code>、<code>fastjson</code>、<code>spring-security</code>、<code>netty</code>、<code>commons-collections</code> 这些依赖，一旦版本落后，就可能把已知漏洞带进系统里。</p>
+<p>OWASP Dependency-Check 要解决的就是这个问题。</p>
+<p>它不是传统意义上的代码扫描器，而是一个 <strong>SCA</strong> 工具，也就是 <strong>Software Composition Analysis，软件成分分析工具</strong>。</p>
+<p>它主要做一件事：</p>
+<blockquote>
+<p>分析项目依赖，识别其中是否包含已经公开披露的安全漏洞。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><p>现在的后端项目，很少有完全从零写的。</p>
+<p>一个 Spring Boot 项目可能会引入：</p>
+<ul>
+<li>Spring Boot Starter</li>
+<li>Spring Security</li>
+<li>MyBatis-Plus</li>
+<li>Spring Data JPA</li>
+<li>Jackson</li>
+<li>Netty</li>
+<li>Hutool</li>
+<li>Apache Commons</li>
+<li>Guava</li>
+<li>Fastjson</li>
+<li>Logback</li>
+<li>PostgreSQL Driver</li>
+<li>Redis Client</li>
+<li>Nacos Client</li>
+<li>Dubbo</li>
+<li>ShardingSphere</li>
+</ul>
+<p>这些依赖极大提高了开发效率，但也带来了供应链安全风险。</p>
+<p>业务代码没问题，不代表系统安全。你写的代码很干净，但你引入的依赖可能已经“祖传漏洞套餐”了。</p>
+<p>这就是为什么在 DevSecOps 流程里，依赖漏洞扫描越来越重要。</p>
+<p>OWASP Dependency-Check 就是一个非常经典的开源选择。</p>
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h3 id="1-什么是-OWASP-Dependency-Check？"><a href="#1-什么是-OWASP-Dependency-Check？" class="headerlink" title="1. 什么是 OWASP Dependency-Check？"></a>1. 什么是 OWASP Dependency-Check？</h3><p>OWASP Dependency-Check 是 OWASP 旗下的开源依赖漏洞检测工具。</p>
+<p>它会扫描项目中的依赖组件，并尝试判断这些组件是否存在已公开披露的漏洞。</p>
+<p>简单来说：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">项目依赖 + 漏洞数据库 = 漏洞扫描报告<br></code></pre></td></tr></table></figure>
+
+<p>它关注的重点不是你的业务代码写得好不好，而是你项目里用了哪些第三方组件，这些组件是否存在已知 CVE 漏洞。</p>
+<p>例如你的项目中使用了：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>com.alibaba<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>fastjson<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>1.2.47<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.apache.logging.log4j<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>log4j-core<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>2.14.1<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>Dependency-Check 会分析这些依赖，然后结合漏洞数据库生成报告，告诉你：</p>
+<ul>
+<li>哪个依赖存在漏洞；</li>
+<li>对应的 CVE 编号是什么；</li>
+<li>漏洞严重程度是多少；</li>
+<li>CVSS 分数是多少；</li>
+<li>漏洞描述是什么；</li>
+<li>有哪些参考链接；</li>
+<li>构建是否应该失败。</li>
+</ul>
+<p>一句话概括：</p>
+<blockquote>
+<p>OWASP Dependency-Check 是给项目第三方依赖做安全体检的工具。</p>
+</blockquote>
+<h3 id="2-为什么需要依赖漏洞扫描？"><a href="#2-为什么需要依赖漏洞扫描？" class="headerlink" title="2. 为什么需要依赖漏洞扫描？"></a>2. 为什么需要依赖漏洞扫描？</h3><p>很多线上安全问题不是业务代码直接导致的，而是来自第三方依赖。</p>
+<p>典型例子包括：</p>
+<table>
+<thead>
+<tr>
+<th>依赖</th>
+<th>可能风险</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Log4j</td>
+<td>远程代码执行</td>
+</tr>
+<tr>
+<td>Jackson Databind</td>
+<td>反序列化漏洞</td>
+</tr>
+<tr>
+<td>Fastjson</td>
+<td>反序列化、远程代码执行</td>
+</tr>
+<tr>
+<td>Spring Security</td>
+<td>权限绕过、认证绕过</td>
+</tr>
+<tr>
+<td>Netty</td>
+<td>拒绝服务、HTTP 解析问题</td>
+</tr>
+<tr>
+<td>Commons Collections</td>
+<td>反序列化利用链</td>
+</tr>
+<tr>
+<td>Tomcat</td>
+<td>请求走私、路径绕过、DoS</td>
+</tr>
+</tbody></table>
+<p>一个企业项目里，直接依赖可能只有几十个，但传递依赖可能有几百个。</p>
+<p>比如你只写了：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-web<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>但实际引入的可能包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs text">spring-web<br>spring-webmvc<br>spring-core<br>spring-context<br>spring-beans<br>spring-aop<br>jackson-databind<br>jackson-core<br>jackson-annotations<br>tomcat-embed-core<br>tomcat-embed-websocket<br>logback-classic<br>logback-core<br>slf4j-api<br>...<br></code></pre></td></tr></table></figure>
+
+<p>你没有直接声明这些包，但它们确实进入了你的应用。</p>
+<p>这也是依赖漏洞扫描的价值所在：</p>
+<blockquote>
+<p>它不只看你写了什么依赖，还会分析传递依赖。</p>
+</blockquote>
+<p>如果没有扫描工具，靠人肉翻 <code>dependency:tree</code>，最后大概率会变成“眼睛看花，脑子宕机”。这活儿应该交给工具，程序员的大脑还是留给更难的 bug 吧。</p>
+<h3 id="3-Dependency-Check-的核心原理"><a href="#3-Dependency-Check-的核心原理" class="headerlink" title="3. Dependency-Check 的核心原理"></a>3. Dependency-Check 的核心原理</h3><p>Dependency-Check 的基本流程如下：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[读取项目依赖] --&gt; B[分析依赖元信息]
+    B --&gt; C[收集 Evidence 证据]
+    C --&gt; D[识别 CPE / PURL]
+    D --&gt; E[匹配 NVD / CVE 数据]
+    E --&gt; F[生成漏洞报告]
+    F --&gt; G[根据阈值决定是否中断构建]
+</code></pre>
+
+<p>它会从依赖包中提取一些证据，例如：</p>
+<ul>
+<li>groupId</li>
+<li>artifactId</li>
+<li>version</li>
+<li>pom 信息</li>
+<li>jar manifest</li>
+<li>包名</li>
+<li>文件名</li>
+<li>vendor 信息</li>
+<li>product 信息</li>
+</ul>
+<p>然后尝试把依赖映射到漏洞数据库中的组件标识。</p>
+<p>常见概念包括：</p>
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>CVE</td>
+<td>Common Vulnerabilities and Exposures，公开漏洞编号</td>
+</tr>
+<tr>
+<td>CVSS</td>
+<td>Common Vulnerability Scoring System，漏洞严重程度评分</td>
+</tr>
+<tr>
+<td>CPE</td>
+<td>Common Platform Enumeration，通用平台枚举，用来标识产品或组件</td>
+</tr>
+<tr>
+<td>NVD</td>
+<td>National Vulnerability Database，美国 NIST 维护的漏洞数据库</td>
+</tr>
+<tr>
+<td>SCA</td>
+<td>Software Composition Analysis，软件成分分析</td>
+</tr>
+<tr>
+<td>Suppression</td>
+<td>抑制规则，用来处理误报</td>
+</tr>
+</tbody></table>
+<p>它的扫描结果不是“玄学判断”，而是基于公开漏洞数据进行匹配。</p>
+<p>不过，也正因为要做组件识别和 CPE 匹配，所以它有可能出现误报。</p>
+<p>比如某个 jar 的名字或元信息刚好和另一个产品相似，Dependency-Check 可能会认为它命中了某个 CPE，从而报告一个实际上并不相关的 CVE。</p>
+<p>所以，Dependency-Check 的正确使用姿势不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">扫出漏洞 -&gt; 立刻全部升级 -&gt; 构建炸了 -&gt; 人也炸了<br></code></pre></td></tr></table></figure>
+
+<p>而应该是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">扫出漏洞 -&gt; 判断是否真实影响 -&gt; 升级 / 排除 / 替换 / suppression -&gt; 形成治理闭环<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-Dependency-Check-支持哪些使用方式？"><a href="#4-Dependency-Check-支持哪些使用方式？" class="headerlink" title="4. Dependency-Check 支持哪些使用方式？"></a>4. Dependency-Check 支持哪些使用方式？</h3><p>Dependency-Check 支持多种方式集成：</p>
+<table>
+<thead>
+<tr>
+<th>使用方式</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Maven Plugin</td>
+<td>Java Maven 项目，最常用</td>
+</tr>
+<tr>
+<td>Gradle Plugin</td>
+<td>Gradle 项目</td>
+</tr>
+<tr>
+<td>CLI</td>
+<td>任意项目、脚本扫描、容器扫描</td>
+</tr>
+<tr>
+<td>Jenkins Plugin</td>
+<td>Jenkins 流水线集成</td>
+</tr>
+<tr>
+<td>GitHub Actions</td>
+<td>GitHub CI 集成</td>
+</tr>
+<tr>
+<td>GitLab CI</td>
+<td>GitLab 流水线集成</td>
+</tr>
+<tr>
+<td>Azure DevOps</td>
+<td>企业流水线</td>
+</tr>
+<tr>
+<td>Ant Task</td>
+<td>老项目构建</td>
+</tr>
+</tbody></table>
+<p>对于 Java 后端项目，最推荐从 Maven 插件开始。</p>
+<p>因为它和项目生命周期结合得最自然，可以直接挂到 <code>verify</code> 阶段，也可以单独执行。</p>
+<h3 id="5-Maven-项目快速接入"><a href="#5-Maven-项目快速接入" class="headerlink" title="5. Maven 项目快速接入"></a>5. Maven 项目快速接入</h3><h4 id="5-1-最小-Maven-配置"><a href="#5-1-最小-Maven-配置" class="headerlink" title="5.1 最小 Maven 配置"></a>5.1 最小 Maven 配置</h4><p>在 <code>pom.xml</code> 中加入插件：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">build</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">plugins</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.owasp<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>dependency-check-maven<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>12.2.2<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">executions</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">execution</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">goals</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">goal</span>&gt;</span>check<span class="hljs-tag">&lt;/<span class="hljs-name">goal</span>&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">goals</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">execution</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">executions</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">plugins</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">build</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>然后执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn dependency-check:check<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify<br></code></pre></td></tr></table></figure>
+
+<p>执行完成后，默认会在 <code>target</code> 目录下生成报告：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">target/dependency-check-report.html<br></code></pre></td></tr></table></figure>
+
+<p>直接用浏览器打开即可。</p>
+<h4 id="5-2-推荐-Maven-配置"><a href="#5-2-推荐-Maven-配置" class="headerlink" title="5.2 推荐 Maven 配置"></a>5.2 推荐 Maven 配置</h4><p>实际项目中，建议不要只生成 HTML，还可以同时生成 JSON、JUNIT、SARIF 等格式，方便 CI 系统、GitHub 安全面板或后续脚本处理。</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">properties</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">dependency-check.version</span>&gt;</span>12.2.2<span class="hljs-tag">&lt;/<span class="hljs-name">dependency-check.version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">properties</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">build</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">plugins</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.owasp<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>dependency-check-maven<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>$&#123;dependency-check.version&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">configuration</span>&gt;</span><br>                <span class="hljs-comment">&lt;!-- CVSS &gt;= 7 认为是高危，直接让构建失败 --&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">failBuildOnCVSS</span>&gt;</span>7<span class="hljs-tag">&lt;/<span class="hljs-name">failBuildOnCVSS</span>&gt;</span><br><br>                <span class="hljs-comment">&lt;!-- 多格式输出，方便人看，也方便流水线处理 --&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">formats</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>HTML<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>JSON<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>JUNIT<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>SARIF<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">formats</span>&gt;</span><br><br>                <span class="hljs-comment">&lt;!-- JSON / XML 是否美化输出 --&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">prettyPrint</span>&gt;</span>true<span class="hljs-tag">&lt;/<span class="hljs-name">prettyPrint</span>&gt;</span><br><br>                <span class="hljs-comment">&lt;!-- 默认 test scope 会跳过；这里显式写出来，方便团队理解 --&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">skipTestScope</span>&gt;</span>true<span class="hljs-tag">&lt;/<span class="hljs-name">skipTestScope</span>&gt;</span><br><br>                <span class="hljs-comment">&lt;!-- provided 依赖一般不会打进最终应用包，可按项目情况决定是否跳过 --&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">skipProvidedScope</span>&gt;</span>true<span class="hljs-tag">&lt;/<span class="hljs-name">skipProvidedScope</span>&gt;</span><br><br>                <span class="hljs-comment">&lt;!-- 误报抑制文件 --&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">suppressionFiles</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">suppressionFile</span>&gt;</span>$&#123;project.basedir&#125;/dependency-check-suppressions.xml<span class="hljs-tag">&lt;/<span class="hljs-name">suppressionFile</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">suppressionFiles</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">configuration</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">executions</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">execution</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">goals</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">goal</span>&gt;</span>check<span class="hljs-tag">&lt;/<span class="hljs-name">goal</span>&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">goals</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">execution</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">executions</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">plugins</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">build</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>这里重点看几个参数：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>failBuildOnCVSS</code></td>
+<td>当漏洞 CVSS 分数大于等于指定值时，让构建失败</td>
+</tr>
+<tr>
+<td><code>formats</code></td>
+<td>报告输出格式，常用 HTML、JSON、JUNIT、SARIF</td>
+</tr>
+<tr>
+<td><code>prettyPrint</code></td>
+<td>是否格式化 JSON &#x2F; XML 输出</td>
+</tr>
+<tr>
+<td><code>skipTestScope</code></td>
+<td>是否跳过 test scope 依赖</td>
+</tr>
+<tr>
+<td><code>skipProvidedScope</code></td>
+<td>是否跳过 provided scope 依赖</td>
+</tr>
+<tr>
+<td><code>suppressionFiles</code></td>
+<td>误报抑制文件</td>
+</tr>
+</tbody></table>
+<p>对于企业项目，我比较推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">本地开发：failBuildOnCVSS = 9 或只生成报告<br>CI 主分支：failBuildOnCVSS = 7<br>生产发布：Critical / High 必须处理<br></code></pre></td></tr></table></figure>
+
+<p>不要一上来就设置成 <code>failBuildOnAnyVulnerability=true</code>。</p>
+<p>这玩意儿太狠，相当于“看见一个警告就拉闸”。刚开始治理老项目的时候，这样做很容易让流水线变成红灯笼。</p>
+<h3 id="6-多模块-Maven-项目如何扫描？"><a href="#6-多模块-Maven-项目如何扫描？" class="headerlink" title="6. 多模块 Maven 项目如何扫描？"></a>6. 多模块 Maven 项目如何扫描？</h3><p>企业 Java 项目经常是多模块结构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">finance-parent<br>├── finance-api<br>├── finance-common<br>├── finance-domain<br>├── finance-infrastructure<br>├── finance-application<br>└── finance-start<br></code></pre></td></tr></table></figure>
+
+<p>这种项目建议在父 <code>pom.xml</code> 中使用 <code>aggregate</code> 目标，生成聚合报告：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">plugin</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.owasp<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>dependency-check-maven<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>$&#123;dependency-check.version&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">configuration</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">failBuildOnCVSS</span>&gt;</span>7<span class="hljs-tag">&lt;/<span class="hljs-name">failBuildOnCVSS</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">formats</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>HTML<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>JSON<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">formats</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">configuration</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">executions</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">execution</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">goals</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">goal</span>&gt;</span>aggregate<span class="hljs-tag">&lt;/<span class="hljs-name">goal</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">goals</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">execution</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">executions</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn dependency-check:aggregate<br></code></pre></td></tr></table></figure>
+
+<p>或：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify<br></code></pre></td></tr></table></figure>
+
+<p>聚合报告会比每个模块单独扫更适合团队查看。</p>
+<p>如果模块很多，建议配合 CI 缓存，否则每次扫描都很痛苦。</p>
+<h3 id="7-第一次运行为什么很慢？"><a href="#7-第一次运行为什么很慢？" class="headerlink" title="7. 第一次运行为什么很慢？"></a>7. 第一次运行为什么很慢？</h3><p>第一次执行 Dependency-Check 通常会比较慢。</p>
+<p>原因是它需要下载并处理 NVD 漏洞数据库。</p>
+<p>常见现象：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">第一次运行：十几分钟到几十分钟<br>后续运行：如果缓存有效，通常会快很多<br></code></pre></td></tr></table></figure>
+
+<p>它会把数据缓存到本地 Maven 仓库下，常见路径类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">~/.m2/repository/org/owasp/dependency-check-data/<br></code></pre></td></tr></table></figure>
+
+<p>所以在 CI&#x2F;CD 环境中，一定要做缓存。</p>
+<p>如果你不缓存，每次流水线都重新下载 NVD 数据，那就不是扫描依赖了，是扫描你的耐心。</p>
+<h3 id="8-配置-NVD-API-Key"><a href="#8-配置-NVD-API-Key" class="headerlink" title="8. 配置 NVD API Key"></a>8. 配置 NVD API Key</h3><p>Dependency-Check 会从 NVD 获取漏洞数据。为了提高稳定性和降低限流问题，建议配置 NVD API Key。</p>
+<p>可以把 API Key 放到 Maven <code>settings.xml</code> 中，不建议直接写在 <code>pom.xml</code>。</p>
+<h4 id="8-1-Maven-settings-xml"><a href="#8-1-Maven-settings-xml" class="headerlink" title="8.1 Maven settings.xml"></a>8.1 Maven settings.xml</h4><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">settings</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">servers</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">server</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">id</span>&gt;</span>nvd-api<span class="hljs-tag">&lt;/<span class="hljs-name">id</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">password</span>&gt;</span>$&#123;env.NVD_API_KEY&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">password</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">server</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">servers</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">settings</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="8-2-pom-xml-中引用-server-id"><a href="#8-2-pom-xml-中引用-server-id" class="headerlink" title="8.2 pom.xml 中引用 server id"></a>8.2 pom.xml 中引用 server id</h4><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">plugin</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.owasp<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>dependency-check-maven<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>$&#123;dependency-check.version&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">configuration</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">nvdApiServerId</span>&gt;</span>nvd-api<span class="hljs-tag">&lt;/<span class="hljs-name">nvdApiServerId</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">failBuildOnCVSS</span>&gt;</span>7<span class="hljs-tag">&lt;/<span class="hljs-name">failBuildOnCVSS</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">formats</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>HTML<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>JSON<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">formats</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">configuration</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="8-3-本地执行"><a href="#8-3-本地执行" class="headerlink" title="8.3 本地执行"></a>8.3 本地执行</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">export</span> NVD_API_KEY=你的_api_key<br>mvn dependency-check:check<br></code></pre></td></tr></table></figure>
+
+<p>不推荐这样写：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">nvdApiKey</span>&gt;</span>你的_api_key<span class="hljs-tag">&lt;/<span class="hljs-name">nvdApiKey</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>因为 API Key 属于敏感信息，放在 <code>pom.xml</code> 里很容易被提交到 Git 仓库。</p>
+<p>尤其是团队项目，不要把密钥写进代码仓库。密钥进了 Git，基本就像把家门钥匙挂在门口，还配了个夜光牌。</p>
+<h3 id="9-报告怎么看？"><a href="#9-报告怎么看？" class="headerlink" title="9. 报告怎么看？"></a>9. 报告怎么看？</h3><p>生成报告后，打开：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">target/dependency-check-report.html<br></code></pre></td></tr></table></figure>
+
+<p>通常会看到这些字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Dependency</td>
+<td>出问题的依赖</td>
+</tr>
+<tr>
+<td>File Name</td>
+<td>依赖文件名</td>
+</tr>
+<tr>
+<td>Package</td>
+<td>包信息</td>
+</tr>
+<tr>
+<td>CPE</td>
+<td>识别出的组件标识</td>
+</tr>
+<tr>
+<td>CVE</td>
+<td>漏洞编号</td>
+</tr>
+<tr>
+<td>CVSS</td>
+<td>漏洞评分</td>
+</tr>
+<tr>
+<td>Severity</td>
+<td>严重级别</td>
+</tr>
+<tr>
+<td>Description</td>
+<td>漏洞描述</td>
+</tr>
+<tr>
+<td>References</td>
+<td>漏洞参考链接</td>
+</tr>
+<tr>
+<td>Evidence</td>
+<td>识别依据</td>
+</tr>
+</tbody></table>
+<p>一个典型的排查流程：</p>
+<pre><code class=" mermaid">flowchart TB
+    A[打开报告] --&gt; B[按 CVSS 分数排序]
+    B --&gt; C[优先看 Critical / High]
+    C --&gt; D[确认依赖来源]
+    D --&gt; E&#123;是否直接依赖?&#125;
+    E --&gt;|是| F[升级直接依赖版本]
+    E --&gt;|否| G[定位传递依赖来源]
+    G --&gt; H[升级上游依赖或显式覆盖版本]
+    F --&gt; I[跑测试]
+    H --&gt; I
+    I --&gt; J&#123;是否真实误报?&#125;
+    J --&gt;|否| K[提交修复]
+    J --&gt;|是| L[添加 suppression 并说明原因]
+</code></pre>
+
+<p>优先级建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">1. Critical：必须立即处理<br>2. High：优先处理，必要时阻断发布<br>3. Medium：进入版本计划<br>4. Low：定期治理<br>5. 误报：写 suppression，必须说明原因<br></code></pre></td></tr></table></figure>
+
+<h3 id="10-如何定位漏洞依赖从哪里来的？"><a href="#10-如何定位漏洞依赖从哪里来的？" class="headerlink" title="10. 如何定位漏洞依赖从哪里来的？"></a>10. 如何定位漏洞依赖从哪里来的？</h3><p>如果报告里提示某个传递依赖有漏洞，比如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">jackson-databind-2.13.x.jar<br></code></pre></td></tr></table></figure>
+
+<p>你需要知道它是被谁引入的。</p>
+<p>可以执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn dependency:tree -Dincludes=com.fasterxml.jackson.core:jackson-databind<br></code></pre></td></tr></table></figure>
+
+<p>如果想看完整依赖树：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn dependency:tree<br></code></pre></td></tr></table></figure>
+
+<p>如果输出太多，可以写到文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn dependency:tree &gt; dependency-tree.txt<br></code></pre></td></tr></table></figure>
+
+<p>示例输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">[INFO] com.example:finance-start:jar:1.0.0<br>[INFO] \- org.springframework.boot:spring-boot-starter-web:jar:3.5.0<br>[INFO]    \- org.springframework.boot:spring-boot-starter-json:jar:3.5.0<br>[INFO]       \- com.fasterxml.jackson.core:jackson-databind:jar:2.18.x<br></code></pre></td></tr></table></figure>
+
+<p>这时候你就知道：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">jackson-databind 是通过 spring-boot-starter-web -&gt; spring-boot-starter-json 引进来的<br></code></pre></td></tr></table></figure>
+
+<p>处理方式可能有三种：</p>
+<h4 id="10-1-升级-Spring-Boot-版本"><a href="#10-1-升级-Spring-Boot-版本" class="headerlink" title="10.1 升级 Spring Boot 版本"></a>10.1 升级 Spring Boot 版本</h4><p>如果你使用 Spring Boot 的依赖管理，优先考虑升级 Spring Boot patch 版本。</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">parent</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-parent<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>3.5.x<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">parent</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>这是最干净的方式，因为 Spring Boot BOM 会统一管理一组经过测试的依赖版本。</p>
+<h4 id="10-2-显式覆盖依赖版本"><a href="#10-2-显式覆盖依赖版本" class="headerlink" title="10.2 显式覆盖依赖版本"></a>10.2 显式覆盖依赖版本</h4><p>如果短期不能升级 Spring Boot，可以在 <code>dependencyManagement</code> 中覆盖：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependencyManagement</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">dependencies</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>com.fasterxml.jackson.core<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>jackson-databind<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>2.18.4<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">dependencies</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependencyManagement</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>这种方式要谨慎。覆盖版本可能解决漏洞，也可能带来兼容性问题。</p>
+<h4 id="10-3-排除传递依赖"><a href="#10-3-排除传递依赖" class="headerlink" title="10.3 排除传递依赖"></a>10.3 排除传递依赖</h4><p>如果某个依赖完全不需要，可以排除：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>some.group<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>some-artifact<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>1.0.0<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">exclusions</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">exclusion</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>vulnerable.group<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>vulnerable-artifact<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">exclusion</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">exclusions</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>排除依赖之前一定要跑测试。</p>
+<p>排错不是“删了就安全”，删错了可能是“安全了，但项目也启动不了了”。</p>
+<h3 id="11-误报处理：Suppression-文件"><a href="#11-误报处理：Suppression-文件" class="headerlink" title="11. 误报处理：Suppression 文件"></a>11. 误报处理：Suppression 文件</h3><p>Dependency-Check 有时会误报。</p>
+<p>误报常见原因：</p>
+<ul>
+<li>CPE 识别错误；</li>
+<li>组件名字相似；</li>
+<li>你的使用场景不受漏洞影响；</li>
+<li>漏洞只影响特定平台或特定模块；</li>
+<li>CVE 数据本身存在滞后或修订。</li>
+</ul>
+<p>对误报不能简单忽略，应该写 suppression 文件，并且写清楚原因。</p>
+<p>新建文件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">dependency-check-suppressions.xml<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-meta">&lt;?xml version=<span class="hljs-string">&quot;1.0&quot;</span> encoding=<span class="hljs-string">&quot;UTF-8&quot;</span>?&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">suppressions</span> <span class="hljs-attr">xmlns</span>=<span class="hljs-string">&quot;https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.4.xsd&quot;</span></span><br><span class="hljs-tag">              <span class="hljs-attr">xmlns:xsi</span>=<span class="hljs-string">&quot;http://www.w3.org/2001/XMLSchema-instance&quot;</span></span><br><span class="hljs-tag">              <span class="hljs-attr">xsi:schemaLocation</span>=<span class="hljs-string">&quot;https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.4.xsd</span></span><br><span class="hljs-string"><span class="hljs-tag">                                  https://dependency-check.github.io/DependencyCheck/dependency-suppression.1.4.xsd&quot;</span>&gt;</span><br><br>    <span class="hljs-tag">&lt;<span class="hljs-name">suppress</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">notes</span>&gt;</span>&lt;![CDATA[<br>        误报说明：该 CVE 匹配到了错误的 CPE。<br>        处理人：security-team<br>        处理时间：2026-06-12<br>        复核建议：下次依赖升级后重新检查。<br>        ]]&gt;<span class="hljs-tag">&lt;/<span class="hljs-name">notes</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">packageUrl</span> <span class="hljs-attr">regex</span>=<span class="hljs-string">&quot;true&quot;</span>&gt;</span>^pkg:maven/com\.example/example-lib@.*$<span class="hljs-tag">&lt;/<span class="hljs-name">packageUrl</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">vulnerabilityName</span>&gt;</span>CVE-2024-0000<span class="hljs-tag">&lt;/<span class="hljs-name">vulnerabilityName</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">suppress</span>&gt;</span><br><br><span class="hljs-tag">&lt;/<span class="hljs-name">suppressions</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>然后在 Maven 插件中引用：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">suppressionFiles</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">suppressionFile</span>&gt;</span>$&#123;project.basedir&#125;/dependency-check-suppressions.xml<span class="hljs-tag">&lt;/<span class="hljs-name">suppressionFile</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">suppressionFiles</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>建议团队制定一个规则：</p>
+<blockquote>
+<p>suppression 不是垃圾桶，而是审计记录。</p>
+</blockquote>
+<p>每条 suppression 至少要包含：</p>
+<ul>
+<li>CVE 编号；</li>
+<li>影响依赖；</li>
+<li>为什么判定为误报；</li>
+<li>谁处理的；</li>
+<li>什么时候处理的；</li>
+<li>什么时候复核。</li>
+</ul>
+<p>否则 suppression 文件最后会变成“漏洞坟场”：看起来很安静，其实下面全是坑。</p>
+<h3 id="12-GitHub-Actions-集成"><a href="#12-GitHub-Actions-集成" class="headerlink" title="12. GitHub Actions 集成"></a>12. GitHub Actions 集成</h3><p>GitHub Actions 示例：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">name:</span> <span class="hljs-string">Dependency</span> <span class="hljs-string">Check</span><br><br><span class="hljs-attr">on:</span><br>  <span class="hljs-attr">pull_request:</span><br>    <span class="hljs-attr">branches:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">master</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">main</span><br>  <span class="hljs-attr">push:</span><br>    <span class="hljs-attr">branches:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">master</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">main</span><br><br><span class="hljs-attr">jobs:</span><br>  <span class="hljs-attr">dependency-check:</span><br>    <span class="hljs-attr">runs-on:</span> <span class="hljs-string">ubuntu-latest</span><br><br>    <span class="hljs-attr">steps:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Checkout</span><br>        <span class="hljs-attr">uses:</span> <span class="hljs-string">actions/checkout@v4</span><br><br>      <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Set</span> <span class="hljs-string">up</span> <span class="hljs-string">JDK</span><br>        <span class="hljs-attr">uses:</span> <span class="hljs-string">actions/setup-java@v4</span><br>        <span class="hljs-attr">with:</span><br>          <span class="hljs-attr">distribution:</span> <span class="hljs-string">temurin</span><br>          <span class="hljs-attr">java-version:</span> <span class="hljs-string">&#x27;21&#x27;</span><br>          <span class="hljs-attr">cache:</span> <span class="hljs-string">maven</span><br><br>      <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Cache</span> <span class="hljs-string">OWASP</span> <span class="hljs-string">Dependency-Check</span> <span class="hljs-string">data</span><br>        <span class="hljs-attr">uses:</span> <span class="hljs-string">actions/cache@v4</span><br>        <span class="hljs-attr">with:</span><br>          <span class="hljs-attr">path:</span> <span class="hljs-string">~/.m2/repository/org/owasp/dependency-check-data</span><br>          <span class="hljs-attr">key:</span> <span class="hljs-string">dependency-check-data-$&#123;&#123;</span> <span class="hljs-string">runner.os</span> <span class="hljs-string">&#125;&#125;</span><br>          <span class="hljs-attr">restore-keys:</span> <span class="hljs-string">|</span><br><span class="hljs-string">            dependency-check-data-$&#123;&#123; runner.os &#125;&#125;</span><br><span class="hljs-string"></span><br>      <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Run</span> <span class="hljs-string">Dependency-Check</span><br>        <span class="hljs-attr">env:</span><br>          <span class="hljs-attr">NVD_API_KEY:</span> <span class="hljs-string">$&#123;&#123;</span> <span class="hljs-string">secrets.NVD_API_KEY</span> <span class="hljs-string">&#125;&#125;</span><br>        <span class="hljs-attr">run:</span> <span class="hljs-string">|</span><br><span class="hljs-string">          mvn -B verify -DskipTests</span><br><span class="hljs-string"></span><br>      <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Upload</span> <span class="hljs-string">report</span><br>        <span class="hljs-attr">if:</span> <span class="hljs-string">always()</span><br>        <span class="hljs-attr">uses:</span> <span class="hljs-string">actions/upload-artifact@v4</span><br>        <span class="hljs-attr">with:</span><br>          <span class="hljs-attr">name:</span> <span class="hljs-string">dependency-check-report</span><br>          <span class="hljs-attr">path:</span> <span class="hljs-string">|</span><br><span class="hljs-string">            **/target/dependency-check-report.html</span><br><span class="hljs-string">            **/target/dependency-check-report.json</span><br><span class="hljs-string">            **/target/dependency-check-report.sarif</span><br></code></pre></td></tr></table></figure>
+
+<p>这里重点是两类缓存：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">1. Maven 依赖缓存<br>2. Dependency-Check 漏洞数据库缓存<br></code></pre></td></tr></table></figure>
+
+<p>没有缓存的话，CI 会非常慢。</p>
+<h3 id="13-GitLab-CI-集成"><a href="#13-GitLab-CI-集成" class="headerlink" title="13. GitLab CI 集成"></a>13. GitLab CI 集成</h3><p><code>.gitlab-ci.yml</code> 示例：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">stages:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">test</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">security</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">build</span><br><br><span class="hljs-attr">dependency_check:</span><br>  <span class="hljs-attr">stage:</span> <span class="hljs-string">security</span><br>  <span class="hljs-attr">image:</span> <span class="hljs-string">maven:3.9-eclipse-temurin-21</span><br>  <span class="hljs-attr">variables:</span><br>    <span class="hljs-attr">MAVEN_OPTS:</span> <span class="hljs-string">&quot;-Dmaven.repo.local=.m2/repository&quot;</span><br>  <span class="hljs-attr">cache:</span><br>    <span class="hljs-attr">key:</span> <span class="hljs-string">dependency-check-cache</span><br>    <span class="hljs-attr">paths:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">.m2/repository</span><br>  <span class="hljs-attr">script:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">mvn</span> <span class="hljs-string">-B</span> <span class="hljs-string">dependency-check:check</span> <span class="hljs-string">-DskipTests</span><br>  <span class="hljs-attr">artifacts:</span><br>    <span class="hljs-attr">when:</span> <span class="hljs-string">always</span><br>    <span class="hljs-attr">expire_in:</span> <span class="hljs-number">7</span> <span class="hljs-string">days</span><br>    <span class="hljs-attr">paths:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">target/dependency-check-report.html</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">target/dependency-check-report.json</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">target/dependency-check-report.xml</span><br>  <span class="hljs-attr">only:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">merge_requests</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">master</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">main</span><br></code></pre></td></tr></table></figure>
+
+<p>如果是多模块项目，可以改成：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -B dependency-check:aggregate -DskipTests<br></code></pre></td></tr></table></figure>
+
+<p>也可以单独给安全扫描加 profile。</p>
+<h3 id="14-Jenkins-Pipeline-集成"><a href="#14-Jenkins-Pipeline-集成" class="headerlink" title="14. Jenkins Pipeline 集成"></a>14. Jenkins Pipeline 集成</h3><p>Jenkinsfile 示例：</p>
+<figure class="highlight groovy"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><code class="hljs groovy">pipeline &#123;<br>    agent any<br><br>    tools &#123;<br>        jdk <span class="hljs-string">&#x27;jdk-21&#x27;</span><br>        maven <span class="hljs-string">&#x27;maven-3.9&#x27;</span><br>    &#125;<br><br>    environment &#123;<br>        NVD_API_KEY = credentials(<span class="hljs-string">&#x27;nvd-api-key&#x27;</span>)<br>    &#125;<br><br>    stages &#123;<br>        stage(<span class="hljs-string">&#x27;Checkout&#x27;</span>) &#123;<br>            steps &#123;<br>                checkout scm<br>            &#125;<br>        &#125;<br><br>        stage(<span class="hljs-string">&#x27;Dependency Check&#x27;</span>) &#123;<br>            steps &#123;<br>                sh <span class="hljs-string">&#x27;mvn -B dependency-check:check -DskipTests&#x27;</span><br>            &#125;<br>            post &#123;<br>                always &#123;<br>                    archiveArtifacts <span class="hljs-attr">artifacts:</span> <span class="hljs-string">&#x27;**/target/dependency-check-report.*&#x27;</span>, <span class="hljs-attr">fingerprint:</span> <span class="hljs-literal">true</span><br>                &#125;<br>            &#125;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果使用 Jenkins Dependency-Check 插件，也可以把报告发布到 Jenkins 页面中。</p>
+<h3 id="15-推荐使用-Maven-Profile-控制扫描"><a href="#15-推荐使用-Maven-Profile-控制扫描" class="headerlink" title="15. 推荐使用 Maven Profile 控制扫描"></a>15. 推荐使用 Maven Profile 控制扫描</h3><p>很多项目不希望每次本地 <code>mvn package</code> 都跑安全扫描，因为太慢。</p>
+<p>可以使用 Maven Profile：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">profiles</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">profile</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">id</span>&gt;</span>security-scan<span class="hljs-tag">&lt;/<span class="hljs-name">id</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">build</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">plugins</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.owasp<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>dependency-check-maven<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>$&#123;dependency-check.version&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">configuration</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">failBuildOnCVSS</span>&gt;</span>7<span class="hljs-tag">&lt;/<span class="hljs-name">failBuildOnCVSS</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">formats</span>&gt;</span><br>                            <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>HTML<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>                            <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>JSON<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>                            <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>JUNIT<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>                        <span class="hljs-tag">&lt;/<span class="hljs-name">formats</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">suppressionFiles</span>&gt;</span><br>                            <span class="hljs-tag">&lt;<span class="hljs-name">suppressionFile</span>&gt;</span>$&#123;project.basedir&#125;/dependency-check-suppressions.xml<span class="hljs-tag">&lt;/<span class="hljs-name">suppressionFile</span>&gt;</span><br>                        <span class="hljs-tag">&lt;/<span class="hljs-name">suppressionFiles</span>&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">configuration</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">executions</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">execution</span>&gt;</span><br>                            <span class="hljs-tag">&lt;<span class="hljs-name">goals</span>&gt;</span><br>                                <span class="hljs-tag">&lt;<span class="hljs-name">goal</span>&gt;</span>check<span class="hljs-tag">&lt;/<span class="hljs-name">goal</span>&gt;</span><br>                            <span class="hljs-tag">&lt;/<span class="hljs-name">goals</span>&gt;</span><br>                        <span class="hljs-tag">&lt;/<span class="hljs-name">execution</span>&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">executions</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">plugins</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">build</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">profile</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">profiles</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify -Psecurity-scan<br></code></pre></td></tr></table></figure>
+
+<p>这样就可以做到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">本地普通构建：mvn package<br>本地安全检查：mvn verify -Psecurity-scan<br>CI 安全扫描：mvn verify -Psecurity-scan<br></code></pre></td></tr></table></figure>
+
+<h3 id="16-老项目如何落地？"><a href="#16-老项目如何落地？" class="headerlink" title="16. 老项目如何落地？"></a>16. 老项目如何落地？</h3><p>老项目第一次接入 Dependency-Check，报告很可能是这样的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">High: 一堆<br>Medium: 一堆<br>Low: 一堆<br>误报: 也一堆<br></code></pre></td></tr></table></figure>
+
+<p>这很正常。</p>
+<p>不要试图一天内全部处理完。</p>
+<p>推荐按阶段治理。</p>
+<h4 id="16-1-第一阶段：只生成报告，不阻断构建"><a href="#16-1-第一阶段：只生成报告，不阻断构建" class="headerlink" title="16.1 第一阶段：只生成报告，不阻断构建"></a>16.1 第一阶段：只生成报告，不阻断构建</h4><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">failBuildOnCVSS</span>&gt;</span>11<span class="hljs-tag">&lt;/<span class="hljs-name">failBuildOnCVSS</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>因为 CVSS 最高 10 分，设置为 11 等于不因漏洞失败。</p>
+<p>第一阶段目标不是拦截，而是摸底：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">系统里到底有多少漏洞依赖？<br>哪些是直接依赖？<br>哪些是传递依赖？<br>哪些是误报？<br>哪些必须升级？<br></code></pre></td></tr></table></figure>
+
+<h4 id="16-2-第二阶段：治理-Critical"><a href="#16-2-第二阶段：治理-Critical" class="headerlink" title="16.2 第二阶段：治理 Critical"></a>16.2 第二阶段：治理 Critical</h4><p>把最严重的先处理掉。</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">failBuildOnCVSS</span>&gt;</span>9<span class="hljs-tag">&lt;/<span class="hljs-name">failBuildOnCVSS</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>大多数团队可以先从 9 分开始。</p>
+<h4 id="16-3-第三阶段：治理-High"><a href="#16-3-第三阶段：治理-High" class="headerlink" title="16.3 第三阶段：治理 High"></a>16.3 第三阶段：治理 High</h4><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">failBuildOnCVSS</span>&gt;</span>7<span class="hljs-tag">&lt;/<span class="hljs-name">failBuildOnCVSS</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>进入这个阶段后，说明项目依赖安全已经比较健康。</p>
+<h4 id="16-4-第四阶段：形成长期机制"><a href="#16-4-第四阶段：形成长期机制" class="headerlink" title="16.4 第四阶段：形成长期机制"></a>16.4 第四阶段：形成长期机制</h4><p>长期机制包括：</p>
+<ul>
+<li>每次 PR 扫描；</li>
+<li>每天或每周定时扫描；</li>
+<li>发布前强制扫描；</li>
+<li>高危漏洞阻断发布；</li>
+<li>误报必须写 suppression；</li>
+<li>suppression 定期复核；</li>
+<li>配合 Renovate 自动升级依赖；</li>
+<li>配合 OpenRewrite 进行框架升级和 API 迁移。</li>
+</ul>
+<h3 id="17-与-Renovate、OpenRewrite-配合使用"><a href="#17-与-Renovate、OpenRewrite-配合使用" class="headerlink" title="17. 与 Renovate、OpenRewrite 配合使用"></a>17. 与 Renovate、OpenRewrite 配合使用</h3><p>Dependency-Check 只负责发现问题。</p>
+<p>发现问题后，你还需要修。</p>
+<p>这里可以和 Renovate、OpenRewrite 组成一套工程化闭环。</p>
+<pre><code class=" mermaid">flowchart LR
+    A[Dependency-Check 扫描漏洞] --&gt; B[生成漏洞报告]
+    B --&gt; C&#123;是否需要升级依赖?&#125;
+    C --&gt;|是| D[Renovate 创建升级 PR]
+    D --&gt; E[CI 跑单元测试 / 集成测试]
+    E --&gt; F&#123;是否涉及框架 API 迁移?&#125;
+    F --&gt;|是| G[OpenRewrite 自动重构]
+    F --&gt;|否| H[人工 Review]
+    G --&gt; H
+    H --&gt; I[合并 PR]
+    I --&gt; J[再次扫描确认漏洞消失]
+</code></pre>
+
+<p>三者的职责可以这样理解：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Dependency-Check</td>
+<td>发现依赖漏洞</td>
+</tr>
+<tr>
+<td>Renovate</td>
+<td>自动发现新版本并创建升级 PR</td>
+</tr>
+<tr>
+<td>OpenRewrite</td>
+<td>自动做 Java &#x2F; Spring &#x2F; Maven 迁移重构</td>
+</tr>
+</tbody></table>
+<p>一个比较理想的流程是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">1. Dependency-Check 发现 jackson-databind 有高危漏洞<br>2. Renovate 提出升级 Spring Boot 或 Jackson 的 PR<br>3. CI 执行测试、依赖扫描、构建<br>4. 如果升级涉及 API 变更，用 OpenRewrite 辅助迁移<br>5. 合并后再次扫描，确认漏洞消失<br></code></pre></td></tr></table></figure>
+
+<p>这就是 DevSecOps 比较舒服的状态：</p>
+<blockquote>
+<p>不是靠人盯漏洞，而是让流水线逼着问题浮出水面。</p>
+</blockquote>
+<h3 id="18-Spring-Boot-项目中的依赖治理建议"><a href="#18-Spring-Boot-项目中的依赖治理建议" class="headerlink" title="18. Spring Boot 项目中的依赖治理建议"></a>18. Spring Boot 项目中的依赖治理建议</h3><p>对于 Spring Boot 项目，不建议到处手写依赖版本。</p>
+<p>推荐使用 Spring Boot BOM 管理依赖。</p>
+<p>如果使用 parent：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">parent</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-parent<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>3.5.0<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">parent</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果公司有统一 parent，也可以 import BOM：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependencyManagement</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">dependencies</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-dependencies<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>3.5.0<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">type</span>&gt;</span>pom<span class="hljs-tag">&lt;/<span class="hljs-name">type</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">scope</span>&gt;</span>import<span class="hljs-tag">&lt;/<span class="hljs-name">scope</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">dependencies</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependencyManagement</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>原则是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 优先升级 Spring Boot patch 版本<br>2. 再考虑显式覆盖单个依赖<br>3. 不要随意打破 BOM 管理<br>4. 覆盖版本后必须跑测试<br></code></pre></td></tr></table></figure>
+
+<p>比如 Spring Boot 管理了一整套 Jackson 版本，你单独覆盖 <code>jackson-databind</code>，但没有覆盖 <code>jackson-core</code>、<code>jackson-annotations</code>，可能会出现版本不一致问题。</p>
+<p>安全修复不是只看漏洞报告消失，还要看应用是否真的稳定。</p>
+<h3 id="19-实战案例：发现并修复漏洞依赖"><a href="#19-实战案例：发现并修复漏洞依赖" class="headerlink" title="19. 实战案例：发现并修复漏洞依赖"></a>19. 实战案例：发现并修复漏洞依赖</h3><p>假设 Dependency-Check 报告中出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Dependency: jackson-databind-2.13.0.jar<br>CVE: CVE-xxxx-yyyy<br>Severity: High<br>CVSS: 8.1<br></code></pre></td></tr></table></figure>
+
+<p>处理流程如下。</p>
+<h4 id="19-1-定位依赖来源"><a href="#19-1-定位依赖来源" class="headerlink" title="19.1 定位依赖来源"></a>19.1 定位依赖来源</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn dependency:tree -Dincludes=com.fasterxml.jackson.core:jackson-databind<br></code></pre></td></tr></table></figure>
+
+<p>输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">[INFO] com.example:demo:jar:1.0.0<br>[INFO] \- org.springframework.boot:spring-boot-starter-web:jar:2.7.0<br>[INFO]    \- org.springframework.boot:spring-boot-starter-json:jar:2.7.0<br>[INFO]       \- com.fasterxml.jackson.core:jackson-databind:jar:2.13.0<br></code></pre></td></tr></table></figure>
+
+<p>说明它来自 Spring Boot Starter。</p>
+<h4 id="19-2-优先升级-Spring-Boot"><a href="#19-2-优先升级-Spring-Boot" class="headerlink" title="19.2 优先升级 Spring Boot"></a>19.2 优先升级 Spring Boot</h4><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">parent</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-parent<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>2.7.18<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">parent</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>或者升级到 Spring Boot 3.x，但这通常涉及 Jakarta 包名迁移，改动更大。</p>
+<h4 id="19-3-跑测试"><a href="#19-3-跑测试" class="headerlink" title="19.3 跑测试"></a>19.3 跑测试</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn clean verify<br></code></pre></td></tr></table></figure>
+
+<h4 id="19-4-再次扫描"><a href="#19-4-再次扫描" class="headerlink" title="19.4 再次扫描"></a>19.4 再次扫描</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn dependency-check:check<br></code></pre></td></tr></table></figure>
+
+<p>如果报告不再出现该 CVE，说明修复完成。</p>
+<p>如果仍然存在，要继续检查是否还有其他模块或传递依赖引入了旧版本。</p>
+<h3 id="20-实战案例：CI-中阻断高危漏洞"><a href="#20-实战案例：CI-中阻断高危漏洞" class="headerlink" title="20. 实战案例：CI 中阻断高危漏洞"></a>20. 实战案例：CI 中阻断高危漏洞</h3><p>假设你希望在 GitLab CI 中实现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">CVSS &gt;= 7，阻断合并<br>CVSS &lt; 7，只生成报告<br></code></pre></td></tr></table></figure>
+
+<p>Maven 配置：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">configuration</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">failBuildOnCVSS</span>&gt;</span>7<span class="hljs-tag">&lt;/<span class="hljs-name">failBuildOnCVSS</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">formats</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>HTML<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>JSON<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>JUNIT<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">formats</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">configuration</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>GitLab CI：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">dependency_check:</span><br>  <span class="hljs-attr">stage:</span> <span class="hljs-string">security</span><br>  <span class="hljs-attr">image:</span> <span class="hljs-string">maven:3.9-eclipse-temurin-21</span><br>  <span class="hljs-attr">script:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">mvn</span> <span class="hljs-string">-B</span> <span class="hljs-string">verify</span> <span class="hljs-string">-Psecurity-scan</span> <span class="hljs-string">-DskipTests</span><br>  <span class="hljs-attr">artifacts:</span><br>    <span class="hljs-attr">when:</span> <span class="hljs-string">always</span><br>    <span class="hljs-attr">paths:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">target/dependency-check-report.html</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">target/dependency-check-report.json</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">target/dependency-check-junit.xml</span><br></code></pre></td></tr></table></figure>
+
+<p>这样一来，如果出现高危漏洞，流水线直接失败。</p>
+<p>这才是工具的真正价值：</p>
+<blockquote>
+<p>不是等上线后靠安全同事提醒，而是在合并前就把问题拦住。</p>
+</blockquote>
+<h3 id="21-企业落地建议"><a href="#21-企业落地建议" class="headerlink" title="21. 企业落地建议"></a>21. 企业落地建议</h3><h4 id="21-1-不要只在发布前扫描"><a href="#21-1-不要只在发布前扫描" class="headerlink" title="21.1 不要只在发布前扫描"></a>21.1 不要只在发布前扫描</h4><p>如果只在发布前扫描，很容易出现这种情况：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">明天要发版 -&gt; 今天扫出一堆高危 -&gt; 大家一起加班 -&gt; 气氛祥和但不多<br></code></pre></td></tr></table></figure>
+
+<p>推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">PR 阶段扫描 + 主分支定时扫描 + 发布前强制扫描<br></code></pre></td></tr></table></figure>
+
+<h4 id="21-2-不要把所有漏洞都当成同一优先级"><a href="#21-2-不要把所有漏洞都当成同一优先级" class="headerlink" title="21.2 不要把所有漏洞都当成同一优先级"></a>21.2 不要把所有漏洞都当成同一优先级</h4><p>漏洞治理要看：</p>
+<ul>
+<li>CVSS 分数；</li>
+<li>是否可远程利用；</li>
+<li>是否有公开 PoC；</li>
+<li>是否出现在运行时依赖中；</li>
+<li>是否暴露在公网链路；</li>
+<li>当前项目是否真的使用了受影响功能；</li>
+<li>是否有补丁版本；</li>
+<li>升级风险有多大。</li>
+</ul>
+<h4 id="21-3-不要盲目覆盖版本"><a href="#21-3-不要盲目覆盖版本" class="headerlink" title="21.3 不要盲目覆盖版本"></a>21.3 不要盲目覆盖版本</h4><p>很多 Java 项目为了修漏洞，会直接在 <code>dependencyManagement</code> 里覆盖版本。</p>
+<p>这种方式可以用，但不能滥用。</p>
+<p>风险包括：</p>
+<ul>
+<li>与 Spring Boot BOM 不一致；</li>
+<li>与中间件客户端版本不兼容；</li>
+<li>运行时出现 <code>NoSuchMethodError</code>；</li>
+<li>单元测试没覆盖到的问题上线才爆。</li>
+</ul>
+<p>建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">优先升级平台版本，其次升级上游依赖，最后才单点覆盖。<br></code></pre></td></tr></table></figure>
+
+<h4 id="21-4-suppression-必须审计"><a href="#21-4-suppression-必须审计" class="headerlink" title="21.4 suppression 必须审计"></a>21.4 suppression 必须审计</h4><p>任何 suppression 都应该被 code review。</p>
+<p>建议 suppression 文件放在仓库中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">dependency-check-suppressions.xml<br></code></pre></td></tr></table></figure>
+
+<p>并要求每次新增都说明原因。</p>
+<h4 id="21-5-定期生成依赖治理报表"><a href="#21-5-定期生成依赖治理报表" class="headerlink" title="21.5 定期生成依赖治理报表"></a>21.5 定期生成依赖治理报表</h4><p>可以每周统计：</p>
+<ul>
+<li>当前 Critical 数量；</li>
+<li>当前 High 数量；</li>
+<li>本周新增漏洞；</li>
+<li>本周修复漏洞；</li>
+<li>长期未处理漏洞；</li>
+<li>suppression 数量；</li>
+<li>依赖升级 PR 合并率。</li>
+</ul>
+<p>这可以让依赖治理从“偶尔想起来”变成“持续机制”。</p>
+<h3 id="22-常见问题"><a href="#22-常见问题" class="headerlink" title="22. 常见问题"></a>22. 常见问题</h3><h4 id="22-1-Dependency-Check-能扫描业务代码漏洞吗？"><a href="#22-1-Dependency-Check-能扫描业务代码漏洞吗？" class="headerlink" title="22.1 Dependency-Check 能扫描业务代码漏洞吗？"></a>22.1 Dependency-Check 能扫描业务代码漏洞吗？</h4><p>不能。</p>
+<p>它主要扫描第三方依赖漏洞。</p>
+<p>如果要扫描业务代码里的 SQL 注入、XSS、命令注入等问题，需要 SAST 工具，比如 SonarQube、Semgrep、CodeQL 等。</p>
+<h4 id="22-2-Dependency-Check-和-SonarQube-是什么关系？"><a href="#22-2-Dependency-Check-和-SonarQube-是什么关系？" class="headerlink" title="22.2 Dependency-Check 和 SonarQube 是什么关系？"></a>22.2 Dependency-Check 和 SonarQube 是什么关系？</h4><p>两者关注点不同。</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>重点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Dependency-Check</td>
+<td>第三方依赖漏洞</td>
+</tr>
+<tr>
+<td>SonarQube</td>
+<td>代码质量、代码异味、部分安全规则</td>
+</tr>
+<tr>
+<td>CodeQL</td>
+<td>代码级安全分析</td>
+</tr>
+<tr>
+<td>Trivy</td>
+<td>容器镜像、文件系统、IaC、依赖扫描</td>
+</tr>
+<tr>
+<td>Grype</td>
+<td>容器镜像和 SBOM 漏洞扫描</td>
+</tr>
+<tr>
+<td>Renovate</td>
+<td>自动升级依赖</td>
+</tr>
+</tbody></table>
+<p>Dependency-Check 更偏 SCA。</p>
+<h4 id="22-3-扫描出来的漏洞一定要修吗？"><a href="#22-3-扫描出来的漏洞一定要修吗？" class="headerlink" title="22.3 扫描出来的漏洞一定要修吗？"></a>22.3 扫描出来的漏洞一定要修吗？</h4><p>不一定，但一定要评估。</p>
+<p>有些漏洞可能是误报，有些漏洞可能只影响特定功能，有些漏洞可能出现在测试依赖里。</p>
+<p>但对于运行时依赖中的 Critical &#x2F; High 漏洞，不建议长期拖着。</p>
+<h4 id="22-4-只升级直接依赖就够了吗？"><a href="#22-4-只升级直接依赖就够了吗？" class="headerlink" title="22.4 只升级直接依赖就够了吗？"></a>22.4 只升级直接依赖就够了吗？</h4><p>不够。</p>
+<p>很多漏洞来自传递依赖。</p>
+<p>所以要结合：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn dependency:tree<br></code></pre></td></tr></table></figure>
+
+<p>一起分析。</p>
+<h4 id="22-5-本地跑很慢怎么办？"><a href="#22-5-本地跑很慢怎么办？" class="headerlink" title="22.5 本地跑很慢怎么办？"></a>22.5 本地跑很慢怎么办？</h4><p>可以：</p>
+<ul>
+<li>配置 NVD API Key；</li>
+<li>使用本地缓存；</li>
+<li>在 CI 中缓存 <code>dependency-check-data</code>；</li>
+<li>使用公司内部 NVD mirror；</li>
+<li>不要每次普通构建都跑，改用 Maven Profile；</li>
+<li>对大项目使用定时任务集中扫描。</li>
+</ul>
+<h4 id="22-6-可以只在-CI-中跑吗？"><a href="#22-6-可以只在-CI-中跑吗？" class="headerlink" title="22.6 可以只在 CI 中跑吗？"></a>22.6 可以只在 CI 中跑吗？</h4><p>可以，但不建议只在 CI 中跑。</p>
+<p>更好的方式是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">开发本地可手动跑<br>PR 自动跑<br>主分支定时跑<br>发布前强制跑<br></code></pre></td></tr></table></figure>
+
+<p>这样问题发现得更早。</p>
+<h3 id="23-推荐项目结构"><a href="#23-推荐项目结构" class="headerlink" title="23. 推荐项目结构"></a>23. 推荐项目结构</h3><p>对于一个 Maven 项目，可以这样组织：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">project-root<br>├── pom.xml<br>├── dependency-check-suppressions.xml<br>├── .github<br>│   └── workflows<br>│       └── dependency-check.yml<br>├── src<br>│   ├── main<br>│   └── test<br>└── target<br>    └── dependency-check-report.html<br></code></pre></td></tr></table></figure>
+
+<p>如果是多模块项目：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">finance-parent<br>├── pom.xml<br>├── dependency-check-suppressions.xml<br>├── finance-api<br>├── finance-common<br>├── finance-domain<br>├── finance-application<br>├── finance-infrastructure<br>└── finance-start<br></code></pre></td></tr></table></figure>
+
+<p>父 POM 负责扫描配置，子模块专注业务。</p>
+<h3 id="24-一套可落地的最终-Maven-配置"><a href="#24-一套可落地的最终-Maven-配置" class="headerlink" title="24. 一套可落地的最终 Maven 配置"></a>24. 一套可落地的最终 Maven 配置</h3><p>下面是一套相对完整的配置，适合作为团队项目起点：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">properties</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">dependency-check.version</span>&gt;</span>12.2.2<span class="hljs-tag">&lt;/<span class="hljs-name">dependency-check.version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">properties</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">profiles</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">profile</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">id</span>&gt;</span>security-scan<span class="hljs-tag">&lt;/<span class="hljs-name">id</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">build</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">plugins</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.owasp<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>dependency-check-maven<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>$&#123;dependency-check.version&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">configuration</span>&gt;</span><br>                        <span class="hljs-comment">&lt;!-- 使用 settings.xml 中的 NVD API Key --&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">nvdApiServerId</span>&gt;</span>nvd-api<span class="hljs-tag">&lt;/<span class="hljs-name">nvdApiServerId</span>&gt;</span><br><br>                        <span class="hljs-comment">&lt;!-- 高危漏洞阻断构建 --&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">failBuildOnCVSS</span>&gt;</span>7<span class="hljs-tag">&lt;/<span class="hljs-name">failBuildOnCVSS</span>&gt;</span><br><br>                        <span class="hljs-comment">&lt;!-- 输出多种报告格式 --&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">formats</span>&gt;</span><br>                            <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>HTML<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>                            <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>JSON<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>                            <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>JUNIT<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>                            <span class="hljs-tag">&lt;<span class="hljs-name">format</span>&gt;</span>SARIF<span class="hljs-tag">&lt;/<span class="hljs-name">format</span>&gt;</span><br>                        <span class="hljs-tag">&lt;/<span class="hljs-name">formats</span>&gt;</span><br><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">prettyPrint</span>&gt;</span>true<span class="hljs-tag">&lt;/<span class="hljs-name">prettyPrint</span>&gt;</span><br><br>                        <span class="hljs-comment">&lt;!-- 按团队需要调整 --&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">skipTestScope</span>&gt;</span>true<span class="hljs-tag">&lt;/<span class="hljs-name">skipTestScope</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">skipProvidedScope</span>&gt;</span>true<span class="hljs-tag">&lt;/<span class="hljs-name">skipProvidedScope</span>&gt;</span><br><br>                        <span class="hljs-comment">&lt;!-- 误报抑制文件 --&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">suppressionFiles</span>&gt;</span><br>                            <span class="hljs-tag">&lt;<span class="hljs-name">suppressionFile</span>&gt;</span>$&#123;project.basedir&#125;/dependency-check-suppressions.xml<span class="hljs-tag">&lt;/<span class="hljs-name">suppressionFile</span>&gt;</span><br>                        <span class="hljs-tag">&lt;/<span class="hljs-name">suppressionFiles</span>&gt;</span><br><br>                        <span class="hljs-comment">&lt;!-- 输出目录 --&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">outputDirectory</span>&gt;</span>$&#123;project.build.directory&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">outputDirectory</span>&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">configuration</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">executions</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">execution</span>&gt;</span><br>                            <span class="hljs-tag">&lt;<span class="hljs-name">goals</span>&gt;</span><br>                                <span class="hljs-tag">&lt;<span class="hljs-name">goal</span>&gt;</span>check<span class="hljs-tag">&lt;/<span class="hljs-name">goal</span>&gt;</span><br>                            <span class="hljs-tag">&lt;/<span class="hljs-name">goals</span>&gt;</span><br>                        <span class="hljs-tag">&lt;/<span class="hljs-name">execution</span>&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">executions</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">plugins</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">build</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">profile</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">profiles</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">export</span> NVD_API_KEY=你的_api_key<br>mvn clean verify -Psecurity-scan<br></code></pre></td></tr></table></figure>
+
+<p>多模块项目可以把 <code>check</code> 改成 <code>aggregate</code>。</p>
+<h3 id="25-最佳实践总结"><a href="#25-最佳实践总结" class="headerlink" title="25. 最佳实践总结"></a>25. 最佳实践总结</h3><p>最后总结一下 Dependency-Check 的最佳实践：</p>
+<table>
+<thead>
+<tr>
+<th>实践</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>接入方式</td>
+<td>Maven 项目优先使用 Maven Plugin</td>
+</tr>
+<tr>
+<td>执行时机</td>
+<td>PR、主分支、发布前、定时任务</td>
+</tr>
+<tr>
+<td>报告格式</td>
+<td>HTML 给人看，JSON&#x2F;JUNIT&#x2F;SARIF 给工具用</td>
+</tr>
+<tr>
+<td>阈值策略</td>
+<td>老项目先报告，后逐步提高门禁</td>
+</tr>
+<tr>
+<td>API Key</td>
+<td>使用 NVD API Key，不要写进 pom.xml</td>
+</tr>
+<tr>
+<td>缓存</td>
+<td>CI 必须缓存 Dependency-Check 数据</td>
+</tr>
+<tr>
+<td>多模块</td>
+<td>使用 aggregate 聚合报告</td>
+</tr>
+<tr>
+<td>误报</td>
+<td>使用 suppression 文件并保留审计说明</td>
+</tr>
+<tr>
+<td>修复方式</td>
+<td>优先升级平台版本，再考虑覆盖单包版本</td>
+</tr>
+<tr>
+<td>自动化</td>
+<td>配合 Renovate、OpenRewrite 形成闭环</td>
+</tr>
+</tbody></table>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>OWASP Dependency-Check 官网：<a target="_blank" rel="noopener" href="https://owasp.org/www-project-dependency-check/">https://owasp.org/www-project-dependency-check/</a></li>
+<li>Dependency-Check Maven Plugin 文档：<a target="_blank" rel="noopener" href="https://dependency-check.github.io/DependencyCheck/dependency-check-maven/index.html">https://dependency-check.github.io/DependencyCheck/dependency-check-maven/index.html</a></li>
+<li>Dependency-Check Maven Configuration：<a target="_blank" rel="noopener" href="https://dependency-check.github.io/DependencyCheck/dependency-check-maven/configuration.html">https://dependency-check.github.io/DependencyCheck/dependency-check-maven/configuration.html</a></li>
+<li>Dependency-Check Suppression 文档：<a target="_blank" rel="noopener" href="https://dependency-check.github.io/DependencyCheck/general/suppression.html">https://dependency-check.github.io/DependencyCheck/general/suppression.html</a></li>
+<li>OWASP Developer Guide - Dependency-Check：<a target="_blank" rel="noopener" href="https://devguide.owasp.org/en/05-implementation/02-dependencies/01-dependency-check/">https://devguide.owasp.org/en/05-implementation/02-dependencies/01-dependency-check/</a></li>
+<li>NVD API Key 申请页面：<a target="_blank" rel="noopener" href="https://nvd.nist.gov/developers/request-an-api-key">https://nvd.nist.gov/developers/request-an-api-key</a></li>
+<li>Maven Dependency Plugin：<a target="_blank" rel="noopener" href="https://maven.apache.org/plugins/maven-dependency-plugin/">https://maven.apache.org/plugins/maven-dependency-plugin/</a></li>
+</ul>
+<h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p>依赖漏洞治理不是一次性任务，而是一种工程习惯。</p>
+<p>真正成熟的团队，不是等安全事故来了才开始升级依赖，而是在日常开发、代码合并、持续集成、上线发布中，把依赖安全变成自动化流程的一部分。</p>
+<p>OWASP Dependency-Check 的价值不在于生成一份漂亮的 HTML 报告，而在于让项目团队看到隐藏在依赖树里的风险。</p>
+<p>它不能替你做所有安全决策，但它能及时提醒你：</p>
+<blockquote>
+<p>有些包，该升级了。</p>
+</blockquote>
+<p><code>富贵岂由人，时会高志须酬。</code></p>
+<p><code>能成功于千载者，必以近察远。</code></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Java/" class="category-chain-item">Java</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Spring-Boot/" class="print-no-link">#Spring Boot</a>
+      
+        <a href="/tags/Java/" class="print-no-link">#Java</a>
+      
+        <a href="/tags/Maven/" class="print-no-link">#Maven</a>
+      
+        <a href="/tags/DevSecOps/" class="print-no-link">#DevSecOps</a>
+      
+        <a href="/tags/OWASP/" class="print-no-link">#OWASP</a>
+      
+        <a href="/tags/Dependency-Check/" class="print-no-link">#Dependency-Check</a>
+      
+        <a href="/tags/SCA/" class="print-no-link">#SCA</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>深入理解 OWASP Dependency-Check：给 Java 项目做依赖漏洞扫描</div>
+      <div>https://allendericdalexander.github.io/2026/06/12/java/sec/owasp-dependency-check-blog/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年6月12日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/06/12/java/sec/passay-zxcvbn-password-policy-blog/" title="Passay 与 zxcvbn：Java 项目密码策略与密码强度检测实战">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Passay 与 zxcvbn：Java 项目密码策略与密码强度检测实战</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/06/12/scm/maven-wrapper-deep-dive-blog/" title="Maven Wrapper 深入讲解与实战：让团队构建环境真正一致">
+                        <span class="hidden-mobile">Maven Wrapper 深入讲解与实战：让团队构建环境真正一致</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
