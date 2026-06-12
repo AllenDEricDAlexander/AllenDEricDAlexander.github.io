@@ -1,0 +1,1255 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="欢迎你来读这篇博客，这篇博客主要是关于 Maven Build Cache Extension 的使用、原理、配置、远程缓存、CI 落地和常见问题排查。 如果你的项目是一个比较大的 Maven 多模块工程，每次 mvn clean install 都像是在泡一壶很慢的茶，那么 Maven Build CacheExtension 就值得认真看看。它不是银弹，但在合适的工程里，确实能把构建时间从“等">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Maven Build Cache Extension 深入实战：让 Maven 多模块构建快起来">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/06/12/scm/maven-build-cache-extension/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="欢迎你来读这篇博客，这篇博客主要是关于 Maven Build Cache Extension 的使用、原理、配置、远程缓存、CI 落地和常见问题排查。 如果你的项目是一个比较大的 Maven 多模块工程，每次 mvn clean install 都像是在泡一壶很慢的茶，那么 Maven Build CacheExtension 就值得认真看看。它不是银弹，但在合适的工程里，确实能把构建时间从“等">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-12T00:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-12T00:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Build Cache">
+<meta property="article:tag" content="CI&#x2F;CD">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="Maven">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Maven Build Cache Extension 深入实战：让 Maven 多模块构建快起来 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Maven Build Cache Extension 深入实战：让 Maven 多模块构建快起来"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-06-12 08:00" pubdate>
+          2026年6月12日 早上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          6.8k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          57 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Maven Build Cache Extension 深入实战：让 Maven 多模块构建快起来</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>欢迎你来读这篇博客，这篇博客主要是关于 <code>Maven Build Cache Extension</code> 的使用、原理、配置、远程缓存、CI 落地和常见问题排查。</p>
+<p>如果你的项目是一个比较大的 Maven 多模块工程，每次 <code>mvn clean install</code> 都像是在泡一壶很慢的茶，那么 Maven Build Cache<br>Extension 就值得认真看看。它不是银弹，但在合适的工程里，确实能把构建时间从“等到想摸鱼”压到“刚想摸鱼就结束”。</p>
+<span id="more"></span>
+
+<h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><p>Maven 本身已经有本地仓库缓存，例如 <code>~/.m2/repository</code>，它会缓存依赖包、插件包、父 POM 等内容。但<br><code>Maven Build Cache Extension</code> 解决的不是“依赖下载慢”的问题，而是“重复构建慢”的问题。</p>
+<p>它的核心思路是：</p>
+<blockquote>
+<p>如果一个模块的源码、资源、依赖、effective POM、关键插件参数都没有变化，那么这个模块之前构建出来的结果就可以复用，不需要重新编译、测试、打包。</p>
+</blockquote>
+<p>也就是说，它缓存的是“构建结果”，而不是“依赖包”。</p>
+<p>官方文档当前版本为 <code>1.2.3</code>，要求 Maven <code>3.9.0+</code>，并且兼容 Maven 4。本文基于官方文档整理，并结合实际 Java &#x2F; Spring Boot<br>多模块项目的落地方式进行说明。</p>
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h3 id="一、Maven-Build-Cache-Extension-是什么"><a href="#一、Maven-Build-Cache-Extension-是什么" class="headerlink" title="一、Maven Build Cache Extension 是什么"></a>一、Maven Build Cache Extension 是什么</h3><p><code>Maven Build Cache Extension</code> 是 Apache Maven 官方提供的构建缓存扩展。</p>
+<p>它会在 Maven 构建过程中介入，根据当前模块的输入信息生成一个缓存 key。如果缓存中已经存在相同 key 的构建结果，就直接恢复构建产物；如果不存在，就按照<br>Maven 原有逻辑正常构建，并在构建完成后写入缓存。</p>
+<p>简单理解：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[开始 Maven 构建] --&gt; B[收集模块输入]
+    B --&gt; C[计算缓存 Key]
+    C --&gt; D&#123;缓存是否命中&#125;
+    D --&gt;|命中| E[恢复构建产物]
+    D --&gt;|未命中| F[正常编译/测试/打包]
+    F --&gt; G[保存构建结果到缓存]
+    E --&gt; H[继续后续模块]
+    G --&gt; H
+</code></pre>
+
+<p>这里的“模块输入”通常包括：</p>
+<ul>
+<li>源码文件，例如 <code>src/main/java</code>、<code>src/test/java</code></li>
+<li>资源文件，例如 <code>application.yml</code>、<code>mapper.xml</code></li>
+<li>Maven 依赖</li>
+<li>effective POM</li>
+<li>插件配置和关键运行参数</li>
+<li>额外声明的输入目录，例如 <code>proto</code>、<code>sql</code>、<code>graphql</code>、<code>avro</code> 等</li>
+</ul>
+<h3 id="二、它和普通-Maven-本地仓库缓存有什么区别"><a href="#二、它和普通-Maven-本地仓库缓存有什么区别" class="headerlink" title="二、它和普通 Maven 本地仓库缓存有什么区别"></a>二、它和普通 Maven 本地仓库缓存有什么区别</h3><p>很多人第一次看到这个插件，会误以为它只是又搞了一个 Maven 仓库缓存。其实不是。</p>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>Maven 本地仓库</th>
+<th>Maven Build Cache Extension</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>缓存对象</td>
+<td>依赖包、插件包、POM</td>
+<td>模块构建结果</td>
+</tr>
+<tr>
+<td>默认目录</td>
+<td><code>~/.m2/repository</code></td>
+<td><code>~/.m2/build-cache</code> 或自定义目录</td>
+</tr>
+<tr>
+<td>解决问题</td>
+<td>避免重复下载依赖</td>
+<td>避免重复编译、测试、打包</td>
+</tr>
+<tr>
+<td>是否关注源码变化</td>
+<td>不关注</td>
+<td>关注</td>
+</tr>
+<tr>
+<td>是否关注插件参数</td>
+<td>不关注</td>
+<td>关注</td>
+</tr>
+<tr>
+<td>是否适合 CI 提速</td>
+<td>一般</td>
+<td>很适合</td>
+</tr>
+</tbody></table>
+<p>举个例子：</p>
+<p>一个多模块项目：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">mall-parent<br>├── mall-common<br>├── mall-domain<br>├── mall-infrastructure<br>├── mall-application<br>└── mall-adapter<br></code></pre></td></tr></table></figure>
+
+<p>你只改了 <code>mall-adapter</code> 的一个 Controller。正常情况下，Maven 可能仍然会经过很多模块的生命周期。启用 Build Cache<br>后，如果前面几个模块的输入没有变化，它们可以直接从缓存恢复产物，构建会明显变快。</p>
+<h3 id="三、适合什么场景"><a href="#三、适合什么场景" class="headerlink" title="三、适合什么场景"></a>三、适合什么场景</h3><p>它比较适合这些场景：</p>
+<ul>
+<li>大型 Maven 多模块项目</li>
+<li>Spring Boot &#x2F; Spring Cloud 微服务工程</li>
+<li>CI 中频繁跑 <code>mvn verify</code>、<code>mvn package</code>、<code>mvn install</code></li>
+<li>PR 构建、MR 构建、分支构建耗时较长</li>
+<li>本地开发经常需要构建整套工程</li>
+<li>有代码生成步骤，例如 Protobuf、MapStruct、OpenAPI、JPA Metamodel</li>
+<li>有比较重的测试、打包或资源处理流程</li>
+</ul>
+<p>它不太适合这些场景：</p>
+<ul>
+<li>项目很小，构建本来只要几秒</li>
+<li>构建过程强依赖当前机器环境</li>
+<li>构建产物高度不确定，例如构建过程中生成随机文件、时间戳文件、临时日志</li>
+<li>正式生产发布链路要求完全干净构建</li>
+</ul>
+<p>我个人建议：</p>
+<blockquote>
+<p>日常开发和 CI 可以使用 Build Cache；正式 release 构建建议关闭缓存，走干净构建。</p>
+</blockquote>
+<p>原因很简单：提效归提效，生产发布链路还是要保守一点。工程上最怕的不是慢一点，而是快得让你不敢信。</p>
+<h3 id="四、前置条件"><a href="#四、前置条件" class="headerlink" title="四、前置条件"></a>四、前置条件</h3><p>先确认 Maven 版本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -v<br></code></pre></td></tr></table></figure>
+
+<p>官方要求：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Apache Maven 3.9.0+<br></code></pre></td></tr></table></figure>
+
+<p>如果版本低于 <code>3.9.0</code>，建议先升级 Maven。</p>
+<p>然后确认项目根目录是否有 <code>.mvn</code> 目录。如果没有，创建即可：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">your-project<br>├── .mvn<br>├── pom.xml<br>└── ...<br></code></pre></td></tr></table></figure>
+
+<h3 id="五、第一步：启用-Maven-Build-Cache-Extension"><a href="#五、第一步：启用-Maven-Build-Cache-Extension" class="headerlink" title="五、第一步：启用 Maven Build Cache Extension"></a>五、第一步：启用 Maven Build Cache Extension</h3><p>推荐在项目根目录创建：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">.mvn/extensions.xml<br></code></pre></td></tr></table></figure>
+
+<p>内容如下：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">extensions</span> <span class="hljs-attr">xmlns</span>=<span class="hljs-string">&quot;http://maven.apache.org/EXTENSIONS/1.1.0&quot;</span></span><br><span class="hljs-tag">            <span class="hljs-attr">xmlns:xsi</span>=<span class="hljs-string">&quot;http://www.w3.org/2001/XMLSchema-instance&quot;</span></span><br><span class="hljs-tag">            <span class="hljs-attr">xsi:schemaLocation</span>=<span class="hljs-string">&quot;http://maven.apache.org/EXTENSIONS/1.1.0 https://maven.apache.org/xsd/core-extensions-1.1.0.xsd&quot;</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">extension</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.apache.maven.extensions<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>maven-build-cache-extension<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>1.2.3<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">extension</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">extensions</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>虽然也可以写在 <code>pom.xml</code> 的 <code>&lt;build&gt;&lt;extensions&gt;</code> 里，但更推荐 <code>.mvn/extensions.xml</code>。因为它属于 Maven Core Extension，越早介入<br>Maven 构建过程，对构建缓存这种能力越合适。</p>
+<h3 id="六、第二步：添加缓存配置文件"><a href="#六、第二步：添加缓存配置文件" class="headerlink" title="六、第二步：添加缓存配置文件"></a>六、第二步：添加缓存配置文件</h3><p>在项目根目录创建：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">.mvn/maven-build-cache-config.xml<br></code></pre></td></tr></table></figure>
+
+<p>先给一个适合大多数 Java &#x2F; Spring Boot 项目的基础配置：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-meta">&lt;?xml version=<span class="hljs-string">&quot;1.0&quot;</span> encoding=<span class="hljs-string">&quot;UTF-8&quot;</span>?&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">cache</span> <span class="hljs-attr">xmlns</span>=<span class="hljs-string">&quot;http://maven.apache.org/BUILD-CACHE-CONFIG/1.3.0&quot;</span></span><br><span class="hljs-tag">       <span class="hljs-attr">xmlns:xsi</span>=<span class="hljs-string">&quot;http://www.w3.org/2001/XMLSchema-instance&quot;</span></span><br><span class="hljs-tag">       <span class="hljs-attr">xsi:schemaLocation</span>=<span class="hljs-string">&quot;http://maven.apache.org/BUILD-CACHE-CONFIG/1.3.0 https://maven.apache.org/xsd/build-cache-config-1.3.0.xsd&quot;</span>&gt;</span><br><br>    <span class="hljs-tag">&lt;<span class="hljs-name">configuration</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">enabled</span>&gt;</span>true<span class="hljs-tag">&lt;/<span class="hljs-name">enabled</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">hashAlgorithm</span>&gt;</span>XX<span class="hljs-tag">&lt;/<span class="hljs-name">hashAlgorithm</span>&gt;</span><br><br>        <span class="hljs-tag">&lt;<span class="hljs-name">local</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">maxBuildsCached</span>&gt;</span>3<span class="hljs-tag">&lt;/<span class="hljs-name">maxBuildsCached</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">local</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">configuration</span>&gt;</span><br><br>    <span class="hljs-tag">&lt;<span class="hljs-name">input</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">global</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">glob</span>&gt;</span>&#123;*.java,*.xml,*.properties,*.yml,*.yaml,*.proto,*.sql&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">glob</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">excludes</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>.idea<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>.vscode<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>target<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;*.log&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;*.tmp&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">excludes</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">global</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">input</span>&gt;</span><br><br>    <span class="hljs-tag">&lt;<span class="hljs-name">executionControl</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">runAlways</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">goalsLists</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">goalsList</span> <span class="hljs-attr">artifactId</span>=<span class="hljs-string">&quot;maven-install-plugin&quot;</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">goals</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">goal</span>&gt;</span>install<span class="hljs-tag">&lt;/<span class="hljs-name">goal</span>&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">goals</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">goalsList</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">goalsLists</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">runAlways</span>&gt;</span><br><br>        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">plugins</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span> <span class="hljs-attr">artifactId</span>=<span class="hljs-string">&quot;maven-surefire-plugin&quot;</span> <span class="hljs-attr">goal</span>=<span class="hljs-string">&quot;test&quot;</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">reconciles</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skip&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skipExec&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skipTests&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;testFailureIgnore&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">reconciles</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">plugins</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">reconcile</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">executionControl</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">cache</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>这个配置里最重要的是四块：</p>
+<ol>
+<li><code>configuration</code></li>
+<li><code>input</code></li>
+<li><code>executionControl/runAlways</code></li>
+<li><code>executionControl/reconcile</code></li>
+</ol>
+<p>下面逐个解释。</p>
+<h3 id="七、configuration-配置说明"><a href="#七、configuration-配置说明" class="headerlink" title="七、configuration 配置说明"></a>七、configuration 配置说明</h3><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">configuration</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">enabled</span>&gt;</span>true<span class="hljs-tag">&lt;/<span class="hljs-name">enabled</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">hashAlgorithm</span>&gt;</span>XX<span class="hljs-tag">&lt;/<span class="hljs-name">hashAlgorithm</span>&gt;</span><br><br>    <span class="hljs-tag">&lt;<span class="hljs-name">local</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">maxBuildsCached</span>&gt;</span>3<span class="hljs-tag">&lt;/<span class="hljs-name">maxBuildsCached</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">local</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">configuration</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p><code>enabled</code> 表示是否启用缓存。</p>
+<p><code>hashAlgorithm</code> 表示 hash 算法。官方默认是 <code>XX</code>，也就是 xxHash，速度快，适合大多数场景。</p>
+<p><code>local.maxBuildsCached</code> 表示每个项目本地最多保留多少份缓存构建记录，默认值也是 <code>3</code>。如果磁盘空间充足，可以适当调大；如果本地空间紧张，保持默认即可。</p>
+<p>如果要指定本地缓存目录，可以这样：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">local</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">location</span>&gt;</span>/data/maven-build-cache<span class="hljs-tag">&lt;/<span class="hljs-name">location</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">maxBuildsCached</span>&gt;</span>5<span class="hljs-tag">&lt;/<span class="hljs-name">maxBuildsCached</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">local</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>也可以通过命令行临时指定：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify -Dmaven.build.cache.location=/data/maven-build-cache<br></code></pre></td></tr></table></figure>
+
+<h3 id="八、input-配置说明"><a href="#八、input-配置说明" class="headerlink" title="八、input 配置说明"></a>八、input 配置说明</h3><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">input</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">global</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">glob</span>&gt;</span>&#123;*.java,*.xml,*.properties,*.yml,*.yaml,*.proto,*.sql&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">glob</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">excludes</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>.idea<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>.vscode<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>target<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;*.log&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;*.tmp&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">excludes</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">global</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">input</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p><code>input</code> 决定哪些文件参与缓存 key 的计算。</p>
+<p>这个配置非常关键。因为 Build Cache 的判断逻辑可以简化成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">输入一致 =&gt; key 一致 =&gt; 可以复用缓存<br>输入变化 =&gt; key 变化 =&gt; 重新构建<br></code></pre></td></tr></table></figure>
+
+<p>对于普通 Spring Boot 项目，建议至少包含：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">*.java<br>*.xml<br>*.properties<br>*.yml<br>*.yaml<br></code></pre></td></tr></table></figure>
+
+<p>如果项目里有 MyBatis XML，需要 <code>*.xml</code>。</p>
+<p>如果项目里有 Protobuf，需要 <code>*.proto</code>。</p>
+<p>如果项目里有 SQL 脚本参与构建或测试，需要 <code>*.sql</code>。</p>
+<p>如果项目里有 GraphQL schema，可以加：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">glob</span>&gt;</span>&#123;*.java,*.xml,*.properties,*.yml,*.yaml,*.proto,*.sql,*.graphqls&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">glob</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果项目里有 Avro schema，可以加：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">glob</span>&gt;</span>&#123;*.java,*.xml,*.properties,*.yml,*.yaml,*.proto,*.sql,*.avsc&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">glob</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="九、为什么要排除临时文件"><a href="#九、为什么要排除临时文件" class="headerlink" title="九、为什么要排除临时文件"></a>九、为什么要排除临时文件</h3><p>临时文件、日志文件、IDE 文件如果参与 key 计算，会导致缓存频繁失效。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">target/build.log<br>.idea/workspace.xml<br>debug-output.tmp<br></code></pre></td></tr></table></figure>
+
+<p>这些文件变化并不一定代表源码逻辑变化。如果它们参与缓存 key，会导致：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">代码没变，但缓存不命中<br></code></pre></td></tr></table></figure>
+
+<p>所以要排除。</p>
+<p>常见排除项：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">excludes</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>.idea<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>.vscode<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>target<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;*.log&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;*.tmp&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;*.iml&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">excludes</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="十、runAlways：哪些插件必须总是执行"><a href="#十、runAlways：哪些插件必须总是执行" class="headerlink" title="十、runAlways：哪些插件必须总是执行"></a>十、runAlways：哪些插件必须总是执行</h3><p>有些 Maven 插件不适合完全被缓存跳过，比如 <code>maven-install-plugin</code>。</p>
+<p>假设你执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn install<br></code></pre></td></tr></table></figure>
+
+<p>如果某个模块直接从缓存恢复了构建产物，但 <code>install</code> 阶段没有真正执行，就可能出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">target 里看起来有产物，但 ~/.m2/repository 没有更新<br></code></pre></td></tr></table></figure>
+
+<p>所以可以让 install 总是执行：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">executionControl</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">runAlways</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">goalsLists</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">goalsList</span> <span class="hljs-attr">artifactId</span>=<span class="hljs-string">&quot;maven-install-plugin&quot;</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">goals</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">goal</span>&gt;</span>install<span class="hljs-tag">&lt;/<span class="hljs-name">goal</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">goals</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">goalsList</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">goalsLists</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">runAlways</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">executionControl</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果你有一些强依赖当前环境的插件，也可以考虑放入 <code>runAlways</code>，例如某些部署、发布、报告生成插件。</p>
+<p>不过不要滥用。放太多插件进 <code>runAlways</code>，缓存收益会下降。</p>
+<h3 id="十一、reconcile：防止-skipTests-污染缓存"><a href="#十一、reconcile：防止-skipTests-污染缓存" class="headerlink" title="十一、reconcile：防止 skipTests 污染缓存"></a>十一、reconcile：防止 skipTests 污染缓存</h3><p>这是一个很容易踩的坑。</p>
+<p>假设某次你执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify -DskipTests=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>如果没有做好运行时参数校验，后续构建可能复用这次“跳过测试”的结果。这样就会出现一种非常危险的情况：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">你以为测试跑了，其实缓存恢复的是跳过测试的构建结果。<br></code></pre></td></tr></table></figure>
+
+<p>所以要对 Surefire 的关键参数做 reconcile：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">plugins</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span> <span class="hljs-attr">artifactId</span>=<span class="hljs-string">&quot;maven-surefire-plugin&quot;</span> <span class="hljs-attr">goal</span>=<span class="hljs-string">&quot;test&quot;</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">reconciles</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skip&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skipExec&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skipTests&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;testFailureIgnore&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">reconciles</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">plugins</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">reconcile</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>这段配置的意义是：</p>
+<blockquote>
+<p>当测试相关参数发生关键变化时，不要盲目复用缓存。</p>
+</blockquote>
+<p>如果你的项目使用 <code>maven-failsafe-plugin</code> 跑集成测试，也建议加上：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">plugin</span> <span class="hljs-attr">artifactId</span>=<span class="hljs-string">&quot;maven-failsafe-plugin&quot;</span> <span class="hljs-attr">goal</span>=<span class="hljs-string">&quot;integration-test&quot;</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">reconciles</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skip&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skipITs&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skipTests&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;testFailureIgnore&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">reconciles</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="十二、第一次运行和验证"><a href="#十二、第一次运行和验证" class="headerlink" title="十二、第一次运行和验证"></a>十二、第一次运行和验证</h3><p>配置完成后，先执行一次完整构建：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn clean verify<br></code></pre></td></tr></table></figure>
+
+<p>然后再执行一次：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify<br></code></pre></td></tr></table></figure>
+
+<p>如果缓存启动成功，日志中应该能看到类似内容：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">[INFO] Loading cache configuration from &lt;project dir&gt;/.mvn/maven-build-cache-config.xml<br></code></pre></td></tr></table></figure>
+
+<p>同时，本地 Maven 仓库旁边会出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">~/.m2/build-cache<br></code></pre></td></tr></table></figure>
+
+<p>里面会保存构建缓存记录。</p>
+<p>你还可以找 <code>buildinfo.xml</code> 看某个模块到底把哪些内容纳入了 key 计算。</p>
+<p>常见检查点：</p>
+<ul>
+<li>是否真的加载了 <code>.mvn/maven-build-cache-config.xml</code></li>
+<li>是否生成了 <code>~/.m2/build-cache</code></li>
+<li>是否生成了 <code>buildinfo.xml</code></li>
+<li>第二次构建是否明显变快</li>
+<li>修改一个模块后，是否只有受影响模块重新构建</li>
+</ul>
+<h3 id="十三、常用命令参数"><a href="#十三、常用命令参数" class="headerlink" title="十三、常用命令参数"></a>十三、常用命令参数</h3><p>临时关闭缓存：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify -Dmaven.build.cache.enabled=<span class="hljs-literal">false</span><br></code></pre></td></tr></table></figure>
+
+<p>只是不读缓存，但允许写入缓存：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify -Dmaven.build.cache.skipCache=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>读取缓存，但不写入缓存：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify -Dmaven.build.cache.skipSave=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>只在 <code>package</code> 及之后阶段缓存，不缓存 <code>compile</code> &#x2F; <code>test-compile</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify -Dmaven.build.cache.cacheCompile=<span class="hljs-literal">false</span><br></code></pre></td></tr></table></figure>
+
+<p>指定本地缓存目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify -Dmaven.build.cache.location=/data/maven-build-cache<br></code></pre></td></tr></table></figure>
+
+<p>远程缓存读取开关：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify -Dmaven.build.cache.remote.enabled=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>允许保存到远程缓存：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify -Dmaven.build.cache.remote.save.enabled=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>建议只让 CI 写远程缓存，本地开发机只读远程缓存。</p>
+<h3 id="十四、远程缓存是什么"><a href="#十四、远程缓存是什么" class="headerlink" title="十四、远程缓存是什么"></a>十四、远程缓存是什么</h3><p>本地缓存只能加速自己的机器。</p>
+<p>远程缓存可以让 CI 和其他开发者共享构建结果。</p>
+<p>典型流程是：</p>
+<pre><code class=" mermaid">flowchart TB
+    A[CI 构建] --&gt; B[计算缓存 Key]
+    B --&gt; C&#123;远程缓存是否存在&#125;
+    C --&gt;|存在| D[下载并恢复缓存]
+    C --&gt;|不存在| E[正常构建]
+    E --&gt; F[上传构建结果到远程缓存]
+    G[开发者本地构建] --&gt; H[读取远程缓存]
+    H --&gt; I[快速恢复未变化模块]
+</code></pre>
+
+<p>官方提到，远程缓存可以使用支持 <code>GET</code>、<code>PUT</code>、<code>HEAD</code> 的 HTTP 存储。例如：</p>
+<ul>
+<li>Nexus Repository 的 Raw Repository</li>
+<li>Artifactory 的 Generic Repository</li>
+<li>Nginx</li>
+<li>其他 Maven Resolver &#x2F; Wagon 支持的存储</li>
+</ul>
+<h3 id="十五、配置远程缓存"><a href="#十五、配置远程缓存" class="headerlink" title="十五、配置远程缓存"></a>十五、配置远程缓存</h3><p>在 <code>.mvn/maven-build-cache-config.xml</code> 中增加：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">configuration</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">enabled</span>&gt;</span>true<span class="hljs-tag">&lt;/<span class="hljs-name">enabled</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">hashAlgorithm</span>&gt;</span>XX<span class="hljs-tag">&lt;/<span class="hljs-name">hashAlgorithm</span>&gt;</span><br><br>    <span class="hljs-tag">&lt;<span class="hljs-name">remote</span> <span class="hljs-attr">enabled</span>=<span class="hljs-string">&quot;true&quot;</span> <span class="hljs-attr">id</span>=<span class="hljs-string">&quot;maven-build-cache&quot;</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">url</span>&gt;</span>https://your-cache-server/cache<span class="hljs-tag">&lt;/<span class="hljs-name">url</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">remote</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">configuration</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果需要账号密码，在 <code>~/.m2/settings.xml</code> 中配置：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">settings</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">servers</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">server</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">id</span>&gt;</span>maven-build-cache<span class="hljs-tag">&lt;/<span class="hljs-name">id</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">username</span>&gt;</span>cache-user<span class="hljs-tag">&lt;/<span class="hljs-name">username</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">password</span>&gt;</span>cache-password<span class="hljs-tag">&lt;/<span class="hljs-name">password</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">server</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">servers</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">settings</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">id</span>&gt;</span>maven-build-cache<span class="hljs-tag">&lt;/<span class="hljs-name">id</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>要和配置文件里的：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">remote</span> <span class="hljs-attr">enabled</span>=<span class="hljs-string">&quot;true&quot;</span> <span class="hljs-attr">id</span>=<span class="hljs-string">&quot;maven-build-cache&quot;</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>保持一致。</p>
+<h3 id="十六、CI-推荐配置"><a href="#十六、CI-推荐配置" class="headerlink" title="十六、CI 推荐配置"></a>十六、CI 推荐配置</h3><p>推荐策略：</p>
+<table>
+<thead>
+<tr>
+<th>环境</th>
+<th align="right">是否读缓存</th>
+<th align="right">是否写缓存</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>开发者本地</td>
+<td align="right">是</td>
+<td align="right">否</td>
+</tr>
+<tr>
+<td>PR &#x2F; MR 构建</td>
+<td align="right">是</td>
+<td align="right">可选</td>
+</tr>
+<tr>
+<td>主干分支 CI</td>
+<td align="right">是</td>
+<td align="right">是</td>
+</tr>
+<tr>
+<td>Release 构建</td>
+<td align="right">否</td>
+<td align="right">否</td>
+</tr>
+</tbody></table>
+<p>本地开发：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify \<br>  -Dmaven.build.cache.remote.enabled=<span class="hljs-literal">true</span> \<br>  -Dmaven.build.cache.skipSave=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>CI 主干构建：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn clean verify \<br>  -Dmaven.build.cache.remote.enabled=<span class="hljs-literal">true</span> \<br>  -Dmaven.build.cache.remote.save.enabled=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>Release 构建：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn clean deploy \<br>  -Dmaven.build.cache.enabled=<span class="hljs-literal">false</span><br></code></pre></td></tr></table></figure>
+
+<p>这个策略比较稳：</p>
+<ul>
+<li>本地开发能享受远程缓存加速</li>
+<li>CI 主干负责产出可信缓存</li>
+<li>Release 不依赖缓存，保证构建链路干净</li>
+</ul>
+<h3 id="十七、Spring-Boot-多模块项目推荐配置"><a href="#十七、Spring-Boot-多模块项目推荐配置" class="headerlink" title="十七、Spring Boot 多模块项目推荐配置"></a>十七、Spring Boot 多模块项目推荐配置</h3><p>假设项目结构如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">finance-parent<br>├── finance-common<br>├── finance-domain<br>├── finance-infrastructure<br>├── finance-application<br>├── finance-adapter<br>└── finance-bootstrap<br></code></pre></td></tr></table></figure>
+
+<p>推荐配置：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-meta">&lt;?xml version=<span class="hljs-string">&quot;1.0&quot;</span> encoding=<span class="hljs-string">&quot;UTF-8&quot;</span>?&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">cache</span> <span class="hljs-attr">xmlns</span>=<span class="hljs-string">&quot;http://maven.apache.org/BUILD-CACHE-CONFIG/1.3.0&quot;</span></span><br><span class="hljs-tag">       <span class="hljs-attr">xmlns:xsi</span>=<span class="hljs-string">&quot;http://www.w3.org/2001/XMLSchema-instance&quot;</span></span><br><span class="hljs-tag">       <span class="hljs-attr">xsi:schemaLocation</span>=<span class="hljs-string">&quot;http://maven.apache.org/BUILD-CACHE-CONFIG/1.3.0 https://maven.apache.org/xsd/build-cache-config-1.3.0.xsd&quot;</span>&gt;</span><br><br>    <span class="hljs-tag">&lt;<span class="hljs-name">configuration</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">enabled</span>&gt;</span>true<span class="hljs-tag">&lt;/<span class="hljs-name">enabled</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">hashAlgorithm</span>&gt;</span>XX<span class="hljs-tag">&lt;/<span class="hljs-name">hashAlgorithm</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">mandatoryClean</span>&gt;</span>false<span class="hljs-tag">&lt;/<span class="hljs-name">mandatoryClean</span>&gt;</span><br><br>        <span class="hljs-tag">&lt;<span class="hljs-name">local</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">maxBuildsCached</span>&gt;</span>5<span class="hljs-tag">&lt;/<span class="hljs-name">maxBuildsCached</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">local</span>&gt;</span><br><br>        <span class="hljs-comment">&lt;!-- 本地接入阶段可以先不启用 remote，稳定后再打开 --&gt;</span><br>        <span class="hljs-comment">&lt;!--</span><br><span class="hljs-comment">        &lt;remote enabled=&quot;true&quot; id=&quot;maven-build-cache&quot;&gt;</span><br><span class="hljs-comment">            &lt;url&gt;https://your-cache-server/cache&lt;/url&gt;</span><br><span class="hljs-comment">        &lt;/remote&gt;</span><br><span class="hljs-comment">        --&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">configuration</span>&gt;</span><br><br>    <span class="hljs-tag">&lt;<span class="hljs-name">input</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">global</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">glob</span>&gt;</span>&#123;*.java,*.xml,*.properties,*.yml,*.yaml,*.proto,*.sql,*.graphqls&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">glob</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">includes</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">include</span>&gt;</span>src/main/java<span class="hljs-tag">&lt;/<span class="hljs-name">include</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">include</span>&gt;</span>src/main/resources<span class="hljs-tag">&lt;/<span class="hljs-name">include</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">include</span>&gt;</span>src/test/java<span class="hljs-tag">&lt;/<span class="hljs-name">include</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">include</span>&gt;</span>src/test/resources<span class="hljs-tag">&lt;/<span class="hljs-name">include</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">includes</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">excludes</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>.idea<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>.vscode<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>target<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>logs<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;*.log&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;*.tmp&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;*.iml&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">excludes</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">global</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">input</span>&gt;</span><br><br>    <span class="hljs-tag">&lt;<span class="hljs-name">executionControl</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">runAlways</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">goalsLists</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">goalsList</span> <span class="hljs-attr">artifactId</span>=<span class="hljs-string">&quot;maven-install-plugin&quot;</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">goals</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">goal</span>&gt;</span>install<span class="hljs-tag">&lt;/<span class="hljs-name">goal</span>&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">goals</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">goalsList</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">goalsLists</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">runAlways</span>&gt;</span><br><br>        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">plugins</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span> <span class="hljs-attr">artifactId</span>=<span class="hljs-string">&quot;maven-compiler-plugin&quot;</span> <span class="hljs-attr">goal</span>=<span class="hljs-string">&quot;compile&quot;</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">reconciles</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;source&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;target&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;release&quot;</span>/&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">reconciles</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br><br>                <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span> <span class="hljs-attr">artifactId</span>=<span class="hljs-string">&quot;maven-surefire-plugin&quot;</span> <span class="hljs-attr">goal</span>=<span class="hljs-string">&quot;test&quot;</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">reconciles</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skip&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skipExec&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skipTests&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;testFailureIgnore&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">reconciles</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br><br>                <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span> <span class="hljs-attr">artifactId</span>=<span class="hljs-string">&quot;maven-failsafe-plugin&quot;</span> <span class="hljs-attr">goal</span>=<span class="hljs-string">&quot;integration-test&quot;</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">reconciles</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skip&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skipITs&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skipTests&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;testFailureIgnore&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">reconciles</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">plugins</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">reconcile</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">executionControl</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">cache</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="十八、Protobuf-gRPC-项目的配置补充"><a href="#十八、Protobuf-gRPC-项目的配置补充" class="headerlink" title="十八、Protobuf &#x2F; gRPC 项目的配置补充"></a>十八、Protobuf &#x2F; gRPC 项目的配置补充</h3><p>如果项目使用 Protobuf，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">src/main/proto<br></code></pre></td></tr></table></figure>
+
+<p>并且使用 <code>protoc-maven-plugin</code> 或类似插件生成代码，那么 <code>*.proto</code> 一定要纳入输入。</p>
+<p>可以增加：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">input</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">global</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">glob</span>&gt;</span>&#123;*.java,*.xml,*.properties,*.yml,*.yaml,*.proto&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">glob</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">includes</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">include</span>&gt;</span>src/main/proto<span class="hljs-tag">&lt;/<span class="hljs-name">include</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">includes</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">global</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">input</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果插件配置里有自定义 proto 目录，可以针对插件做目录扫描：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">input</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">plugins</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span> <span class="hljs-attr">artifactId</span>=<span class="hljs-string">&quot;protoc-maven-plugin&quot;</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">dirScan</span> <span class="hljs-attr">mode</span>=<span class="hljs-string">&quot;auto&quot;</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">tagScanConfigs</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">tagScanConfig</span> <span class="hljs-attr">tagName</span>=<span class="hljs-string">&quot;protoBaseDirectory&quot;</span></span><br><span class="hljs-tag">                                   <span class="hljs-attr">recursive</span>=<span class="hljs-string">&quot;true&quot;</span></span><br><span class="hljs-tag">                                   <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;&#123;*.proto&#125;&quot;</span>/&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">tagScanConfigs</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">dirScan</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">plugins</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">input</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>这样可以避免 proto 文件变化后缓存仍然误命中。</p>
+<h3 id="十九、MapStruct-Lombok-代码生成场景"><a href="#十九、MapStruct-Lombok-代码生成场景" class="headerlink" title="十九、MapStruct &#x2F; Lombok &#x2F; 代码生成场景"></a>十九、MapStruct &#x2F; Lombok &#x2F; 代码生成场景</h3><p>如果项目使用 MapStruct、Lombok、JPA Metamodel、QueryDSL 等注解处理器，通常构建产物会出现在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">target/generated-sources/annotations<br></code></pre></td></tr></table></figure>
+
+<p>默认情况下，Build Cache 会处理常见输出。但如果你的项目有额外生成目录，可以使用 <code>attachedOutputs</code>。</p>
+<p>例如：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">configuration</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">attachedOutputs</span> <span class="hljs-attr">preservePermissions</span>=<span class="hljs-string">&quot;true&quot;</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">dirNames</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">dirName</span>&gt;</span>generated-sources/annotations<span class="hljs-tag">&lt;/<span class="hljs-name">dirName</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">dirName</span>&gt;</span>generated-test-sources/test-annotations<span class="hljs-tag">&lt;/<span class="hljs-name">dirName</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">dirNames</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">attachedOutputs</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">configuration</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>注意，<code>dirName</code> 是相对于 <code>target</code> 的路径。</p>
+<h3 id="二十、排查缓存为什么不命中"><a href="#二十、排查缓存为什么不命中" class="headerlink" title="二十、排查缓存为什么不命中"></a>二十、排查缓存为什么不命中</h3><p>缓存不命中通常有几类原因。</p>
+<h4 id="1-源码或资源确实变了"><a href="#1-源码或资源确实变了" class="headerlink" title="1. 源码或资源确实变了"></a>1. 源码或资源确实变了</h4><p>这是正常情况。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">src/main/java/UserService.java<br>src/main/resources/application.yml<br>src/main/resources/mapper/UserMapper.xml<br></code></pre></td></tr></table></figure>
+
+<p>这些文件变化，缓存 key 改变，重新构建是合理的。</p>
+<h4 id="2-换行符不一致"><a href="#2-换行符不一致" class="headerlink" title="2. 换行符不一致"></a>2. 换行符不一致</h4><p>官方文档特别提醒：当前实现没有内置换行符归一化，文件 hash 是按原始字节计算的。</p>
+<p>也就是说，同一个文件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Windows: CRLF<br>Linux/macOS: LF<br></code></pre></td></tr></table></figure>
+
+<p>会被认为是不同输入。</p>
+<p>建议在项目根目录添加 <code>.gitattributes</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">* text=auto eol=lf<br>*.bat text eol=crlf<br>*.cmd text eol=crlf<br></code></pre></td></tr></table></figure>
+
+<p>然后统一团队工作区换行符。</p>
+<h4 id="3-CI-和本地-profile-不一致"><a href="#3-CI-和本地-profile-不一致" class="headerlink" title="3. CI 和本地 profile 不一致"></a>3. CI 和本地 profile 不一致</h4><p>比如 CI 激活了：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-Pci<br></code></pre></td></tr></table></figure>
+
+<p>本地没有激活。</p>
+<p>如果 profile 会增删插件、改变插件配置、改变依赖，那么 effective POM 就不一致，缓存 key 也会不一致。</p>
+<p>建议：</p>
+<p>不要通过 profile 大量增删插件，而是尽量通过属性控制插件是否跳过。</p>
+<p>例如，不推荐：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">profile</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">id</span>&gt;</span>ci<span class="hljs-tag">&lt;/<span class="hljs-name">id</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">build</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">plugins</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>some-report-plugin<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">plugins</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">build</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">profile</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>更推荐：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">properties</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">report.skip</span>&gt;</span>true<span class="hljs-tag">&lt;/<span class="hljs-name">report.skip</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">properties</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">build</span>&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">plugins</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>some-report-plugin<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">configuration</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">skip</span>&gt;</span>$&#123;report.skip&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">skip</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">configuration</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">plugins</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">build</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">profiles</span>&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">profile</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">id</span>&gt;</span>ci<span class="hljs-tag">&lt;/<span class="hljs-name">id</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">properties</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">report.skip</span>&gt;</span>false<span class="hljs-tag">&lt;/<span class="hljs-name">report.skip</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">properties</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">profile</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">profiles</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>这样 effective POM 更稳定。</p>
+<h4 id="4-环境相关参数进入-effective-POM"><a href="#4-环境相关参数进入-effective-POM" class="headerlink" title="4. 环境相关参数进入 effective POM"></a>4. 环境相关参数进入 effective POM</h4><p>比如某些插件配置里有：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">argLine</span>&gt;</span>$&#123;some.local.path&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">argLine</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>本地和 CI 的路径不一样，就会导致 effective POM 不一致。</p>
+<p>可以排除某些环境相关属性：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">input</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">plugins</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span> <span class="hljs-attr">artifactId</span>=<span class="hljs-string">&quot;maven-surefire-plugin&quot;</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">effectivePom</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">excludeProperties</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">excludeProperty</span>&gt;</span>argLine<span class="hljs-tag">&lt;/<span class="hljs-name">excludeProperty</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">excludeProperties</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">effectivePom</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">plugins</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">input</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>但是要小心：</p>
+<blockquote>
+<p>排除某个属性，意味着这个属性不同也可能复用同一个缓存。</p>
+</blockquote>
+<p>所以只有当你确认这个属性不影响构建产物等价性时，才应该排除。</p>
+<h4 id="5-临时文件参与了-key-计算"><a href="#5-临时文件参与了-key-计算" class="headerlink" title="5. 临时文件参与了 key 计算"></a>5. 临时文件参与了 key 计算</h4><p>比如某个插件在源码目录旁边生成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">build-time.txt<br>generated.log<br>tempfile.out<br></code></pre></td></tr></table></figure>
+
+<p>这些文件每次都变，缓存自然每次都失效。</p>
+<p>解决方式：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">excludes</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>tempfile.out<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;*.log&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;build-time.txt&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">excludes</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="二十一、使用-failFast-和-baselineUrl-排查远程缓存"><a href="#二十一、使用-failFast-和-baselineUrl-排查远程缓存" class="headerlink" title="二十一、使用 failFast 和 baselineUrl 排查远程缓存"></a>二十一、使用 failFast 和 baselineUrl 排查远程缓存</h3><p>远程缓存接入后，本地和 CI 可能因为环境差异导致不命中。</p>
+<p>官方推荐可以用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify \<br>  -Dmaven.build.cache.failFast=<span class="hljs-literal">true</span> \<br>  -Dmaven.build.cache.baselineUrl=https://your-cache-url/xxx/build-cache-report.xml<br></code></pre></td></tr></table></figure>
+
+<p>这个命令的作用是：</p>
+<ul>
+<li>使用远程 CI 的缓存报告作为 baseline</li>
+<li>本地构建时发现第一个差异就失败</li>
+<li>输出差异文件，帮助定位为什么不能复用远程缓存</li>
+</ul>
+<p>通常会在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">target/incremental-maven<br></code></pre></td></tr></table></figure>
+
+<p>看到类似文件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">buildinfo-baseline-xxx.xml<br>buildinfo-yyy.xml<br>buildsdiff.xml<br></code></pre></td></tr></table></figure>
+
+<p>重点看 <code>buildsdiff.xml</code>，它会告诉你是哪个文件、哪个插件参数、哪个 effective POM 部分导致不一致。</p>
+<h3 id="二十二、性能优化建议"><a href="#二十二、性能优化建议" class="headerlink" title="二十二、性能优化建议"></a>二十二、性能优化建议</h3><h4 id="1-不要缓存巨大压缩包"><a href="#1-不要缓存巨大压缩包" class="headerlink" title="1. 不要缓存巨大压缩包"></a>1. 不要缓存巨大压缩包</h4><p>如果项目会生成很大的 zip、war、ear，有时候上传下载缓存比本地重新打包还慢。</p>
+<p>可以排除：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">output</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">patterns</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">pattern</span>&gt;</span>.*\.zip<span class="hljs-tag">&lt;/<span class="hljs-name">pattern</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">pattern</span>&gt;</span>.*\.war<span class="hljs-tag">&lt;/<span class="hljs-name">pattern</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">pattern</span>&gt;</span>.*\.ear<span class="hljs-tag">&lt;/<span class="hljs-name">pattern</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">patterns</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">output</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>是否排除要看项目情况。比如普通 Spring Boot jar 不一定需要排除；但特别大的前端静态资源包、集成包，就要评估一下。</p>
+<h4 id="2-开启-lazy-restore"><a href="#2-开启-lazy-restore" class="headerlink" title="2. 开启 lazy restore"></a>2. 开启 lazy restore</h4><p>默认情况下，缓存会比较积极地恢复项目产物。</p>
+<p>可以尝试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify -Dmaven.build.cache.lazyRestore=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p><code>lazyRestore</code> 适合小改动比较多的场景，可以减少不必要的下载和恢复。</p>
+<h4 id="3-CI-中可以关闭-generated-sources-恢复"><a href="#3-CI-中可以关闭-generated-sources-恢复" class="headerlink" title="3. CI 中可以关闭 generated sources 恢复"></a>3. CI 中可以关闭 generated sources 恢复</h4><p>如果 CI 不需要把生成源码恢复到项目目录，可以：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn verify -Dmaven.build.cache.restoreGeneratedSources=<span class="hljs-literal">false</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="4-谨慎使用-memory-mapped-hash"><a href="#4-谨慎使用-memory-mapped-hash" class="headerlink" title="4. 谨慎使用 memory-mapped hash"></a>4. 谨慎使用 memory-mapped hash</h4><p>官方支持 <code>XXMM</code> 等 memory-mapped hash 算法，大代码库可能更快。</p>
+<p>但 JDK 17+ 需要在 <code>.mvn/jvm.config</code> 中增加：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">--add-opens java.base/sun.nio.ch=ALL-UNNAMED<br></code></pre></td></tr></table></figure>
+
+<p>一般项目直接用默认的 <code>XX</code> 就行，不要一上来就把复杂度拉满。构建优化也是工程活，不是玄学仪式。</p>
+<h3 id="二十三、接入路线建议"><a href="#二十三、接入路线建议" class="headerlink" title="二十三、接入路线建议"></a>二十三、接入路线建议</h3><p>不要一上来就远程缓存、CI、所有模块一起上。推荐分阶段。</p>
+<pre><code class=" mermaid">flowchart TB
+    A[阶段一：本地启用] --&gt; B[确认扩展加载成功]
+B --&gt; C[观察 buildinfo.xml]
+C --&gt; D[调整 input/excludes]
+D --&gt; E[阶段二：CI 只读远程缓存]
+E --&gt; F[阶段三：主干 CI 写远程缓存]
+F --&gt; G[阶段四：开发机只读远程缓存]
+G --&gt; H[阶段五：监控命中率和构建耗时]
+</code></pre>
+
+<p>推荐顺序：</p>
+<ol>
+<li>本地启用扩展</li>
+<li>跑 <code>mvn clean verify</code></li>
+<li>再跑 <code>mvn verify</code></li>
+<li>观察是否命中</li>
+<li>修改一个模块，观察影响范围</li>
+<li>调整 <code>input</code>、<code>excludes</code>、<code>reconcile</code></li>
+<li>接入 CI</li>
+<li>接入远程缓存</li>
+<li>让主干 CI 写缓存</li>
+<li>让开发机只读缓存</li>
+</ol>
+<h3 id="二十四、完整目录示例"><a href="#二十四、完整目录示例" class="headerlink" title="二十四、完整目录示例"></a>二十四、完整目录示例</h3><p>最终你的项目可能是这样：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">your-project<br>├── .gitattributes<br>├── .mvn<br>│   ├── extensions.xml<br>│   ├── jvm.config<br>│   └── maven-build-cache-config.xml<br>├── pom.xml<br>├── module-a<br>│   └── pom.xml<br>├── module-b<br>│   └── pom.xml<br>└── module-c<br>    └── pom.xml<br></code></pre></td></tr></table></figure>
+
+<p>其中最核心的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">.mvn/extensions.xml<br>.mvn/maven-build-cache-config.xml<br></code></pre></td></tr></table></figure>
+
+<h3 id="二十五、推荐的-Git-提交内容"><a href="#二十五、推荐的-Git-提交内容" class="headerlink" title="二十五、推荐的 Git 提交内容"></a>二十五、推荐的 Git 提交内容</h3><p>建议提交到代码仓库：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">.mvn/extensions.xml<br>.mvn/maven-build-cache-config.xml<br>.gitattributes<br></code></pre></td></tr></table></figure>
+
+<p>不建议提交：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">~/.m2/build-cache<br>target<br></code></pre></td></tr></table></figure>
+
+<p>如果你有 <code>.gitignore</code>，可以确认这些内容已经排除：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs gitignore">target/<br>*.log<br>*.tmp<br>.idea/<br>.vscode/<br>*.iml<br></code></pre></td></tr></table></figure>
+
+<h3 id="二十六、最佳实践总结"><a href="#二十六、最佳实践总结" class="headerlink" title="二十六、最佳实践总结"></a>二十六、最佳实践总结</h3><p>第一，先本地跑通，再接远程缓存。</p>
+<p>第二，CI 写缓存，本地只读缓存。</p>
+<p>第三，正式 release 构建关闭缓存。</p>
+<p>第四，把真正影响构建结果的文件纳入 input。</p>
+<p>第五，把临时文件、日志、IDE 文件排除掉。</p>
+<p>第六，统一团队换行符，避免 Windows &#x2F; Linux &#x2F; macOS 因 CRLF 和 LF 导致缓存不命中。</p>
+<p>第七，谨慎排除 effective POM 属性。排除属性可以提高命中率，但也可能降低正确性。</p>
+<p>第八，对 <code>skipTests</code>、<code>skipITs</code>、<code>testFailureIgnore</code> 这类参数做 reconcile。</p>
+<p>第九，<code>install</code> 阶段建议总是执行，避免本地仓库没有更新。</p>
+<p>第十，持续观察缓存命中率和构建耗时，不要靠感觉调优。</p>
+<h3 id="二十七、一份最终推荐配置"><a href="#二十七、一份最终推荐配置" class="headerlink" title="二十七、一份最终推荐配置"></a>二十七、一份最终推荐配置</h3><p>下面这份可以作为 Java &#x2F; Spring Boot 多模块项目的起始配置：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-meta">&lt;?xml version=<span class="hljs-string">&quot;1.0&quot;</span> encoding=<span class="hljs-string">&quot;UTF-8&quot;</span>?&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">cache</span> <span class="hljs-attr">xmlns</span>=<span class="hljs-string">&quot;http://maven.apache.org/BUILD-CACHE-CONFIG/1.3.0&quot;</span></span><br><span class="hljs-tag">       <span class="hljs-attr">xmlns:xsi</span>=<span class="hljs-string">&quot;http://www.w3.org/2001/XMLSchema-instance&quot;</span></span><br><span class="hljs-tag">       <span class="hljs-attr">xsi:schemaLocation</span>=<span class="hljs-string">&quot;http://maven.apache.org/BUILD-CACHE-CONFIG/1.3.0 https://maven.apache.org/xsd/build-cache-config-1.3.0.xsd&quot;</span>&gt;</span><br><br>    <span class="hljs-tag">&lt;<span class="hljs-name">configuration</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">enabled</span>&gt;</span>true<span class="hljs-tag">&lt;/<span class="hljs-name">enabled</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">hashAlgorithm</span>&gt;</span>XX<span class="hljs-tag">&lt;/<span class="hljs-name">hashAlgorithm</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">mandatoryClean</span>&gt;</span>false<span class="hljs-tag">&lt;/<span class="hljs-name">mandatoryClean</span>&gt;</span><br><br>        <span class="hljs-tag">&lt;<span class="hljs-name">local</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">maxBuildsCached</span>&gt;</span>5<span class="hljs-tag">&lt;/<span class="hljs-name">maxBuildsCached</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">local</span>&gt;</span><br><br>        <span class="hljs-comment">&lt;!-- 稳定后再打开远程缓存 --&gt;</span><br>        <span class="hljs-comment">&lt;!--</span><br><span class="hljs-comment">        &lt;remote enabled=&quot;true&quot; id=&quot;maven-build-cache&quot;&gt;</span><br><span class="hljs-comment">            &lt;url&gt;https://your-cache-server/cache&lt;/url&gt;</span><br><span class="hljs-comment">        &lt;/remote&gt;</span><br><span class="hljs-comment">        --&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">configuration</span>&gt;</span><br><br>    <span class="hljs-tag">&lt;<span class="hljs-name">input</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">global</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">glob</span>&gt;</span>&#123;*.java,*.xml,*.properties,*.yml,*.yaml,*.proto,*.sql,*.graphqls,*.avsc&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">glob</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">includes</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">include</span>&gt;</span>src/main/java<span class="hljs-tag">&lt;/<span class="hljs-name">include</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">include</span>&gt;</span>src/main/resources<span class="hljs-tag">&lt;/<span class="hljs-name">include</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">include</span>&gt;</span>src/test/java<span class="hljs-tag">&lt;/<span class="hljs-name">include</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">include</span>&gt;</span>src/test/resources<span class="hljs-tag">&lt;/<span class="hljs-name">include</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">include</span>&gt;</span>src/main/proto<span class="hljs-tag">&lt;/<span class="hljs-name">include</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">includes</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">excludes</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>.idea<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>.vscode<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>target<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span>&gt;</span>logs<span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;*.log&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;*.tmp&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exclude</span> <span class="hljs-attr">glob</span>=<span class="hljs-string">&quot;*.iml&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">exclude</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">excludes</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">global</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">input</span>&gt;</span><br><br>    <span class="hljs-tag">&lt;<span class="hljs-name">executionControl</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">runAlways</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">goalsLists</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">goalsList</span> <span class="hljs-attr">artifactId</span>=<span class="hljs-string">&quot;maven-install-plugin&quot;</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">goals</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">goal</span>&gt;</span>install<span class="hljs-tag">&lt;/<span class="hljs-name">goal</span>&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">goals</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">goalsList</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">goalsLists</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">runAlways</span>&gt;</span><br><br>        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">plugins</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span> <span class="hljs-attr">artifactId</span>=<span class="hljs-string">&quot;maven-compiler-plugin&quot;</span> <span class="hljs-attr">goal</span>=<span class="hljs-string">&quot;compile&quot;</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">reconciles</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;source&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;target&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;release&quot;</span>/&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">reconciles</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br><br>                <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span> <span class="hljs-attr">artifactId</span>=<span class="hljs-string">&quot;maven-surefire-plugin&quot;</span> <span class="hljs-attr">goal</span>=<span class="hljs-string">&quot;test&quot;</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">reconciles</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skip&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skipExec&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skipTests&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;testFailureIgnore&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">reconciles</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br><br>                <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span> <span class="hljs-attr">artifactId</span>=<span class="hljs-string">&quot;maven-failsafe-plugin&quot;</span> <span class="hljs-attr">goal</span>=<span class="hljs-string">&quot;integration-test&quot;</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">reconciles</span>&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skip&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skipITs&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;skipTests&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                        <span class="hljs-tag">&lt;<span class="hljs-name">reconcile</span> <span class="hljs-attr">propertyName</span>=<span class="hljs-string">&quot;testFailureIgnore&quot;</span> <span class="hljs-attr">skipValue</span>=<span class="hljs-string">&quot;true&quot;</span>/&gt;</span><br>                    <span class="hljs-tag">&lt;/<span class="hljs-name">reconciles</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">plugins</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">reconcile</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">executionControl</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">cache</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><p>Apache Maven Build Cache Extension Getting Started<br><a target="_blank" rel="noopener" href="https://maven.apache.org/extensions/maven-build-cache-extension/">https://maven.apache.org/extensions/maven-build-cache-extension/</a></p>
+</li>
+<li><p>Apache Maven Build Cache Extension Usage<br><a target="_blank" rel="noopener" href="https://maven.apache.org/extensions/maven-build-cache-extension/usage.html">https://maven.apache.org/extensions/maven-build-cache-extension/usage.html</a></p>
+</li>
+<li><p>Apache Maven Build Cache Extension Remote Cache Setup<br><a target="_blank" rel="noopener" href="https://maven.apache.org/extensions/maven-build-cache-extension/remote-cache.html">https://maven.apache.org/extensions/maven-build-cache-extension/remote-cache.html</a></p>
+</li>
+<li><p>Apache Maven Build Cache Extension Cache Parameters<br><a target="_blank" rel="noopener" href="https://maven.apache.org/extensions/maven-build-cache-extension/parameters.html">https://maven.apache.org/extensions/maven-build-cache-extension/parameters.html</a></p>
+</li>
+<li><p>Apache Maven Build Cache Extension How-To<br><a target="_blank" rel="noopener" href="https://maven.apache.org/extensions/maven-build-cache-extension/how-to.html">https://maven.apache.org/extensions/maven-build-cache-extension/how-to.html</a></p>
+</li>
+<li><p>Apache Maven Build Cache Extension Performance Tuning<br><a target="_blank" rel="noopener" href="https://maven.apache.org/extensions/maven-build-cache-extension/performance.html">https://maven.apache.org/extensions/maven-build-cache-extension/performance.html</a></p>
+</li>
+<li><p>Apache Maven Build Cache Extension Concepts<br><a target="_blank" rel="noopener" href="https://maven.apache.org/extensions/maven-build-cache-extension/concepts.html">https://maven.apache.org/extensions/maven-build-cache-extension/concepts.html</a></p>
+</li>
+</ul>
+<h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p>Maven Build Cache Extension 的价值，不只是“让构建快一点”，而是让构建系统开始具备一种更工程化的能力：识别哪些东西真的变了，哪些东西只是重复劳动。</p>
+<p>但缓存系统永远有两面：一面是速度，一面是正确性。</p>
+<p>真正好的落地方式，不是把缓存开关一打开就完事，而是逐步让项目的输入、输出、插件参数、CI<br>环境都变得更稳定、更可解释。构建缓存不是魔法，它更像一面镜子：项目构建越规范，它越好用；项目构建越随缘，它越容易把问题照出来。</p>
+<p><code>富贵岂由人，时会高志须酬。</code></p>
+<p><code>能成功于千载者，必以近察远。</code></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Java/" class="category-chain-item">Java</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Java/" class="print-no-link">#Java</a>
+      
+        <a href="/tags/Maven/" class="print-no-link">#Maven</a>
+      
+        <a href="/tags/Build-Cache/" class="print-no-link">#Build Cache</a>
+      
+        <a href="/tags/CI-CD/" class="print-no-link">#CI/CD</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Maven Build Cache Extension 深入实战：让 Maven 多模块构建快起来</div>
+      <div>https://allendericdalexander.github.io/2026/06/12/scm/maven-build-cache-extension/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年6月12日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/06/12/scm/renovate-openrewrite-integration-guide/" title="Renovate 与 OpenRewrite：从依赖升级到代码自动迁移的工程化实践">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Renovate 与 OpenRewrite：从依赖升级到代码自动迁移的工程化实践</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/06/12/scm/mvnd-maven-daemon-migration-guide/" title="Maven Daemon mvnd 深入实战：从 Maven 3.9+ 平滑迁移到 mvnd">
+                        <span class="hidden-mobile">Maven Daemon mvnd 深入实战：从 Maven 3.9+ 平滑迁移到 mvnd</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

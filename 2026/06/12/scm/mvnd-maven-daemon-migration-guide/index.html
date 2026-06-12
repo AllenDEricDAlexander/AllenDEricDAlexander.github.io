@@ -1,0 +1,1587 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="欢迎你来读这篇博客，这篇博客主要是关于 Maven Daemon，也就是 mvnd。 如果说 mvn 是每次构建都重新起炉灶，那么 mvnd 就是让 Maven 后厨一直热着锅：JVM 不用每次重新启动，Maven 插件类加载器可以复用，JIT编译后的热点代码也能继续发挥作用。对于多模块 Java 项目，尤其是 Spring Boot &#x2F; Spring Cloud 工程，这个优化非常实在">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Maven Daemon mvnd 深入实战：从 Maven 3.9+ 平滑迁移到 mvnd">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/06/12/scm/mvnd-maven-daemon-migration-guide/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="欢迎你来读这篇博客，这篇博客主要是关于 Maven Daemon，也就是 mvnd。 如果说 mvn 是每次构建都重新起炉灶，那么 mvnd 就是让 Maven 后厨一直热着锅：JVM 不用每次重新启动，Maven 插件类加载器可以复用，JIT编译后的热点代码也能继续发挥作用。对于多模块 Java 项目，尤其是 Spring Boot &#x2F; Spring Cloud 工程，这个优化非常实在">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-12T00:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-12T00:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="CI&#x2F;CD">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="Maven">
+<meta property="article:tag" content="Maven Daemon">
+<meta property="article:tag" content="mvnd">
+<meta property="article:tag" content="构建优化">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Maven Daemon mvnd 深入实战：从 Maven 3.9+ 平滑迁移到 mvnd - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Maven Daemon mvnd 深入实战：从 Maven 3.9+ 平滑迁移到 mvnd"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-06-12 08:00" pubdate>
+          2026年6月12日 早上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          6.6k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          56 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Maven Daemon mvnd 深入实战：从 Maven 3.9+ 平滑迁移到 mvnd</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>欢迎你来读这篇博客，这篇博客主要是关于 <code>Maven Daemon</code>，也就是 <code>mvnd</code>。</p>
+<p>如果说 <code>mvn</code> 是每次构建都重新起炉灶，那么 <code>mvnd</code> 就是让 Maven 后厨一直热着锅：JVM 不用每次重新启动，Maven 插件类加载器可以复用，JIT<br>编译后的热点代码也能继续发挥作用。对于多模块 Java 项目，尤其是 Spring Boot &#x2F; Spring Cloud 工程，这个优化非常实在。</p>
+<span id="more"></span>
+
+<h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><p>Maven 很稳定，也很经典。但经典工具也有经典工具的代价：每次执行 <code>mvn clean install</code>、<code>mvn test</code>、<code>mvn package</code>，都会经历一套完整流程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">启动 JVM<br>启动 Maven<br>读取 settings.xml<br>扫描项目<br>解析 POM<br>加载插件<br>构建 reactor<br>执行生命周期<br>退出 JVM<br></code></pre></td></tr></table></figure>
+
+<p>一次两次还好，但在本地开发时，如果你频繁跑测试、打包、安装模块，这些重复启动成本就会变得明显。</p>
+<p><code>mvnd</code> 的目标就是减少这种重复成本。</p>
+<p>它不是一个新的构建系统，也不是 Gradle 的替代品，而是 Maven 的 daemon 化执行方式。它尽量保持和 <code>mvn</code> 一样的命令体验，但把真正的<br>Maven 构建放到一个长期存活的后台 daemon 进程中执行。</p>
+<p>截至 2026-06-12，Apache Maven 官方下载页显示：</p>
+<ul>
+<li>Apache Maven 3 当前推荐版本：<code>3.9.16</code></li>
+<li>Maven 4 预览版本：<code>4.0.0-rc-5</code></li>
+<li>Maven Daemon 当前稳定版本：<code>1.0.6</code></li>
+<li>Maven Daemon 2.x 预览版本：<code>2.0.0-rc-3</code></li>
+</ul>
+<p>其中要特别注意：</p>
+<blockquote>
+<p><code>mvnd 1.x</code> 对应 Maven 3.x，适合当前生产环境中的 Maven 3.9+ 项目；<code>mvnd 2.x</code> 对应 Maven 4.x，目前仍是预览线，不建议生产构建直接切过去。</p>
+</blockquote>
+<p>本文重点讲的是：</p>
+<blockquote>
+<p>从 Maven 3.9+ 迁移到 <code>mvnd 1.x</code>。</p>
+</blockquote>
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h3 id="一、mvnd-是什么"><a href="#一、mvnd-是什么" class="headerlink" title="一、mvnd 是什么"></a>一、mvnd 是什么</h3><p><code>mvnd</code> 全称是 Maven Daemon。</p>
+<p>它是 Apache Maven 官方维护的 Maven daemon 执行器，目标是通过 daemon 机制提升 Maven 构建速度。</p>
+<p>官方仓库对它的架构说明可以概括为：</p>
+<ul>
+<li><code>mvnd</code> 内置 Maven，不要求你额外安装 Maven</li>
+<li>真正的构建运行在长期存活的后台 daemon 进程中</li>
+<li>一个 daemon 可以服务多个连续的 <code>mvnd</code> 客户端请求</li>
+<li><code>mvnd</code> 客户端本身是 GraalVM 构建出来的 native executable，启动更快、内存占用更低</li>
+<li>如果没有空闲 daemon，可以并行启动多个 daemon 来处理请求</li>
+</ul>
+<p>简单画一下：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[命令行执行 mvnd] --&gt; B[mvnd native client]
+    B --&gt; C&#123;是否有可用 daemon&#125;
+    C --&gt;|有| D[复用已有 Maven daemon]
+    C --&gt;|没有| E[启动新的 Maven daemon]
+    D --&gt; F[执行 Maven 构建]
+    E --&gt; F
+    F --&gt; G[返回构建结果]
+    G --&gt; H[daemon 保持存活等待下次构建]
+</code></pre>
+
+<p>你平时用的时候，命令基本就是把 <code>mvn</code> 换成 <code>mvnd</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd clean verify<br>mvnd <span class="hljs-built_in">test</span><br>mvnd package<br>mvnd install<br></code></pre></td></tr></table></figure>
+
+<p>但工程迁移不能只做“字符串替换”。因为 <code>mvnd</code> 默认会并行构建模块，这一点对老项目、插件复杂项目、测试隔离差的项目有影响。</p>
+<p>这也是本文后面要重点讲迁移步骤的原因。</p>
+<h3 id="二、mvnd-为什么会更快"><a href="#二、mvnd-为什么会更快" class="headerlink" title="二、mvnd 为什么会更快"></a>二、mvnd 为什么会更快</h3><p><code>mvnd</code> 的加速来源主要有五个。</p>
+<h4 id="1-JVM-常驻"><a href="#1-JVM-常驻" class="headerlink" title="1. JVM 常驻"></a>1. JVM 常驻</h4><p>普通 <code>mvn</code> 每次执行都会启动一个新的 JVM。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant User as 用户
+    participant JVM as 新 JVM
+    participant Maven as Maven
+    User -&gt;&gt; JVM: mvn clean test
+    JVM -&gt;&gt; Maven: 启动 Maven
+    Maven -&gt;&gt; Maven: 加载配置、插件、项目
+    Maven --&gt;&gt; User: 构建结束
+    JVM --&gt;&gt; JVM: 退出
+</code></pre>
+
+<p>而 <code>mvnd</code> 会保留 daemon。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant User as 用户
+    participant Client as mvnd client
+    participant Daemon as Maven daemon
+    User -&gt;&gt; Client: mvnd test
+    Client -&gt;&gt; Daemon: 发送构建请求
+    Daemon -&gt;&gt; Daemon: 复用已启动 JVM
+    Daemon --&gt;&gt; Client: 返回结果
+    Client --&gt;&gt; User: 输出结果
+    Daemon --&gt;&gt; Daemon: 保持存活
+</code></pre>
+
+<p>这意味着连续构建时，不用反复承担 JVM 启动成本。</p>
+<h4 id="2-Maven-插件类加载器可以复用"><a href="#2-Maven-插件类加载器可以复用" class="headerlink" title="2. Maven 插件类加载器可以复用"></a>2. Maven 插件类加载器可以复用</h4><p>Maven 构建真正干活的是各种插件：</p>
+<ul>
+<li><code>maven-compiler-plugin</code></li>
+<li><code>maven-surefire-plugin</code></li>
+<li><code>maven-failsafe-plugin</code></li>
+<li><code>maven-resources-plugin</code></li>
+<li><code>maven-jar-plugin</code></li>
+<li><code>spring-boot-maven-plugin</code></li>
+<li><code>protobuf-maven-plugin</code></li>
+<li><code>flatten-maven-plugin</code></li>
+<li><code>jacoco-maven-plugin</code></li>
+</ul>
+<p>普通 <code>mvn</code> 每次构建都要重新加载插件相关类。</p>
+<p><code>mvnd</code> 的 daemon 存活后，插件类加载器可以在多次构建之间复用。官方说明里也特别提到，Maven 插件类加载器会被缓存，插件 jar<br>不需要每次重新读取和解析。</p>
+<p>不过要注意：</p>
+<blockquote>
+<p>SNAPSHOT 版本的 Maven 插件不会被缓存。</p>
+</blockquote>
+<p>这点很合理。因为 SNAPSHOT 插件本来就可能频繁变化，缓存它反而容易出问题。</p>
+<h4 id="3-JIT-热点代码能继续保留"><a href="#3-JIT-热点代码能继续保留" class="headerlink" title="3. JIT 热点代码能继续保留"></a>3. JIT 热点代码能继续保留</h4><p>JVM 的即时编译器会把热点代码优化成本地机器码。</p>
+<p>普通 <code>mvn</code> 构建结束后 JVM 退出，这些优化成果也就没了。</p>
+<p><code>mvnd</code> 的 daemon 不退出，JIT 编译后的热点代码可以继续留在进程里。下一次构建时，Maven Core、Maven 插件、JDK 本身的一些热点路径都可能直接受益。</p>
+<p>这也是为什么 <code>mvnd</code> 的第二次、第三次构建通常比第一次更明显。</p>
+<p>第一次是热锅，后面才是猛火。</p>
+<h4 id="4-mvnd-client-是-native-executable"><a href="#4-mvnd-client-是-native-executable" class="headerlink" title="4. mvnd client 是 native executable"></a>4. mvnd client 是 native executable</h4><p><code>mvnd</code> 客户端本身是用 GraalVM 构建出来的 native executable。</p>
+<p>也就是说，命令行侧的启动成本比普通 Java 程序更低。</p>
+<p>它的结构大概是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">mvnd native client<br>    |<br>    | 发送请求<br>    v<br>long living Maven daemon<br>    |<br>    | 执行 Maven 构建<br>    v<br>项目构建结果<br></code></pre></td></tr></table></figure>
+
+<h4 id="5-默认并行构建"><a href="#5-默认并行构建" class="headerlink" title="5. 默认并行构建"></a>5. 默认并行构建</h4><p><code>mvnd</code> 默认会用多个 CPU 核心并行构建模块。</p>
+<p>官方说明中，默认线程数大致按下面的思路计算：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">Math.max(Runtime.getRuntime().availableProcessors() - <span class="hljs-number">1</span>, <span class="hljs-number">1</span>)<br></code></pre></td></tr></table></figure>
+
+<p>也就是说，普通多模块项目里，你不写 <code>-T</code>，<code>mvnd</code> 也可能已经在并行构建了。</p>
+<p>这既是优势，也是迁移时最需要小心的地方。</p>
+<p>如果你的项目模块之间依赖关系清晰、插件线程安全、测试隔离良好，这会很香。</p>
+<p>如果你的项目里有全局临时文件、共享端口、共享数据库、写死路径、顺序依赖，那默认并行可能会把隐藏问题一下子掀出来。</p>
+<h3 id="三、mvn、mvn-T、mvnd、mvnw、Build-Cache、mvnsh-的区别"><a href="#三、mvn、mvn-T、mvnd、mvnw、Build-Cache、mvnsh-的区别" class="headerlink" title="三、mvn、mvn -T、mvnd、mvnw、Build Cache、mvnsh 的区别"></a>三、mvn、mvn -T、mvnd、mvnw、Build Cache、mvnsh 的区别</h3><p>这些工具经常被混在一起说，但它们解决的问题并不一样。</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>核心作用</th>
+<th>解决的问题</th>
+<th>是否替代 mvn</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mvn</code></td>
+<td>标准 Maven CLI</td>
+<td>标准构建</td>
+<td>基准工具</td>
+</tr>
+<tr>
+<td><code>mvn -T</code></td>
+<td>Maven 并行构建</td>
+<td>多模块并行执行</td>
+<td>不替代，只增强</td>
+</tr>
+<tr>
+<td><code>mvnd</code></td>
+<td>Maven Daemon</td>
+<td>减少 JVM &#x2F; Maven &#x2F; 插件重复启动成本，并默认并行</td>
+<td>可以作为本地开发和 CI 加速入口</td>
+</tr>
+<tr>
+<td><code>mvnw</code></td>
+<td>Maven Wrapper</td>
+<td>固定项目使用的 Maven 版本</td>
+<td>不替代 mvn，只是包装器</td>
+</tr>
+<tr>
+<td>Maven Build Cache Extension</td>
+<td>构建结果缓存</td>
+<td>复用未变化模块的构建产物</td>
+<td>不替代 Maven，可与 mvnd 配合</td>
+</tr>
+<tr>
+<td><code>mvnsh</code></td>
+<td>Maven Shell</td>
+<td>Maven 4 中的交互式常驻 shell</td>
+<td>Maven 4 技术预览能力</td>
+</tr>
+</tbody></table>
+<p>再换一种更工程化的说法：</p>
+<ul>
+<li><code>mvnw</code> 解决“团队 Maven 版本一致”</li>
+<li><code>mvnd</code> 解决“每次构建重复启动太慢”</li>
+<li><code>mvn -T</code> 解决“多模块构建没有吃满 CPU”</li>
+<li>Maven Build Cache Extension 解决“没变化的模块还在重复构建”</li>
+<li><code>mvnsh</code> 是 Maven 4 方向上的交互式常驻 Maven shell</li>
+</ul>
+<p>它们不是互斥关系。</p>
+<p>比较推荐的组合是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">团队版本统一：mvnw<br>本地开发加速：mvnd<br>多模块并行：mvnd 默认并行或显式 -T<br>CI 构建加速：mvnd + Maven Build Cache Extension<br>正式发布：mvn 或严格验证后的 mvnd，且保守关闭不确定缓存<br></code></pre></td></tr></table></figure>
+
+<h3 id="四、从-Maven-3-9-迁移到-mvnd-的总体策略"><a href="#四、从-Maven-3-9-迁移到-mvnd-的总体策略" class="headerlink" title="四、从 Maven 3.9+ 迁移到 mvnd 的总体策略"></a>四、从 Maven 3.9+ 迁移到 mvnd 的总体策略</h3><p>不要一上来就全团队替换。</p>
+<p>推荐按这个顺序：</p>
+<pre><code class=" mermaid">flowchart TB
+    A[确认当前 Maven 版本和 JDK] --&gt; B[安装 mvnd 1.x]
+    B --&gt; C[执行 mvnd --version]
+    C --&gt; D[用 -T1 串行模式跑通基准构建]
+    D --&gt; E[和 mvn 构建结果对比]
+    E --&gt; F[打开 mvnd 默认并行]
+    F --&gt; G[排查线程安全和测试隔离问题]
+    G --&gt; H[本地开发推广]
+    H --&gt; I[CI 灰度接入]
+    I --&gt; J[配合 Build Cache 优化]
+</code></pre>
+
+<p>核心原则：</p>
+<blockquote>
+<p>先保证等价，再追求更快。</p>
+</blockquote>
+<p>构建优化不是赛车游戏，不能只看油门。尤其是企业项目，构建结果可信比快几秒更重要。</p>
+<h3 id="五、迁移前检查清单"><a href="#五、迁移前检查清单" class="headerlink" title="五、迁移前检查清单"></a>五、迁移前检查清单</h3><p>迁移前先确认这些信息。</p>
+<h4 id="1-当前-Maven-版本"><a href="#1-当前-Maven-版本" class="headerlink" title="1. 当前 Maven 版本"></a>1. 当前 Maven 版本</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -v<br></code></pre></td></tr></table></figure>
+
+<p>如果你当前已经是 Maven <code>3.9.x</code>，迁移到 <code>mvnd 1.x</code> 通常比较顺。</p>
+<p>如果还在 Maven <code>3.6.x</code>、<code>3.8.x</code>，建议先升级到 Maven <code>3.9.x</code>，让项目先适配新版 Maven，再迁移到 <code>mvnd</code>。</p>
+<h4 id="2-当前-JDK-版本"><a href="#2-当前-JDK-版本" class="headerlink" title="2. 当前 JDK 版本"></a>2. 当前 JDK 版本</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">java -version<br><span class="hljs-built_in">echo</span> <span class="hljs-variable">$JAVA_HOME</span><br></code></pre></td></tr></table></figure>
+
+<p>Maven 3.9+ 要求 JDK 8+ 才能运行；如果你是 Spring Boot 3.x 项目，通常已经是 JDK 17 或 JDK 21。</p>
+<p>如果你本地有多个 JDK，迁移 <code>mvnd</code> 时一定要明确 daemon 使用哪个 JDK。</p>
+<h4 id="3-当前-Maven-配置"><a href="#3-当前-Maven-配置" class="headerlink" title="3. 当前 Maven 配置"></a>3. 当前 Maven 配置</h4><p>重点看：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">~/.m2/settings.xml<br>.mvn/maven.config<br>.mvn/jvm.config<br>MAVEN_OPTS<br>JAVA_HOME<br></code></pre></td></tr></table></figure>
+
+<p>迁移时要特别关注：</p>
+<ul>
+<li>私服地址</li>
+<li>mirror 配置</li>
+<li>server 账号</li>
+<li>profile 激活</li>
+<li>JVM 参数</li>
+<li>内存参数</li>
+<li>toolchains 配置</li>
+</ul>
+<h4 id="4-当前构建是否支持并行"><a href="#4-当前构建是否支持并行" class="headerlink" title="4. 当前构建是否支持并行"></a>4. 当前构建是否支持并行</h4><p>先用普通 Maven 测一下：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -T1 clean verify<br>mvn -T1C clean verify<br></code></pre></td></tr></table></figure>
+
+<p>如果 <code>mvn -T1C</code> 都不稳定，<code>mvnd</code> 默认并行大概率也会踩坑。</p>
+<p>这种情况下，先让 <code>mvnd</code> 用串行模式迁移：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -T1 clean verify<br></code></pre></td></tr></table></figure>
+
+<h3 id="六、安装-mvnd"><a href="#六、安装-mvnd" class="headerlink" title="六、安装 mvnd"></a>六、安装 mvnd</h3><h4 id="方式一：SDKMAN"><a href="#方式一：SDKMAN" class="headerlink" title="方式一：SDKMAN!"></a>方式一：SDKMAN!</h4><p>如果你使用 SDKMAN! 管理 Java 工具链，可以直接：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">sdk install mvnd<br></code></pre></td></tr></table></figure>
+
+<p>查看可用版本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">sdk list mvnd<br></code></pre></td></tr></table></figure>
+
+<p>安装后验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd --version<br></code></pre></td></tr></table></figure>
+
+<p>如果你之前手动安装过 <code>mvnd</code>，需要检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">~/.m2/mvnd.properties<br></code></pre></td></tr></table></figure>
+
+<p>因为 SDKMAN! 通常会帮你管理 <code>JAVA_HOME</code> 和 <code>MVND_HOME</code>，以前手动写的配置可能会干扰当前安装。</p>
+<h4 id="方式二：Homebrew"><a href="#方式二：Homebrew" class="headerlink" title="方式二：Homebrew"></a>方式二：Homebrew</h4><p>macOS 可以用 Homebrew。</p>
+<p>如果你想使用稳定的 Maven 3.x 对应版本，优先选择 <code>mvnd@1</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">brew install mvndaemon/homebrew-mvnd/mvnd@1<br></code></pre></td></tr></table></figure>
+
+<p>如果你想体验 Maven 4 预览线，则是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">brew install mvndaemon/homebrew-mvnd/mvnd<br></code></pre></td></tr></table></figure>
+
+<p>官方说明里提到，<code>mvnd</code> formula 安装的是预览 <code>2.x</code>，内置 Maven 4；<code>mvnd@1</code> 安装的是稳定 <code>1.x</code>，内置 Maven 3.9.x。</p>
+<p>所以对于“从 Maven 3.9+ 迁移到 mvnd”的生产项目，建议选择：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd@1<br></code></pre></td></tr></table></figure>
+
+<p>安装后确认：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd --version<br></code></pre></td></tr></table></figure>
+
+<p>如果命令找不到，可能需要根据 Homebrew 输出把对应 <code>bin</code> 目录加入 <code>PATH</code>。</p>
+<h4 id="方式三：MacPorts"><a href="#方式三：MacPorts" class="headerlink" title="方式三：MacPorts"></a>方式三：MacPorts</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> port install mvnd<br></code></pre></td></tr></table></figure>
+
+<h4 id="方式四：手动安装"><a href="#方式四：手动安装" class="headerlink" title="方式四：手动安装"></a>方式四：手动安装</h4><p>进入 Apache Maven 官方下载页，下载与你平台匹配的 <code>maven-mvnd-1.0.6</code> 包。</p>
+<p>常见平台包括：</p>
+<ul>
+<li>macOS Apple Silicon：<code>darwin-aarch64</code></li>
+<li>macOS Intel：<code>darwin-amd64</code></li>
+<li>Linux Arm64：<code>linux-aarch64</code></li>
+<li>Linux x86_64：<code>linux-amd64</code></li>
+<li>Windows x86_64：<code>windows-amd64</code></li>
+</ul>
+<p>解压后配置环境变量。</p>
+<p>Linux &#x2F; macOS 示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">export</span> MVND_HOME=/opt/maven-mvnd-1.0.6<br><span class="hljs-built_in">export</span> PATH=<span class="hljs-variable">$MVND_HOME</span>/bin:<span class="hljs-variable">$PATH</span><br></code></pre></td></tr></table></figure>
+
+<p>验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd --version<br></code></pre></td></tr></table></figure>
+
+<p>macOS 如果手动解压后遇到安全隔离问题，可以执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">xattr -r -d com.apple.quarantine maven-mvnd-1.0.6-darwin-aarch64<br></code></pre></td></tr></table></figure>
+
+<p>Windows 如果遇到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">VCRUNTIME140.dll was not found<br></code></pre></td></tr></table></figure>
+
+<p>需要安装 Microsoft Visual C++ Redistributable。</p>
+<h3 id="七、确认-mvnd-使用的是哪个-Maven-和-JDK"><a href="#七、确认-mvnd-使用的是哪个-Maven-和-JDK" class="headerlink" title="七、确认 mvnd 使用的是哪个 Maven 和 JDK"></a>七、确认 mvnd 使用的是哪个 Maven 和 JDK</h3><p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd --version<br></code></pre></td></tr></table></figure>
+
+<p>你需要重点看：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">Maven Daemon version<br>Apache Maven version<br>Maven home<br>Java version<br>Java runtime<br>OS name<br></code></pre></td></tr></table></figure>
+
+<p>对于 Maven 3.9+ 项目，建议确认：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Maven Daemon 1.x<br>Apache Maven 3.9.x<br>Java version 17/21 或你的项目要求版本<br></code></pre></td></tr></table></figure>
+
+<p>如果你发现它跑到了 Maven 4，说明你可能装的是 <code>mvnd 2.x</code>，这时要切回 <code>mvnd 1.x</code>。</p>
+<h3 id="八、最小迁移：把-mvn-替换成-mvnd"><a href="#八、最小迁移：把-mvn-替换成-mvnd" class="headerlink" title="八、最小迁移：把 mvn 替换成 mvnd"></a>八、最小迁移：把 mvn 替换成 mvnd</h3><p>普通命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn clean verify<br></code></pre></td></tr></table></figure>
+
+<p>迁移为：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd clean verify<br></code></pre></td></tr></table></figure>
+
+<p>运行测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd <span class="hljs-built_in">test</span><br></code></pre></td></tr></table></figure>
+
+<p>打包：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd package<br></code></pre></td></tr></table></figure>
+
+<p>安装到本地仓库：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd install<br></code></pre></td></tr></table></figure>
+
+<p>跳过测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd clean package -DskipTests<br></code></pre></td></tr></table></figure>
+
+<p>指定 profile：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd clean verify -Pdev<br></code></pre></td></tr></table></figure>
+
+<p>指定模块：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -pl finance-adapter -am clean <span class="hljs-built_in">test</span><br></code></pre></td></tr></table></figure>
+
+<p>这些命令和 <code>mvn</code> 基本一致。</p>
+<h3 id="九、迁移时强烈建议先用-T1"><a href="#九、迁移时强烈建议先用-T1" class="headerlink" title="九、迁移时强烈建议先用 -T1"></a>九、迁移时强烈建议先用 -T1</h3><p>因为 <code>mvnd</code> 默认并行构建，所以第一次迁移时不要急着开全速。</p>
+<p>先这样跑：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -T1 clean verify<br></code></pre></td></tr></table></figure>
+
+<p>这个命令相当于：</p>
+<ul>
+<li>使用 mvnd daemon</li>
+<li>但关闭模块并行</li>
+<li>先验证 daemon 模式下的构建等价性</li>
+</ul>
+<p>如果 <code>mvnd -T1 clean verify</code> 和 <code>mvn -T1 clean verify</code> 都通过，再试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd clean verify<br></code></pre></td></tr></table></figure>
+
+<p>或者显式指定线程：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -T1C clean verify<br>mvnd -T4 clean verify<br></code></pre></td></tr></table></figure>
+
+<p>推荐迁移验证顺序：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -T1 clean verify<br>mvnd -T1 clean verify<br>mvnd clean verify<br></code></pre></td></tr></table></figure>
+
+<p>如果第三步失败，问题多半不是 <code>mvnd</code> 不能构建，而是你的项目对并行构建不友好。</p>
+<h3 id="十、项目级-mvnd-配置"><a href="#十、项目级-mvnd-配置" class="headerlink" title="十、项目级 mvnd 配置"></a>十、项目级 mvnd 配置</h3><p><code>mvnd</code> 支持配置文件。</p>
+<p>读取顺序从高到低大致是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">MVND_PROPERTIES_PATH 或 mvnd.propertiesPath 指定的文件<br>项目目录：[PROJECT_HOME]/.mvn/mvnd.properties<br>用户目录：[USER_HOME]/.m2/mvnd.properties<br>安装目录：[MVND_HOME]/conf/mvnd.properties<br></code></pre></td></tr></table></figure>
+
+<p>也就是说，项目级配置优先级高于用户级配置。</p>
+<p>推荐在项目中创建：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">.mvn/mvnd.properties<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-comment"># 默认构建线程。迁移初期建议先设置为 1，稳定后再改成 1C 或删除该配置使用 mvnd 默认值。</span><br><span class="hljs-attr">mvnd.threads</span>=<span class="hljs-string">1</span><br><span class="hljs-comment"></span><br><span class="hljs-comment"># daemon 最大堆内存，根据项目规模调整。</span><br><span class="hljs-attr">mvnd.maxHeapSize</span>=<span class="hljs-string">3G</span><br><span class="hljs-comment"></span><br><span class="hljs-comment"># daemon 初始堆内存。</span><br><span class="hljs-attr">mvnd.minHeapSize</span>=<span class="hljs-string">256M</span><br><span class="hljs-comment"></span><br><span class="hljs-comment"># daemon 空闲多久后退出。</span><br><span class="hljs-attr">mvnd.idleTimeout</span>=<span class="hljs-string">3 hours</span><br><span class="hljs-comment"></span><br><span class="hljs-comment"># 默认 builder。官方默认是 smart。</span><br><span class="hljs-attr">mvnd.builder</span>=<span class="hljs-string">smart</span><br><span class="hljs-comment"></span><br><span class="hljs-comment"># 如果构建日志需要更接近普通 mvn 输出，可以打开 noBuffering。</span><br><span class="hljs-attr">mvnd.noBuffering</span>=<span class="hljs-string">false</span><br></code></pre></td></tr></table></figure>
+
+<p>如果是本地个人配置，可以写：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">~/.m2/mvnd.properties<br></code></pre></td></tr></table></figure>
+
+<p>例如你想固定 JDK：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">java.home</span>=<span class="hljs-string">/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home</span><br><span class="hljs-attr">mvnd.maxHeapSize</span>=<span class="hljs-string">4G</span><br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<blockquote>
+<p>多 JDK 环境里，切换 <code>JAVA_HOME</code> 或 <code>java.home</code> 后，建议执行 <code>mvnd --stop</code> 停掉旧 daemon，再重新构建。</p>
+</blockquote>
+<p>否则你以为换了 JDK，实际后台 daemon 可能还是旧的。</p>
+<h3 id="十一、daemon-管理命令"><a href="#十一、daemon-管理命令" class="headerlink" title="十一、daemon 管理命令"></a>十一、daemon 管理命令</h3><p>查看当前 daemon：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd --status<br></code></pre></td></tr></table></figure>
+
+<p>停止所有 daemon：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd --stop<br></code></pre></td></tr></table></figure>
+
+<p>查看帮助：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd --<span class="hljs-built_in">help</span><br></code></pre></td></tr></table></figure>
+
+<p>什么时候建议 <code>mvnd --stop</code>？</p>
+<ul>
+<li>切换 JDK 后</li>
+<li>修改 <code>~/.m2/settings.xml</code> 后</li>
+<li>修改 <code>.mvn/extensions.xml</code> 后</li>
+<li>修改 <code>.mvn/mvnd.properties</code> 后</li>
+<li>升级 mvnd 后</li>
+<li>构建状态明显异常时</li>
+<li>本地内存紧张时</li>
+</ul>
+<p>这招简单粗暴，但好用。</p>
+<h3 id="十二、maven-config、jvm-config、mvnd-properties-怎么分工"><a href="#十二、maven-config、jvm-config、mvnd-properties-怎么分工" class="headerlink" title="十二、maven.config、jvm.config、mvnd.properties 怎么分工"></a>十二、maven.config、jvm.config、mvnd.properties 怎么分工</h3><p>很多项目已经有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">.mvn/maven.config<br>.mvn/jvm.config<br></code></pre></td></tr></table></figure>
+
+<p>迁移到 <code>mvnd</code> 后，建议这样理解：</p>
+<h4 id="1-mvn-maven-config"><a href="#1-mvn-maven-config" class="headerlink" title="1. .mvn/maven.config"></a>1. <code>.mvn/maven.config</code></h4><p>放 Maven 命令参数。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">-DskipTests=false<br>-Dfile.encoding=UTF-8<br>-Pdev<br></code></pre></td></tr></table></figure>
+
+<p>这类参数仍然属于 Maven 构建参数。</p>
+<h4 id="2-mvn-jvm-config"><a href="#2-mvn-jvm-config" class="headerlink" title="2. .mvn/jvm.config"></a>2. <code>.mvn/jvm.config</code></h4><p>传统 <code>mvn</code> 用它配置 Maven JVM 启动参数。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">-Xmx2G<br>-Dfile.encoding=UTF-8<br></code></pre></td></tr></table></figure>
+
+<p>但 <code>mvnd</code> 的 Maven 运行在 daemon 中，daemon JVM 参数更推荐放到 <code>mvnd.properties</code>。</p>
+<h4 id="3-mvn-mvnd-properties"><a href="#3-mvn-mvnd-properties" class="headerlink" title="3. .mvn/mvnd.properties"></a>3. <code>.mvn/mvnd.properties</code></h4><p>放 <code>mvnd</code> daemon 相关参数。</p>
+<p>例如：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">mvnd.maxHeapSize</span>=<span class="hljs-string">4G</span><br><span class="hljs-attr">mvnd.jvmArgs</span>=<span class="hljs-string">-Dfile.encoding=UTF-8 -Duser.language=zh -Duser.country=CN</span><br><span class="hljs-attr">mvnd.threads</span>=<span class="hljs-string">1C</span><br></code></pre></td></tr></table></figure>
+
+<p>迁移时建议把和 daemon 内存、daemon JVM 相关的配置逐步迁移到 <code>mvnd.properties</code>，不要假设所有 <code>MAVEN_OPTS</code> 和<br><code>.mvn/jvm.config</code> 在 <code>mvnd</code> 下都能以完全相同方式生效。</p>
+<h3 id="十三、从-Maven-3-9-迁移到-mvnd-的标准步骤"><a href="#十三、从-Maven-3-9-迁移到-mvnd-的标准步骤" class="headerlink" title="十三、从 Maven 3.9+ 迁移到 mvnd 的标准步骤"></a>十三、从 Maven 3.9+ 迁移到 mvnd 的标准步骤</h3><h4 id="第-1-步：记录-Maven-基准"><a href="#第-1-步：记录-Maven-基准" class="headerlink" title="第 1 步：记录 Maven 基准"></a>第 1 步：记录 Maven 基准</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -v<br><span class="hljs-keyword">time</span> mvn -T1 clean verify<br></code></pre></td></tr></table></figure>
+
+<p>记录：</p>
+<ul>
+<li>Maven 版本</li>
+<li>JDK 版本</li>
+<li>构建耗时</li>
+<li>测试是否通过</li>
+<li>产物是否正常生成</li>
+</ul>
+<h4 id="第-2-步：安装-mvnd-1-x"><a href="#第-2-步：安装-mvnd-1-x" class="headerlink" title="第 2 步：安装 mvnd 1.x"></a>第 2 步：安装 mvnd 1.x</h4><p>macOS 建议：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">brew install mvndaemon/homebrew-mvnd/mvnd@1<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">sdk install mvnd<br></code></pre></td></tr></table></figure>
+
+<p>确认：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd --version<br></code></pre></td></tr></table></figure>
+
+<h4 id="第-3-步：串行模式验证"><a href="#第-3-步：串行模式验证" class="headerlink" title="第 3 步：串行模式验证"></a>第 3 步：串行模式验证</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-keyword">time</span> mvnd -T1 clean verify<br></code></pre></td></tr></table></figure>
+
+<p>如果失败，先不要考虑并行。先看：</p>
+<ul>
+<li>JDK 是否一致</li>
+<li>settings 是否一致</li>
+<li>profile 是否一致</li>
+<li>私服依赖是否能下载</li>
+<li>插件是否兼容</li>
+<li>本地路径是否写死</li>
+</ul>
+<h4 id="第-4-步：比较构建产物"><a href="#第-4-步：比较构建产物" class="headerlink" title="第 4 步：比较构建产物"></a>第 4 步：比较构建产物</h4><p>至少检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">target/*.jar<br>target/surefire-reports<br>target/generated-sources<br>本地仓库安装结果<br></code></pre></td></tr></table></figure>
+
+<p>对于 Spring Boot 项目，可以再跑：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">java -jar target/xxx.jar --spring.profiles.active=<span class="hljs-built_in">local</span><br></code></pre></td></tr></table></figure>
+
+<p>或者启动核心模块的单元测试 &#x2F; 集成测试。</p>
+<h4 id="第-5-步：打开并行构建"><a href="#第-5-步：打开并行构建" class="headerlink" title="第 5 步：打开并行构建"></a>第 5 步：打开并行构建</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-keyword">time</span> mvnd clean verify<br></code></pre></td></tr></table></figure>
+
+<p>如果失败，改成：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -T1C clean verify<br>mvnd -T2 clean verify<br>mvnd -T4 clean verify<br></code></pre></td></tr></table></figure>
+
+<p>逐步找到项目能稳定承受的并行度。</p>
+<h4 id="第-6-步：写入项目配置"><a href="#第-6-步：写入项目配置" class="headerlink" title="第 6 步：写入项目配置"></a>第 6 步：写入项目配置</h4><p>迁移初期可以保守一点：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">mvnd.threads</span>=<span class="hljs-string">1</span><br><span class="hljs-attr">mvnd.maxHeapSize</span>=<span class="hljs-string">3G</span><br><span class="hljs-attr">mvnd.idleTimeout</span>=<span class="hljs-string">3 hours</span><br></code></pre></td></tr></table></figure>
+
+<p>稳定后再改成：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">mvnd.threads</span>=<span class="hljs-string">1C</span><br><span class="hljs-attr">mvnd.maxHeapSize</span>=<span class="hljs-string">4G</span><br></code></pre></td></tr></table></figure>
+
+<p>或者删除 <code>mvnd.threads</code>，使用 mvnd 默认策略。</p>
+<h4 id="第-7-步：团队推广"><a href="#第-7-步：团队推广" class="headerlink" title="第 7 步：团队推广"></a>第 7 步：团队推广</h4><p>建议在 README 中写清楚：</p>
+<figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs markdown"><span class="hljs-section">## 本地推荐构建方式</span><br><br>安装 Maven Daemon 1.x 后，可以使用：<br><br><span class="hljs-code">```bash</span><br><span class="hljs-code">mvnd clean verify</span><br><span class="hljs-code">```</span><br><br>如果遇到构建异常，先执行：<br><br><span class="hljs-code">```bash</span><br><span class="hljs-code">mvnd --stop</span><br><span class="hljs-code">mvnd -T1 clean verify</span><br><span class="hljs-code">```</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="第-8-步：CI-灰度接入"><a href="#第-8-步：CI-灰度接入" class="headerlink" title="第 8 步：CI 灰度接入"></a>第 8 步：CI 灰度接入</h4><p>先不要把所有流水线都切到 <code>mvnd</code>。</p>
+<p>建议顺序：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">开发分支 CI<br>PR / MR 构建<br>主干分支普通验证<br>主干分支发布前验证<br></code></pre></td></tr></table></figure>
+
+<p>正式发布阶段要更保守。</p>
+<p>如果公司构建链路对可重复性要求很高，release 阶段可以仍然保留：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn clean deploy<br></code></pre></td></tr></table></figure>
+
+<p>而日常验证使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd clean verify<br></code></pre></td></tr></table></figure>
+
+<h3 id="十四、CI-中如何使用-mvnd"><a href="#十四、CI-中如何使用-mvnd" class="headerlink" title="十四、CI 中如何使用 mvnd"></a>十四、CI 中如何使用 mvnd</h3><p>CI 使用 <code>mvnd</code> 要看机器模型。</p>
+<h4 id="1-短生命周期容器"><a href="#1-短生命周期容器" class="headerlink" title="1. 短生命周期容器"></a>1. 短生命周期容器</h4><p>比如每个 job 都是全新容器，只跑一个 Maven 命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -B clean verify<br></code></pre></td></tr></table></figure>
+
+<p>这种情况下，daemon 跨 job 复用价值不大，但仍可能受益于：</p>
+<ul>
+<li>native client</li>
+<li>默认并行</li>
+<li>同一个 job 内多个 Maven 命令复用 daemon</li>
+</ul>
+<p>如果一个 job 中会执行多次 Maven：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -B -DskipTests clean package<br>mvnd -B <span class="hljs-built_in">test</span><br>mvnd -B verify<br></code></pre></td></tr></table></figure>
+
+<p>收益会更明显。</p>
+<h4 id="2-长生命周期构建机"><a href="#2-长生命周期构建机" class="headerlink" title="2. 长生命周期构建机"></a>2. 长生命周期构建机</h4><p>如果 Jenkins agent 或自建 runner 是长期存在的机器，<code>mvnd</code> 的 daemon 复用价值更明显。</p>
+<p>但也要注意：</p>
+<ul>
+<li>不同 job 不要互相污染配置</li>
+<li>切换 JDK 后要停 daemon</li>
+<li>runner 内存要足够</li>
+<li>构建后可以按需执行 <code>mvnd --stop</code></li>
+</ul>
+<p>保守写法：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -B clean verify<br>mvnd --stop<br></code></pre></td></tr></table></figure>
+
+<p>更激进写法：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -B clean verify<br></code></pre></td></tr></table></figure>
+
+<p>是否停 daemon，要看你的 CI 机器是否专用、是否多项目共享、是否经常切 JDK。</p>
+<h4 id="3-CI-推荐脚本"><a href="#3-CI-推荐脚本" class="headerlink" title="3. CI 推荐脚本"></a>3. CI 推荐脚本</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -e<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Java version:&quot;</span><br>java -version<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Maven Daemon version:&quot;</span><br>mvnd --version<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Run build:&quot;</span><br>mvnd -B -T1C clean verify<br></code></pre></td></tr></table></figure>
+
+<p>如果是迁移初期：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -B -T1 clean verify<br></code></pre></td></tr></table></figure>
+
+<p>稳定后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -B clean verify<br></code></pre></td></tr></table></figure>
+
+<h3 id="十五、和-Maven-Wrapper-怎么配合"><a href="#十五、和-Maven-Wrapper-怎么配合" class="headerlink" title="十五、和 Maven Wrapper 怎么配合"></a>十五、和 Maven Wrapper 怎么配合</h3><p><code>mvnw</code> 和 <code>mvnd</code> 不是一类东西。</p>
+<p>Maven Wrapper 的作用是：</p>
+<blockquote>
+<p>项目里带一套 wrapper 脚本，保证团队成员不用预先安装 Maven，也能使用项目指定版本的 Maven 构建。</p>
+</blockquote>
+<p>典型文件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">mvnw<br>mvnw.cmd<br>.mvn/wrapper/maven-wrapper.properties<br></code></pre></td></tr></table></figure>
+
+<p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">./mvnw clean verify<br></code></pre></td></tr></table></figure>
+
+<p>如果本机没有对应 Maven 版本，Wrapper 会下载并使用项目指定版本。</p>
+<p><code>mvnd</code> 的作用是：</p>
+<blockquote>
+<p>用 daemon 机制加速 Maven 构建。</p>
+</blockquote>
+<p>所以二者关系是：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mvnw</code></td>
+<td>固定 Maven 版本，降低环境差异</td>
+</tr>
+<tr>
+<td><code>mvnd</code></td>
+<td>加速构建执行</td>
+</tr>
+</tbody></table>
+<p>团队最佳实践可以是：</p>
+<ul>
+<li>README 中保留 <code>./mvnw clean verify</code> 作为标准、最稳构建方式</li>
+<li>本地开发推荐安装 <code>mvnd 1.x</code> 后使用 <code>mvnd clean verify</code></li>
+<li>CI 可根据稳定性选择 <code>./mvnw</code> 或 <code>mvnd</code></li>
+</ul>
+<p>如果你的团队非常强调“所有人完全一致”，那就继续以 <code>mvnw</code> 为标准入口，<code>mvnd</code> 作为开发者本地加速工具。</p>
+<h3 id="十六、和-Maven-Build-Cache-Extension-怎么配合"><a href="#十六、和-Maven-Build-Cache-Extension-怎么配合" class="headerlink" title="十六、和 Maven Build Cache Extension 怎么配合"></a>十六、和 Maven Build Cache Extension 怎么配合</h3><p><code>mvnd</code> 和 Maven Build Cache Extension 解决的是不同层面的问题。</p>
+<p><code>mvnd</code> 解决：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Maven 启动慢<br>JVM 重复启动<br>插件类重复加载<br>JIT 优化无法复用<br>多模块默认并行<br></code></pre></td></tr></table></figure>
+
+<p>Build Cache Extension 解决：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">未变化模块重复编译<br>未变化模块重复测试<br>未变化模块重复打包<br>CI 和本地无法共享构建结果<br></code></pre></td></tr></table></figure>
+
+<p>组合起来：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[执行 mvnd] --&gt; B[复用 Maven daemon]
+    B --&gt; C[启动 Maven 构建]
+    C --&gt; D[Build Cache 判断模块输入]
+    D --&gt; E&#123;缓存命中?&#125;
+    E --&gt;|命中| F[恢复模块产物]
+    E --&gt;|未命中| G[正常构建模块]
+    G --&gt; H[写入缓存]
+    F --&gt; I[构建完成]
+    H --&gt; I
+</code></pre>
+
+<p>建议顺序：</p>
+<ol>
+<li>先单独迁移 <code>mvnd</code></li>
+<li>再接 Maven Build Cache Extension</li>
+<li>最后在 CI 中配置远程缓存</li>
+</ol>
+<p>不要一口气全上，否则构建快是快了，出问题时也更难定位。</p>
+<h3 id="十七、和-Maven-4-mvnsh-的关系"><a href="#十七、和-Maven-4-mvnsh-的关系" class="headerlink" title="十七、和 Maven 4 mvnsh 的关系"></a>十七、和 Maven 4 mvnsh 的关系</h3><p>Maven 4 引入了 <code>mvnsh</code>，也就是 Maven Shell。</p>
+<p>它的思路是：</p>
+<blockquote>
+<p>打开一个 Maven Shell，让 Maven 进程在 shell 生命周期内保持存活，后续在 shell 里执行 Maven 命令就不用每次重新启动 Java 和<br>Maven。</p>
+</blockquote>
+<p>示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnsh<br></code></pre></td></tr></table></figure>
+
+<p>进入后：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">maven mvnsh&gt; mvn verify<br>maven mvnsh&gt; mvn test<br>maven mvnsh&gt; exit<br></code></pre></td></tr></table></figure>
+
+<p>但是注意：</p>
+<ul>
+<li><code>mvnsh</code> 从 Maven 4.0.0 开始可用</li>
+<li>官方说明它属于技术预览能力</li>
+<li>Maven 4 当前仍是预览线，不建议生产构建直接切换</li>
+</ul>
+<p>所以当前 Maven 3.9+ 项目更现实的选择是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">mvnd 1.x<br></code></pre></td></tr></table></figure>
+
+<p>未来 Maven 4 稳定后，可以再评估：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Maven 4 + mvnsh<br>Maven Daemon 2.x<br>Maven Build Cache Extension<br></code></pre></td></tr></table></figure>
+
+<h3 id="十八、哪些项目迁移-mvnd-最容易翻车"><a href="#十八、哪些项目迁移-mvnd-最容易翻车" class="headerlink" title="十八、哪些项目迁移 mvnd 最容易翻车"></a>十八、哪些项目迁移 mvnd 最容易翻车</h3><h4 id="1-插件不支持并行"><a href="#1-插件不支持并行" class="headerlink" title="1. 插件不支持并行"></a>1. 插件不支持并行</h4><p>如果某些插件不是线程安全的，默认并行可能出问题。</p>
+<p>解决方式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -T1 clean verify<br></code></pre></td></tr></table></figure>
+
+<p>或者项目配置：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">mvnd.threads</span>=<span class="hljs-string">1</span><br></code></pre></td></tr></table></figure>
+
+<p>确认稳定后再逐步提高线程数。</p>
+<h4 id="2-测试共享全局资源"><a href="#2-测试共享全局资源" class="headerlink" title="2. 测试共享全局资源"></a>2. 测试共享全局资源</h4><p>例如多个模块测试同时使用：</p>
+<ul>
+<li>同一个本地端口</li>
+<li>同一个临时目录</li>
+<li>同一个 H2 数据库文件</li>
+<li>同一个 Redis database</li>
+<li>同一个 Kafka topic</li>
+<li>同一个 Docker container name</li>
+</ul>
+<p>普通串行构建时可能没事，并行后就炸。</p>
+<p>解决方式：</p>
+<ul>
+<li>给测试资源加随机后缀</li>
+<li>使用 Testcontainers 时避免固定容器名</li>
+<li>使用随机端口</li>
+<li>测试库隔离</li>
+<li>不支持并行的模块暂时串行</li>
+</ul>
+<h4 id="3-构建过程写源码目录"><a href="#3-构建过程写源码目录" class="headerlink" title="3. 构建过程写源码目录"></a>3. 构建过程写源码目录</h4><p>有些项目会把生成文件写到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">src/main/generated<br>src/main/java/generated<br></code></pre></td></tr></table></figure>
+
+<p>这类构建行为本身就比较危险。</p>
+<p>建议生成目录放到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">target/generated-sources<br></code></pre></td></tr></table></figure>
+
+<p>这样更符合 Maven 生命周期，也更容易配合缓存和清理。</p>
+<h4 id="4-多-JDK-切换频繁"><a href="#4-多-JDK-切换频繁" class="headerlink" title="4. 多 JDK 切换频繁"></a>4. 多 JDK 切换频繁</h4><p>例如你本地同时有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">JDK 8<br>JDK 11<br>JDK 17<br>JDK 21<br></code></pre></td></tr></table></figure>
+
+<p>切换项目后，如果 daemon 没停，可能会出现“命令行显示换了 JDK，但 daemon 还是旧 JDK”的问题。</p>
+<p>解决方式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd --stop<br>mvnd --version<br></code></pre></td></tr></table></figure>
+
+<p>必要时在项目 <code>.mvn/mvnd.properties</code> 中固定：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">java.home</span>=<span class="hljs-string">/path/to/jdk</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="5-CI-构建机多项目共享"><a href="#5-CI-构建机多项目共享" class="headerlink" title="5. CI 构建机多项目共享"></a>5. CI 构建机多项目共享</h4><p>如果同一台机器上不同项目、不同 JDK、不同 settings 混用，需要谨慎。</p>
+<p>建议：</p>
+<ul>
+<li>每个项目明确 JDK</li>
+<li>每个 job 打印 <code>mvnd --version</code></li>
+<li>关键 job 构建结束执行 <code>mvnd --stop</code></li>
+<li>必要时用 <code>-Dmvnd.daemonStorage=...</code> 隔离 daemon 存储</li>
+</ul>
+<p><code>mvnd.daemonStorage</code> 是特殊属性，只能通过命令行系统属性指定：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -Dmvnd.daemonStorage=/data/mvnd/finance clean verify<br></code></pre></td></tr></table></figure>
+
+<h3 id="十九、Spring-Boot-项目推荐用法"><a href="#十九、Spring-Boot-项目推荐用法" class="headerlink" title="十九、Spring Boot 项目推荐用法"></a>十九、Spring Boot 项目推荐用法</h3><p>本地开发：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -T1C clean <span class="hljs-built_in">test</span><br></code></pre></td></tr></table></figure>
+
+<p>只构建某个模块和依赖：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -pl finance-adapter -am clean <span class="hljs-built_in">test</span><br></code></pre></td></tr></table></figure>
+
+<p>跳过测试快速打包：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -DskipTests clean package<br></code></pre></td></tr></table></figure>
+
+<p>运行单个测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -Dtest=SettlementServiceTest <span class="hljs-built_in">test</span><br></code></pre></td></tr></table></figure>
+
+<p>运行某个 profile：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd clean verify -Pdev<br></code></pre></td></tr></table></figure>
+
+<p>如果是 Spring Boot 3 + JDK 21，可以在用户级配置中：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">java.home</span>=<span class="hljs-string">/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home</span><br><span class="hljs-attr">mvnd.maxHeapSize</span>=<span class="hljs-string">4G</span><br><span class="hljs-attr">mvnd.threads</span>=<span class="hljs-string">1C</span><br></code></pre></td></tr></table></figure>
+
+<p>如果项目还在迁移初期：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">mvnd.threads</span>=<span class="hljs-string">1</span><br><span class="hljs-attr">mvnd.maxHeapSize</span>=<span class="hljs-string">3G</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="二十、Dubbo-gRPC-Protobuf-项目注意事项"><a href="#二十、Dubbo-gRPC-Protobuf-项目注意事项" class="headerlink" title="二十、Dubbo &#x2F; gRPC &#x2F; Protobuf 项目注意事项"></a>二十、Dubbo &#x2F; gRPC &#x2F; Protobuf 项目注意事项</h3><p>如果项目里有 Protobuf 代码生成，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">src/main/proto<br></code></pre></td></tr></table></figure>
+
+<p>迁移 <code>mvnd</code> 一般没问题，但要注意：</p>
+<ul>
+<li>代码生成插件是否线程安全</li>
+<li>多模块是否同时写同一个 generated 目录</li>
+<li>proto 生成结果是否只写到当前模块 <code>target</code></li>
+<li>是否依赖系统级 <code>protoc</code></li>
+<li>CI 和本地 <code>protoc</code> 版本是否一致</li>
+</ul>
+<p>建议先：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -T1 clean generate-sources<br>mvnd -T1 clean verify<br></code></pre></td></tr></table></figure>
+
+<p>再试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd clean verify<br></code></pre></td></tr></table></figure>
+
+<p>如果并行失败，先不要怪 <code>mvnd</code>，大概率是生成目录、插件配置或模块依赖关系本身不够干净。</p>
+<h3 id="二十一、常见问题"><a href="#二十一、常见问题" class="headerlink" title="二十一、常见问题"></a>二十一、常见问题</h3><h4 id="Q1：mvnd-会不会改变-Maven-构建结果？"><a href="#Q1：mvnd-会不会改变-Maven-构建结果？" class="headerlink" title="Q1：mvnd 会不会改变 Maven 构建结果？"></a>Q1：mvnd 会不会改变 Maven 构建结果？</h4><p>理论上不应该。</p>
+<p><code>mvnd</code> 目标是更快地执行 Maven 构建，而不是改变 Maven 构建语义。</p>
+<p>但因为它默认并行，所以迁移时最容易出现的问题不是 Maven 行为变了，而是项目中原本存在的并行不安全问题暴露出来了。</p>
+<p>所以先用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -T1 clean verify<br></code></pre></td></tr></table></figure>
+
+<p>验证等价性。</p>
+<h4 id="Q2：mvnd-可以完全替代-mvn-吗？"><a href="#Q2：mvnd-可以完全替代-mvn-吗？" class="headerlink" title="Q2：mvnd 可以完全替代 mvn 吗？"></a>Q2：mvnd 可以完全替代 mvn 吗？</h4><p>本地开发和普通 CI 验证，大多数情况下可以。</p>
+<p>但正式发布链路建议保守：</p>
+<ul>
+<li>继续用 <code>mvn clean deploy</code></li>
+<li>或者在充分验证后使用 <code>mvnd -T1 clean deploy</code></li>
+</ul>
+<p>关键看团队对构建确定性的要求。</p>
+<h4 id="Q3：mvnd-和-Maven-Wrapper-哪个更推荐？"><a href="#Q3：mvnd-和-Maven-Wrapper-哪个更推荐？" class="headerlink" title="Q3：mvnd 和 Maven Wrapper 哪个更推荐？"></a>Q3：mvnd 和 Maven Wrapper 哪个更推荐？</h4><p>不是二选一。</p>
+<ul>
+<li>新人、CI、标准构建文档：保留 <code>./mvnw</code></li>
+<li>老开发本地提效：使用 <code>mvnd</code></li>
+</ul>
+<p>最稳的团队写法是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">标准构建：./mvnw clean verify<br>推荐本地快速构建：mvnd clean verify<br></code></pre></td></tr></table></figure>
+
+<h4 id="Q4：mvnd-为什么第一次没有明显变快？"><a href="#Q4：mvnd-为什么第一次没有明显变快？" class="headerlink" title="Q4：mvnd 为什么第一次没有明显变快？"></a>Q4：mvnd 为什么第一次没有明显变快？</h4><p>正常。</p>
+<p>第一次可能需要：</p>
+<ul>
+<li>启动 daemon</li>
+<li>加载 Maven</li>
+<li>加载插件</li>
+<li>下载依赖</li>
+<li>JIT 预热</li>
+</ul>
+<p>第二次、第三次才更容易看到收益。</p>
+<p>建议测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-keyword">time</span> mvnd clean verify<br><span class="hljs-keyword">time</span> mvnd clean verify<br><span class="hljs-keyword">time</span> mvnd verify<br></code></pre></td></tr></table></figure>
+
+<p>最后一个不带 <code>clean</code> 的命令通常更接近日常开发反馈速度。</p>
+<h4 id="Q5：mvnd-默认并行导致测试失败怎么办？"><a href="#Q5：mvnd-默认并行导致测试失败怎么办？" class="headerlink" title="Q5：mvnd 默认并行导致测试失败怎么办？"></a>Q5：mvnd 默认并行导致测试失败怎么办？</h4><p>先串行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -T1 clean verify<br></code></pre></td></tr></table></figure>
+
+<p>项目级配置：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">mvnd.threads</span>=<span class="hljs-string">1</span><br></code></pre></td></tr></table></figure>
+
+<p>然后逐步排查：</p>
+<ul>
+<li>端口冲突</li>
+<li>临时目录冲突</li>
+<li>数据库冲突</li>
+<li>测试执行顺序依赖</li>
+<li>插件线程安全</li>
+<li>多模块写同一个文件</li>
+</ul>
+<h4 id="Q6：切换-JDK-后-mvnd-还是旧版本怎么办？"><a href="#Q6：切换-JDK-后-mvnd-还是旧版本怎么办？" class="headerlink" title="Q6：切换 JDK 后 mvnd 还是旧版本怎么办？"></a>Q6：切换 JDK 后 mvnd 还是旧版本怎么办？</h4><p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd --stop<br>mvnd --version<br></code></pre></td></tr></table></figure>
+
+<p>如果还不对，检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">JAVA_HOME<br>~/.m2/mvnd.properties<br>.mvn/mvnd.properties<br></code></pre></td></tr></table></figure>
+
+<h4 id="Q7：Windows-上启动报-VCRUNTIME140-dll-缺失？"><a href="#Q7：Windows-上启动报-VCRUNTIME140-dll-缺失？" class="headerlink" title="Q7：Windows 上启动报 VCRUNTIME140.dll 缺失？"></a>Q7：Windows 上启动报 VCRUNTIME140.dll 缺失？</h4><p>安装 Microsoft Visual C++ Redistributable。</p>
+<p>这是 native executable 在 Windows 上常见的运行时依赖问题。</p>
+<h4 id="Q8：为什么-CI-上-mvnd-收益不明显？"><a href="#Q8：为什么-CI-上-mvnd-收益不明显？" class="headerlink" title="Q8：为什么 CI 上 mvnd 收益不明显？"></a>Q8：为什么 CI 上 mvnd 收益不明显？</h4><p>如果每次 CI 都是全新容器，并且只执行一次 Maven 命令，daemon 跨构建复用不了，收益自然有限。</p>
+<p>可以考虑：</p>
+<ul>
+<li>一个 job 内合并多个 Maven 命令</li>
+<li>使用 <code>mvnd</code> 默认并行</li>
+<li>配合 Maven Build Cache Extension</li>
+<li>缓存 Maven 本地仓库</li>
+<li>缓存 build cache 目录或使用远程 build cache</li>
+</ul>
+<h3 id="二十二、推荐团队落地方案"><a href="#二十二、推荐团队落地方案" class="headerlink" title="二十二、推荐团队落地方案"></a>二十二、推荐团队落地方案</h3><h4 id="阶段一：个人本地试用"><a href="#阶段一：个人本地试用" class="headerlink" title="阶段一：个人本地试用"></a>阶段一：个人本地试用</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd --version<br>mvnd -T1 clean verify<br>mvnd clean verify<br></code></pre></td></tr></table></figure>
+
+<p>目标：</p>
+<ul>
+<li>确认能跑</li>
+<li>确认构建结果一致</li>
+<li>找出并行问题</li>
+</ul>
+<h4 id="阶段二：项目级配置"><a href="#阶段二：项目级配置" class="headerlink" title="阶段二：项目级配置"></a>阶段二：项目级配置</h4><p>新增：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">.mvn/mvnd.properties<br></code></pre></td></tr></table></figure>
+
+<p>初期：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">mvnd.threads</span>=<span class="hljs-string">1</span><br><span class="hljs-attr">mvnd.maxHeapSize</span>=<span class="hljs-string">3G</span><br><span class="hljs-attr">mvnd.idleTimeout</span>=<span class="hljs-string">3 hours</span><br></code></pre></td></tr></table></figure>
+
+<p>稳定后：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">mvnd.threads</span>=<span class="hljs-string">1C</span><br><span class="hljs-attr">mvnd.maxHeapSize</span>=<span class="hljs-string">4G</span><br><span class="hljs-attr">mvnd.idleTimeout</span>=<span class="hljs-string">3 hours</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="阶段三：README-增加说明"><a href="#阶段三：README-增加说明" class="headerlink" title="阶段三：README 增加说明"></a>阶段三：README 增加说明</h4><figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs markdown"><span class="hljs-section">## Maven Daemon</span><br><br>本项目支持使用 Maven Daemon 加速本地构建。<br><br>标准构建：<br><br><span class="hljs-code">```bash</span><br><span class="hljs-code">./mvnw clean verify</span><br><span class="hljs-code">```</span><br><br>推荐本地快速构建：<br><br><span class="hljs-code">```bash</span><br><span class="hljs-code">mvnd clean verify</span><br><span class="hljs-code">```</span><br><br>如果遇到 JDK 切换或 daemon 状态异常：<br><br><span class="hljs-code">```bash</span><br><span class="hljs-code">mvnd --stop</span><br><span class="hljs-code">mvnd --version</span><br><span class="hljs-code">```</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="阶段四：CI-灰度"><a href="#阶段四：CI-灰度" class="headerlink" title="阶段四：CI 灰度"></a>阶段四：CI 灰度</h4><p>先从非发布流水线开始：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -B -T1 clean verify<br></code></pre></td></tr></table></figure>
+
+<p>稳定后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -B -T1C clean verify<br></code></pre></td></tr></table></figure>
+
+<p>最后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvnd -B clean verify<br></code></pre></td></tr></table></figure>
+
+<h4 id="阶段五：组合-Build-Cache"><a href="#阶段五：组合-Build-Cache" class="headerlink" title="阶段五：组合 Build Cache"></a>阶段五：组合 Build Cache</h4><p>当 <code>mvnd</code> 稳定后，再引入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Maven Build Cache Extension<br></code></pre></td></tr></table></figure>
+
+<p>最终目标：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">mvnd 减少启动和插件加载成本<br>Build Cache 减少未变化模块重复构建<br>CI 缓存减少依赖下载和构建结果重复计算<br></code></pre></td></tr></table></figure>
+
+<h3 id="二十三、一份推荐的-mvn-mvnd-properties"><a href="#二十三、一份推荐的-mvn-mvnd-properties" class="headerlink" title="二十三、一份推荐的 .mvn&#x2F;mvnd.properties"></a>二十三、一份推荐的 .mvn&#x2F;mvnd.properties</h3><p>适合迁移初期：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-comment"># 迁移初期先串行，确保 mvnd 与 mvn 构建结果一致。</span><br><span class="hljs-attr">mvnd.threads</span>=<span class="hljs-string">1</span><br><span class="hljs-comment"></span><br><span class="hljs-comment"># 根据项目规模调整，普通 Spring Boot 多模块项目可以从 3G 起。</span><br><span class="hljs-attr">mvnd.maxHeapSize</span>=<span class="hljs-string">3G</span><br><span class="hljs-attr">mvnd.minHeapSize</span>=<span class="hljs-string">256M</span><br><span class="hljs-comment"></span><br><span class="hljs-comment"># 空闲 daemon 自动退出时间。</span><br><span class="hljs-attr">mvnd.idleTimeout</span>=<span class="hljs-string">3 hours</span><br><span class="hljs-comment"></span><br><span class="hljs-comment"># 默认 builder。</span><br><span class="hljs-attr">mvnd.builder</span>=<span class="hljs-string">smart</span><br><span class="hljs-comment"></span><br><span class="hljs-comment"># 额外 JVM 参数。</span><br><span class="hljs-attr">mvnd.jvmArgs</span>=<span class="hljs-string">-Dfile.encoding=UTF-8</span><br></code></pre></td></tr></table></figure>
+
+<p>适合稳定后：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-comment"># 使用类似 Maven -T1C 的并行度。</span><br><span class="hljs-attr">mvnd.threads</span>=<span class="hljs-string">1C</span><br><br><span class="hljs-attr">mvnd.maxHeapSize</span>=<span class="hljs-string">4G</span><br><span class="hljs-attr">mvnd.minHeapSize</span>=<span class="hljs-string">512M</span><br><span class="hljs-attr">mvnd.idleTimeout</span>=<span class="hljs-string">3 hours</span><br><span class="hljs-attr">mvnd.builder</span>=<span class="hljs-string">smart</span><br><span class="hljs-attr">mvnd.jvmArgs</span>=<span class="hljs-string">-Dfile.encoding=UTF-8</span><br></code></pre></td></tr></table></figure>
+
+<p>如果你希望完全使用 <code>mvnd</code> 默认并行策略，可以不配置 <code>mvnd.threads</code>。</p>
+<h3 id="二十四、迁移验证脚本"><a href="#二十四、迁移验证脚本" class="headerlink" title="二十四、迁移验证脚本"></a>二十四、迁移验证脚本</h3><p>可以写一个本地验证脚本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -e<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;== Java ==&quot;</span><br>java -version<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;== Maven ==&quot;</span><br>mvn -v<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;== Maven Daemon ==&quot;</span><br>mvnd --version<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;== Baseline: mvn serial ==&quot;</span><br><span class="hljs-keyword">time</span> mvn -T1 clean verify<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;== mvnd serial ==&quot;</span><br><span class="hljs-keyword">time</span> mvnd -T1 clean verify<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;== mvnd default ==&quot;</span><br><span class="hljs-keyword">time</span> mvnd clean verify<br></code></pre></td></tr></table></figure>
+
+<p>如果三个都通过，基本可以进入团队试用阶段。</p>
+<h3 id="二十五、迁移结论"><a href="#二十五、迁移结论" class="headerlink" title="二十五、迁移结论"></a>二十五、迁移结论</h3><p>如果你的项目已经是 Maven <code>3.9.x</code>，迁移到 <code>mvnd 1.x</code> 的成本通常不高。</p>
+<p>最稳的迁移方式不是一上来替换所有命令，而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">先 mvnd -T1 跑通<br>再 mvnd 默认并行<br>再接入团队本地开发<br>最后灰度 CI<br></code></pre></td></tr></table></figure>
+
+<p>对于 Spring Boot 多模块项目，<code>mvnd</code> 的价值很明显：</p>
+<ul>
+<li>本地开发反馈更快</li>
+<li>多模块构建更容易吃满 CPU</li>
+<li>连续执行测试和打包时更省启动成本</li>
+<li>和 Build Cache Extension 配合后，CI 和本地构建都有更大优化空间</li>
+</ul>
+<p>但也要记住：</p>
+<blockquote>
+<p>mvnd 是加速器，不是构建质量修复器。</p>
+</blockquote>
+<p>如果项目本身有测试隔离差、插件不线程安全、构建写死路径、模块边界混乱的问题，<code>mvnd</code> 只会更快地把这些问题暴露出来。这个角度看，它其实也是一面挺诚实的镜子。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><p>Apache Maven Daemon 官方说明<br><a target="_blank" rel="noopener" href="https://maven.apache.org/tools/mvnd.html">https://maven.apache.org/tools/mvnd.html</a></p>
+</li>
+<li><p>Apache Maven Daemon GitHub 仓库<br><a target="_blank" rel="noopener" href="https://github.com/apache/maven-mvnd">https://github.com/apache/maven-mvnd</a></p>
+</li>
+<li><p>Apache Maven 官方下载页<br><a target="_blank" rel="noopener" href="https://maven.apache.org/download.cgi">https://maven.apache.org/download.cgi</a></p>
+</li>
+<li><p>Apache Maven Wrapper 官方文档<br><a target="_blank" rel="noopener" href="https://maven.apache.org/tools/wrapper/">https://maven.apache.org/tools/wrapper/</a></p>
+</li>
+<li><p>Apache Maven Wrapper Plugin Usage<br><a target="_blank" rel="noopener" href="https://maven.apache.org/tools/wrapper/maven-wrapper-plugin/usage.html">https://maven.apache.org/tools/wrapper/maven-wrapper-plugin/usage.html</a></p>
+</li>
+<li><p>Apache Maven Shell 官方文档<br><a target="_blank" rel="noopener" href="https://maven.apache.org/tools/mvnsh.html">https://maven.apache.org/tools/mvnsh.html</a></p>
+</li>
+<li><p>Apache Maven Build Cache Extension<br><a target="_blank" rel="noopener" href="https://maven.apache.org/extensions/maven-build-cache-extension/">https://maven.apache.org/extensions/maven-build-cache-extension/</a></p>
+</li>
+<li><p>What’s new in Maven 4<br><a target="_blank" rel="noopener" href="https://maven.apache.org/whatsnewinmaven4.html">https://maven.apache.org/whatsnewinmaven4.html</a></p>
+</li>
+</ul>
+<h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p>Maven 的慢，很多时候不是某一个点慢，而是很多小成本每次都重复发生。</p>
+<p><code>mvnd</code> 的意义就在于：把这些重复成本从“每次都来一遍”，变成“尽量复用已经热起来的环境”。</p>
+<p>对个人开发来说，它减少等待；对团队来说，它推动你正视并行构建、测试隔离、JDK 管理、CI 稳定性这些更底层的工程问题。</p>
+<p>工具只是入口，真正的收益来自构建体系变得更清晰。</p>
+<p><code>富贵岂由人，时会高志须酬。</code></p>
+<p><code>能成功于千载者，必以近察远。</code></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Java/" class="category-chain-item">Java</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Java/" class="print-no-link">#Java</a>
+      
+        <a href="/tags/Maven/" class="print-no-link">#Maven</a>
+      
+        <a href="/tags/CI-CD/" class="print-no-link">#CI/CD</a>
+      
+        <a href="/tags/mvnd/" class="print-no-link">#mvnd</a>
+      
+        <a href="/tags/Maven-Daemon/" class="print-no-link">#Maven Daemon</a>
+      
+        <a href="/tags/%E6%9E%84%E5%BB%BA%E4%BC%98%E5%8C%96/" class="print-no-link">#构建优化</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Maven Daemon mvnd 深入实战：从 Maven 3.9+ 平滑迁移到 mvnd</div>
+      <div>https://allendericdalexander.github.io/2026/06/12/scm/mvnd-maven-daemon-migration-guide/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年6月12日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/06/12/scm/maven-build-cache-extension/" title="Maven Build Cache Extension 深入实战：让 Maven 多模块构建快起来">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Maven Build Cache Extension 深入实战：让 Maven 多模块构建快起来</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/06/11/java/spring/springboot-spring-data-jpa-shardingsphere-jdbc-production-guide/" title="Spring Boot 3.5 整合 Spring Data JPA 与 ShardingSphere-JDBC 生产实践">
+                        <span class="hidden-mobile">Spring Boot 3.5 整合 Spring Data JPA 与 ShardingSphere-JDBC 生产实践</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

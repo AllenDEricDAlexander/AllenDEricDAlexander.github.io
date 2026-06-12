@@ -1,0 +1,1442 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="欢迎你来读这篇博客，这篇博客主要是关于 Renovate + OpenRewrite 的整合实践。 如果只用 Renovate，我们可以自动发现依赖新版本，并创建升级 MR；如果只用 OpenRewrite，我们可以自动重构代码、迁移 API、替换配置。但真正的企业项目里，最麻烦的往往不是“有没有新版本”，而是：  依赖升级之后，代码、配置、测试、构建脚本也要跟着改。  所以这篇文章要讲的是一个更">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Renovate 与 OpenRewrite：从依赖升级到代码自动迁移的工程化实践">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/06/12/scm/renovate-openrewrite-integration-guide/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="欢迎你来读这篇博客，这篇博客主要是关于 Renovate + OpenRewrite 的整合实践。 如果只用 Renovate，我们可以自动发现依赖新版本，并创建升级 MR；如果只用 OpenRewrite，我们可以自动重构代码、迁移 API、替换配置。但真正的企业项目里，最麻烦的往往不是“有没有新版本”，而是：  依赖升级之后，代码、配置、测试、构建脚本也要跟着改。  所以这篇文章要讲的是一个更">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-12T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-12T04:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="CI&#x2F;CD">
+<meta property="article:tag" content="DevOps">
+<meta property="article:tag" content="GitLab">
+<meta property="article:tag" content="Maven">
+<meta property="article:tag" content="OpenRewrite">
+<meta property="article:tag" content="Renovate">
+<meta property="article:tag" content="Spring Boot">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Renovate 与 OpenRewrite：从依赖升级到代码自动迁移的工程化实践 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Renovate 与 OpenRewrite：从依赖升级到代码自动迁移的工程化实践"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-06-12 12:00" pubdate>
+          2026年6月12日 中午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          8.4k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          71 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Renovate 与 OpenRewrite：从依赖升级到代码自动迁移的工程化实践</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>欢迎你来读这篇博客，这篇博客主要是关于 <code>Renovate + OpenRewrite</code> 的整合实践。</p>
+<p>如果只用 Renovate，我们可以自动发现依赖新版本，并创建升级 MR；如果只用 OpenRewrite，我们可以自动重构代码、迁移 API、替换配置。但真正的企业项目里，最麻烦的往往不是“有没有新版本”，而是：</p>
+<blockquote>
+<p>依赖升级之后，代码、配置、测试、构建脚本也要跟着改。</p>
+</blockquote>
+<p>所以这篇文章要讲的是一个更完整的工程化方案：</p>
+<blockquote>
+<p>Renovate 负责发现依赖升级机会并创建 MR，OpenRewrite 负责把项目代码自动迁移到适配新版本，CI 负责验证，人工 Review 负责最后兜底。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><p>在 Java 后端项目中，依赖升级是一件长期被低估的事情。</p>
+<p>很多团队的 <code>pom.xml</code> 一开始看起来还挺清爽：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">spring-boot.version</span>&gt;</span>2.7.18<span class="hljs-tag">&lt;/<span class="hljs-name">spring-boot.version</span>&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">spring-cloud.version</span>&gt;</span>2021.0.9<span class="hljs-tag">&lt;/<span class="hljs-name">spring-cloud.version</span>&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">mybatis-plus.version</span>&gt;</span>3.5.5<span class="hljs-tag">&lt;/<span class="hljs-name">mybatis-plus.version</span>&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">fastjson.version</span>&gt;</span>1.2.83<span class="hljs-tag">&lt;/<span class="hljs-name">fastjson.version</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>几年之后，它可能就变成了“版本考古现场”：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Spring Boot 还是 2.x；<br>JDK 还是 8 或 11；<br>javax 还没迁到 jakarta；<br>JUnit 4 和 JUnit 5 混着用；<br>某些老依赖带着漏洞；<br>Maven 插件版本多年没动；<br>Dockerfile 里的基础镜像也很久没升级。<br></code></pre></td></tr></table></figure>
+
+<p>这时如果只靠人工升级，就会非常痛苦。因为依赖升级不是简单改一个版本号，它经常会牵出一串连锁反应：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">依赖版本变了<br>  -&gt; API 变了<br>  -&gt; import 变了<br>  -&gt; 配置项变了<br>  -&gt; 测试框架变了<br>  -&gt; 构建插件也要变<br>  -&gt; CI 开始爆红<br></code></pre></td></tr></table></figure>
+
+<p>于是我们需要两类工具：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>核心职责</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Renovate</td>
+<td>发现依赖新版本，自动创建升级分支和 MR&#x2F;PR</td>
+</tr>
+<tr>
+<td>OpenRewrite</td>
+<td>自动修改源码、配置、构建文件，让代码适配新依赖</td>
+</tr>
+</tbody></table>
+<p>这两者不是替代关系，而是互补关系。</p>
+<p>一句话概括：</p>
+<blockquote>
+<p>Renovate 管“依赖要不要升”，OpenRewrite 管“升完之后代码怎么改”。</p>
+</blockquote>
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h2 id="一、Renovate-和-OpenRewrite-分别解决什么问题"><a href="#一、Renovate-和-OpenRewrite-分别解决什么问题" class="headerlink" title="一、Renovate 和 OpenRewrite 分别解决什么问题"></a>一、Renovate 和 OpenRewrite 分别解决什么问题</h2><h3 id="1-1-Renovate-的定位"><a href="#1-1-Renovate-的定位" class="headerlink" title="1.1 Renovate 的定位"></a>1.1 Renovate 的定位</h3><p>Renovate 是一个依赖自动升级机器人。它会扫描仓库里的依赖声明文件，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">pom.xml<br>build.gradle<br>package.json<br>Dockerfile<br>docker-compose.yml<br>.gitlab-ci.yml<br>.github/workflows/*.yml<br></code></pre></td></tr></table></figure>
+
+<p>然后发现新版本，创建升级分支，并提交 MR&#x2F;PR。</p>
+<p>在 Maven 项目里，它可以识别：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-web<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>3.4.0<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>发现新版本后，自动提交类似这样的 MR：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">chore(deps): update spring boot to 3.5.3<br>chore(deps): update dependency com.alibaba:fastjson to v2<br>chore(deps): update docker image eclipse-temurin to 21-jre<br></code></pre></td></tr></table></figure>
+
+<p>Renovate 重点解决的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 哪些依赖有新版本？<br>2. 哪些依赖有安全更新？<br>3. 哪些依赖可以分组升级？<br>4. 哪些依赖可以自动合并？<br>5. 哪些依赖需要人工审批？<br>6. 如何把升级变成可 review 的 MR/PR？<br></code></pre></td></tr></table></figure>
+
+<p>但是 Renovate 通常不负责复杂代码迁移。它可以改版本号，但不会天然理解你的业务代码该如何适配新 API。</p>
+<p>比如它可以把 Spring Boot 从 2.7 升到 3.5，但升级之后下面的代码会出问题：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> javax.servlet.http.HttpServletRequest;<br></code></pre></td></tr></table></figure>
+
+<p>Spring Boot 3 基于 Jakarta EE，很多 <code>javax.*</code> API 要迁移到 <code>jakarta.*</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> jakarta.servlet.http.HttpServletRequest;<br></code></pre></td></tr></table></figure>
+
+<p>这个时候就轮到 OpenRewrite 上场了。</p>
+<h3 id="1-2-OpenRewrite-的定位"><a href="#1-2-OpenRewrite-的定位" class="headerlink" title="1.2 OpenRewrite 的定位"></a>1.2 OpenRewrite 的定位</h3><p>OpenRewrite 是一个自动化代码重构和迁移工具。它通过预定义的 Recipe 规则，对源码、构建文件、配置文件做自动修改。</p>
+<p>它能做的事情包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">Spring Boot 2.x -&gt; Spring Boot 3.x<br>Java 8/11/17 -&gt; Java 21<br>javax.* -&gt; jakarta.*<br>JUnit 4 -&gt; JUnit 5<br>老 API -&gt; 新 API<br>废弃配置项 -&gt; 新配置项<br>Maven 插件版本升级<br>依赖坐标迁移<br>代码风格清理<br>静态分析修复<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> javax.annotation.PostConstruct;<br></code></pre></td></tr></table></figure>
+
+<p>迁移后：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> jakarta.annotation.PostConstruct;<br></code></pre></td></tr></table></figure>
+
+<p>再比如 JUnit 4：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> org.junit.Test;<br><span class="hljs-keyword">import</span> <span class="hljs-keyword">static</span> org.junit.Assert.assertEquals;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">UserServiceTest</span> &#123;<br>    <span class="hljs-meta">@Test</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">testCreate</span><span class="hljs-params">()</span> &#123;<br>        assertEquals(<span class="hljs-number">1</span>, <span class="hljs-number">1</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>迁移到 JUnit 5：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> org.junit.jupiter.api.Test;<br><span class="hljs-keyword">import</span> <span class="hljs-keyword">static</span> org.junit.jupiter.api.Assertions.assertEquals;<br><br><span class="hljs-keyword">class</span> <span class="hljs-title class_">UserServiceTest</span> &#123;<br>    <span class="hljs-meta">@Test</span><br>    <span class="hljs-keyword">void</span> <span class="hljs-title function_">testCreate</span><span class="hljs-params">()</span> &#123;<br>        assertEquals(<span class="hljs-number">1</span>, <span class="hljs-number">1</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这类机械迁移，如果靠人工改，很容易改漏；如果靠 OpenRewrite，就可以批量处理。</p>
+<h3 id="1-3-两者的边界"><a href="#1-3-两者的边界" class="headerlink" title="1.3 两者的边界"></a>1.3 两者的边界</h3><table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>Renovate</th>
+<th>OpenRewrite</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>核心目标</td>
+<td>依赖升级自动化</td>
+<td>代码迁移自动化</td>
+</tr>
+<tr>
+<td>主要输入</td>
+<td>依赖文件、镜像版本、CI 配置</td>
+<td>源码、POM、Gradle、YAML、Properties</td>
+</tr>
+<tr>
+<td>输出结果</td>
+<td>升级分支、MR&#x2F;PR</td>
+<td>代码 diff</td>
+</tr>
+<tr>
+<td>擅长场景</td>
+<td>小版本升级、安全升级、版本治理</td>
+<td>大版本迁移、API 替换、框架升级</td>
+</tr>
+<tr>
+<td>典型问题</td>
+<td>这个依赖有没有新版本？</td>
+<td>升级之后代码怎么改？</td>
+</tr>
+<tr>
+<td>企业落地方式</td>
+<td>GitLab&#x2F;GitHub Bot、定时 Runner</td>
+<td>Maven&#x2F;Gradle 插件、CI Job、迁移分支</td>
+</tr>
+</tbody></table>
+<p>更形象一点：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Renovate 像情报员：告诉你哪里有新版本，并把升级申请递上来。<br>OpenRewrite 像施工队：根据迁移规则，把代码和配置真正改好。<br>CI 像验收员：编译、测试、扫描，全过了才允许合并。<br></code></pre></td></tr></table></figure>
+
+<p>单独使用 Renovate，容易出现“版本升了，项目炸了”。</p>
+<p>单独使用 OpenRewrite，又缺少持续发现依赖升级机会的能力。</p>
+<p>所以最佳实践是把它们整合起来。</p>
+<h2 id="二、整体架构设计"><a href="#二、整体架构设计" class="headerlink" title="二、整体架构设计"></a>二、整体架构设计</h2><h3 id="2-1-推荐流水线"><a href="#2-1-推荐流水线" class="headerlink" title="2.1 推荐流水线"></a>2.1 推荐流水线</h3><pre><code class=" mermaid">flowchart LR
+    A[Renovate 定时运行] --&gt; B[扫描依赖文件]
+    B --&gt; C[发现可升级依赖]
+    C --&gt; D[创建升级分支]
+    D --&gt; E[创建 MR/PR]
+    E --&gt; F[CI 触发]
+    F --&gt; G[OpenRewrite 自动迁移]
+    G --&gt; H[提交迁移代码到同一分支]
+    H --&gt; I[编译与测试]
+    I --&gt; J[人工 Review]
+    J --&gt; K[合并]
+</code></pre>
+
+<p>这个流程的核心目标是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">依赖升级不是孤立动作，而是一个完整的变更流水线。<br></code></pre></td></tr></table></figure>
+
+<p>也就是说，MR 里不应该只有一个版本号变化：</p>
+<figure class="highlight diff"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs diff"><span class="hljs-deletion">- &lt;version&gt;2.7.18&lt;/version&gt;</span><br><span class="hljs-addition">+ &lt;version&gt;3.5.3&lt;/version&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>更理想的 MR 是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">1. Renovate 修改依赖版本；<br>2. OpenRewrite 自动修改不兼容代码；<br>3. CI 运行编译和测试；<br>4. 开发者只需要 Review 剩余不可自动化的部分。<br></code></pre></td></tr></table></figure>
+
+<p>这才是真正能落地的升级自动化。</p>
+<h3 id="2-2-三种集成模式"><a href="#2-2-三种集成模式" class="headerlink" title="2.2 三种集成模式"></a>2.2 三种集成模式</h3><p>Renovate 和 OpenRewrite 整合，一般有三种模式。</p>
+<h4 id="模式一：半自动模式"><a href="#模式一：半自动模式" class="headerlink" title="模式一：半自动模式"></a>模式一：半自动模式</h4><p>流程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Renovate 创建 MR<br>开发者 checkout 这个分支<br>本地运行 OpenRewrite<br>开发者手工 commit 到同一个 MR<br>CI 验证<br></code></pre></td></tr></table></figure>
+
+<p>适合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 刚开始试点；<br>2. 团队还不敢让 CI 自动改代码；<br>3. 大版本升级风险较高；<br>4. 老项目测试覆盖不够。<br></code></pre></td></tr></table></figure>
+
+<p>优点：安全、可控。<br>缺点：人工参与多。</p>
+<h4 id="模式二：CI-自动补丁模式"><a href="#模式二：CI-自动补丁模式" class="headerlink" title="模式二：CI 自动补丁模式"></a>模式二：CI 自动补丁模式</h4><p>流程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Renovate 创建 MR<br>CI 识别这是 Renovate 分支<br>CI 自动运行 OpenRewrite<br>如果有代码变化，CI 自动 commit 回 Renovate 分支<br>CI 再次编译测试<br></code></pre></td></tr></table></figure>
+
+<p>适合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 团队有较好的 CI；<br>2. 测试覆盖较完整；<br>3. 想减少重复迁移劳动；<br>4. 主要处理框架升级、JUnit 迁移、Java 版本迁移。<br></code></pre></td></tr></table></figure>
+
+<p>优点：自动化程度高。<br>缺点：权限、循环触发、误改风险要控制好。</p>
+<h4 id="模式三：专项迁移分支模式"><a href="#模式三：专项迁移分支模式" class="headerlink" title="模式三：专项迁移分支模式"></a>模式三：专项迁移分支模式</h4><p>流程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">手工创建 migration/spring-boot-3.5 分支<br>OpenRewrite 先批量迁移代码<br>Renovate 后续持续维护依赖小版本<br>CI 验证<br>人工分批合并<br></code></pre></td></tr></table></figure>
+
+<p>适合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">1. Spring Boot 2 -&gt; 3 这种大迁移；<br>2. Java 8/11 -&gt; 17/21；<br>3. javax -&gt; jakarta；<br>4. 多模块项目；<br>5. 改动范围很大，不适合由 Renovate 单次 MR 承担。<br></code></pre></td></tr></table></figure>
+
+<p>优点：迁移边界清晰。<br>缺点：周期更长，需要迁移计划。</p>
+<h2 id="三、基础准备"><a href="#三、基础准备" class="headerlink" title="三、基础准备"></a>三、基础准备</h2><p>本文以一个企业 GitLab + Maven + Spring Boot 项目为例。</p>
+<p>假设仓库是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">background/finance<br></code></pre></td></tr></table></figure>
+
+<p>项目结构类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">finance/<br>├── renovate.json<br>├── pom.xml<br>├── com.amugua.finance.impl/<br>│   └── pom.xml<br>├── com.amugua.finance.api/<br>│   └── pom.xml<br>├── Dockerfile<br>└── .gitlab-ci.yml<br></code></pre></td></tr></table></figure>
+
+<p>本地环境：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">JDK 17 或 JDK 21<br>Maven 3.8+<br>Node.js 18+<br>Git<br>GitLab Token<br>Nexus / Maven 私服账号，可选<br></code></pre></td></tr></table></figure>
+
+<p>版本参考：</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>示例版本</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Renovate</td>
+<td>43.x</td>
+</tr>
+<tr>
+<td>OpenRewrite Maven Plugin</td>
+<td>6.41.0</td>
+</tr>
+<tr>
+<td>OpenRewrite Gradle Plugin</td>
+<td>7.34.0</td>
+</tr>
+<tr>
+<td>rewrite-spring</td>
+<td>6.32.1</td>
+</tr>
+<tr>
+<td>rewrite-testing-frameworks</td>
+<td>3.37.0</td>
+</tr>
+<tr>
+<td>rewrite-migrate-java</td>
+<td>3.36.0</td>
+</tr>
+</tbody></table>
+<p>版本会持续变化，生产中建议在文档和 CI 变量里显式固定版本，不要所有地方都写 <code>latest.release</code> 或 <code>RELEASE</code>。试验阶段可以用 <code>RELEASE</code>，生产流水线最好固定版本，别让迁移工具自己“偷偷升级自己”。</p>
+<h2 id="四、Renovate-实战配置"><a href="#四、Renovate-实战配置" class="headerlink" title="四、Renovate 实战配置"></a>四、Renovate 实战配置</h2><h3 id="4-1-仓库内配置：renovate-json"><a href="#4-1-仓库内配置：renovate-json" class="headerlink" title="4.1 仓库内配置：renovate.json"></a>4.1 仓库内配置：renovate.json</h3><p>先在仓库根目录创建 <code>renovate.json</code>。</p>
+<p>如果你只想让 Renovate 管 Maven，并且只扫描 <code>com.amugua.finance.impl/pom.xml</code>，可以这样写：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;$schema&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;https://docs.renovatebot.com/renovate-schema.json&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;extends&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;config:recommended&quot;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;enabledManagers&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;maven&quot;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;includePaths&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;com.amugua.finance.impl/pom.xml&quot;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;dependencyDashboard&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">true</span></span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;packageRules&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;description&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Only manage Amugua Maven coordinates in the impl project.&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;matchManagers&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>        <span class="hljs-string">&quot;maven&quot;</span><br>      <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;matchPackageNames&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>        <span class="hljs-string">&quot;!/^com\\.amugua(\\.|:)/&quot;</span><br>      <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;enabled&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">false</span></span><br>    <span class="hljs-punctuation">&#125;</span><br>  <span class="hljs-punctuation">]</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>这个配置的含义是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 只启用 Maven manager；<br>2. 只扫描 com.amugua.finance.impl/pom.xml；<br>3. 只管理 com.amugua 开头的 Maven 坐标；<br>4. 非 com.amugua 依赖全部禁用；<br>5. 开启 Dependency Dashboard，方便集中查看更新情况。<br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">includePaths 是相对仓库根目录的路径。<br>所以运行 Renovate 时要从仓库根目录看路径，不是从子模块目录看路径。<br></code></pre></td></tr></table></figure>
+
+<p>如果你发现 Renovate 仍然扫描了 <code>Dockerfile</code>，说明这个 <code>renovate.json</code> 很可能没有生效。常见原因是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">1. renovate.json 没有 push 到默认分支；<br>2. Renovate 读取的是 master，但你把配置提交到了 develop；<br>3. 你用了远程模式，但本地文件还没提交；<br>4. 运行配置里覆盖了仓库配置；<br>5. 配置文件不在 Renovate 支持的位置。<br></code></pre></td></tr></table></figure>
+
+<p>可以用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">git fetch origin master<br>git show origin/master:renovate.json<br></code></pre></td></tr></table></figure>
+
+<p>确认远程默认分支上到底有没有这份配置。</p>
+<h3 id="4-2-Spring-Boot-升级专用配置"><a href="#4-2-Spring-Boot-升级专用配置" class="headerlink" title="4.2 Spring Boot 升级专用配置"></a>4.2 Spring Boot 升级专用配置</h3><p>如果你的目标是让 Renovate 专门处理 Spring Boot &#x2F; Spring Cloud 升级，可以这样写：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;$schema&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;https://docs.renovatebot.com/renovate-schema.json&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;extends&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;config:recommended&quot;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;enabledManagers&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;maven&quot;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;dependencyDashboard&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">true</span></span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;prConcurrentLimit&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">5</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;prHourlyLimit&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">2</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;packageRules&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;description&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Spring Boot framework upgrade group.&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;matchManagers&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>        <span class="hljs-string">&quot;maven&quot;</span><br>      <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;matchPackageNames&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>        <span class="hljs-string">&quot;org.springframework.boot:spring-boot-starter-parent&quot;</span><span class="hljs-punctuation">,</span><br>        <span class="hljs-string">&quot;org.springframework.boot:spring-boot-dependencies&quot;</span><span class="hljs-punctuation">,</span><br>        <span class="hljs-string">&quot;org.springframework.boot:spring-boot-maven-plugin&quot;</span><span class="hljs-punctuation">,</span><br>        <span class="hljs-string">&quot;/^org\\.springframework\\.boot:/&quot;</span><br>      <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;groupName&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;spring boot framework&quot;</span><br>    <span class="hljs-punctuation">&#125;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;description&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Major upgrades require dashboard approval.&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;matchUpdateTypes&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>        <span class="hljs-string">&quot;major&quot;</span><br>      <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;dependencyDashboardApproval&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">true</span></span><br>    <span class="hljs-punctuation">&#125;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;description&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Patch upgrades can be automerged after CI passes.&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;matchUpdateTypes&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>        <span class="hljs-string">&quot;patch&quot;</span><br>      <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;automerge&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">true</span></span><br>    <span class="hljs-punctuation">&#125;</span><br>  <span class="hljs-punctuation">]</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>这个配置适合持续治理：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">小版本升级可以自动化；<br>大版本升级必须先人工审批；<br>Spring Boot 相关依赖集中到一个 MR；<br>避免一堆零散 PR 把团队淹没。<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-3-自托管运行配置：config-js"><a href="#4-3-自托管运行配置：config-js" class="headerlink" title="4.3 自托管运行配置：config.js"></a>4.3 自托管运行配置：config.js</h3><p>仓库里的 <code>renovate.json</code> 只放仓库级配置，不要放 token、endpoint、repositories 这类运行级配置。</p>
+<p>本地或 CI 运行 Renovate 时，可以单独创建一个 <code>config.js</code>：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs js"><span class="hljs-variable language_">module</span>.<span class="hljs-property">exports</span> = &#123;<br>  <span class="hljs-attr">platform</span>: <span class="hljs-string">&#x27;gitlab&#x27;</span>,<br>  <span class="hljs-attr">endpoint</span>: <span class="hljs-string">&#x27;https://git.dianplus.cn/api/v4&#x27;</span>,<br>  <span class="hljs-attr">token</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">RENOVATE_TOKEN</span>,<br><br>  <span class="hljs-attr">repositories</span>: [<br>    <span class="hljs-string">&#x27;background/finance&#x27;</span><br>  ],<br><br>  <span class="hljs-attr">gitAuthor</span>: <span class="hljs-string">&#x27;Renovate Bot &lt;renovate-bot@example.com&gt;&#x27;</span>,<br><br>  <span class="hljs-attr">onboarding</span>: <span class="hljs-literal">false</span>,<br>  <span class="hljs-attr">requireConfig</span>: <span class="hljs-string">&#x27;optional&#x27;</span><br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p>运行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">LOG_LEVEL=debug npx --<span class="hljs-built_in">yes</span> --package renovate -- renovate --config-file ./config.js --dry-run=full<br></code></pre></td></tr></table></figure>
+
+<p>确认无误后正式运行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">LOG_LEVEL=info npx --<span class="hljs-built_in">yes</span> --package renovate -- renovate --config-file ./config.js<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-4-私服-Maven-仓库配置"><a href="#4-4-私服-Maven-仓库配置" class="headerlink" title="4.4 私服 Maven 仓库配置"></a>4.4 私服 Maven 仓库配置</h3><p>如果公司依赖来自 Nexus &#x2F; Artifactory，建议在 <code>config.js</code> 里配置 <code>hostRules</code> 和 <code>registryUrls</code>：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><code class="hljs js"><span class="hljs-variable language_">module</span>.<span class="hljs-property">exports</span> = &#123;<br>  <span class="hljs-attr">platform</span>: <span class="hljs-string">&#x27;gitlab&#x27;</span>,<br>  <span class="hljs-attr">endpoint</span>: <span class="hljs-string">&#x27;https://git.dianplus.cn/api/v4&#x27;</span>,<br>  <span class="hljs-attr">token</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">RENOVATE_TOKEN</span>,<br><br>  <span class="hljs-attr">repositories</span>: [<br>    <span class="hljs-string">&#x27;background/finance&#x27;</span><br>  ],<br><br>  <span class="hljs-attr">gitAuthor</span>: <span class="hljs-string">&#x27;Renovate Bot &lt;renovate-bot@example.com&gt;&#x27;</span>,<br><br>  <span class="hljs-attr">hostRules</span>: [<br>    &#123;<br>      <span class="hljs-attr">hostType</span>: <span class="hljs-string">&#x27;maven&#x27;</span>,<br>      <span class="hljs-attr">matchHost</span>: <span class="hljs-string">&#x27;https://nexus.example.com/repository/maven-public/&#x27;</span>,<br>      <span class="hljs-attr">username</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MAVEN_REPO_USERNAME</span>,<br>      <span class="hljs-attr">password</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MAVEN_REPO_PASSWORD</span><br>    &#125;<br>  ],<br><br>  <span class="hljs-attr">packageRules</span>: [<br>    &#123;<br>      <span class="hljs-attr">matchDatasources</span>: [<br>        <span class="hljs-string">&#x27;maven&#x27;</span><br>      ],<br>      <span class="hljs-attr">registryUrls</span>: [<br>        <span class="hljs-string">&#x27;https://nexus.example.com/repository/maven-public/&#x27;</span><br>      ]<br>    &#125;<br>  ]<br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p>运行前设置环境变量：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">export</span> RENOVATE_TOKEN=<span class="hljs-string">&quot;glpat_xxxxxxxxxxxxxxxxxxxx&quot;</span><br><span class="hljs-built_in">export</span> MAVEN_REPO_USERNAME=<span class="hljs-string">&quot;renovate&quot;</span><br><span class="hljs-built_in">export</span> MAVEN_REPO_PASSWORD=<span class="hljs-string">&quot;your-password&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>注意：不要把私服密码写进 <code>renovate.json</code>。仓库配置会被所有人看到，密码一旦提交，故事就从“依赖治理”变成“事故复盘”了。</p>
+<h3 id="4-5-本地验证-Renovate-配置"><a href="#4-5-本地验证-Renovate-配置" class="headerlink" title="4.5 本地验证 Renovate 配置"></a>4.5 本地验证 Renovate 配置</h3><h4 id="校验配置文件"><a href="#校验配置文件" class="headerlink" title="校验配置文件"></a>校验配置文件</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cd</span> /your/project/root<br>npx --<span class="hljs-built_in">yes</span> --package renovate -- renovate-config-validator<br></code></pre></td></tr></table></figure>
+
+<h4 id="本地只扫描当前目录"><a href="#本地只扫描当前目录" class="headerlink" title="本地只扫描当前目录"></a>本地只扫描当前目录</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">unset</span> RENOVATE_CONFIG<br><span class="hljs-built_in">unset</span> RENOVATE_REPOSITORIES<br><span class="hljs-built_in">unset</span> RENOVATE_ENDPOINT<br><br><span class="hljs-built_in">cd</span> /your/project/root<br>LOG_LEVEL=debug npx --<span class="hljs-built_in">yes</span> --package renovate -- renovate --platform=<span class="hljs-built_in">local</span> --dry-run=extract 2&gt;&amp;1 | <span class="hljs-built_in">tee</span> renovate-local.log<br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">platform=local 时，不支持 repositories。<br></code></pre></td></tr></table></figure>
+
+<p>如果你看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Invalid configuration: repositories list not supported when platform=local<br></code></pre></td></tr></table></figure>
+
+<p>说明你把本地扫描模式和远程仓库模式混用了。</p>
+<p>正确理解：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">platform=local：只扫描当前本地目录，不创建分支，不创建 MR。<br>platform=gitlab：连接 GitLab 仓库，可以创建分支和 MR。<br></code></pre></td></tr></table></figure>
+
+<h4 id="远程-dry-run"><a href="#远程-dry-run" class="headerlink" title="远程 dry-run"></a>远程 dry-run</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">export</span> RENOVATE_TOKEN=<span class="hljs-string">&quot;glpat_xxxxxxxxxxxxxxxxxxxx&quot;</span><br><br><span class="hljs-built_in">export</span> RENOVATE_CONFIG=<span class="hljs-string">&#x27;&#123;</span><br><span class="hljs-string">  &quot;platform&quot;: &quot;gitlab&quot;,</span><br><span class="hljs-string">  &quot;endpoint&quot;: &quot;https://git.dianplus.cn/api/v4&quot;,</span><br><span class="hljs-string">  &quot;repositories&quot;: [</span><br><span class="hljs-string">    &quot;background/finance&quot;</span><br><span class="hljs-string">  ],</span><br><span class="hljs-string">  &quot;gitAuthor&quot;: &quot;Renovate Bot &lt;renovate-bot@example.com&gt;&quot;</span><br><span class="hljs-string">&#125;&#x27;</span><br><br>LOG_LEVEL=debug npx --<span class="hljs-built_in">yes</span> --package renovate -- renovate --dry-run=full 2&gt;&amp;1 | <span class="hljs-built_in">tee</span> renovate-remote.log<br></code></pre></td></tr></table></figure>
+
+<p>如果日志里出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">DRY-RUN: Would commit files to branch renovate/xxx<br></code></pre></td></tr></table></figure>
+
+<p>说明 Renovate 已经发现可升级依赖，并且如果去掉 dry-run，就会创建分支和 MR。</p>
+<h2 id="五、OpenRewrite-实战配置"><a href="#五、OpenRewrite-实战配置" class="headerlink" title="五、OpenRewrite 实战配置"></a>五、OpenRewrite 实战配置</h2><h3 id="5-1-Maven-插件方式"><a href="#5-1-Maven-插件方式" class="headerlink" title="5.1 Maven 插件方式"></a>5.1 Maven 插件方式</h3><p>在根 <code>pom.xml</code> 中配置：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">build</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">plugins</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">plugin</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.openrewrite.maven<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>rewrite-maven-plugin<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>6.41.0<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">configuration</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">exportDatatables</span>&gt;</span>true<span class="hljs-tag">&lt;/<span class="hljs-name">exportDatatables</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">activeRecipes</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">recipe</span>&gt;</span>org.openrewrite.java.spring.boot3.UpgradeSpringBoot_3_5<span class="hljs-tag">&lt;/<span class="hljs-name">recipe</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">activeRecipes</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">configuration</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">dependencies</span>&gt;</span><br>                <span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.openrewrite.recipe<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>rewrite-spring<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>                    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>6.32.1<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>                <span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br>            <span class="hljs-tag">&lt;/<span class="hljs-name">dependencies</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">plugin</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">plugins</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">build</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>执行 dry-run：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn rewrite:dryRun<br></code></pre></td></tr></table></figure>
+
+<p>真正修改代码：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn rewrite:run<br></code></pre></td></tr></table></figure>
+
+<p>查看改动：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">git diff<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-2-不改-pom-的命令行方式"><a href="#5-2-不改-pom-的命令行方式" class="headerlink" title="5.2 不改 pom 的命令行方式"></a>5.2 不改 pom 的命令行方式</h3><p>如果不想把 OpenRewrite 插件长期写进业务项目，可以直接用命令行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -U org.openrewrite.maven:rewrite-maven-plugin:6.41.0:run \<br>  -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:6.32.1 \<br>  -Drewrite.activeRecipes=org.openrewrite.java.spring.boot3.UpgradeSpringBoot_3_5 \<br>  -Drewrite.exportDatatables=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>这种方式适合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 临时迁移；<br>2. CI 自动运行；<br>3. 不希望业务 pom 增加迁移工具插件；<br>4. 多项目统一迁移时由脚本控制版本。<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-3-Spring-Boot-3-5-迁移"><a href="#5-3-Spring-Boot-3-5-迁移" class="headerlink" title="5.3 Spring Boot 3.5 迁移"></a>5.3 Spring Boot 3.5 迁移</h3><p>OpenRewrite 的 Spring Boot 3.5 迁移 Recipe 是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">org.openrewrite.java.spring.boot3.UpgradeSpringBoot_3_5<br></code></pre></td></tr></table></figure>
+
+<p>运行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -U org.openrewrite.maven:rewrite-maven-plugin:6.41.0:run \<br>  -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:6.32.1 \<br>  -Drewrite.activeRecipes=org.openrewrite.java.spring.boot3.UpgradeSpringBoot_3_5 \<br>  -Drewrite.exportDatatables=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>它会尝试处理：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Spring Boot 版本升级；<br>Spring Boot Maven Plugin 升级；<br>Spring Boot parent/BOM 升级；<br>Spring Cloud 相关迁移；<br>Spring Security 相关迁移；<br>Spring Boot 配置项迁移；<br>部分 deprecated API 替换。<br></code></pre></td></tr></table></figure>
+
+<p>但是注意：OpenRewrite 不是魔法棒。下面这类问题仍然可能需要人工处理：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 公司自研框架适配 Spring Boot 3；<br>2. 老版本第三方库不支持 jakarta；<br>3. 运行时行为变化；<br>4. 配置中心中的远程配置；<br>5. XML 配置或反射字符串；<br>6. 动态 SQL、脚本、模板中的类名；<br>7. 测试覆盖不足导致的问题。<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-4-Java-21-迁移"><a href="#5-4-Java-21-迁移" class="headerlink" title="5.4 Java 21 迁移"></a>5.4 Java 21 迁移</h3><p>Java 21 迁移 Recipe：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">org.openrewrite.java.migrate.UpgradeToJava21<br></code></pre></td></tr></table></figure>
+
+<p>运行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -U org.openrewrite.maven:rewrite-maven-plugin:6.41.0:run \<br>  -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-migrate-java:3.36.0 \<br>  -Drewrite.activeRecipes=org.openrewrite.java.migrate.UpgradeToJava21 \<br>  -Drewrite.exportDatatables=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>它会尝试处理：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">source/target/release 调整到 21；<br>构建插件升级；<br>部分废弃 API 替换；<br>部分语法现代化；<br>Java 17 到 Java 21 的常见迁移动作。<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-5-JUnit-4-迁移-JUnit-5"><a href="#5-5-JUnit-4-迁移-JUnit-5" class="headerlink" title="5.5 JUnit 4 迁移 JUnit 5"></a>5.5 JUnit 4 迁移 JUnit 5</h3><p>JUnit 4 到 JUnit 5 的 Recipe：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">org.openrewrite.java.testing.junit5.JUnit4to5Migration<br></code></pre></td></tr></table></figure>
+
+<p>运行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -U org.openrewrite.maven:rewrite-maven-plugin:6.41.0:run \<br>  -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-testing-frameworks:3.37.0 \<br>  -Drewrite.activeRecipes=org.openrewrite.java.testing.junit5.JUnit4to5Migration \<br>  -Drewrite.exportDatatables=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>如果是 Spring Boot 2.x 项目，Spring 相关测试迁移也可以考虑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">org.openrewrite.java.spring.boot2.SpringBoot2JUnit4to5Migration<br></code></pre></td></tr></table></figure>
+
+<p>它对 Spring Test Runner、Spring Extension、<code>@RunWith</code> 等场景更友好。</p>
+<h2 id="六、整合方案一：半自动模式"><a href="#六、整合方案一：半自动模式" class="headerlink" title="六、整合方案一：半自动模式"></a>六、整合方案一：半自动模式</h2><p>半自动模式最适合刚落地时使用。它不会让 CI 自动提交代码，风险最低。</p>
+<h3 id="6-1-流程"><a href="#6-1-流程" class="headerlink" title="6.1 流程"></a>6.1 流程</h3><pre><code class=" mermaid">sequenceDiagram
+    participant R as Renovate
+    participant G as GitLab
+    participant D as Developer
+    participant O as OpenRewrite
+    participant C as CI
+
+    R-&gt;&gt;G: 创建依赖升级 MR
+    D-&gt;&gt;G: checkout Renovate 分支
+    D-&gt;&gt;O: 本地运行 OpenRewrite
+    O-&gt;&gt;D: 修改源码、pom、配置
+    D-&gt;&gt;G: commit 到同一 MR
+    G-&gt;&gt;C: 触发 CI
+    C-&gt;&gt;G: 返回编译/测试结果
+</code></pre>
+
+<h3 id="6-2-操作示例"><a href="#6-2-操作示例" class="headerlink" title="6.2 操作示例"></a>6.2 操作示例</h3><p>Renovate 创建了一个 MR，分支名类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">renovate/spring-boot-framework<br></code></pre></td></tr></table></figure>
+
+<p>本地拉取：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">git fetch origin renovate/spring-boot-framework<br>git checkout -b renovate/spring-boot-framework origin/renovate/spring-boot-framework<br></code></pre></td></tr></table></figure>
+
+<p>运行 OpenRewrite：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -U org.openrewrite.maven:rewrite-maven-plugin:6.41.0:run \<br>  -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:6.32.1 \<br>  -Drewrite.activeRecipes=org.openrewrite.java.spring.boot3.UpgradeSpringBoot_3_5 \<br>  -Drewrite.exportDatatables=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>查看 diff：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">git diff --<span class="hljs-built_in">stat</span><br>git diff<br></code></pre></td></tr></table></figure>
+
+<p>跑测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn clean <span class="hljs-built_in">test</span><br></code></pre></td></tr></table></figure>
+
+<p>提交到同一个分支：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">git add .<br>git commit -m <span class="hljs-string">&quot;chore: apply OpenRewrite Spring Boot migration&quot;</span><br>git push origin renovate/spring-boot-framework<br></code></pre></td></tr></table></figure>
+
+<p>这时 MR 中就包含两类改动：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">1. Renovate 的依赖版本升级；<br>2. OpenRewrite 的代码和配置迁移。<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-3-适用建议"><a href="#6-3-适用建议" class="headerlink" title="6.3 适用建议"></a>6.3 适用建议</h3><p>首次在老项目里使用时，建议先半自动。</p>
+<p>原因很简单：你需要先观察 OpenRewrite 对你们公司项目的“改代码风格”。工具是好工具，但第一次上来就让它自动 commit，多少有点像刚认识就把家门钥匙给出去，浪漫是浪漫，风险也是真风险。</p>
+<h2 id="七、整合方案二：CI-自动补丁模式"><a href="#七、整合方案二：CI-自动补丁模式" class="headerlink" title="七、整合方案二：CI 自动补丁模式"></a>七、整合方案二：CI 自动补丁模式</h2><p>CI 自动补丁模式是更高级的玩法。</p>
+<p>核心目标：</p>
+<blockquote>
+<p>Renovate 创建 MR 后，CI 自动运行 OpenRewrite，并把代码迁移结果 commit 回 Renovate 分支。</p>
+</blockquote>
+<h3 id="7-1-GitLab-CI-示例"><a href="#7-1-GitLab-CI-示例" class="headerlink" title="7.1 GitLab CI 示例"></a>7.1 GitLab CI 示例</h3><p><code>.gitlab-ci.yml</code>：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">stages:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">rewrite</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">test</span><br><br><span class="hljs-attr">variables:</span><br>  <span class="hljs-attr">MAVEN_OPTS:</span> <span class="hljs-string">&quot;-Dmaven.repo.local=.m2/repository&quot;</span><br>  <span class="hljs-attr">REWRITE_MAVEN_PLUGIN_VERSION:</span> <span class="hljs-string">&quot;6.41.0&quot;</span><br>  <span class="hljs-attr">REWRITE_SPRING_VERSION:</span> <span class="hljs-string">&quot;6.32.1&quot;</span><br><br><span class="hljs-attr">cache:</span><br>  <span class="hljs-attr">key:</span> <span class="hljs-string">&quot;$&#123;CI_PROJECT_NAME&#125;-maven&quot;</span><br>  <span class="hljs-attr">paths:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">.m2/repository</span><br><br><span class="hljs-attr">openrewrite:spring-boot:</span><br>  <span class="hljs-attr">stage:</span> <span class="hljs-string">rewrite</span><br>  <span class="hljs-attr">image:</span> <span class="hljs-string">maven:3.9.9-eclipse-temurin-21</span><br>  <span class="hljs-attr">rules:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">if:</span> <span class="hljs-string">&#x27;$CI_COMMIT_BRANCH =~ /^renovate\//&#x27;</span><br>      <span class="hljs-attr">when:</span> <span class="hljs-string">manual</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">when:</span> <span class="hljs-string">never</span><br>  <span class="hljs-attr">before_script:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">git</span> <span class="hljs-string">config</span> <span class="hljs-string">user.name</span> <span class="hljs-string">&quot;Renovate Bot&quot;</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">git</span> <span class="hljs-string">config</span> <span class="hljs-string">user.email</span> <span class="hljs-string">&quot;renovate-bot@example.com&quot;</span><br>  <span class="hljs-attr">script:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">|</span><br><span class="hljs-string">      mvn -U org.openrewrite.maven:rewrite-maven-plugin:$&#123;REWRITE_MAVEN_PLUGIN_VERSION&#125;:run \</span><br><span class="hljs-string">        -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:$&#123;REWRITE_SPRING_VERSION&#125; \</span><br><span class="hljs-string">        -Drewrite.activeRecipes=org.openrewrite.java.spring.boot3.UpgradeSpringBoot_3_5 \</span><br><span class="hljs-string">        -Drewrite.exportDatatables=true</span><br><span class="hljs-string"></span>    <span class="hljs-bullet">-</span> <span class="hljs-string">|</span><br><span class="hljs-string">      if ! git diff --quiet; then</span><br><span class="hljs-string">        git add .</span><br><span class="hljs-string">        git commit -m &quot;chore: apply OpenRewrite migration [skip ci]&quot;</span><br><span class="hljs-string">        git push &quot;https://oauth2:$&#123;RENOVATE_PUSH_TOKEN&#125;@$&#123;CI_SERVER_HOST&#125;/$&#123;CI_PROJECT_PATH&#125;.git&quot; &quot;HEAD:$&#123;CI_COMMIT_REF_NAME&#125;&quot;</span><br><span class="hljs-string">      else</span><br><span class="hljs-string">        echo &quot;No OpenRewrite changes detected.&quot;</span><br><span class="hljs-string">      fi</span><br><span class="hljs-string"></span><br><span class="hljs-attr">maven:test:</span><br>  <span class="hljs-attr">stage:</span> <span class="hljs-string">test</span><br>  <span class="hljs-attr">image:</span> <span class="hljs-string">maven:3.9.9-eclipse-temurin-21</span><br>  <span class="hljs-attr">script:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">mvn</span> <span class="hljs-string">clean</span> <span class="hljs-string">test</span><br></code></pre></td></tr></table></figure>
+
+<p>这里我把 <code>openrewrite:spring-boot</code> 设置成了 <code>manual</code>，原因是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">不是所有 Renovate 分支都应该自动跑 Spring Boot 迁移。<br></code></pre></td></tr></table></figure>
+
+<p>比如 <code>fastjson</code> 升级、<code>commons-lang3</code> 升级、小版本 patch 升级，通常不需要跑 Spring Boot 大迁移 Recipe。</p>
+<p>如果你确认只对特定分支运行，可以进一步限制规则：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">rules:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">if:</span> <span class="hljs-string">&#x27;$CI_COMMIT_BRANCH =~ /^renovate\/spring-boot/&#x27;</span><br>    <span class="hljs-attr">when:</span> <span class="hljs-string">on_success</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">when:</span> <span class="hljs-string">never</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="7-2-防止-CI-无限循环"><a href="#7-2-防止-CI-无限循环" class="headerlink" title="7.2 防止 CI 无限循环"></a>7.2 防止 CI 无限循环</h3><p>CI 自动 commit 回分支时，容易触发新一轮 CI。为了避免循环，可以在 commit message 中加：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">[skip ci]<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">git commit -m <span class="hljs-string">&quot;chore: apply OpenRewrite migration [skip ci]&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>也可以用更精细的规则：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">rules:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">if:</span> <span class="hljs-string">&#x27;$CI_COMMIT_BRANCH =~ /^renovate\// &amp;&amp; $CI_COMMIT_MESSAGE !~ /apply OpenRewrite migration/&#x27;</span><br>    <span class="hljs-attr">when:</span> <span class="hljs-string">on_success</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="7-3-Token-权限"><a href="#7-3-Token-权限" class="headerlink" title="7.3 Token 权限"></a>7.3 Token 权限</h3><p><code>RENOVATE_PUSH_TOKEN</code> 至少需要能 push 当前 MR 分支。</p>
+<p>GitLab 中常见选择：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Project Access Token<br>Group Access Token<br>专门的 Bot 用户 Personal Access Token<br></code></pre></td></tr></table></figure>
+
+<p>权限建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">read_repository<br>write_repository<br>api，可选，如果还要操作 MR<br></code></pre></td></tr></table></figure>
+
+<p>如果分支受保护，要确认 Bot 用户有权限 push。别让工具跑到最后一步才发现没有权限，那感觉就像外卖到了小区门口，但骑手进不来。</p>
+<h3 id="7-4-自动补丁模式的风险控制"><a href="#7-4-自动补丁模式的风险控制" class="headerlink" title="7.4 自动补丁模式的风险控制"></a>7.4 自动补丁模式的风险控制</h3><p>建议做这些限制：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 默认 manual，稳定后再自动；<br>2. 只对 renovate/ 特定分支运行；<br>3. 只对特定依赖组运行，例如 spring boot framework；<br>4. commit message 加 [skip ci] 防止循环；<br>5. OpenRewrite job 之后必须跑 mvn clean test；<br>6. 合并前必须人工 review；<br>7. 老项目第一次不要开 automerge。<br></code></pre></td></tr></table></figure>
+
+<h2 id="八、整合方案三：专项迁移分支模式"><a href="#八、整合方案三：专项迁移分支模式" class="headerlink" title="八、整合方案三：专项迁移分支模式"></a>八、整合方案三：专项迁移分支模式</h2><p>对于 Spring Boot 2 到 3、Java 11 到 21 这种大迁移，我更推荐专项迁移分支。</p>
+<h3 id="8-1-创建迁移分支"><a href="#8-1-创建迁移分支" class="headerlink" title="8.1 创建迁移分支"></a>8.1 创建迁移分支</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">git checkout master<br>git pull<br>git checkout -b migration/spring-boot-3.5-java-21<br></code></pre></td></tr></table></figure>
+
+<h3 id="8-2-先迁移-Java-21"><a href="#8-2-先迁移-Java-21" class="headerlink" title="8.2 先迁移 Java 21"></a>8.2 先迁移 Java 21</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -U org.openrewrite.maven:rewrite-maven-plugin:6.41.0:run \<br>  -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-migrate-java:3.36.0 \<br>  -Drewrite.activeRecipes=org.openrewrite.java.migrate.UpgradeToJava21 \<br>  -Drewrite.exportDatatables=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>提交：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">git add .<br>git commit -m <span class="hljs-string">&quot;chore: migrate build to Java 21 with OpenRewrite&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="8-3-再迁移-Spring-Boot-3-5"><a href="#8-3-再迁移-Spring-Boot-3-5" class="headerlink" title="8.3 再迁移 Spring Boot 3.5"></a>8.3 再迁移 Spring Boot 3.5</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -U org.openrewrite.maven:rewrite-maven-plugin:6.41.0:run \<br>  -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:6.32.1 \<br>  -Drewrite.activeRecipes=org.openrewrite.java.spring.boot3.UpgradeSpringBoot_3_5 \<br>  -Drewrite.exportDatatables=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>提交：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">git add .<br>git commit -m <span class="hljs-string">&quot;chore: migrate to Spring Boot 3.5 with OpenRewrite&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="8-4-再迁移-JUnit-5"><a href="#8-4-再迁移-JUnit-5" class="headerlink" title="8.4 再迁移 JUnit 5"></a>8.4 再迁移 JUnit 5</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -U org.openrewrite.maven:rewrite-maven-plugin:6.41.0:run \<br>  -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-testing-frameworks:3.37.0 \<br>  -Drewrite.activeRecipes=org.openrewrite.java.testing.junit5.JUnit4to5Migration \<br>  -Drewrite.exportDatatables=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>提交：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">git add .<br>git commit -m <span class="hljs-string">&quot;test: migrate JUnit 4 tests to JUnit 5 with OpenRewrite&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="8-5-最后运行验证"><a href="#8-5-最后运行验证" class="headerlink" title="8.5 最后运行验证"></a>8.5 最后运行验证</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn clean <span class="hljs-built_in">test</span><br>mvn clean package -DskipTests<br></code></pre></td></tr></table></figure>
+
+<p>如果项目比较大，可以分模块跑：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -pl com.amugua.finance.impl -am clean <span class="hljs-built_in">test</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="8-6-迁移顺序建议"><a href="#8-6-迁移顺序建议" class="headerlink" title="8.6 迁移顺序建议"></a>8.6 迁移顺序建议</h3><p>推荐顺序：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 先升级 JDK 构建配置；<br>2. 再升级 Spring Boot；<br>3. 再处理 javax -&gt; jakarta；<br>4. 再迁移测试框架；<br>5. 再清理废弃 API；<br>6. 最后跑全量测试和人工验收。<br></code></pre></td></tr></table></figure>
+
+<p>不要一口气把所有 Recipe 全扔进去。那样 diff 会非常大，Review 会变成灾难片。</p>
+<h2 id="九、完整实战案例：GitLab-Renovate-OpenRewrite-Maven"><a href="#九、完整实战案例：GitLab-Renovate-OpenRewrite-Maven" class="headerlink" title="九、完整实战案例：GitLab + Renovate + OpenRewrite + Maven"></a>九、完整实战案例：GitLab + Renovate + OpenRewrite + Maven</h2><p>下面给一套比较完整的企业落地方案。</p>
+<h3 id="9-1-目标"><a href="#9-1-目标" class="headerlink" title="9.1 目标"></a>9.1 目标</h3><p>我们希望实现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">1. Renovate 定时扫描 background/finance 仓库；<br>2. 只管理 Maven 依赖；<br>3. Spring Boot 相关升级聚合成一个 MR；<br>4. 大版本升级需要人工审批；<br>5. Spring Boot 升级 MR 可触发 OpenRewrite；<br>6. OpenRewrite 自动提交迁移代码到同一个分支；<br>7. CI 编译测试通过后人工合并。<br></code></pre></td></tr></table></figure>
+
+<h3 id="9-2-仓库-renovate-json"><a href="#9-2-仓库-renovate-json" class="headerlink" title="9.2 仓库 renovate.json"></a>9.2 仓库 renovate.json</h3><figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;$schema&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;https://docs.renovatebot.com/renovate-schema.json&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;extends&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;config:recommended&quot;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;enabledManagers&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;maven&quot;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;dependencyDashboard&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">true</span></span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;labels&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;dependencies&quot;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-string">&quot;renovate&quot;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;prConcurrentLimit&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">5</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;prHourlyLimit&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">2</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;packageRules&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;description&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Group Spring Boot framework dependencies.&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;matchManagers&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>        <span class="hljs-string">&quot;maven&quot;</span><br>      <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;matchPackageNames&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>        <span class="hljs-string">&quot;org.springframework.boot:spring-boot-starter-parent&quot;</span><span class="hljs-punctuation">,</span><br>        <span class="hljs-string">&quot;org.springframework.boot:spring-boot-dependencies&quot;</span><span class="hljs-punctuation">,</span><br>        <span class="hljs-string">&quot;org.springframework.boot:spring-boot-maven-plugin&quot;</span><span class="hljs-punctuation">,</span><br>        <span class="hljs-string">&quot;/^org\\.springframework\\.boot:/&quot;</span><br>      <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;groupName&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;spring boot framework&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;branchTopic&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;spring-boot-framework&quot;</span><br>    <span class="hljs-punctuation">&#125;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;description&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Major updates require manual dashboard approval.&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;matchUpdateTypes&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>        <span class="hljs-string">&quot;major&quot;</span><br>      <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;dependencyDashboardApproval&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">true</span></span><br>    <span class="hljs-punctuation">&#125;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;description&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Patch updates are low risk and can be automerged after CI.&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;matchUpdateTypes&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>        <span class="hljs-string">&quot;patch&quot;</span><br>      <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;automerge&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">false</span></span><br>    <span class="hljs-punctuation">&#125;</span><br>  <span class="hljs-punctuation">]</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>这里我把 <code>automerge</code> 设成了 <code>false</code>。老项目刚接入时，不建议一上来就自动合并。等 CI、测试覆盖、回滚策略都稳定后，再逐步打开 patch 自动合并。</p>
+<h3 id="9-3-Renovate-Runner-配置"><a href="#9-3-Renovate-Runner-配置" class="headerlink" title="9.3 Renovate Runner 配置"></a>9.3 Renovate Runner 配置</h3><p>本地或 CI 中创建 <code>config.js</code>：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs js"><span class="hljs-variable language_">module</span>.<span class="hljs-property">exports</span> = &#123;<br>  <span class="hljs-attr">platform</span>: <span class="hljs-string">&#x27;gitlab&#x27;</span>,<br>  <span class="hljs-attr">endpoint</span>: <span class="hljs-string">&#x27;https://git.dianplus.cn/api/v4&#x27;</span>,<br>  <span class="hljs-attr">token</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">RENOVATE_TOKEN</span>,<br><br>  <span class="hljs-attr">repositories</span>: [<br>    <span class="hljs-string">&#x27;background/finance&#x27;</span><br>  ],<br><br>  <span class="hljs-attr">gitAuthor</span>: <span class="hljs-string">&#x27;Renovate Bot &lt;renovate-bot@example.com&gt;&#x27;</span>,<br>  <span class="hljs-attr">onboarding</span>: <span class="hljs-literal">false</span>,<br>  <span class="hljs-attr">requireConfig</span>: <span class="hljs-string">&#x27;required&#x27;</span>,<br><br>  <span class="hljs-attr">hostRules</span>: [<br>    &#123;<br>      <span class="hljs-attr">hostType</span>: <span class="hljs-string">&#x27;maven&#x27;</span>,<br>      <span class="hljs-attr">matchHost</span>: <span class="hljs-string">&#x27;https://nexus.example.com/repository/maven-public/&#x27;</span>,<br>      <span class="hljs-attr">username</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MAVEN_REPO_USERNAME</span>,<br>      <span class="hljs-attr">password</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MAVEN_REPO_PASSWORD</span><br>    &#125;<br>  ]<br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p>运行 dry-run：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">LOG_LEVEL=debug npx --<span class="hljs-built_in">yes</span> --package renovate -- renovate --config-file ./config.js --dry-run=full<br></code></pre></td></tr></table></figure>
+
+<p>正式运行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">LOG_LEVEL=info npx --<span class="hljs-built_in">yes</span> --package renovate -- renovate --config-file ./config.js<br></code></pre></td></tr></table></figure>
+
+<h3 id="9-4-GitLab-定时任务"><a href="#9-4-GitLab-定时任务" class="headerlink" title="9.4 GitLab 定时任务"></a>9.4 GitLab 定时任务</h3><p>如果你把 Renovate 放到单独的 <code>renovate-runner</code> 项目，可以在 <code>.gitlab-ci.yml</code> 中这样写：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">stages:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">renovate</span><br><br><span class="hljs-attr">renovate:</span><br>  <span class="hljs-attr">stage:</span> <span class="hljs-string">renovate</span><br>  <span class="hljs-attr">image:</span> <span class="hljs-string">renovate/renovate:43</span><br>  <span class="hljs-attr">script:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">renovate</span> <span class="hljs-string">--config-file</span> <span class="hljs-string">config.js</span><br>  <span class="hljs-attr">rules:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">if:</span> <span class="hljs-string">&#x27;$CI_PIPELINE_SOURCE == &quot;schedule&quot;&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>然后在 GitLab 里配置 Pipeline Schedule，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">每周一早上 08:00 跑一次<br></code></pre></td></tr></table></figure>
+
+<p>不要每几分钟跑一次。依赖升级不是刷短视频，不需要这么频繁。</p>
+<h3 id="9-5-业务仓库-OpenRewrite-Job"><a href="#9-5-业务仓库-OpenRewrite-Job" class="headerlink" title="9.5 业务仓库 OpenRewrite Job"></a>9.5 业务仓库 OpenRewrite Job</h3><p>在 <code>background/finance</code> 仓库 <code>.gitlab-ci.yml</code> 里增加：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">stages:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">rewrite</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">build</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">test</span><br><br><span class="hljs-attr">variables:</span><br>  <span class="hljs-attr">MAVEN_OPTS:</span> <span class="hljs-string">&quot;-Dmaven.repo.local=.m2/repository&quot;</span><br>  <span class="hljs-attr">REWRITE_MAVEN_PLUGIN_VERSION:</span> <span class="hljs-string">&quot;6.41.0&quot;</span><br>  <span class="hljs-attr">REWRITE_SPRING_VERSION:</span> <span class="hljs-string">&quot;6.32.1&quot;</span><br><br><span class="hljs-attr">cache:</span><br>  <span class="hljs-attr">key:</span> <span class="hljs-string">&quot;$&#123;CI_PROJECT_NAME&#125;-maven&quot;</span><br>  <span class="hljs-attr">paths:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">.m2/repository</span><br><br><span class="hljs-attr">openrewrite:spring-boot:</span><br>  <span class="hljs-attr">stage:</span> <span class="hljs-string">rewrite</span><br>  <span class="hljs-attr">image:</span> <span class="hljs-string">maven:3.9.9-eclipse-temurin-21</span><br>  <span class="hljs-attr">rules:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">if:</span> <span class="hljs-string">&#x27;$CI_COMMIT_BRANCH =~ /^renovate\/spring-boot-framework/&#x27;</span><br>      <span class="hljs-attr">when:</span> <span class="hljs-string">manual</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">when:</span> <span class="hljs-string">never</span><br>  <span class="hljs-attr">before_script:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">git</span> <span class="hljs-string">config</span> <span class="hljs-string">user.name</span> <span class="hljs-string">&quot;Renovate Bot&quot;</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">git</span> <span class="hljs-string">config</span> <span class="hljs-string">user.email</span> <span class="hljs-string">&quot;renovate-bot@example.com&quot;</span><br>  <span class="hljs-attr">script:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">|</span><br><span class="hljs-string">      mvn -U org.openrewrite.maven:rewrite-maven-plugin:$&#123;REWRITE_MAVEN_PLUGIN_VERSION&#125;:run \</span><br><span class="hljs-string">        -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:$&#123;REWRITE_SPRING_VERSION&#125; \</span><br><span class="hljs-string">        -Drewrite.activeRecipes=org.openrewrite.java.spring.boot3.UpgradeSpringBoot_3_5 \</span><br><span class="hljs-string">        -Drewrite.exportDatatables=true</span><br><span class="hljs-string"></span>    <span class="hljs-bullet">-</span> <span class="hljs-string">|</span><br><span class="hljs-string">      if ! git diff --quiet; then</span><br><span class="hljs-string">        git add .</span><br><span class="hljs-string">        git commit -m &quot;chore: apply OpenRewrite Spring Boot migration [skip ci]&quot;</span><br><span class="hljs-string">        git push &quot;https://oauth2:$&#123;RENOVATE_PUSH_TOKEN&#125;@$&#123;CI_SERVER_HOST&#125;/$&#123;CI_PROJECT_PATH&#125;.git&quot; &quot;HEAD:$&#123;CI_COMMIT_REF_NAME&#125;&quot;</span><br><span class="hljs-string">      else</span><br><span class="hljs-string">        echo &quot;No OpenRewrite changes detected.&quot;</span><br><span class="hljs-string">      fi</span><br><span class="hljs-string"></span><br><span class="hljs-attr">maven:compile:</span><br>  <span class="hljs-attr">stage:</span> <span class="hljs-string">build</span><br>  <span class="hljs-attr">image:</span> <span class="hljs-string">maven:3.9.9-eclipse-temurin-21</span><br>  <span class="hljs-attr">script:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">mvn</span> <span class="hljs-string">-U</span> <span class="hljs-string">clean</span> <span class="hljs-string">compile</span><br><br><span class="hljs-attr">maven:test:</span><br>  <span class="hljs-attr">stage:</span> <span class="hljs-string">test</span><br>  <span class="hljs-attr">image:</span> <span class="hljs-string">maven:3.9.9-eclipse-temurin-21</span><br>  <span class="hljs-attr">script:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">mvn</span> <span class="hljs-string">test</span><br></code></pre></td></tr></table></figure>
+
+<p>这套流程运行后，会出现这样的效果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Renovate MR：升级 Spring Boot 版本<br>OpenRewrite Job：点击后自动修改代码<br>CI：继续编译测试<br>开发者：Review MR<br></code></pre></td></tr></table></figure>
+
+<h3 id="9-6-分支命名与规则匹配"><a href="#9-6-分支命名与规则匹配" class="headerlink" title="9.6 分支命名与规则匹配"></a>9.6 分支命名与规则匹配</h3><p>Renovate 的分支名可能会因为配置不同而变化。</p>
+<p>如果你想稳定匹配，可以在 packageRules 里配置：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;matchPackageNames&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;/^org\\.springframework\\.boot:/&quot;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;groupName&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;spring boot framework&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;branchTopic&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;spring-boot-framework&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>这样分支更容易被 CI 规则识别：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">rules:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">if:</span> <span class="hljs-string">&#x27;$CI_COMMIT_BRANCH =~ /^renovate\/spring-boot-framework/&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<h2 id="十、实战案例二：只升级公司内部-com-amugua-依赖"><a href="#十、实战案例二：只升级公司内部-com-amugua-依赖" class="headerlink" title="十、实战案例二：只升级公司内部 com.amugua 依赖"></a>十、实战案例二：只升级公司内部 com.amugua 依赖</h2><p>你可能有这样的场景：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">公司内部有很多 com.amugua.* 依赖；<br>这些依赖经常发布新版本；<br>但不希望 Renovate 管所有第三方依赖；<br>只想先让它管理某个 impl 模块里的公司内部包。<br></code></pre></td></tr></table></figure>
+
+<p>可以这样配置：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;$schema&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;https://docs.renovatebot.com/renovate-schema.json&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;extends&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;config:recommended&quot;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;enabledManagers&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;maven&quot;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;includePaths&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;com.amugua.finance.impl/pom.xml&quot;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;dependencyDashboard&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">true</span></span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;packageRules&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;description&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Only manage Amugua Maven coordinates in the impl project.&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;matchManagers&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>        <span class="hljs-string">&quot;maven&quot;</span><br>      <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;matchPackageNames&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>        <span class="hljs-string">&quot;!/^com\\.amugua(\\.|:)/&quot;</span><br>      <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;enabled&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">false</span></span><br>    <span class="hljs-punctuation">&#125;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;description&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Group all Amugua internal dependencies.&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;matchManagers&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>        <span class="hljs-string">&quot;maven&quot;</span><br>      <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;matchPackageNames&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>        <span class="hljs-string">&quot;/^com\\.amugua(\\.|:)/&quot;</span><br>      <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;groupName&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;amugua internal dependencies&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;branchTopic&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;amugua-internal-dependencies&quot;</span><br>    <span class="hljs-punctuation">&#125;</span><br>  <span class="hljs-punctuation">]</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果跑出来仍然看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">dockerfile: fileCount 1<br>maven: fileCount 2<br></code></pre></td></tr></table></figure>
+
+<p>说明配置没生效。正确情况下应该接近：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">maven: fileCount 1<br></code></pre></td></tr></table></figure>
+
+<p>排查顺序：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 1. 看默认分支上有没有配置</span><br>git fetch origin master<br>git show origin/master:renovate.json<br><br><span class="hljs-comment"># 2. 打印最终配置</span><br>LOG_LEVEL=debug npx --<span class="hljs-built_in">yes</span> --package renovate -- renovate --dry-run=full --print-config 2&gt;&amp;1 | <span class="hljs-built_in">tee</span> renovate-debug.log<br><br><span class="hljs-comment"># 3. 检查关键字段</span><br>grep -n <span class="hljs-string">&quot;enabledManagers\|includePaths\|packageRules\|dockerfile&quot;</span> renovate-debug.log<br></code></pre></td></tr></table></figure>
+
+<p>如果你只是本地测试，不要带 repositories：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">unset</span> RENOVATE_CONFIG<br><span class="hljs-built_in">unset</span> RENOVATE_REPOSITORIES<br><span class="hljs-built_in">unset</span> RENOVATE_ENDPOINT<br><br>LOG_LEVEL=debug npx --<span class="hljs-built_in">yes</span> --package renovate -- renovate --platform=<span class="hljs-built_in">local</span> --dry-run=extract<br></code></pre></td></tr></table></figure>
+
+<p>如果要远程创建 MR，不要用 <code>platform=local</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">export</span> RENOVATE_CONFIG=<span class="hljs-string">&#x27;&#123;</span><br><span class="hljs-string">  &quot;platform&quot;: &quot;gitlab&quot;,</span><br><span class="hljs-string">  &quot;endpoint&quot;: &quot;https://git.dianplus.cn/api/v4&quot;,</span><br><span class="hljs-string">  &quot;repositories&quot;: [</span><br><span class="hljs-string">    &quot;background/finance&quot;</span><br><span class="hljs-string">  ],</span><br><span class="hljs-string">  &quot;gitAuthor&quot;: &quot;Renovate Bot &lt;renovate-bot@example.com&gt;&quot;</span><br><span class="hljs-string">&#125;&#x27;</span><br><br>LOG_LEVEL=debug npx --<span class="hljs-built_in">yes</span> --package renovate -- renovate --dry-run=full<br></code></pre></td></tr></table></figure>
+
+<h2 id="十一、实战案例三：Spring-Boot-2-7-升级到-3-5"><a href="#十一、实战案例三：Spring-Boot-2-7-升级到-3-5" class="headerlink" title="十一、实战案例三：Spring Boot 2.7 升级到 3.5"></a>十一、实战案例三：Spring Boot 2.7 升级到 3.5</h2><p>这是 Renovate + OpenRewrite 最典型的组合场景。</p>
+<h3 id="11-1-初始项目"><a href="#11-1-初始项目" class="headerlink" title="11.1 初始项目"></a>11.1 初始项目</h3><p><code>pom.xml</code>：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">parent</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-parent<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>2.7.18<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">relativePath</span>/&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">parent</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">properties</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">java.version</span>&gt;</span>11<span class="hljs-tag">&lt;/<span class="hljs-name">java.version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">properties</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>代码中存在：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> javax.servlet.http.HttpServletRequest;<br><span class="hljs-keyword">import</span> javax.validation.Valid;<br><span class="hljs-keyword">import</span> javax.annotation.PostConstruct;<br></code></pre></td></tr></table></figure>
+
+<p>测试中存在：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> org.junit.Test;<br><span class="hljs-keyword">import</span> org.junit.runner.RunWith;<br><span class="hljs-keyword">import</span> org.springframework.test.context.junit4.SpringRunner;<br></code></pre></td></tr></table></figure>
+
+<h3 id="11-2-Renovate-先创建升级-MR"><a href="#11-2-Renovate-先创建升级-MR" class="headerlink" title="11.2 Renovate 先创建升级 MR"></a>11.2 Renovate 先创建升级 MR</h3><p>Renovate 将 Spring Boot 相关依赖升级到 3.5.x。</p>
+<p>MR 中可能出现：</p>
+<figure class="highlight diff"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs diff"><span class="hljs-deletion">- &lt;version&gt;2.7.18&lt;/version&gt;</span><br><span class="hljs-addition">+ &lt;version&gt;3.5.3&lt;/version&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>这一步只是依赖版本升级。此时项目很可能编译失败。</p>
+<h3 id="11-3-OpenRewrite-迁移-Spring-Boot"><a href="#11-3-OpenRewrite-迁移-Spring-Boot" class="headerlink" title="11.3 OpenRewrite 迁移 Spring Boot"></a>11.3 OpenRewrite 迁移 Spring Boot</h3><p>运行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -U org.openrewrite.maven:rewrite-maven-plugin:6.41.0:run \<br>  -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:6.32.1 \<br>  -Drewrite.activeRecipes=org.openrewrite.java.spring.boot3.UpgradeSpringBoot_3_5 \<br>  -Drewrite.exportDatatables=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>可能产生的变化：</p>
+<figure class="highlight diff"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs diff"><span class="hljs-deletion">-import javax.servlet.http.HttpServletRequest;</span><br><span class="hljs-addition">+import jakarta.servlet.http.HttpServletRequest;</span><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight diff"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs diff"><span class="hljs-deletion">-import javax.validation.Valid;</span><br><span class="hljs-addition">+import jakarta.validation.Valid;</span><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight diff"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs diff"><span class="hljs-deletion">-import javax.annotation.PostConstruct;</span><br><span class="hljs-addition">+import jakarta.annotation.PostConstruct;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="11-4-OpenRewrite-迁移-JUnit-5"><a href="#11-4-OpenRewrite-迁移-JUnit-5" class="headerlink" title="11.4 OpenRewrite 迁移 JUnit 5"></a>11.4 OpenRewrite 迁移 JUnit 5</h3><p>运行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -U org.openrewrite.maven:rewrite-maven-plugin:6.41.0:run \<br>  -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-testing-frameworks:3.37.0 \<br>  -Drewrite.activeRecipes=org.openrewrite.java.testing.junit5.JUnit4to5Migration \<br>  -Drewrite.exportDatatables=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>可能产生的变化：</p>
+<figure class="highlight diff"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs diff"><span class="hljs-deletion">-import org.junit.Test;</span><br><span class="hljs-addition">+import org.junit.jupiter.api.Test;</span><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight diff"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs diff"><span class="hljs-deletion">-import org.junit.Assert.assertEquals;</span><br><span class="hljs-addition">+import org.junit.jupiter.api.Assertions.assertEquals;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="11-5-编译验证"><a href="#11-5-编译验证" class="headerlink" title="11.5 编译验证"></a>11.5 编译验证</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn clean <span class="hljs-built_in">test</span><br></code></pre></td></tr></table></figure>
+
+<p>如果报错，常见原因有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 第三方依赖不兼容 Spring Boot 3；<br>2. 公司自研 starter 没支持 jakarta；<br>3. 旧版本 MyBatis、Dubbo、ShardingSphere 等依赖不兼容；<br>4. Spring Security 配置需要人工处理；<br>5. 反射字符串中的 javax 没被替换；<br>6. 配置中心中的配置项没有同步迁移。<br></code></pre></td></tr></table></figure>
+
+<h3 id="11-6-Review-重点"><a href="#11-6-Review-重点" class="headerlink" title="11.6 Review 重点"></a>11.6 Review 重点</h3><p>这种 MR Review 时，不要只看能不能编译，还要看：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">1. Spring Boot 版本是否符合公司统一基线；<br>2. Spring Cloud 版本是否匹配；<br>3. Jakarta 迁移是否完整；<br>4. starter 是否有兼容版本；<br>5. 测试是否只是“能跑”，还是确实覆盖关键业务；<br>6. 配置中心、部署脚本、镜像基础版本是否同步调整；<br>7. 日志、监控、APM、网关、鉴权是否受影响。<br></code></pre></td></tr></table></figure>
+
+<h2 id="十二、实战案例四：Java-11-升级-Java-21"><a href="#十二、实战案例四：Java-11-升级-Java-21" class="headerlink" title="十二、实战案例四：Java 11 升级 Java 21"></a>十二、实战案例四：Java 11 升级 Java 21</h2><p>Java 21 是当前很多企业后端项目的目标版本。配合 Spring Boot 3.x，更适合做长期技术基线。</p>
+<h3 id="12-1-Renovate-负责依赖基线更新"><a href="#12-1-Renovate-负责依赖基线更新" class="headerlink" title="12.1 Renovate 负责依赖基线更新"></a>12.1 Renovate 负责依赖基线更新</h3><p>Renovate 可以持续升级：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">maven-compiler-plugin<br>maven-surefire-plugin<br>maven-failsafe-plugin<br>maven-dependency-plugin<br>spring-boot-maven-plugin<br></code></pre></td></tr></table></figure>
+
+<p>但 Java 源码和构建配置的迁移，更适合 OpenRewrite。</p>
+<h3 id="12-2-OpenRewrite-执行-Java-21-迁移"><a href="#12-2-OpenRewrite-执行-Java-21-迁移" class="headerlink" title="12.2 OpenRewrite 执行 Java 21 迁移"></a>12.2 OpenRewrite 执行 Java 21 迁移</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -U org.openrewrite.maven:rewrite-maven-plugin:6.41.0:run \<br>  -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-migrate-java:3.36.0 \<br>  -Drewrite.activeRecipes=org.openrewrite.java.migrate.UpgradeToJava21 \<br>  -Drewrite.exportDatatables=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>可能改动：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">properties</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">java.version</span>&gt;</span>21<span class="hljs-tag">&lt;/<span class="hljs-name">java.version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">properties</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">maven.compiler.release</span>&gt;</span>21<span class="hljs-tag">&lt;/<span class="hljs-name">maven.compiler.release</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="12-3-CI-镜像同步升级"><a href="#12-3-CI-镜像同步升级" class="headerlink" title="12.3 CI 镜像同步升级"></a>12.3 CI 镜像同步升级</h3><p><code>.gitlab-ci.yml</code>：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">image:</span> <span class="hljs-string">maven:3.9.9-eclipse-temurin-21</span><br></code></pre></td></tr></table></figure>
+
+<p>Dockerfile：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs dockerfile"><span class="hljs-keyword">FROM</span> eclipse-temurin:<span class="hljs-number">21</span>-jre<br></code></pre></td></tr></table></figure>
+
+<p>注意：JDK 升级不是只改 <code>pom.xml</code>。你还要同步检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">1. CI 镜像；<br>2. Docker 基础镜像；<br>3. 生产环境 JRE；<br>4. APM Agent 是否支持 Java 21；<br>5. Lombok、MapStruct、Maven 插件是否兼容；<br>6. IDE 编译版本；<br>7. 构建机 Maven/JDK 版本。<br></code></pre></td></tr></table></figure>
+
+<h2 id="十三、企业落地规范"><a href="#十三、企业落地规范" class="headerlink" title="十三、企业落地规范"></a>十三、企业落地规范</h2><h3 id="13-1-MR-类型分级"><a href="#13-1-MR-类型分级" class="headerlink" title="13.1 MR 类型分级"></a>13.1 MR 类型分级</h3><p>建议把依赖升级分成三类：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>示例</th>
+<th>处理策略</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Patch</td>
+<td>3.5.1 -&gt; 3.5.2</td>
+<td>CI 通过后可考虑自动合并</td>
+</tr>
+<tr>
+<td>Minor</td>
+<td>3.4.x -&gt; 3.5.x</td>
+<td>需要 Review，必要时跑 OpenRewrite</td>
+</tr>
+<tr>
+<td>Major</td>
+<td>2.x -&gt; 3.x</td>
+<td>必须专项迁移，禁止自动合并</td>
+</tr>
+</tbody></table>
+<h3 id="13-2-推荐分支策略"><a href="#13-2-推荐分支策略" class="headerlink" title="13.2 推荐分支策略"></a>13.2 推荐分支策略</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">renovate/*：Renovate 自动升级分支；<br>migration/*：专项迁移分支；<br>hotfix/*：紧急安全修复；<br>release/*：发布分支。<br></code></pre></td></tr></table></figure>
+
+<h3 id="13-3-推荐流水线门禁"><a href="#13-3-推荐流水线门禁" class="headerlink" title="13.3 推荐流水线门禁"></a>13.3 推荐流水线门禁</h3><p>每个依赖升级 MR 至少跑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">1. mvn clean compile；<br>2. mvn test；<br>3. 单元测试覆盖率检查；<br>4. 静态扫描；<br>5. 依赖漏洞扫描；<br>6. Docker 镜像构建；<br>7. 必要时跑集成测试。<br></code></pre></td></tr></table></figure>
+
+<p>Spring Boot &#x2F; JDK 大迁移还应增加：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 启动测试；<br>2. 配置加载测试；<br>3. 数据源连接测试；<br>4. Redis/MQ/Nacos/Dubbo 注册测试；<br>5. 核心接口冒烟测试；<br>6. 回滚方案检查。<br></code></pre></td></tr></table></figure>
+
+<h3 id="13-4-建议的团队流程"><a href="#13-4-建议的团队流程" class="headerlink" title="13.4 建议的团队流程"></a>13.4 建议的团队流程</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">第一阶段：只开启 Renovate dry-run，观察扫描结果。<br>第二阶段：开启 Renovate MR，但禁止 automerge。<br>第三阶段：对低风险 patch 开启自动合并。<br>第四阶段：引入 OpenRewrite 半自动迁移。<br>第五阶段：对稳定 Recipe 开启 CI 自动补丁。<br>第六阶段：沉淀公司内部 Recipe 和版本基线。<br></code></pre></td></tr></table></figure>
+
+<p>不要一上来就：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">全仓库扫描 + 全依赖自动升级 + OpenRewrite 自动 commit + automerge<br></code></pre></td></tr></table></figure>
+
+<p>这不是自动化，这是把方向盘交给工具，然后希望它懂你们业务。工具懂语法，不懂 KPI。</p>
+<h2 id="十四、常见问题排查"><a href="#十四、常见问题排查" class="headerlink" title="十四、常见问题排查"></a>十四、常见问题排查</h2><h3 id="14-1-Renovate-只创建-onboarding-PR"><a href="#14-1-Renovate-只创建-onboarding-PR" class="headerlink" title="14.1 Renovate 只创建 onboarding PR"></a>14.1 Renovate 只创建 onboarding PR</h3><p>日志：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">DRY-RUN: Would create onboarding PR<br></code></pre></td></tr></table></figure>
+
+<p>说明 Renovate 认为仓库还没有完成初始化。</p>
+<p>处理方式：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 确认 renovate.json 已经提交到默认分支；<br>2. 如果想跳过 onboarding，在运行配置中设置 onboarding=false；<br>3. 如果要求必须有配置，设置 requireConfig=required；<br>4. 不要把 self-hosted 配置写进 renovate.json。<br></code></pre></td></tr></table></figure>
+
+<h3 id="14-2-Repository-is-not-found"><a href="#14-2-Repository-is-not-found" class="headerlink" title="14.2 Repository is not found"></a>14.2 Repository is not found</h3><p>通常是 <code>repositories</code> 写错。</p>
+<p>GitLab 中应该写：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">background/finance<br></code></pre></td></tr></table></figure>
+
+<p>不要写：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">https://git.dianplus.cn/background/finance.git<br></code></pre></td></tr></table></figure>
+
+<p>也不要带 <code>.git</code>。</p>
+<p>验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">git remote get-url origin<br></code></pre></td></tr></table></figure>
+
+<p>提取 repository slug：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">git remote get-url origin \<br>  | sed -E <span class="hljs-string">&#x27;s#https?://[^/]+/##; s#git@[^:]+:##; s#\.git$##&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="14-3-platform-local-与-repositories-冲突"><a href="#14-3-platform-local-与-repositories-冲突" class="headerlink" title="14.3 platform&#x3D;local 与 repositories 冲突"></a>14.3 platform&#x3D;local 与 repositories 冲突</h3><p>错误：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Invalid configuration: repositories list not supported when platform=local<br></code></pre></td></tr></table></figure>
+
+<p>原因：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">platform=local 是本地目录扫描，不允许 repositories。<br></code></pre></td></tr></table></figure>
+
+<p>解决：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">unset</span> RENOVATE_CONFIG<br><span class="hljs-built_in">unset</span> RENOVATE_REPOSITORIES<br><span class="hljs-built_in">unset</span> RENOVATE_ENDPOINT<br><br>LOG_LEVEL=debug npx --<span class="hljs-built_in">yes</span> --package renovate -- renovate --platform=<span class="hljs-built_in">local</span> --dry-run=extract<br></code></pre></td></tr></table></figure>
+
+<p>或者改用 GitLab 远程模式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">LOG_LEVEL=debug npx --<span class="hljs-built_in">yes</span> --package renovate -- renovate --dry-run=full<br></code></pre></td></tr></table></figure>
+
+<h3 id="14-4-Renovate-没有按-includePaths-生效"><a href="#14-4-Renovate-没有按-includePaths-生效" class="headerlink" title="14.4 Renovate 没有按 includePaths 生效"></a>14.4 Renovate 没有按 includePaths 生效</h3><p>先看远程默认分支配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">git fetch origin master<br>git show origin/master:renovate.json<br></code></pre></td></tr></table></figure>
+
+<p>再打印最终配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">LOG_LEVEL=debug npx --<span class="hljs-built_in">yes</span> --package renovate -- renovate --dry-run=full --print-config 2&gt;&amp;1 | <span class="hljs-built_in">tee</span> renovate-debug.log<br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">grep -n <span class="hljs-string">&quot;enabledManagers\|includePaths\|packageRules&quot;</span> renovate-debug.log<br></code></pre></td></tr></table></figure>
+
+<h3 id="14-5-OpenRewrite-找不到-Recipe"><a href="#14-5-OpenRewrite-找不到-Recipe" class="headerlink" title="14.5 OpenRewrite 找不到 Recipe"></a>14.5 OpenRewrite 找不到 Recipe</h3><p>报错可能类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Recipe(s) not found<br></code></pre></td></tr></table></figure>
+
+<p>常见原因：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 没有配置 recipeArtifactCoordinates；<br>2. recipe 包版本不对；<br>3. recipe 名称写错；<br>4. 私服无法访问 Maven Central；<br>5. 公司 Maven settings.xml 没有正确配置 mirror。<br></code></pre></td></tr></table></figure>
+
+<p>解决示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">mvn -U org.openrewrite.maven:rewrite-maven-plugin:6.41.0:discover \<br>  -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:6.32.1<br></code></pre></td></tr></table></figure>
+
+<h3 id="14-6-OpenRewrite-改动太大"><a href="#14-6-OpenRewrite-改动太大" class="headerlink" title="14.6 OpenRewrite 改动太大"></a>14.6 OpenRewrite 改动太大</h3><p>处理建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 拆分 Recipe；<br>2. 每次只跑一个迁移主题；<br>3. 先 dryRun；<br>4. 小步 commit；<br>5. 每一步都跑测试；<br>6. 不要把 Java 21、Spring Boot 3、JUnit 5、代码格式化全部塞进一个 commit。<br></code></pre></td></tr></table></figure>
+
+<h2 id="十五、推荐项目结构"><a href="#十五、推荐项目结构" class="headerlink" title="十五、推荐项目结构"></a>十五、推荐项目结构</h2><p>可以在企业内部建一个专门的治理仓库：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs text">dependency-governance/<br>├── renovate/<br>│   ├── config.js<br>│   ├── presets/<br>│   │   ├── java-maven.json<br>│   │   ├── spring-boot.json<br>│   │   └── internal-amugua.json<br>│   └── README.md<br>├── openrewrite/<br>│   ├── rewrite-spring-boot-35.sh<br>│   ├── rewrite-java-21.sh<br>│   ├── rewrite-junit5.sh<br>│   └── rewrite.yml<br>├── ci/<br>│   ├── gitlab-renovate.yml<br>│   └── gitlab-openrewrite.yml<br>└── docs/<br>    ├── upgrade-policy.md<br>    └── rollback-policy.md<br></code></pre></td></tr></table></figure>
+
+<p>这样做的好处：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 依赖治理配置集中管理；<br>2. OpenRewrite 命令统一维护；<br>3. CI 模板可以复用；<br>4. 各业务项目只引用配置，不重复造轮子；<br>5. 后续可以沉淀公司内部 Recipe。<br></code></pre></td></tr></table></figure>
+
+<h2 id="十六、推荐-Shell-脚本"><a href="#十六、推荐-Shell-脚本" class="headerlink" title="十六、推荐 Shell 脚本"></a>十六、推荐 Shell 脚本</h2><h3 id="16-1-run-renovate-local-sh"><a href="#16-1-run-renovate-local-sh" class="headerlink" title="16.1 run-renovate-local.sh"></a>16.1 run-renovate-local.sh</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -euo pipefail<br><br><span class="hljs-built_in">unset</span> RENOVATE_CONFIG || <span class="hljs-literal">true</span><br><span class="hljs-built_in">unset</span> RENOVATE_REPOSITORIES || <span class="hljs-literal">true</span><br><span class="hljs-built_in">unset</span> RENOVATE_ENDPOINT || <span class="hljs-literal">true</span><br><br>LOG_LEVEL=debug npx --<span class="hljs-built_in">yes</span> --package renovate -- renovate \<br>  --platform=<span class="hljs-built_in">local</span> \<br>  --dry-run=extract \<br>  2&gt;&amp;1 | <span class="hljs-built_in">tee</span> renovate-local.log<br></code></pre></td></tr></table></figure>
+
+<h3 id="16-2-run-renovate-gitlab-dryrun-sh"><a href="#16-2-run-renovate-gitlab-dryrun-sh" class="headerlink" title="16.2 run-renovate-gitlab-dryrun.sh"></a>16.2 run-renovate-gitlab-dryrun.sh</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -euo pipefail<br><br>: <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;RENOVATE_TOKEN:?RENOVATE_TOKEN is required&#125;</span>&quot;</span><br><br><span class="hljs-built_in">export</span> RENOVATE_CONFIG=<span class="hljs-string">&#x27;&#123;</span><br><span class="hljs-string">  &quot;platform&quot;: &quot;gitlab&quot;,</span><br><span class="hljs-string">  &quot;endpoint&quot;: &quot;https://git.dianplus.cn/api/v4&quot;,</span><br><span class="hljs-string">  &quot;repositories&quot;: [</span><br><span class="hljs-string">    &quot;background/finance&quot;</span><br><span class="hljs-string">  ],</span><br><span class="hljs-string">  &quot;gitAuthor&quot;: &quot;Renovate Bot &lt;renovate-bot@example.com&gt;&quot;</span><br><span class="hljs-string">&#125;&#x27;</span><br><br>LOG_LEVEL=debug npx --<span class="hljs-built_in">yes</span> --package renovate -- renovate \<br>  --dry-run=full \<br>  2&gt;&amp;1 | <span class="hljs-built_in">tee</span> renovate-remote.log<br></code></pre></td></tr></table></figure>
+
+<h3 id="16-3-run-openrewrite-spring-boot-35-sh"><a href="#16-3-run-openrewrite-spring-boot-35-sh" class="headerlink" title="16.3 run-openrewrite-spring-boot-35.sh"></a>16.3 run-openrewrite-spring-boot-35.sh</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -euo pipefail<br><br>REWRITE_MAVEN_PLUGIN_VERSION=<span class="hljs-string">&quot;6.41.0&quot;</span><br>REWRITE_SPRING_VERSION=<span class="hljs-string">&quot;6.32.1&quot;</span><br><br>mvn -U org.openrewrite.maven:rewrite-maven-plugin:<span class="hljs-variable">$&#123;REWRITE_MAVEN_PLUGIN_VERSION&#125;</span>:run \<br>  -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:<span class="hljs-variable">$&#123;REWRITE_SPRING_VERSION&#125;</span> \<br>  -Drewrite.activeRecipes=org.openrewrite.java.spring.boot3.UpgradeSpringBoot_3_5 \<br>  -Drewrite.exportDatatables=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="16-4-run-openrewrite-java-21-sh"><a href="#16-4-run-openrewrite-java-21-sh" class="headerlink" title="16.4 run-openrewrite-java-21.sh"></a>16.4 run-openrewrite-java-21.sh</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -euo pipefail<br><br>REWRITE_MAVEN_PLUGIN_VERSION=<span class="hljs-string">&quot;6.41.0&quot;</span><br>REWRITE_MIGRATE_JAVA_VERSION=<span class="hljs-string">&quot;3.36.0&quot;</span><br><br>mvn -U org.openrewrite.maven:rewrite-maven-plugin:<span class="hljs-variable">$&#123;REWRITE_MAVEN_PLUGIN_VERSION&#125;</span>:run \<br>  -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-migrate-java:<span class="hljs-variable">$&#123;REWRITE_MIGRATE_JAVA_VERSION&#125;</span> \<br>  -Drewrite.activeRecipes=org.openrewrite.java.migrate.UpgradeToJava21 \<br>  -Drewrite.exportDatatables=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="16-5-run-openrewrite-junit5-sh"><a href="#16-5-run-openrewrite-junit5-sh" class="headerlink" title="16.5 run-openrewrite-junit5.sh"></a>16.5 run-openrewrite-junit5.sh</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><span class="hljs-built_in">set</span> -euo pipefail<br><br>REWRITE_MAVEN_PLUGIN_VERSION=<span class="hljs-string">&quot;6.41.0&quot;</span><br>REWRITE_TESTING_VERSION=<span class="hljs-string">&quot;3.37.0&quot;</span><br><br>mvn -U org.openrewrite.maven:rewrite-maven-plugin:<span class="hljs-variable">$&#123;REWRITE_MAVEN_PLUGIN_VERSION&#125;</span>:run \<br>  -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-testing-frameworks:<span class="hljs-variable">$&#123;REWRITE_TESTING_VERSION&#125;</span> \<br>  -Drewrite.activeRecipes=org.openrewrite.java.testing.junit5.JUnit4to5Migration \<br>  -Drewrite.exportDatatables=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<h2 id="十七、最终建议"><a href="#十七、最终建议" class="headerlink" title="十七、最终建议"></a>十七、最终建议</h2><p>Renovate 和 OpenRewrite 的整合，不要理解成“两个工具简单串起来”。</p>
+<p>更准确地说，它是一套技术债治理机制：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Renovate 负责持续发现；<br>OpenRewrite 负责自动修复；<br>CI 负责质量验证；<br>Review 负责业务判断；<br>版本基线负责长期约束。<br></code></pre></td></tr></table></figure>
+
+<p>如果团队没有版本基线，Renovate 会产生很多升级 MR，最后变成噪音。</p>
+<p>如果团队没有测试，OpenRewrite 改完代码，你也不知道对不对。</p>
+<p>如果团队没有 Review 规范，自动化工具越强，事故传播越快。</p>
+<p>所以真正的落地顺序应该是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">先观测，再限制；<br>先 dry-run，再创建 MR；<br>先人工运行 OpenRewrite，再 CI 自动补丁；<br>先小版本治理，再大版本迁移；<br>先单仓试点，再多仓推广。<br></code></pre></td></tr></table></figure>
+
+<p>这套组合用好了，依赖升级就不再是“每年一次的大型恐怖片”，而是持续、可控、可回滚的日常工程能力。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ol>
+<li>OpenRewrite 官方文档：<a target="_blank" rel="noopener" href="https://docs.openrewrite.org/">https://docs.openrewrite.org/</a></li>
+<li>OpenRewrite Maven Plugin 配置：<a target="_blank" rel="noopener" href="https://docs.openrewrite.org/reference/rewrite-maven-plugin">https://docs.openrewrite.org/reference/rewrite-maven-plugin</a></li>
+<li>OpenRewrite 最新模块版本：<a target="_blank" rel="noopener" href="https://docs.openrewrite.org/reference/latest-versions-of-every-openrewrite-module">https://docs.openrewrite.org/reference/latest-versions-of-every-openrewrite-module</a></li>
+<li>OpenRewrite Spring Boot 3.5 迁移 Recipe：<a target="_blank" rel="noopener" href="https://docs.openrewrite.org/recipes/java/spring/boot3/upgradespringboot_3_5-community-edition">https://docs.openrewrite.org/recipes/java/spring/boot3/upgradespringboot_3_5-community-edition</a></li>
+<li>OpenRewrite Java 21 迁移 Recipe：<a target="_blank" rel="noopener" href="https://docs.openrewrite.org/recipes/java/migrate/upgradetojava21">https://docs.openrewrite.org/recipes/java/migrate/upgradetojava21</a></li>
+<li>OpenRewrite JUnit 4 到 JUnit 5 迁移 Recipe：<a target="_blank" rel="noopener" href="https://docs.openrewrite.org/recipes/java/testing/junit5/junit4to5migration">https://docs.openrewrite.org/recipes/java/testing/junit5/junit4to5migration</a></li>
+<li>Renovate 官方文档：<a target="_blank" rel="noopener" href="https://docs.renovatebot.com/">https://docs.renovatebot.com/</a></li>
+<li>Renovate Configuration Options：<a target="_blank" rel="noopener" href="https://docs.renovatebot.com/configuration-options/">https://docs.renovatebot.com/configuration-options/</a></li>
+<li>Renovate Self-Hosted Configuration：<a target="_blank" rel="noopener" href="https://docs.renovatebot.com/self-hosted-configuration/">https://docs.renovatebot.com/self-hosted-configuration/</a></li>
+<li>Renovate GitLab Platform：<a target="_blank" rel="noopener" href="https://docs.renovatebot.com/modules/platform/gitlab/">https://docs.renovatebot.com/modules/platform/gitlab/</a></li>
+<li>Renovate Local Platform：<a target="_blank" rel="noopener" href="https://docs.renovatebot.com/modules/platform/local/">https://docs.renovatebot.com/modules/platform/local/</a></li>
+</ol>
+<h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p><code>依赖升级不是改版本号，而是一次小型系统迁移。</code></p>
+<p><code>工具能替你搬砖，但不能替你判断业务风险。</code></p>
+<p><code>自动化的最高境界，不是无人看管，而是让人只看真正值得看的地方。</code></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Java/" class="category-chain-item">Java</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Spring-Boot/" class="print-no-link">#Spring Boot</a>
+      
+        <a href="/tags/Maven/" class="print-no-link">#Maven</a>
+      
+        <a href="/tags/GitLab/" class="print-no-link">#GitLab</a>
+      
+        <a href="/tags/DevOps/" class="print-no-link">#DevOps</a>
+      
+        <a href="/tags/CI-CD/" class="print-no-link">#CI/CD</a>
+      
+        <a href="/tags/Renovate/" class="print-no-link">#Renovate</a>
+      
+        <a href="/tags/OpenRewrite/" class="print-no-link">#OpenRewrite</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Renovate 与 OpenRewrite：从依赖升级到代码自动迁移的工程化实践</div>
+      <div>https://allendericdalexander.github.io/2026/06/12/scm/renovate-openrewrite-integration-guide/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年6月12日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/06/12/scm/openrewrite-practical-guide/" title="OpenRewrite 深度实战：自动化代码重构、Java 迁移与 Spring Boot 升级">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">OpenRewrite 深度实战：自动化代码重构、Java 迁移与 Spring Boot 升级</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/06/12/scm/maven-build-cache-extension/" title="Maven Build Cache Extension 深入实战：让 Maven 多模块构建快起来">
+                        <span class="hidden-mobile">Maven Build Cache Extension 深入实战：让 Maven 多模块构建快起来</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
