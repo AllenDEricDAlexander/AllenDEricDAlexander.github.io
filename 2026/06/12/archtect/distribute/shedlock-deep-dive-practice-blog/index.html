@@ -1,0 +1,1469 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="欢迎你来读这篇博客，这篇博客主要围绕 ShedLock 展开：它是什么、解决什么问题、底层原理是什么、如何在 Spring Boot 3.x项目中落地，以及在生产环境里应该怎么配置、怎么验证、怎么避坑。 如果你有多实例部署的 Spring Boot 服务，并且项目里存在 @Scheduled 定时任务，那么这篇文章基本就是给你的。因为普通的@Scheduled 在单机时代岁月静好，一旦服务扩容到">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ShedLock 深入解析：Spring Boot 分布式定时任务锁的原理与生产实战">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/06/12/archtect/distribute/shedlock-deep-dive-practice-blog/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="欢迎你来读这篇博客，这篇博客主要围绕 ShedLock 展开：它是什么、解决什么问题、底层原理是什么、如何在 Spring Boot 3.x项目中落地，以及在生产环境里应该怎么配置、怎么验证、怎么避坑。 如果你有多实例部署的 Spring Boot 服务，并且项目里存在 @Scheduled 定时任务，那么这篇文章基本就是给你的。因为普通的@Scheduled 在单机时代岁月静好，一旦服务扩容到">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-12T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-12T04:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Distributed Lock">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="PostgreSQL">
+<meta property="article:tag" content="Redis">
+<meta property="article:tag" content="Scheduled">
+<meta property="article:tag" content="ShedLock">
+<meta property="article:tag" content="Spring Boot">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>ShedLock 深入解析：Spring Boot 分布式定时任务锁的原理与生产实战 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="ShedLock 深入解析：Spring Boot 分布式定时任务锁的原理与生产实战"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-06-12 12:00" pubdate>
+          2026年6月12日 中午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          7.9k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          66 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">ShedLock 深入解析：Spring Boot 分布式定时任务锁的原理与生产实战</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>欢迎你来读这篇博客，这篇博客主要围绕 <code>ShedLock</code> 展开：它是什么、解决什么问题、底层原理是什么、如何在 <code>Spring Boot 3.x</code><br>项目中落地，以及在生产环境里应该怎么配置、怎么验证、怎么避坑。</p>
+<p>如果你有多实例部署的 Spring Boot 服务，并且项目里存在 <code>@Scheduled</code> 定时任务，那么这篇文章基本就是给你的。因为普通的<br><code>@Scheduled</code> 在单机时代岁月静好，一旦服务扩容到 2 个、3 个、10<br>个实例，它就会从“自动执行任务”变成“自动重复执行任务”。有些重复执行只是日志吵一点，有些重复执行则会直接把财务、库存、订单、对账数据打穿。</p>
+<span id="more"></span>
+
+<h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><p>在很多业务系统中，我们都会写一些定时任务：</p>
+<ul>
+<li>每天凌晨生成结算单；</li>
+<li>每 5 分钟扫描超时订单；</li>
+<li>每小时同步第三方账单；</li>
+<li>每天清理过期 Token；</li>
+<li>定时刷新缓存；</li>
+<li>定时推送消息；</li>
+<li>定时汇总报表数据。</li>
+</ul>
+<p>在单实例部署时，下面这种代码看起来完全没有问题：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SettlementScheduleTask</span> &#123;<br><br>    <span class="hljs-meta">@Scheduled(cron = &quot;0 0 2 * * ?&quot;)</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">generateSettlementBill</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-comment">// 生成结算单</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>但是，一旦服务变成多实例部署：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">finance-service-1<br>finance-service-2<br>finance-service-3<br></code></pre></td></tr></table></figure>
+
+<p>那么每个实例都会在凌晨 2 点触发一次 <code>generateSettlementBill()</code>。</p>
+<p>结果就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">同一批结算单可能生成 3 次；<br>同一批消息可能发送 3 次；<br>同一批数据可能同步 3 次；<br>同一个外部接口可能被打 3 次。<br></code></pre></td></tr></table></figure>
+
+<p>这时候，业务同学问你：“为什么结算单重复了？”</p>
+<p>你说：“因为我们服务有三个实例。”</p>
+<p>业务同学：“那你们为什么要部署三个？”</p>
+<p>这就很尴尬了。扩容是为了高可用，不是为了把事故扩大三倍。</p>
+<p><code>ShedLock</code> 要解决的正是这个问题：<strong>在分布式多实例环境下，让同一个定时任务同一时间最多只被一个节点执行。</strong></p>
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h2 id="1-ShedLock-是什么？"><a href="#1-ShedLock-是什么？" class="headerlink" title="1. ShedLock 是什么？"></a>1. ShedLock 是什么？</h2><p><code>ShedLock</code> 是一个 Java 分布式锁工具库，主要用于给定时任务加锁。</p>
+<p>它最常见的使用方式是和 Spring 的 <code>@Scheduled</code> 配合：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Scheduled(cron = &quot;0 0 2 * * ?&quot;)</span><br><span class="hljs-meta">@SchedulerLock(</span><br><span class="hljs-meta">        name = &quot;settlement-generate-task&quot;,</span><br><span class="hljs-meta">        lockAtMostFor = &quot;PT30M&quot;,</span><br><span class="hljs-meta">        lockAtLeastFor = &quot;PT1M&quot;</span><br><span class="hljs-meta">)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">generateSettlementBill</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-comment">// 业务逻辑</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>它的核心作用是：</p>
+<blockquote>
+<p>多个服务实例都触发同一个定时任务时，只有一个实例能抢到锁并执行任务，其他实例抢不到锁后直接跳过本次执行。</p>
+</blockquote>
+<p>注意，是<strong>跳过</strong>，不是等待。</p>
+<p>这一点非常关键。</p>
+<p>如果实例 A 正在执行任务，实例 B 也到了触发时间，实例 B 不会阻塞等待实例 A 执行完成，而是直接放弃本次执行。</p>
+<p>所以 ShedLock 更适合这种任务：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">这次不执行没关系，下次周期还能继续跑；<br>但是同一时间绝对不能多个节点一起跑。<br></code></pre></td></tr></table></figure>
+
+<h2 id="2-ShedLock-不是什么？"><a href="#2-ShedLock-不是什么？" class="headerlink" title="2. ShedLock 不是什么？"></a>2. ShedLock 不是什么？</h2><p>先把边界讲清楚，否则后面很容易用偏。</p>
+<p><code>ShedLock</code> <strong>不是分布式任务调度平台</strong>。</p>
+<p>它不负责：</p>
+<ul>
+<li>任务编排；</li>
+<li>分片执行；</li>
+<li>动态修改 Cron；</li>
+<li>失败自动重试；</li>
+<li>可视化任务中心；</li>
+<li>手动触发任务；</li>
+<li>任务日志管理；</li>
+<li>任务告警；</li>
+<li>Worker 调度。</li>
+</ul>
+<p>它只做一件事：</p>
+<blockquote>
+<p>给任务加锁，避免同一任务在多节点下并发或重复执行。</p>
+</blockquote>
+<p>所以可以这样理解：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Spring @Scheduled：负责什么时候触发任务；<br>ShedLock：负责多个节点同时触发时，只让一个节点执行；<br>XXL-JOB / PowerJob / Quartz：负责更完整的任务调度、管理和运维能力。<br></code></pre></td></tr></table></figure>
+
+<p>如果你只是已经有 <code>@Scheduled</code>，现在服务要多实例部署，想防止重复执行，那么 ShedLock 很合适。</p>
+<p>如果你需要任务平台、任务分片、失败重试、页面管理和执行历史，那就应该看 XXL-JOB、PowerJob、Quartz、JobRunr、db-scheduler 这类工具。</p>
+<p>别让 ShedLock 硬扛调度中心，它只是把锁，不是整个门禁系统。</p>
+<h2 id="3-为什么普通-Scheduled-在集群下会重复执行？"><a href="#3-为什么普通-Scheduled-在集群下会重复执行？" class="headerlink" title="3. 为什么普通 @Scheduled 在集群下会重复执行？"></a>3. 为什么普通 @Scheduled 在集群下会重复执行？</h2><p>Spring 的 <code>@Scheduled</code> 是应用实例内的本地调度机制。</p>
+<p>也就是说，每个 JVM 都会独立启动自己的调度器。</p>
+<p>假设你有三个实例：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[finance-service-1] --&gt; T1[@Scheduled 02:00 执行]
+B[finance-service-2] --&gt; T2[@Scheduled 02:00 执行]
+C[finance-service-3] --&gt; T3[@Scheduled 02:00 执行]
+
+T1 --&gt; R[生成结算单]
+T2 --&gt; R
+T3 --&gt; R
+</code></pre>
+
+<p>这不是 Spring 的 Bug，而是它的设计如此。Spring 并不知道其他机器上还有同样的任务。</p>
+<p>于是，所有节点都会按自己的本地调度器触发任务。</p>
+<p>要解决这个问题，需要一个<strong>所有节点都能访问的共享协调点</strong>。</p>
+<p>这个共享协调点可以是：</p>
+<ul>
+<li>数据库；</li>
+<li>Redis；</li>
+<li>MongoDB；</li>
+<li>ZooKeeper；</li>
+<li>Hazelcast；</li>
+<li>Cassandra；</li>
+<li>其他外部存储。</li>
+</ul>
+<p>ShedLock 就是通过这些外部存储进行协调。</p>
+<h2 id="4-ShedLock-的核心执行流程"><a href="#4-ShedLock-的核心执行流程" class="headerlink" title="4. ShedLock 的核心执行流程"></a>4. ShedLock 的核心执行流程</h2><p>ShedLock 的执行流程可以简化成下面这样：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant A as 实例 A
+    participant B as 实例 B
+    participant DB as 共享锁存储 shedlock
+    A -&gt;&gt; DB: 尝试获取 settlement-generate-task 锁
+    DB --&gt;&gt; A: 获取成功
+    A -&gt;&gt; A: 执行业务任务
+    B -&gt;&gt; DB: 尝试获取 settlement-generate-task 锁
+    DB --&gt;&gt; B: 获取失败
+    B -&gt;&gt; B: 跳过本次任务
+    A -&gt;&gt; DB: 任务完成，释放或更新锁过期时间
+</code></pre>
+
+<p>更具体一点，以 JDBC 锁表为例，ShedLock 会维护一张类似这样的表：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> shedlock<br>(<br>    name       <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>)  <span class="hljs-keyword">NOT NULL</span>,<br>    lock_until <span class="hljs-type">TIMESTAMP</span>    <span class="hljs-keyword">NOT NULL</span>,<br>    locked_at  <span class="hljs-type">TIMESTAMP</span>    <span class="hljs-keyword">NOT NULL</span>,<br>    locked_by  <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">255</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    <span class="hljs-keyword">PRIMARY KEY</span> (name)<br>);<br></code></pre></td></tr></table></figure>
+
+<p>核心字段含义如下：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>name</code></td>
+<td>锁名称，全局唯一，同一个任务必须使用同一个锁名</td>
+</tr>
+<tr>
+<td><code>lock_until</code></td>
+<td>锁持有到什么时候，超过该时间后其他节点可以重新抢锁</td>
+</tr>
+<tr>
+<td><code>locked_at</code></td>
+<td>当前锁记录被加锁的时间</td>
+</tr>
+<tr>
+<td><code>locked_by</code></td>
+<td>当前持有锁的节点标识</td>
+</tr>
+</tbody></table>
+<p>抢锁时，关键判断大致是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">如果 lock_until &lt;= 当前时间，说明锁已经过期，可以抢；<br>如果 lock_until &gt; 当前时间，说明锁还被其他节点持有，当前节点跳过。<br></code></pre></td></tr></table></figure>
+
+<p>当然，真实实现会根据不同数据库生成不同 SQL，并处理并发更新问题，不是简单查一下再改一下那么粗糙。</p>
+<h2 id="5-ShedLock-的核心组件"><a href="#5-ShedLock-的核心组件" class="headerlink" title="5. ShedLock 的核心组件"></a>5. ShedLock 的核心组件</h2><p>ShedLock 可以拆成三部分理解：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Core：核心锁机制；<br>Integration：和 Spring AOP、Micronaut AOP 或手动代码集成；<br>LockProvider：锁的存储实现，例如 JDBC、Redis、Mongo、ZooKeeper 等。<br></code></pre></td></tr></table></figure>
+
+<p>在 Spring Boot 项目里，你最常接触的是下面三个东西：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">@EnableSchedulerLock：开启 ShedLock；<br>@SchedulerLock：给某个任务加锁；<br>LockProvider：告诉 ShedLock 锁存到哪里。<br></code></pre></td></tr></table></figure>
+
+<h2 id="6-lockAtMostFor-和-lockAtLeastFor-深入理解"><a href="#6-lockAtMostFor-和-lockAtLeastFor-深入理解" class="headerlink" title="6. lockAtMostFor 和 lockAtLeastFor 深入理解"></a>6. lockAtMostFor 和 lockAtLeastFor 深入理解</h2><p><code>ShedLock</code> 中最容易配错的两个参数就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">lockAtMostFor<br>lockAtLeastFor<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-1-lockAtMostFor：最多锁多久"><a href="#6-1-lockAtMostFor：最多锁多久" class="headerlink" title="6.1 lockAtMostFor：最多锁多久"></a>6.1 lockAtMostFor：最多锁多久</h3><p><code>lockAtMostFor</code> 表示：<strong>这个锁最多持有多久。</strong></p>
+<p>它是一个安全兜底机制。</p>
+<p>假设任务执行过程中服务宕机了，如果没有最大锁时间，锁可能永远不释放，后续任务永远执行不了。</p>
+<p>所以 ShedLock 必须有一个最大锁时间。</p>
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@SchedulerLock(name = &quot;settlement-generate-task&quot;, lockAtMostFor = &quot;PT30M&quot;)</span><br></code></pre></td></tr></table></figure>
+
+<p>含义是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">这个任务最多持有锁 30 分钟。<br>如果节点执行过程中挂了，30 分钟后其他节点可以重新抢锁。<br></code></pre></td></tr></table></figure>
+
+<p>配置建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">lockAtMostFor 应该明显大于任务的最大预估执行时间。<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<table>
+<thead>
+<tr>
+<th>任务正常耗时</th>
+<th>建议 lockAtMostFor</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>10 秒</td>
+<td>1 分钟</td>
+</tr>
+<tr>
+<td>2 分钟</td>
+<td>5～10 分钟</td>
+</tr>
+<tr>
+<td>15 分钟</td>
+<td>30～60 分钟</td>
+</tr>
+<tr>
+<td>1 小时</td>
+<td>2 小时以上，且建议重新评估任务设计</td>
+</tr>
+</tbody></table>
+<p>如果任务执行时间超过了 <code>lockAtMostFor</code>，就可能出现非常危险的情况：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">节点 A 还没执行完；<br>锁过期了；<br>节点 B 又抢到了锁；<br>两个节点开始同时执行同一个任务。<br></code></pre></td></tr></table></figure>
+
+<p>这时候 ShedLock 就救不了你了。锁不是魔法，过期时间配置错了，它也会一脸无辜。</p>
+<h3 id="6-2-lockAtLeastFor：至少锁多久"><a href="#6-2-lockAtLeastFor：至少锁多久" class="headerlink" title="6.2 lockAtLeastFor：至少锁多久"></a>6.2 lockAtLeastFor：至少锁多久</h3><p><code>lockAtLeastFor</code> 表示：<strong>这个锁至少持有多久。</strong></p>
+<p>它主要解决两个问题：</p>
+<ol>
+<li>任务执行太快，多个节点在极短时间内连续触发；</li>
+<li>不同节点之间存在轻微时钟差异。</li>
+</ol>
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@SchedulerLock(</span><br><span class="hljs-meta">        name = &quot;cache-refresh-task&quot;,</span><br><span class="hljs-meta">        lockAtMostFor = &quot;PT5M&quot;,</span><br><span class="hljs-meta">        lockAtLeastFor = &quot;PT30S&quot;</span><br><span class="hljs-meta">)</span><br></code></pre></td></tr></table></figure>
+
+<p>含义是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">任务最多锁 5 分钟；<br>即使任务 1 秒就执行完，也至少持有锁 30 秒。<br></code></pre></td></tr></table></figure>
+
+<p>配置建议：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>是否需要 lockAtLeastFor</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>每天凌晨执行一次的大任务</td>
+<td>可以较短，例如 PT1M</td>
+</tr>
+<tr>
+<td>每 5 秒、10 秒执行一次的小任务</td>
+<td>建议设置，避免过快重复</td>
+</tr>
+<tr>
+<td>多节点时钟可能不一致</td>
+<td>建议设置</td>
+</tr>
+<tr>
+<td>任务本身耗时较长</td>
+<td>不是重点，重点是 lockAtMostFor</td>
+</tr>
+</tbody></table>
+<h3 id="6-3-参数关系建议"><a href="#6-3-参数关系建议" class="headerlink" title="6.3 参数关系建议"></a>6.3 参数关系建议</h3><p>一般建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">lockAtMostFor &gt; 任务最大可能执行时间<br>lockAtLeastFor &lt; lockAtMostFor<br>lockAtLeastFor &lt;= 调度周期<br></code></pre></td></tr></table></figure>
+
+<p>举个例子：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Scheduled(cron = &quot;0 */15 * * * ?&quot;)</span><br><span class="hljs-meta">@SchedulerLock(</span><br><span class="hljs-meta">        name = &quot;third-party-bill-sync-task&quot;,</span><br><span class="hljs-meta">        lockAtMostFor = &quot;PT20M&quot;,</span><br><span class="hljs-meta">        lockAtLeastFor = &quot;PT1M&quot;</span><br><span class="hljs-meta">)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">syncThirdPartyBill</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-comment">// 每 15 分钟同步一次，正常 2～5 分钟，极端 10 分钟</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里 <code>lockAtMostFor = PT20M</code> 是为了防止极端情况下任务没执行完锁就过期。</p>
+<h2 id="7-Spring-Boot-3-x-ShedLock-JDBC-实战"><a href="#7-Spring-Boot-3-x-ShedLock-JDBC-实战" class="headerlink" title="7. Spring Boot 3.x + ShedLock + JDBC 实战"></a>7. Spring Boot 3.x + ShedLock + JDBC 实战</h2><p>下面我们用一个贴近业务的例子：</p>
+<blockquote>
+<p>财务系统每天凌晨生成结算单，多实例部署时只能一个节点执行。</p>
+</blockquote>
+<h3 id="7-1-环境版本"><a href="#7-1-环境版本" class="headerlink" title="7.1 环境版本"></a>7.1 环境版本</h3><p>本文示例使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">JDK：17+<br>Spring Boot：3.5.x<br>ShedLock：7.7.0<br>数据库：PostgreSQL / MySQL 均可<br></code></pre></td></tr></table></figure>
+
+<p>根据 ShedLock 官方兼容矩阵，ShedLock 7.x 最低 JVM 版本是 17，并测试覆盖了 Spring Boot 3.5、3.4 以及 Spring 6.2、Spring 7.0<br>等版本。</p>
+<h3 id="7-2-Maven-依赖"><a href="#7-2-Maven-依赖" class="headerlink" title="7.2 Maven 依赖"></a>7.2 Maven 依赖</h3><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">properties</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">java.version</span>&gt;</span>17<span class="hljs-tag">&lt;/<span class="hljs-name">java.version</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">shedlock.version</span>&gt;</span>7.7.0<span class="hljs-tag">&lt;/<span class="hljs-name">shedlock.version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">properties</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependencies</span>&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-web<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-jdbc<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-validation<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.postgresql<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>postgresql<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">scope</span>&gt;</span>runtime<span class="hljs-tag">&lt;/<span class="hljs-name">scope</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>net.javacrumbs.shedlock<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>shedlock-spring<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>$&#123;shedlock.version&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>net.javacrumbs.shedlock<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>shedlock-provider-jdbc-template<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>$&#123;shedlock.version&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependencies</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="7-3-创建-shedlock-表"><a href="#7-3-创建-shedlock-表" class="headerlink" title="7.3 创建 shedlock 表"></a>7.3 创建 shedlock 表</h3><p>PostgreSQL：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> shedlock<br>(<br>    name       <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>)  <span class="hljs-keyword">NOT NULL</span>,<br>    lock_until <span class="hljs-type">TIMESTAMP</span>    <span class="hljs-keyword">NOT NULL</span>,<br>    locked_at  <span class="hljs-type">TIMESTAMP</span>    <span class="hljs-keyword">NOT NULL</span>,<br>    locked_by  <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">255</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    <span class="hljs-keyword">PRIMARY KEY</span> (name)<br>);<br><br>COMMENT<br><span class="hljs-keyword">ON</span> <span class="hljs-keyword">TABLE</span> shedlock <span class="hljs-keyword">IS</span> <span class="hljs-string">&#x27;ShedLock 分布式定时任务锁表&#x27;</span>;<br>COMMENT<br><span class="hljs-keyword">ON</span> <span class="hljs-keyword">COLUMN</span> shedlock.name <span class="hljs-keyword">IS</span> <span class="hljs-string">&#x27;锁名称，全局唯一&#x27;</span>;<br>COMMENT<br><span class="hljs-keyword">ON</span> <span class="hljs-keyword">COLUMN</span> shedlock.lock_until <span class="hljs-keyword">IS</span> <span class="hljs-string">&#x27;锁持有到期时间&#x27;</span>;<br>COMMENT<br><span class="hljs-keyword">ON</span> <span class="hljs-keyword">COLUMN</span> shedlock.locked_at <span class="hljs-keyword">IS</span> <span class="hljs-string">&#x27;加锁时间&#x27;</span>;<br>COMMENT<br><span class="hljs-keyword">ON</span> <span class="hljs-keyword">COLUMN</span> shedlock.locked_by <span class="hljs-keyword">IS</span> <span class="hljs-string">&#x27;持锁节点&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<p>MySQL &#x2F; MariaDB：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> shedlock<br>(<br>    name       <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>)  <span class="hljs-keyword">NOT NULL</span>,<br>    lock_until <span class="hljs-type">TIMESTAMP</span>(<span class="hljs-number">3</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    locked_at  <span class="hljs-type">TIMESTAMP</span>(<span class="hljs-number">3</span>) <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-built_in">CURRENT_TIMESTAMP</span>(<span class="hljs-number">3</span>),<br>    locked_by  <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">255</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    <span class="hljs-keyword">PRIMARY KEY</span> (name)<br>);<br></code></pre></td></tr></table></figure>
+
+<p>生产建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">1. name 必须是主键；<br>2. 不要手动删除 shedlock 表中的锁记录；<br>3. 如果要处理异常锁，优先更新 lock_until，而不是 delete；<br>4. 表名可以自定义，但需要在 LockProvider 中同步配置。<br></code></pre></td></tr></table></figure>
+
+<p>为什么不建议手动删除锁记录？</p>
+<p>因为 ShedLock 对已存在的锁记录有内存缓存。手动删除数据库记录后，应用运行期间不一定会自动重新创建该锁记录，可能导致行为不符合预期。需要人工介入时，更推荐把<br><code>lock_until</code> 改成一个过去时间。</p>
+<p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> shedlock<br><span class="hljs-keyword">SET</span> lock_until <span class="hljs-operator">=</span> NOW() <span class="hljs-operator">-</span> <span class="hljs-type">INTERVAL</span> <span class="hljs-string">&#x27;1 minute&#x27;</span><br><span class="hljs-keyword">WHERE</span> name <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;settlement-generate-task&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<p>MySQL 可以写成：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> shedlock<br><span class="hljs-keyword">SET</span> lock_until <span class="hljs-operator">=</span> DATE_SUB(NOW(), <span class="hljs-type">INTERVAL</span> <span class="hljs-number">1</span> <span class="hljs-keyword">MINUTE</span>)<br><span class="hljs-keyword">WHERE</span> name <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;settlement-generate-task&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-4-application-yml-配置"><a href="#7-4-application-yml-配置" class="headerlink" title="7.4 application.yml 配置"></a>7.4 application.yml 配置</h3><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">server:</span><br>  <span class="hljs-attr">port:</span> <span class="hljs-number">8080</span><br><br><span class="hljs-attr">spring:</span><br>  <span class="hljs-attr">application:</span><br>    <span class="hljs-attr">name:</span> <span class="hljs-string">finance-service</span><br>  <span class="hljs-attr">datasource:</span><br>    <span class="hljs-attr">url:</span> <span class="hljs-string">jdbc:postgresql://localhost:5432/finance</span><br>    <span class="hljs-attr">username:</span> <span class="hljs-string">finance</span><br>    <span class="hljs-attr">password:</span> <span class="hljs-string">finance</span><br>    <span class="hljs-attr">driver-class-name:</span> <span class="hljs-string">org.postgresql.Driver</span><br>  <span class="hljs-attr">task:</span><br>    <span class="hljs-attr">scheduling:</span><br>      <span class="hljs-attr">pool:</span><br>        <span class="hljs-attr">size:</span> <span class="hljs-number">4</span><br><br><span class="hljs-attr">logging:</span><br>  <span class="hljs-attr">level:</span><br>    <span class="hljs-attr">net.javacrumbs.shedlock:</span> <span class="hljs-string">DEBUG</span><br>    <span class="hljs-attr">com.example.finance:</span> <span class="hljs-string">INFO</span><br></code></pre></td></tr></table></figure>
+
+<p><code>scheduling.pool.size</code> 建议显式配置，不要让所有定时任务都挤在单线程里。</p>
+<p>不过要注意：ShedLock 是防止多节点同一锁名任务重复执行，不是用来解决本实例内所有任务排队问题的。</p>
+<h3 id="7-5-开启调度与-ShedLock"><a href="#7-5-开启调度与-ShedLock" class="headerlink" title="7.5 开启调度与 ShedLock"></a>7.5 开启调度与 ShedLock</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.example.finance.config;<br><br><span class="hljs-keyword">import</span> net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;<br><span class="hljs-keyword">import</span> org.springframework.context.annotation.Configuration;<br><span class="hljs-keyword">import</span> org.springframework.scheduling.annotation.EnableScheduling;<br><br><span class="hljs-meta">@Configuration</span><br><span class="hljs-meta">@EnableScheduling</span><br><span class="hljs-meta">@EnableSchedulerLock(defaultLockAtMostFor = &quot;PT30M&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ScheduleConfiguration</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里的 <code>defaultLockAtMostFor = &quot;PT30M&quot;</code> 是默认值。</p>
+<p>如果某个任务的 <code>@SchedulerLock</code> 没有单独配置 <code>lockAtMostFor</code>，就会使用这个默认值。</p>
+<h3 id="7-6-配置-JDBC-LockProvider"><a href="#7-6-配置-JDBC-LockProvider" class="headerlink" title="7.6 配置 JDBC LockProvider"></a>7.6 配置 JDBC LockProvider</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.example.finance.config;<br><br><span class="hljs-keyword">import</span> net.javacrumbs.shedlock.core.LockProvider;<br><span class="hljs-keyword">import</span> net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider;<br><span class="hljs-keyword">import</span> org.springframework.context.annotation.Bean;<br><span class="hljs-keyword">import</span> org.springframework.context.annotation.Configuration;<br><span class="hljs-keyword">import</span> org.springframework.jdbc.core.JdbcTemplate;<br><br><span class="hljs-keyword">import</span> javax.sql.DataSource;<br><br><span class="hljs-meta">@Configuration</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ShedLockJdbcConfiguration</span> &#123;<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> LockProvider <span class="hljs-title function_">lockProvider</span><span class="hljs-params">(DataSource dataSource)</span> &#123;<br>        <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">JdbcTemplateLockProvider</span>(<br>                JdbcTemplateLockProvider.Configuration.builder()<br>                        .withJdbcTemplate(<span class="hljs-keyword">new</span> <span class="hljs-title class_">JdbcTemplate</span>(dataSource))<br>                        .usingDbTime()<br>                        .build()<br>        );<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里强烈建议使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">.usingDbTime()<br></code></pre></td></tr></table></figure>
+
+<p>原因是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">使用数据库时间作为锁判断时间，避免不同应用服务器之间系统时间不一致导致锁异常。<br></code></pre></td></tr></table></figure>
+
+<p>如果你有三台机器：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">实例 A 时间：02:00:00<br>实例 B 时间：02:00:08<br>实例 C 时间：01:59:55<br></code></pre></td></tr></table></figure>
+
+<p>然后你又不用数据库时间，那锁的判断就容易出现奇怪行为。</p>
+<p>分布式系统里，时间是个老六。能统一就统一。</p>
+<h3 id="7-7-编写业务任务"><a href="#7-7-编写业务任务" class="headerlink" title="7.7 编写业务任务"></a>7.7 编写业务任务</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.example.finance.schedule;<br><br><span class="hljs-keyword">import</span> com.example.finance.service.SettlementBillService;<br><span class="hljs-keyword">import</span> lombok.RequiredArgsConstructor;<br><span class="hljs-keyword">import</span> lombok.extern.slf4j.Slf4j;<br><span class="hljs-keyword">import</span> net.javacrumbs.shedlock.core.LockAssert;<br><span class="hljs-keyword">import</span> net.javacrumbs.shedlock.spring.annotation.SchedulerLock;<br><span class="hljs-keyword">import</span> org.springframework.scheduling.annotation.Scheduled;<br><span class="hljs-keyword">import</span> org.springframework.stereotype.Component;<br><br><span class="hljs-keyword">import</span> java.time.LocalDate;<br><br><span class="hljs-meta">@Slf4j</span><br><span class="hljs-meta">@Component</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SettlementBillScheduleTask</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> SettlementBillService settlementBillService;<br><br>    <span class="hljs-comment">/**</span><br><span class="hljs-comment">     * 每天凌晨 2 点生成昨日结算单。</span><br><span class="hljs-comment">     */</span><br>    <span class="hljs-meta">@Scheduled(cron = &quot;0 0 2 * * ?&quot;)</span><br>    <span class="hljs-meta">@SchedulerLock(</span><br><span class="hljs-meta">            name = &quot;finance:settlement:generate-yesterday-bill&quot;,</span><br><span class="hljs-meta">            lockAtMostFor = &quot;PT60M&quot;,</span><br><span class="hljs-meta">            lockAtLeastFor = &quot;PT1M&quot;</span><br><span class="hljs-meta">    )</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">generateYesterdaySettlementBill</span><span class="hljs-params">()</span> &#123;<br>        LockAssert.assertLocked();<br><br>        <span class="hljs-type">LocalDate</span> <span class="hljs-variable">billDate</span> <span class="hljs-operator">=</span> LocalDate.now().minusDays(<span class="hljs-number">1</span>);<br>        log.info(<span class="hljs-string">&quot;[settlement-schedule] start generate settlement bill, billDate=&#123;&#125;&quot;</span>, billDate);<br><br>        settlementBillService.generateBillIfAbsent(billDate);<br><br>        log.info(<span class="hljs-string">&quot;[settlement-schedule] finish generate settlement bill, billDate=&#123;&#125;&quot;</span>, billDate);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里有几个重点。</p>
+<p>第一，锁名称建议有业务前缀：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">finance:settlement:generate-yesterday-bill<br></code></pre></td></tr></table></figure>
+
+<p>不要写成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">task1<br>scheduledTask<br>generate<br></code></pre></td></tr></table></figure>
+
+<p>锁名一旦乱了，后面排查就像在日志里找一只会隐身的蟑螂。</p>
+<p>第二，建议在关键任务中加入：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">LockAssert.assertLocked();<br></code></pre></td></tr></table></figure>
+
+<p>它可以帮助你确认 ShedLock AOP 是否真的生效。</p>
+<p>第三，业务层必须保证幂等。</p>
+<p>ShedLock 只能减少重复执行概率，不能代替业务幂等。</p>
+<h3 id="7-8-业务幂等设计"><a href="#7-8-业务幂等设计" class="headerlink" title="7.8 业务幂等设计"></a>7.8 业务幂等设计</h3><p>定时任务里千万不要只依赖 ShedLock。</p>
+<p>正确做法是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">ShedLock 防止多节点同时执行；<br>数据库唯一约束防止重复数据落库；<br>业务幂等逻辑防止重复处理。<br></code></pre></td></tr></table></figure>
+
+<p>例如结算单表：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> settlement_bill<br>(<br>    id         BIGSERIAL <span class="hljs-keyword">PRIMARY KEY</span>,<br>    bill_date  <span class="hljs-type">DATE</span>           <span class="hljs-keyword">NOT NULL</span>,<br>    shop_id    <span class="hljs-type">BIGINT</span>         <span class="hljs-keyword">NOT NULL</span>,<br>    bill_no    <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>)    <span class="hljs-keyword">NOT NULL</span>,<br>    amount     <span class="hljs-type">NUMERIC</span>(<span class="hljs-number">18</span>, <span class="hljs-number">2</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    status     <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">32</span>)    <span class="hljs-keyword">NOT NULL</span>,<br>    created_at <span class="hljs-type">TIMESTAMP</span>      <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> NOW(),<br>    updated_at <span class="hljs-type">TIMESTAMP</span>      <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> NOW(),<br>    <span class="hljs-keyword">UNIQUE</span> (bill_date, shop_id)<br>);<br></code></pre></td></tr></table></figure>
+
+<p>业务服务：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.example.finance.service;<br><br><span class="hljs-keyword">import</span> lombok.RequiredArgsConstructor;<br><span class="hljs-keyword">import</span> lombok.extern.slf4j.Slf4j;<br><span class="hljs-keyword">import</span> org.springframework.dao.DuplicateKeyException;<br><span class="hljs-keyword">import</span> org.springframework.jdbc.core.JdbcTemplate;<br><span class="hljs-keyword">import</span> org.springframework.stereotype.Service;<br><span class="hljs-keyword">import</span> org.springframework.transaction.annotation.Transactional;<br><br><span class="hljs-keyword">import</span> java.math.BigDecimal;<br><span class="hljs-keyword">import</span> java.time.LocalDate;<br><span class="hljs-keyword">import</span> java.util.List;<br><br><span class="hljs-meta">@Slf4j</span><br><span class="hljs-meta">@Service</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SettlementBillService</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> JdbcTemplate jdbcTemplate;<br><br>    <span class="hljs-meta">@Transactional(rollbackFor = Exception.class)</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">generateBillIfAbsent</span><span class="hljs-params">(LocalDate billDate)</span> &#123;<br>        List&lt;Long&gt; shopIds = loadNeedGenerateShopIds(billDate);<br><br>        <span class="hljs-keyword">for</span> (Long shopId : shopIds) &#123;<br>            generateOneShopBillIfAbsent(billDate, shopId);<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">generateOneShopBillIfAbsent</span><span class="hljs-params">(LocalDate billDate, Long shopId)</span> &#123;<br>        <span class="hljs-type">Integer</span> <span class="hljs-variable">count</span> <span class="hljs-operator">=</span> jdbcTemplate.queryForObject(<span class="hljs-string">&quot;&quot;&quot;</span><br><span class="hljs-string">                SELECT COUNT(1)</span><br><span class="hljs-string">                FROM settlement_bill</span><br><span class="hljs-string">                WHERE bill_date = ? AND shop_id = ?</span><br><span class="hljs-string">                &quot;&quot;&quot;</span>, Integer.class, billDate, shopId);<br><br>        <span class="hljs-keyword">if</span> (count != <span class="hljs-literal">null</span> &amp;&amp; count &gt; <span class="hljs-number">0</span>) &#123;<br>            log.info(<span class="hljs-string">&quot;[settlement] bill already exists, billDate=&#123;&#125;, shopId=&#123;&#125;&quot;</span>, billDate, shopId);<br>            <span class="hljs-keyword">return</span>;<br>        &#125;<br><br>        <span class="hljs-type">BigDecimal</span> <span class="hljs-variable">amount</span> <span class="hljs-operator">=</span> calculateAmount(billDate, shopId);<br>        <span class="hljs-type">String</span> <span class="hljs-variable">billNo</span> <span class="hljs-operator">=</span> <span class="hljs-string">&quot;SETTLE-&quot;</span> + billDate + <span class="hljs-string">&quot;-&quot;</span> + shopId;<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            jdbcTemplate.update(<span class="hljs-string">&quot;&quot;&quot;</span><br><span class="hljs-string">                    INSERT INTO settlement_bill(bill_date, shop_id, bill_no, amount, status)</span><br><span class="hljs-string">                    VALUES (?, ?, ?, ?, ?)</span><br><span class="hljs-string">                    &quot;&quot;&quot;</span>, billDate, shopId, billNo, amount, <span class="hljs-string">&quot;INIT&quot;</span>);<br>        &#125; <span class="hljs-keyword">catch</span> (DuplicateKeyException duplicateKeyException) &#123;<br>            log.warn(<span class="hljs-string">&quot;[settlement] duplicate bill ignored, billDate=&#123;&#125;, shopId=&#123;&#125;&quot;</span>, billDate, shopId);<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> List&lt;Long&gt; <span class="hljs-title function_">loadNeedGenerateShopIds</span><span class="hljs-params">(LocalDate billDate)</span> &#123;<br>        <span class="hljs-keyword">return</span> jdbcTemplate.queryForList(<span class="hljs-string">&quot;&quot;&quot;</span><br><span class="hljs-string">                SELECT id</span><br><span class="hljs-string">                FROM shop</span><br><span class="hljs-string">                WHERE enabled = TRUE</span><br><span class="hljs-string">                &quot;&quot;&quot;</span>, Long.class);<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> BigDecimal <span class="hljs-title function_">calculateAmount</span><span class="hljs-params">(LocalDate billDate, Long shopId)</span> &#123;<br>        <span class="hljs-type">BigDecimal</span> <span class="hljs-variable">amount</span> <span class="hljs-operator">=</span> jdbcTemplate.queryForObject(<span class="hljs-string">&quot;&quot;&quot;</span><br><span class="hljs-string">                SELECT COALESCE(SUM(amount), 0)</span><br><span class="hljs-string">                FROM order_bill_detail</span><br><span class="hljs-string">                WHERE bill_date = ? AND shop_id = ?</span><br><span class="hljs-string">                &quot;&quot;&quot;</span>, BigDecimal.class, billDate, shopId);<br><br>        <span class="hljs-keyword">return</span> amount == <span class="hljs-literal">null</span> ? BigDecimal.ZERO : amount;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>为什么还要唯一约束？</p>
+<p>因为极端情况下，比如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">任务执行超过 lockAtMostFor；<br>数据库时间或机器时间异常；<br>锁表被人工错误修改；<br>不同任务误用了不同锁名；<br>服务重启时刚好处在边界时刻；<br></code></pre></td></tr></table></figure>
+
+<p>都可能导致重复执行。</p>
+<p>而业务幂等和唯一索引是最后一道防线。</p>
+<p>数据库唯一约束看起来土，但在生产里它经常是最后的门神。</p>
+<h2 id="8-本地双实例验证"><a href="#8-本地双实例验证" class="headerlink" title="8. 本地双实例验证"></a>8. 本地双实例验证</h2><h3 id="8-1-准备-Docker-Compose"><a href="#8-1-准备-Docker-Compose" class="headerlink" title="8.1 准备 Docker Compose"></a>8.1 准备 Docker Compose</h3><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">version:</span> <span class="hljs-string">&quot;3.9&quot;</span><br><br><span class="hljs-attr">services:</span><br>  <span class="hljs-attr">postgres:</span><br>    <span class="hljs-attr">image:</span> <span class="hljs-string">postgres:16</span><br>    <span class="hljs-attr">container_name:</span> <span class="hljs-string">shedlock-postgres</span><br>    <span class="hljs-attr">environment:</span><br>      <span class="hljs-attr">POSTGRES_DB:</span> <span class="hljs-string">finance</span><br>      <span class="hljs-attr">POSTGRES_USER:</span> <span class="hljs-string">finance</span><br>      <span class="hljs-attr">POSTGRES_PASSWORD:</span> <span class="hljs-string">finance</span><br>    <span class="hljs-attr">ports:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">&quot;5432:5432&quot;</span><br>    <span class="hljs-attr">volumes:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">./postgres-data:/var/lib/postgresql/data</span><br></code></pre></td></tr></table></figure>
+
+<p>启动：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker compose up -d<br></code></pre></td></tr></table></figure>
+
+<h3 id="8-2-启动两个服务实例"><a href="#8-2-启动两个服务实例" class="headerlink" title="8.2 启动两个服务实例"></a>8.2 启动两个服务实例</h3><p>实例 1：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">java -jar target/finance-service.jar --server.port=8081<br></code></pre></td></tr></table></figure>
+
+<p>实例 2：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">java -jar target/finance-service.jar --server.port=8082<br></code></pre></td></tr></table></figure>
+
+<p>为了测试方便，可以临时把任务改成每 10 秒一次：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Scheduled(cron = &quot;*/10 * * * * ?&quot;)</span><br><span class="hljs-meta">@SchedulerLock(</span><br><span class="hljs-meta">        name = &quot;finance:settlement:test-task&quot;,</span><br><span class="hljs-meta">        lockAtMostFor = &quot;PT30S&quot;,</span><br><span class="hljs-meta">        lockAtLeastFor = &quot;PT8S&quot;</span><br><span class="hljs-meta">)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">testTask</span><span class="hljs-params">()</span> &#123;<br>    LockAssert.assertLocked();<br>    log.info(<span class="hljs-string">&quot;test shedlock task running...&quot;</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="8-3-观察日志"><a href="#8-3-观察日志" class="headerlink" title="8.3 观察日志"></a>8.3 观察日志</h3><p>你应该看到两个实例不是同时打印任务执行日志，而是同一时间只有一个实例真正执行。</p>
+<p>示例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">8081: test shedlock task running...<br>8082: skipped because lock is held by another node<br>8081: test shedlock task running...<br>8082: skipped because lock is held by another node<br></code></pre></td></tr></table></figure>
+
+<p>实际日志格式会根据 ShedLock 版本和日志级别有所不同，但核心现象是：<strong>同一个周期只有一个实例执行。</strong></p>
+<h3 id="8-4-查看锁表"><a href="#8-4-查看锁表" class="headerlink" title="8.4 查看锁表"></a>8.4 查看锁表</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> shedlock;<br></code></pre></td></tr></table></figure>
+
+<p>你会看到类似数据：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">name                            lock_until              locked_at               locked_by<br>finance:settlement:test-task    2026-06-12 02:00:30     2026-06-12 02:00:00     192.168.1.10<br></code></pre></td></tr></table></figure>
+
+<p><code>lock_until</code> 会随着任务执行不断变化。</p>
+<h2 id="9-Spring-Boot-3-x-ShedLock-Redis-实战"><a href="#9-Spring-Boot-3-x-ShedLock-Redis-实战" class="headerlink" title="9. Spring Boot 3.x + ShedLock + Redis 实战"></a>9. Spring Boot 3.x + ShedLock + Redis 实战</h2><p>如果你的项目本身已经强依赖 Redis，也可以使用 Redis 作为 ShedLock 的锁存储。</p>
+<p>不过这里先说结论：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">关键财务、结算、对账类任务，优先推荐 JDBC；<br>缓存刷新、消息扫描、轻量同步类任务，可以考虑 Redis。<br></code></pre></td></tr></table></figure>
+
+<p>原因是官方也提醒：Redis LockProvider 使用经典 Redis 锁机制，在 Redis 主节点故障场景下可能不可靠。</p>
+<h3 id="9-1-Maven-依赖"><a href="#9-1-Maven-依赖" class="headerlink" title="9.1 Maven 依赖"></a>9.1 Maven 依赖</h3><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">properties</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">shedlock.version</span>&gt;</span>7.7.0<span class="hljs-tag">&lt;/<span class="hljs-name">shedlock.version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">properties</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependencies</span>&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-data-redis<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>net.javacrumbs.shedlock<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>shedlock-spring<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>$&#123;shedlock.version&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>net.javacrumbs.shedlock<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>shedlock-provider-redis-spring<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>$&#123;shedlock.version&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependencies</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="9-2-application-yml"><a href="#9-2-application-yml" class="headerlink" title="9.2 application.yml"></a>9.2 application.yml</h3><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">spring:</span><br>  <span class="hljs-attr">data:</span><br>    <span class="hljs-attr">redis:</span><br>      <span class="hljs-attr">host:</span> <span class="hljs-string">localhost</span><br>      <span class="hljs-attr">port:</span> <span class="hljs-number">6379</span><br>      <span class="hljs-attr">database:</span> <span class="hljs-number">2</span><br>      <span class="hljs-attr">timeout:</span> <span class="hljs-string">3s</span><br><br><span class="hljs-attr">logging:</span><br>  <span class="hljs-attr">level:</span><br>    <span class="hljs-attr">net.javacrumbs.shedlock:</span> <span class="hljs-string">DEBUG</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="9-3-Redis-LockProvider"><a href="#9-3-Redis-LockProvider" class="headerlink" title="9.3 Redis LockProvider"></a>9.3 Redis LockProvider</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.example.finance.config;<br><br><span class="hljs-keyword">import</span> net.javacrumbs.shedlock.core.LockProvider;<br><span class="hljs-keyword">import</span> net.javacrumbs.shedlock.provider.redis.spring.RedisLockProvider;<br><span class="hljs-keyword">import</span> org.springframework.context.annotation.Bean;<br><span class="hljs-keyword">import</span> org.springframework.context.annotation.Configuration;<br><span class="hljs-keyword">import</span> org.springframework.data.redis.connection.RedisConnectionFactory;<br><br><span class="hljs-meta">@Configuration</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ShedLockRedisConfiguration</span> &#123;<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> LockProvider <span class="hljs-title function_">lockProvider</span><span class="hljs-params">(RedisConnectionFactory connectionFactory)</span> &#123;<br>        <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">RedisLockProvider</span>(connectionFactory, <span class="hljs-string">&quot;prod:finance-service&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>第二个参数可以理解为环境隔离前缀。</p>
+<p>建议区分：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">dev:finance-service<br>test:finance-service<br>pre:finance-service<br>prod:finance-service<br></code></pre></td></tr></table></figure>
+
+<p>不要让测试环境和生产环境共用同一套 Redis 锁前缀，否则你会收获一种名叫“我本地跑了个任务，把生产锁抢了”的快乐。</p>
+<h3 id="9-4-Redis-适用场景"><a href="#9-4-Redis-适用场景" class="headerlink" title="9.4 Redis 适用场景"></a>9.4 Redis 适用场景</h3><p>适合：</p>
+<ul>
+<li>缓存刷新任务；</li>
+<li>短周期轻量任务；</li>
+<li>允许下一周期修复的同步任务；</li>
+<li>对极端一致性要求不高的后台任务。</li>
+</ul>
+<p>不太适合：</p>
+<ul>
+<li>财务结算；</li>
+<li>扣款；</li>
+<li>库存最终扣减；</li>
+<li>一次性迁移脚本；</li>
+<li>不允许重复执行的强一致任务。</li>
+</ul>
+<p>这些任务最好使用数据库锁，并且业务上继续做幂等和唯一约束。</p>
+<h2 id="10-多-LockProvider-场景"><a href="#10-多-LockProvider-场景" class="headerlink" title="10. 多 LockProvider 场景"></a>10. 多 LockProvider 场景</h2><p>有些系统中可能同时需要 JDBC 和 Redis 两种锁。</p>
+<p>比如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">结算任务使用 JDBC 锁；<br>缓存刷新任务使用 Redis 锁。<br></code></pre></td></tr></table></figure>
+
+<p>ShedLock 6.0.0 之后支持多个 <code>LockProvider</code>，可以通过 <code>@LockProviderToUse</code> 指定。</p>
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Configuration</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ShedLockMultiProviderConfiguration</span> &#123;<br><br>    <span class="hljs-meta">@Bean(&quot;jdbcLockProvider&quot;)</span><br>    <span class="hljs-keyword">public</span> LockProvider <span class="hljs-title function_">jdbcLockProvider</span><span class="hljs-params">(DataSource dataSource)</span> &#123;<br>        <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">JdbcTemplateLockProvider</span>(<br>                JdbcTemplateLockProvider.Configuration.builder()<br>                        .withJdbcTemplate(<span class="hljs-keyword">new</span> <span class="hljs-title class_">JdbcTemplate</span>(dataSource))<br>                        .usingDbTime()<br>                        .build()<br>        );<br>    &#125;<br><br>    <span class="hljs-meta">@Bean(&quot;redisLockProvider&quot;)</span><br>    <span class="hljs-keyword">public</span> LockProvider <span class="hljs-title function_">redisLockProvider</span><span class="hljs-params">(RedisConnectionFactory connectionFactory)</span> &#123;<br>        <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">RedisLockProvider</span>(connectionFactory, <span class="hljs-string">&quot;prod:finance-service&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>任务上指定：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Scheduled(cron = &quot;0 0 2 * * ?&quot;)</span><br><span class="hljs-meta">@SchedulerLock(name = &quot;finance:settlement:generate&quot;, lockAtMostFor = &quot;PT60M&quot;)</span><br><span class="hljs-meta">@LockProviderToUse(&quot;jdbcLockProvider&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">generateSettlementBill</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-comment">// 结算任务，用 JDBC 锁</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Scheduled(cron = &quot;0 */5 * * * ?&quot;)</span><br><span class="hljs-meta">@SchedulerLock(name = &quot;finance:cache:refresh&quot;, lockAtMostFor = &quot;PT2M&quot;)</span><br><span class="hljs-meta">@LockProviderToUse(&quot;redisLockProvider&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">refreshCache</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-comment">// 缓存刷新任务，用 Redis 锁</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果没有指定，且容器里存在多个 LockProvider，运行时可能会失败，所以不要模棱两可。</p>
+<h2 id="11-手动加锁：LockingTaskExecutor"><a href="#11-手动加锁：LockingTaskExecutor" class="headerlink" title="11. 手动加锁：LockingTaskExecutor"></a>11. 手动加锁：LockingTaskExecutor</h2><p>虽然 ShedLock 最常见的方式是配合 <code>@Scheduled</code>，但它也支持手动加锁。</p>
+<p>适合这种场景：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">不是 @Scheduled 触发；<br>但是某段代码仍然希望在分布式环境下互斥执行。<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.example.finance.service;<br><br><span class="hljs-keyword">import</span> lombok.RequiredArgsConstructor;<br><span class="hljs-keyword">import</span> net.javacrumbs.shedlock.core.LockConfiguration;<br><span class="hljs-keyword">import</span> net.javacrumbs.shedlock.core.LockingTaskExecutor;<br><span class="hljs-keyword">import</span> net.javacrumbs.shedlock.core.DefaultLockingTaskExecutor;<br><span class="hljs-keyword">import</span> net.javacrumbs.shedlock.core.LockProvider;<br><span class="hljs-keyword">import</span> org.springframework.stereotype.Service;<br><br><span class="hljs-keyword">import</span> java.time.Duration;<br><span class="hljs-keyword">import</span> java.time.Instant;<br><br><span class="hljs-meta">@Service</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ManualLockService</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> LockProvider lockProvider;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">executeWithLock</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-type">LockingTaskExecutor</span> <span class="hljs-variable">executor</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">DefaultLockingTaskExecutor</span>(lockProvider);<br><br>        executor.executeWithLock(<br>                (Runnable) () -&gt; &#123;<br>                    <span class="hljs-comment">// 这里写需要加锁的逻辑</span><br>                    doSomethingOnlyOnce();<br>                &#125;,<br>                <span class="hljs-keyword">new</span> <span class="hljs-title class_">LockConfiguration</span>(<br>                        Instant.now(),<br>                        <span class="hljs-string">&quot;finance:manual:rebuild-report&quot;</span>,<br>                        Duration.ofMinutes(<span class="hljs-number">30</span>),<br>                        Duration.ofMinutes(<span class="hljs-number">1</span>)<br>                )<br>        );<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">doSomethingOnlyOnce</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-comment">// do something</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>不过，大多数项目里还是注解方式更清爽。</p>
+<h2 id="12-生产环境参数怎么定？"><a href="#12-生产环境参数怎么定？" class="headerlink" title="12. 生产环境参数怎么定？"></a>12. 生产环境参数怎么定？</h2><h3 id="12-1-按任务类型配置"><a href="#12-1-按任务类型配置" class="headerlink" title="12.1 按任务类型配置"></a>12.1 按任务类型配置</h3><table>
+<thead>
+<tr>
+<th>任务类型</th>
+<th>示例</th>
+<th align="right">lockAtMostFor 建议</th>
+<th align="right">lockAtLeastFor 建议</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>高频轻任务</td>
+<td>每 10 秒刷新缓存</td>
+<td align="right">30 秒～1 分钟</td>
+<td align="right">5～10 秒</td>
+</tr>
+<tr>
+<td>中频同步任务</td>
+<td>每 5 分钟同步订单</td>
+<td align="right">5～15 分钟</td>
+<td align="right">30 秒～1 分钟</td>
+</tr>
+<tr>
+<td>低频批处理任务</td>
+<td>每天生成结算单</td>
+<td align="right">30～120 分钟</td>
+<td align="right">1～5 分钟</td>
+</tr>
+<tr>
+<td>超长任务</td>
+<td>大批量数据迁移</td>
+<td align="right">不建议直接这样跑</td>
+<td align="right">拆分任务或引入调度平台</td>
+</tr>
+</tbody></table>
+<h3 id="12-2-lockAtMostFor-不要拍脑袋"><a href="#12-2-lockAtMostFor-不要拍脑袋" class="headerlink" title="12.2 lockAtMostFor 不要拍脑袋"></a>12.2 lockAtMostFor 不要拍脑袋</h3><p>建议先统计任务耗时：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">P50：正常耗时；<br>P95：大部分情况下的高耗时；<br>P99：极端耗时；<br>Max：历史最大耗时。<br></code></pre></td></tr></table></figure>
+
+<p>然后：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">lockAtMostFor &gt;= P99 或 Max 的安全倍数<br></code></pre></td></tr></table></figure>
+
+<p>如果任务耗时波动很大，例如有时 1 分钟，有时 1 小时，说明任务本身可能需要拆分、分页、分片或改成异步队列模型。</p>
+<p>不要用一个超长锁时间掩盖任务设计问题。</p>
+<h3 id="12-3-Cron-周期与锁时间要配合"><a href="#12-3-Cron-周期与锁时间要配合" class="headerlink" title="12.3 Cron 周期与锁时间要配合"></a>12.3 Cron 周期与锁时间要配合</h3><p>假设任务每 5 分钟跑一次：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Scheduled(cron = &quot;0 */5 * * * ?&quot;)</span><br><span class="hljs-meta">@SchedulerLock(</span><br><span class="hljs-meta">        name = &quot;order-sync-task&quot;,</span><br><span class="hljs-meta">        lockAtMostFor = &quot;PT10M&quot;,</span><br><span class="hljs-meta">        lockAtLeastFor = &quot;PT1M&quot;</span><br><span class="hljs-meta">)</span><br></code></pre></td></tr></table></figure>
+
+<p>如果上一次执行超过 5 分钟，下一个周期触发时会抢不到锁并跳过。</p>
+<p>这通常是合理的，因为你本来就不希望任务重叠执行。</p>
+<p>但如果你的业务要求“每个周期都必须执行，不能跳过”，那 ShedLock 就不够了。你需要任务队列、调度平台或补偿机制。</p>
+<h2 id="13-ShedLock-与事务的关系"><a href="#13-ShedLock-与事务的关系" class="headerlink" title="13. ShedLock 与事务的关系"></a>13. ShedLock 与事务的关系</h2><p>一个常见问题是：</p>
+<blockquote>
+<p>ShedLock 的锁释放和业务事务提交是什么关系？</p>
+</blockquote>
+<p>使用 JDBC Provider 时，ShedLock 自己会进行锁表操作。业务方法里的事务由你自己的 <code>@Transactional</code> 控制。</p>
+<p>一般建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 不要把超长任务全部包在一个大事务里；<br>2. 定时任务入口尽量只负责编排；<br>3. 真正的数据处理按批次拆分事务；<br>4. 每个批次业务上要保证幂等；<br>5. 失败后允许下次周期继续补偿。<br></code></pre></td></tr></table></figure>
+
+<p>错误示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Transactional</span><br><span class="hljs-meta">@Scheduled(cron = &quot;0 0 2 * * ?&quot;)</span><br><span class="hljs-meta">@SchedulerLock(name = &quot;huge-task&quot;, lockAtMostFor = &quot;PT2H&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">hugeTask</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-comment">// 一次性处理 100 万条数据</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>更好的方式：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Scheduled(cron = &quot;0 0 2 * * ?&quot;)</span><br><span class="hljs-meta">@SchedulerLock(name = &quot;huge-task&quot;, lockAtMostFor = &quot;PT2H&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">hugeTask</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-keyword">while</span> (<span class="hljs-literal">true</span>) &#123;<br>        <span class="hljs-type">int</span> <span class="hljs-variable">affected</span> <span class="hljs-operator">=</span> batchProcessor.processNextBatch();<br>        <span class="hljs-keyword">if</span> (affected == <span class="hljs-number">0</span>) &#123;<br>            <span class="hljs-keyword">break</span>;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">BatchProcessor</span> &#123;<br><br>    <span class="hljs-meta">@Transactional(rollbackFor = Exception.class)</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">int</span> <span class="hljs-title function_">processNextBatch</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-comment">// 查询一小批待处理数据</span><br>        <span class="hljs-comment">// 处理</span><br>        <span class="hljs-comment">// 更新状态</span><br>        <span class="hljs-keyword">return</span> <span class="hljs-number">0</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h2 id="14-ShedLock-与业务幂等的关系"><a href="#14-ShedLock-与业务幂等的关系" class="headerlink" title="14. ShedLock 与业务幂等的关系"></a>14. ShedLock 与业务幂等的关系</h2><p>这是生产环境最重要的一节。</p>
+<p>请记住：</p>
+<blockquote>
+<p>ShedLock 不是幂等方案，它只是降低重复执行概率的分布式互斥工具。</p>
+</blockquote>
+<p>真正可靠的任务需要三层保障：</p>
+<pre><code class=" mermaid">flowchart TB
+    A[第一层：ShedLock 分布式锁] --&gt; B[避免多节点同时执行]
+C[第二层：业务状态机] --&gt; D[避免重复推进状态]
+E[第三层：数据库唯一约束] --&gt; F[避免重复落库]
+
+B --&gt; G[更安全的定时任务]
+D --&gt; G
+F --&gt; G
+</code></pre>
+
+<p>比如生成结算单：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">ShedLock：保证同一时间只有一个节点跑生成任务；<br>状态机：只处理 INIT / WAIT_GENERATE 状态的数据；<br>唯一索引：保证同一店铺同一账期只有一张结算单。<br></code></pre></td></tr></table></figure>
+
+<p>这样即使某次锁失效或任务重试，也不会直接把数据打爆。</p>
+<h2 id="15-日志与可观测性建议"><a href="#15-日志与可观测性建议" class="headerlink" title="15. 日志与可观测性建议"></a>15. 日志与可观测性建议</h2><p>定时任务是后台静默执行的，越静默，出问题越难查。</p>
+<p>建议每个重要任务都打结构化日志：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs java">log.info(<span class="hljs-string">&quot;[schedule-start] task=&#123;&#125;, lockName=&#123;&#125;, bizDate=&#123;&#125;&quot;</span>,<br>        <span class="hljs-string">&quot;generateSettlementBill&quot;</span>,<br>        <span class="hljs-string">&quot;finance:settlement:generate-yesterday-bill&quot;</span>,<br>        billDate);<br><br><span class="hljs-type">long</span> <span class="hljs-variable">start</span> <span class="hljs-operator">=</span> System.currentTimeMillis();<br><span class="hljs-keyword">try</span> &#123;<br>    settlementBillService.generateBillIfAbsent(billDate);<br>    log.info(<span class="hljs-string">&quot;[schedule-success] task=&#123;&#125;, bizDate=&#123;&#125;, costMs=&#123;&#125;&quot;</span>,<br>            <span class="hljs-string">&quot;generateSettlementBill&quot;</span>,<br>            billDate,<br>            System.currentTimeMillis() - start);<br>&#125; <span class="hljs-keyword">catch</span> (Exception ex) &#123;<br>    log.error(<span class="hljs-string">&quot;[schedule-error] task=&#123;&#125;, bizDate=&#123;&#125;, costMs=&#123;&#125;, errorMsg=&#123;&#125;&quot;</span>,<br>            <span class="hljs-string">&quot;generateSettlementBill&quot;</span>,<br>            billDate,<br>            System.currentTimeMillis() - start,<br>            ex.getMessage(),<br>            ex);<br>    <span class="hljs-keyword">throw</span> ex;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>建议日志字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>task</code></td>
+<td>任务名称</td>
+</tr>
+<tr>
+<td><code>lockName</code></td>
+<td>ShedLock 锁名称</td>
+</tr>
+<tr>
+<td><code>bizDate</code></td>
+<td>业务日期</td>
+</tr>
+<tr>
+<td><code>batchNo</code></td>
+<td>批次号</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>start &#x2F; success &#x2F; fail &#x2F; skip</td>
+</tr>
+<tr>
+<td><code>costMs</code></td>
+<td>耗时</td>
+</tr>
+<tr>
+<td><code>affectedRows</code></td>
+<td>影响行数</td>
+</tr>
+<tr>
+<td><code>errorCode</code></td>
+<td>错误码</td>
+</tr>
+<tr>
+<td><code>errorMsg</code></td>
+<td>错误信息</td>
+</tr>
+</tbody></table>
+<p>如果公司有监控系统，建议加指标：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">schedule_task_success_total<br>schedule_task_fail_total<br>schedule_task_cost_seconds<br>schedule_task_last_success_time<br>schedule_task_affected_rows<br></code></pre></td></tr></table></figure>
+
+<p>不要等凌晨 2 点任务失败，第二天 10 点业务来问才知道。那不是监控，那叫考古。</p>
+<h2 id="16-常见坑点"><a href="#16-常见坑点" class="headerlink" title="16. 常见坑点"></a>16. 常见坑点</h2><h3 id="16-1-忘记加-EnableSchedulerLock"><a href="#16-1-忘记加-EnableSchedulerLock" class="headerlink" title="16.1 忘记加 @EnableSchedulerLock"></a>16.1 忘记加 @EnableSchedulerLock</h3><p>只加了：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@EnableScheduling</span><br></code></pre></td></tr></table></figure>
+
+<p>但是忘了：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@EnableSchedulerLock(defaultLockAtMostFor = &quot;PT30M&quot;)</span><br></code></pre></td></tr></table></figure>
+
+<p>结果 <code>@SchedulerLock</code> 不生效。</p>
+<p>建议在关键任务里加：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">LockAssert.assertLocked();<br></code></pre></td></tr></table></figure>
+
+<p>如果 AOP 没生效，可以尽早暴露问题。</p>
+<h3 id="16-2-方法不是-Spring-Bean-方法"><a href="#16-2-方法不是-Spring-Bean-方法" class="headerlink" title="16.2 方法不是 Spring Bean 方法"></a>16.2 方法不是 Spring Bean 方法</h3><p>错误示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">MyTask</span> &#123;<br>    <span class="hljs-meta">@Scheduled(cron = &quot;...&quot;)</span><br>    <span class="hljs-meta">@SchedulerLock(name = &quot;task&quot;)</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">run</span><span class="hljs-params">()</span> &#123;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果这个类没有被 Spring 管理，AOP 不会生效。</p>
+<p>正确：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">MyTask</span> &#123;<br>    <span class="hljs-meta">@Scheduled(cron = &quot;...&quot;)</span><br>    <span class="hljs-meta">@SchedulerLock(name = &quot;task&quot;)</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">run</span><span class="hljs-params">()</span> &#123;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="16-3-同一任务不同实例用了不同-lock-name"><a href="#16-3-同一任务不同实例用了不同-lock-name" class="headerlink" title="16.3 同一任务不同实例用了不同 lock name"></a>16.3 同一任务不同实例用了不同 lock name</h3><p>例如实例 A：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@SchedulerLock(name = &quot;generate-bill&quot;)</span><br></code></pre></td></tr></table></figure>
+
+<p>实例 B：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@SchedulerLock(name = &quot;generate-settlement-bill&quot;)</span><br></code></pre></td></tr></table></figure>
+
+<p>这相当于两把不同的锁，当然会同时执行。</p>
+<p>锁名必须统一，并且最好用常量管理：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">final</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ScheduleLockNames</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-title function_">ScheduleLockNames</span><span class="hljs-params">()</span> &#123;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> <span class="hljs-type">String</span> <span class="hljs-variable">GENERATE_SETTLEMENT_BILL</span> <span class="hljs-operator">=</span><br>            <span class="hljs-string">&quot;finance:settlement:generate-yesterday-bill&quot;</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@SchedulerLock(name = ScheduleLockNames.GENERATE_SETTLEMENT_BILL)</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="16-4-lockAtMostFor-太短"><a href="#16-4-lockAtMostFor-太短" class="headerlink" title="16.4 lockAtMostFor 太短"></a>16.4 lockAtMostFor 太短</h3><p>任务正常要跑 10 分钟，你配置：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">lockAtMostFor = <span class="hljs-string">&quot;PT2M&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>两分钟后锁过期，其他节点又开始执行。</p>
+<p>这就是自己把保险丝接成了烟花。</p>
+<h3 id="16-5-lockAtMostFor-太长"><a href="#16-5-lockAtMostFor-太长" class="headerlink" title="16.5 lockAtMostFor 太长"></a>16.5 lockAtMostFor 太长</h3><p>任务正常 10 秒，你配置：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">lockAtMostFor = <span class="hljs-string">&quot;PT24H&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>一旦任务执行节点宕机，后续 24 小时都不会再执行。</p>
+<p>所以不要极端。</p>
+<h3 id="16-6-任务必须执行但-ShedLock-会跳过"><a href="#16-6-任务必须执行但-ShedLock-会跳过" class="headerlink" title="16.6 任务必须执行但 ShedLock 会跳过"></a>16.6 任务必须执行但 ShedLock 会跳过</h3><p>ShedLock 的行为是：抢不到锁就跳过。</p>
+<p>如果你的业务要求：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">每个调度周期都必须被处理，不能跳过；<br>失败后必须补偿；<br>每个分片必须执行；<br></code></pre></td></tr></table></figure>
+
+<p>那就不要只用 ShedLock。</p>
+<p>应该考虑：</p>
+<ul>
+<li>任务表；</li>
+<li>消息队列；</li>
+<li>XXL-JOB；</li>
+<li>PowerJob；</li>
+<li>Quartz；</li>
+<li>JobRunr；</li>
+<li>db-scheduler。</li>
+</ul>
+<h3 id="16-7-手动删除锁表记录"><a href="#16-7-手动删除锁表记录" class="headerlink" title="16.7 手动删除锁表记录"></a>16.7 手动删除锁表记录</h3><p>前面提过，不建议手动 <code>DELETE FROM shedlock</code>。</p>
+<p>如果你需要释放锁，优先：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> shedlock<br><span class="hljs-keyword">SET</span> lock_until <span class="hljs-operator">=</span> NOW() <span class="hljs-operator">-</span> <span class="hljs-type">INTERVAL</span> <span class="hljs-string">&#x27;1 minute&#x27;</span><br><span class="hljs-keyword">WHERE</span> name <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;xxx&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<h3 id="16-8-本地开发多个服务互相抢锁"><a href="#16-8-本地开发多个服务互相抢锁" class="headerlink" title="16.8 本地开发多个服务互相抢锁"></a>16.8 本地开发多个服务互相抢锁</h3><p>如果开发、测试、预发、生产共用一套数据库或 Redis，很容易互相影响。</p>
+<p>建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">不同环境使用不同数据库；<br>或者不同环境使用不同 shedlock 表；<br>Redis Provider 使用不同 environment 前缀；<br>锁名中也可以带环境前缀。<br></code></pre></td></tr></table></figure>
+
+<h2 id="17-ShedLock-和其他方案对比"><a href="#17-ShedLock-和其他方案对比" class="headerlink" title="17. ShedLock 和其他方案对比"></a>17. ShedLock 和其他方案对比</h2><table>
+<thead>
+<tr>
+<th>工具</th>
+<th>定位</th>
+<th>适合场景</th>
+<th>是否有任务平台</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ShedLock</td>
+<td>定时任务分布式锁</td>
+<td>已有 <code>@Scheduled</code>，只想防重复执行</td>
+<td>否</td>
+</tr>
+<tr>
+<td>Quartz</td>
+<td>任务调度框架</td>
+<td>复杂调度、持久化 Trigger</td>
+<td>部分能力</td>
+</tr>
+<tr>
+<td>XXL-JOB</td>
+<td>分布式任务调度平台</td>
+<td>可视化、分片、失败重试、手动触发</td>
+<td>是</td>
+</tr>
+<tr>
+<td>PowerJob</td>
+<td>分布式任务调度平台</td>
+<td>复杂任务编排、MapReduce 风格任务</td>
+<td>是</td>
+</tr>
+<tr>
+<td>JobRunr</td>
+<td>后台任务与调度</td>
+<td>Java 后台任务、延迟任务、重试</td>
+<td>是</td>
+</tr>
+<tr>
+<td>Redis Lock</td>
+<td>通用分布式锁</td>
+<td>自定义互斥逻辑</td>
+<td>否</td>
+</tr>
+<tr>
+<td>DB 乐观锁</td>
+<td>数据更新并发控制</td>
+<td>单条业务数据并发修改</td>
+<td>否</td>
+</tr>
+</tbody></table>
+<p>选型建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">小项目 / 中后台 / 简单定时任务：ShedLock；<br>已有 @Scheduled，不想引入调度平台：ShedLock；<br>任务需要页面管理、重试、分片、日志：XXL-JOB / PowerJob；<br>任务和业务数据强绑定：任务表 + 状态机 + ShedLock；<br>只控制数据修改并发：数据库唯一约束 / 乐观锁 / 悲观锁。<br></code></pre></td></tr></table></figure>
+
+<h2 id="18-一个更工程化的项目结构"><a href="#18-一个更工程化的项目结构" class="headerlink" title="18. 一个更工程化的项目结构"></a>18. 一个更工程化的项目结构</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs text">finance-service<br>├── src/main/java/com/example/finance<br>│   ├── FinanceApplication.java<br>│   ├── config<br>│   │   ├── ScheduleConfiguration.java<br>│   │   └── ShedLockJdbcConfiguration.java<br>│   ├── constant<br>│   │   └── ScheduleLockNames.java<br>│   ├── schedule<br>│   │   ├── SettlementBillScheduleTask.java<br>│   │   └── CacheRefreshScheduleTask.java<br>│   ├── service<br>│   │   ├── SettlementBillService.java<br>│   │   └── BatchProcessor.java<br>│   └── repository<br>│       └── SettlementBillRepository.java<br>└── src/main/resources<br>    ├── application.yml<br>    └── db/migration<br>        ├── V1__create_shedlock.sql<br>        └── V2__create_settlement_bill.sql<br></code></pre></td></tr></table></figure>
+
+<p>推荐把锁名集中管理：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.example.finance.constant;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">final</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ScheduleLockNames</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> <span class="hljs-type">String</span> <span class="hljs-variable">PREFIX</span> <span class="hljs-operator">=</span> <span class="hljs-string">&quot;finance:&quot;</span>;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-title function_">ScheduleLockNames</span><span class="hljs-params">()</span> &#123;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> <span class="hljs-type">String</span> <span class="hljs-variable">GENERATE_YESTERDAY_SETTLEMENT_BILL</span> <span class="hljs-operator">=</span><br>            PREFIX + <span class="hljs-string">&quot;settlement:generate-yesterday-bill&quot;</span>;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> <span class="hljs-type">String</span> <span class="hljs-variable">REFRESH_SETTLEMENT_CACHE</span> <span class="hljs-operator">=</span><br>            PREFIX + <span class="hljs-string">&quot;cache:refresh-settlement-cache&quot;</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>任务里使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@SchedulerLock(</span><br><span class="hljs-meta">        name = ScheduleLockNames.GENERATE_YESTERDAY_SETTLEMENT_BILL,</span><br><span class="hljs-meta">        lockAtMostFor = &quot;PT60M&quot;,</span><br><span class="hljs-meta">        lockAtLeastFor = &quot;PT1M&quot;</span><br><span class="hljs-meta">)</span><br></code></pre></td></tr></table></figure>
+
+<p>这样后续排查、搜索、统一规范都会舒服很多。</p>
+<h2 id="19-生产落地-Checklist"><a href="#19-生产落地-Checklist" class="headerlink" title="19. 生产落地 Checklist"></a>19. 生产落地 Checklist</h2><p>上线前建议检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs text">[ ] 是否引入 shedlock-spring？<br>[ ] 是否引入对应 LockProvider？<br>[ ] 是否加了 @EnableScheduling？<br>[ ] 是否加了 @EnableSchedulerLock？<br>[ ] shedlock 表是否创建？<br>[ ] name 是否是主键？<br>[ ] 是否使用 usingDbTime()？<br>[ ] 每个任务 lock name 是否全局唯一且稳定？<br>[ ] lockAtMostFor 是否大于任务最大执行时间？<br>[ ] 短任务是否配置 lockAtLeastFor？<br>[ ] 关键任务是否加 LockAssert.assertLocked()？<br>[ ] 业务是否有幂等？<br>[ ] 数据库是否有唯一约束？<br>[ ] 是否有任务执行日志？<br>[ ] 是否有失败告警？<br>[ ] 是否验证过双实例启动？<br>[ ] 是否区分 dev/test/prod 锁存储或锁前缀？<br></code></pre></td></tr></table></figure>
+
+<h2 id="20-推荐实践总结"><a href="#20-推荐实践总结" class="headerlink" title="20. 推荐实践总结"></a>20. 推荐实践总结</h2><h3 id="20-1-优先使用-JDBC-Provider"><a href="#20-1-优先使用-JDBC-Provider" class="headerlink" title="20.1 优先使用 JDBC Provider"></a>20.1 优先使用 JDBC Provider</h3><p>如果你的任务是严肃业务任务，比如：</p>
+<ul>
+<li>财务结算；</li>
+<li>对账；</li>
+<li>账单生成；</li>
+<li>订单状态推进；</li>
+<li>数据归档；</li>
+</ul>
+<p>建议优先使用 JDBC Provider。</p>
+<p>原因：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 和业务数据库一致性更容易理解；<br>2. 可观测性更好，直接查表；<br>3. 运维介入方便；<br>4. usingDbTime() 可以减少节点时钟差异问题。<br></code></pre></td></tr></table></figure>
+
+<h3 id="20-2-Redis-Provider-用在轻量任务"><a href="#20-2-Redis-Provider-用在轻量任务" class="headerlink" title="20.2 Redis Provider 用在轻量任务"></a>20.2 Redis Provider 用在轻量任务</h3><p>Redis Provider 很方便，但不要神化 Redis 锁。</p>
+<p>适合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">缓存刷新；<br>轻量扫描；<br>非核心同步；<br>允许下一周期补偿的任务。<br></code></pre></td></tr></table></figure>
+
+<h3 id="20-3-任务要短、小、可重入、可补偿"><a href="#20-3-任务要短、小、可重入、可补偿" class="headerlink" title="20.3 任务要短、小、可重入、可补偿"></a>20.3 任务要短、小、可重入、可补偿</h3><p>好的定时任务应该具备：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">短：不要一个任务跑几个小时；<br>小：按批次处理；<br>可重入：重复执行不会产生错误结果；<br>可补偿：失败后下次可以继续；<br>可观测：日志、指标、告警齐全。<br></code></pre></td></tr></table></figure>
+
+<h3 id="20-4-ShedLock-幂等-唯一索引才是完整方案"><a href="#20-4-ShedLock-幂等-唯一索引才是完整方案" class="headerlink" title="20.4 ShedLock + 幂等 + 唯一索引才是完整方案"></a>20.4 ShedLock + 幂等 + 唯一索引才是完整方案</h3><p>最终推荐组合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">ShedLock：防止多节点并发执行；<br>业务状态：防止重复推进；<br>唯一索引：防止重复落库；<br>日志指标：保证可观测；<br>告警补偿：保证故障可恢复。<br></code></pre></td></tr></table></figure>
+
+<h2 id="21-完整示例汇总"><a href="#21-完整示例汇总" class="headerlink" title="21. 完整示例汇总"></a>21. 完整示例汇总</h2><h3 id="21-1-依赖"><a href="#21-1-依赖" class="headerlink" title="21.1 依赖"></a>21.1 依赖</h3><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">properties</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">java.version</span>&gt;</span>17<span class="hljs-tag">&lt;/<span class="hljs-name">java.version</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">shedlock.version</span>&gt;</span>7.7.0<span class="hljs-tag">&lt;/<span class="hljs-name">shedlock.version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">properties</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependencies</span>&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-web<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-jdbc<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.postgresql<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>postgresql<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">scope</span>&gt;</span>runtime<span class="hljs-tag">&lt;/<span class="hljs-name">scope</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>net.javacrumbs.shedlock<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>shedlock-spring<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>$&#123;shedlock.version&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>net.javacrumbs.shedlock<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>shedlock-provider-jdbc-template<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>$&#123;shedlock.version&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependencies</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="21-2-锁表"><a href="#21-2-锁表" class="headerlink" title="21.2 锁表"></a>21.2 锁表</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> shedlock<br>(<br>    name       <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>)  <span class="hljs-keyword">NOT NULL</span>,<br>    lock_until <span class="hljs-type">TIMESTAMP</span>    <span class="hljs-keyword">NOT NULL</span>,<br>    locked_at  <span class="hljs-type">TIMESTAMP</span>    <span class="hljs-keyword">NOT NULL</span>,<br>    locked_by  <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">255</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    <span class="hljs-keyword">PRIMARY KEY</span> (name)<br>);<br></code></pre></td></tr></table></figure>
+
+<h3 id="21-3-配置类"><a href="#21-3-配置类" class="headerlink" title="21.3 配置类"></a>21.3 配置类</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Configuration</span><br><span class="hljs-meta">@EnableScheduling</span><br><span class="hljs-meta">@EnableSchedulerLock(defaultLockAtMostFor = &quot;PT30M&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ScheduleConfiguration</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Configuration</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ShedLockJdbcConfiguration</span> &#123;<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> LockProvider <span class="hljs-title function_">lockProvider</span><span class="hljs-params">(DataSource dataSource)</span> &#123;<br>        <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">JdbcTemplateLockProvider</span>(<br>                JdbcTemplateLockProvider.Configuration.builder()<br>                        .withJdbcTemplate(<span class="hljs-keyword">new</span> <span class="hljs-title class_">JdbcTemplate</span>(dataSource))<br>                        .usingDbTime()<br>                        .build()<br>        );<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="21-4-定时任务"><a href="#21-4-定时任务" class="headerlink" title="21.4 定时任务"></a>21.4 定时任务</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Slf4j</span><br><span class="hljs-meta">@Component</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SettlementBillScheduleTask</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> SettlementBillService settlementBillService;<br><br>    <span class="hljs-meta">@Scheduled(cron = &quot;0 0 2 * * ?&quot;)</span><br>    <span class="hljs-meta">@SchedulerLock(</span><br><span class="hljs-meta">            name = &quot;finance:settlement:generate-yesterday-bill&quot;,</span><br><span class="hljs-meta">            lockAtMostFor = &quot;PT60M&quot;,</span><br><span class="hljs-meta">            lockAtLeastFor = &quot;PT1M&quot;</span><br><span class="hljs-meta">    )</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">generateYesterdaySettlementBill</span><span class="hljs-params">()</span> &#123;<br>        LockAssert.assertLocked();<br><br>        <span class="hljs-type">LocalDate</span> <span class="hljs-variable">billDate</span> <span class="hljs-operator">=</span> LocalDate.now().minusDays(<span class="hljs-number">1</span>);<br>        <span class="hljs-type">long</span> <span class="hljs-variable">start</span> <span class="hljs-operator">=</span> System.currentTimeMillis();<br><br>        log.info(<span class="hljs-string">&quot;[schedule-start] task=generateYesterdaySettlementBill, billDate=&#123;&#125;&quot;</span>, billDate);<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            settlementBillService.generateBillIfAbsent(billDate);<br>            log.info(<span class="hljs-string">&quot;[schedule-success] task=generateYesterdaySettlementBill, billDate=&#123;&#125;, costMs=&#123;&#125;&quot;</span>,<br>                    billDate,<br>                    System.currentTimeMillis() - start);<br>        &#125; <span class="hljs-keyword">catch</span> (Exception ex) &#123;<br>            log.error(<span class="hljs-string">&quot;[schedule-error] task=generateYesterdaySettlementBill, billDate=&#123;&#125;, costMs=&#123;&#125;, errorMsg=&#123;&#125;&quot;</span>,<br>                    billDate,<br>                    System.currentTimeMillis() - start,<br>                    ex.getMessage(),<br>                    ex);<br>            <span class="hljs-keyword">throw</span> ex;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ol>
+<li>ShedLock GitHub 官方仓库：<code>https://github.com/lukas-krecan/ShedLock</code></li>
+<li>ShedLock README：<code>https://github.com/lukas-krecan/ShedLock/blob/master/README.md</code></li>
+<li>Maven Central - <code>shedlock-spring</code>：<code>https://central.sonatype.com/artifact/net.javacrumbs.shedlock/shedlock-spring</code></li>
+<li>Maven Repository - <code>shedlock-spring</code>：<code>https://mvnrepository.com/artifact/net.javacrumbs.shedlock/shedlock-spring</code></li>
+<li>Baeldung - Guide to ShedLock with Spring：<code>https://www.baeldung.com/shedlock-spring</code></li>
+</ol>
+<h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p><code>ShedLock</code> 的价值不在于它有多复杂，而在于它刚好补上了 <code>@Scheduled</code> 在分布式部署下缺失的那块拼图。</p>
+<p>但要记住：它只是锁，不是调度平台；它能减少重复执行，但不能替代业务幂等；它能防止多数情况下的多节点并发，但不能替你修复所有任务设计问题。</p>
+<p>真正靠谱的生产方案应该是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">ShedLock 控制入口；<br>业务幂等控制过程；<br>唯一约束控制结果；<br>日志监控控制风险。<br></code></pre></td></tr></table></figure>
+
+<p><code>富贵岂由人，时会高志须酬。</code></p>
+<p><code>能成功于千载者，必以近察远。</code></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Java/" class="category-chain-item">Java</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Spring-Boot/" class="print-no-link">#Spring Boot</a>
+      
+        <a href="/tags/Java/" class="print-no-link">#Java</a>
+      
+        <a href="/tags/Redis/" class="print-no-link">#Redis</a>
+      
+        <a href="/tags/ShedLock/" class="print-no-link">#ShedLock</a>
+      
+        <a href="/tags/Scheduled/" class="print-no-link">#Scheduled</a>
+      
+        <a href="/tags/Distributed-Lock/" class="print-no-link">#Distributed Lock</a>
+      
+        <a href="/tags/PostgreSQL/" class="print-no-link">#PostgreSQL</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>ShedLock 深入解析：Spring Boot 分布式定时任务锁的原理与生产实战</div>
+      <div>https://allendericdalexander.github.io/2026/06/12/archtect/distribute/shedlock-deep-dive-practice-blog/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年6月12日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/06/12/archtect/arch/spring-modulith-deep-practice-blog/" title="Spring Modulith 深度实践：从单体系统到模块化单体架构">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Spring Modulith 深度实践：从单体系统到模块化单体架构</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/06/12/java/utils/libphonenumber-introduction-practice-blog/" title="libphonenumber 深度介绍与 Spring Boot 实战：手机号校验、解析、格式化与统一存储">
+                        <span class="hidden-mobile">libphonenumber 深度介绍与 Spring Boot 实战：手机号校验、解析、格式化与统一存储</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
