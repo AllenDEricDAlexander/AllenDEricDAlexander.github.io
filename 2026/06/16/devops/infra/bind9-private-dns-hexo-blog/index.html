@@ -1,0 +1,1475 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="欢迎你来读这篇博客。这篇文章会从 BIND 9 是什么、私有 DNS 该怎么设计、如何在 RHEL&#x2F;Rocky&#x2F;Alma&#x2F;CentOS 系统上落地、如何配置正向区&#x2F;反向区&#x2F;主从同步&#x2F;递归解析、安全加固和排障 这些角度完整讲一遍。 很多旧教程能跑，但不一定适合今天直接照抄。比如 CentOS 7 时代常见的 dnssec-enable ye">
+<meta property="og:type" content="article">
+<meta property="og:title" content="BIND 9 私有 DNS 服务搭建与生产实践：从 named.conf 到主从、递归、安全与排障">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/06/16/devops/infra/bind9-private-dns-hexo-blog/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="欢迎你来读这篇博客。这篇文章会从 BIND 9 是什么、私有 DNS 该怎么设计、如何在 RHEL&#x2F;Rocky&#x2F;Alma&#x2F;CentOS 系统上落地、如何配置正向区&#x2F;反向区&#x2F;主从同步&#x2F;递归解析、安全加固和排障 这些角度完整讲一遍。 很多旧教程能跑，但不一定适合今天直接照抄。比如 CentOS 7 时代常见的 dnssec-enable ye">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-16T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-16T04:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="BIND">
+<meta property="article:tag" content="CentOS">
+<meta property="article:tag" content="DNS">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Rocky Linux">
+<meta property="article:tag" content="运维">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>BIND 9 私有 DNS 服务搭建与生产实践：从 named.conf 到主从、递归、安全与排障 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="BIND 9 私有 DNS 服务搭建与生产实践：从 named.conf 到主从、递归、安全与排障"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-06-16 12:00" pubdate>
+          2026年6月16日 中午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          6.7k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          56 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">BIND 9 私有 DNS 服务搭建与生产实践：从 named.conf 到主从、递归、安全与排障</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>欢迎你来读这篇博客。这篇文章会从 <strong>BIND 9 是什么、私有 DNS 该怎么设计、如何在 RHEL&#x2F;Rocky&#x2F;Alma&#x2F;CentOS 系统上落地、如何配置正向区&#x2F;反向区&#x2F;主从同步&#x2F;递归解析、安全加固和排障</strong> 这些角度完整讲一遍。</p>
+<p>很多旧教程能跑，但不一定适合今天直接照抄。比如 CentOS 7 时代常见的 <code>dnssec-enable yes;</code>、随手打开递归、只配置 <code>allow-query</code> 不配置 <code>allow-recursion</code>、把 <code>allow-transfer</code> 写在全局并放得过宽，这些在新版本和生产环境里都容易埋坑。DNS 是基础设施，配置错了不是“解析慢一点”，而是全公司开始进入玄学网络时代。</p>
+<span id="more"></span>
+
+<h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><p>BIND，全称 Berkeley Internet Name Domain，是历史最悠久、使用最广泛的 DNS 软件之一。它既可以做：</p>
+<ul>
+<li><strong>权威 DNS</strong>：回答某个区域的数据，比如 <code>gitlab.corp.example -&gt; 192.168.9.21</code>。</li>
+<li><strong>递归&#x2F;缓存 DNS</strong>：帮客户端递归解析公网域名，比如 <code>www.baidu.com</code>、<code>github.com</code>。</li>
+<li><strong>转发 DNS</strong>：把非本地区域请求转发到上游 DNS，比如运营商、公司网关、公共解析器。</li>
+<li><strong>主从 DNS</strong>：主服务器维护 zone 文件，从服务器通过 zone transfer 同步，提升可用性。</li>
+<li><strong>Split DNS &#x2F; View</strong>：同一个域名，内网和外网看到不同结果。</li>
+</ul>
+<p>这篇文章的目标不是“让 named 能启动就完事”，而是写一套能长期维护的工程化配置。毕竟 DNS 配置文件一旦写乱，后续排查就像在 <code>/etc</code> 目录里考古，越挖越像自己上辈子写的。</p>
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h3 id="1-DNS-与-BIND-的核心概念"><a href="#1-DNS-与-BIND-的核心概念" class="headerlink" title="1. DNS 与 BIND 的核心概念"></a>1. DNS 与 BIND 的核心概念</h3><p>在动手前，先把几个词分清楚。</p>
+<h4 id="1-1-解析器-Resolver"><a href="#1-1-解析器-Resolver" class="headerlink" title="1.1 解析器 Resolver"></a>1.1 解析器 Resolver</h4><p>客户端上的解析逻辑叫 resolver，比如 Linux 的 glibc resolver、systemd-resolved、macOS resolver。客户端一般不会自己从根 DNS 一路递归查到权威服务器，它会把请求交给配置好的 DNS 服务器。</p>
+<h4 id="1-2-递归-DNS-Recursive-Resolver"><a href="#1-2-递归-DNS-Recursive-Resolver" class="headerlink" title="1.2 递归 DNS Recursive Resolver"></a>1.2 递归 DNS Recursive Resolver</h4><p>递归 DNS 接收客户端请求后，如果自己没有缓存，就从根服务器、顶级域服务器、权威服务器一路查下去，再把最终结果返回给客户端。</p>
+<p>在内网里，BIND 可以充当递归 DNS：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Client -&gt; BIND -&gt; Root/TLD/Authoritative DNS -&gt; BIND Cache -&gt; Client<br></code></pre></td></tr></table></figure>
+
+<h4 id="1-3-权威-DNS-Authoritative-DNS"><a href="#1-3-权威-DNS-Authoritative-DNS" class="headerlink" title="1.3 权威 DNS Authoritative DNS"></a>1.3 权威 DNS Authoritative DNS</h4><p>权威 DNS 只负责自己管理的 zone。比如你在 BIND 中配置：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs conf">zone &quot;corp.example&quot; IN &#123;<br>    type primary;<br>    file &quot;zones/db.corp.example&quot;;<br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p>那么这台 BIND 就是 <code>corp.example</code> 这个 zone 的权威服务器。客户端查询 <code>gitlab.corp.example</code> 时，BIND 会直接根据 zone 文件回答。</p>
+<h4 id="1-4-Zone-与-Record"><a href="#1-4-Zone-与-Record" class="headerlink" title="1.4 Zone 与 Record"></a>1.4 Zone 与 Record</h4><p>一个 zone 是一段命名空间的管理边界，例如：</p>
+<ul>
+<li>正向区：<code>corp.example</code></li>
+<li>反向区：<code>9.168.192.in-addr.arpa</code></li>
+</ul>
+<p>常见记录如下：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>作用</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SOA</td>
+<td>zone 起始授权记录，包含主 DNS、负责人、序列号等</td>
+<td><code>@ IN SOA ns1.corp.example. hostmaster.corp.example.</code></td>
+</tr>
+<tr>
+<td>NS</td>
+<td>指定 zone 的名称服务器</td>
+<td><code>@ IN NS ns1.corp.example.</code></td>
+</tr>
+<tr>
+<td>A</td>
+<td>域名到 IPv4</td>
+<td><code>gitlab IN A 192.168.9.21</code></td>
+</tr>
+<tr>
+<td>AAAA</td>
+<td>域名到 IPv6</td>
+<td><code>www IN AAAA 2001:db8::30</code></td>
+</tr>
+<tr>
+<td>CNAME</td>
+<td>别名</td>
+<td><code>api IN CNAME gitlab</code></td>
+</tr>
+<tr>
+<td>PTR</td>
+<td>IP 到域名，反向解析</td>
+<td><code>21 IN PTR gitlab.corp.example.</code></td>
+</tr>
+<tr>
+<td>MX</td>
+<td>邮件服务器</td>
+<td><code>@ IN MX 10 mail.corp.example.</code></td>
+</tr>
+<tr>
+<td>TXT</td>
+<td>文本记录，常用于验证、SPF 等</td>
+<td><code>@ IN TXT &quot;v=spf1 ...&quot;</code></td>
+</tr>
+<tr>
+<td>SRV</td>
+<td>服务发现</td>
+<td><code>_ldap._tcp IN SRV 0 5 389 ldap01.corp.example.</code></td>
+</tr>
+</tbody></table>
+<p>几个非常容易踩坑的小点：</p>
+<ol>
+<li>zone 文件中的完整域名最好写尾部点号，比如 <code>ns1.corp.example.</code>。没有尾部点号时，BIND 会把当前 zone 自动拼上去。</li>
+<li><code>CNAME</code> 记录所在的名称一般不要再同时挂其他记录。</li>
+<li>修改 zone 文件后必须增加 SOA serial，否则从服务器可能不会同步。</li>
+<li>反向解析不是自动生成的，需要单独配置反向区和 PTR 记录。</li>
+</ol>
+<h3 id="2-私有-DNS-的域名选择"><a href="#2-私有-DNS-的域名选择" class="headerlink" title="2. 私有 DNS 的域名选择"></a>2. 私有 DNS 的域名选择</h3><p>内网域名不要随便拍脑袋。</p>
+<p>推荐优先级：</p>
+<ol>
+<li><strong>企业生产环境</strong>：使用自己真实拥有的域名的子域，例如 <code>corp.example.com</code>、<code>lan.example.com</code>、<code>idc.example.com</code>。</li>
+<li><strong>家庭网络</strong>：可以考虑 <code>home.arpa</code>。</li>
+<li><strong>教程或实验环境</strong>：使用 <code>corp.example</code>、<code>example.test</code> 这类示例域。</li>
+</ol>
+<p>不建议：</p>
+<ul>
+<li>不建议使用 <code>.local</code> 做普通单播 DNS，因为 <code>.local</code> 常被 mDNS 使用，可能和 macOS、Linux、Windows 的本地发现机制冲突。</li>
+<li>不建议编造 <code>.lan</code>、<code>.home</code>、<code>.company</code> 这类未注册 TLD，容易泄漏到上游 DNS，也可能未来和真实 TLD 冲突。</li>
+</ul>
+<p>本文使用 <code>corp.example</code> 作为演示域名，IP 网段使用 <code>192.168.9.0/24</code>。真实环境请替换成自己的域名和网段。</p>
+<h3 id="3-本文目标架构"><a href="#3-本文目标架构" class="headerlink" title="3. 本文目标架构"></a>3. 本文目标架构</h3><p>我们搭建一套主从私有 DNS：</p>
+<pre><code class=" mermaid">flowchart LR
+    C1[Client: 192.168.9.101] --&gt; NS1[ns1.corp.example\n192.168.9.10\nPrimary BIND]
+    C1 --&gt; NS2[ns2.corp.example\n192.168.9.11\nSecondary BIND]
+    NS1 -- AXFR/IXFR + TSIG --&gt; NS2
+    NS1 --&gt; U[Upstream DNS]
+    NS2 --&gt; U
+</code></pre>
+
+<p>角色规划：</p>
+<table>
+<thead>
+<tr>
+<th>主机</th>
+<th>角色</th>
+<th>IP</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ns1.corp.example</td>
+<td>Primary DNS</td>
+<td>192.168.9.10</td>
+<td>维护 zone 文件</td>
+</tr>
+<tr>
+<td>ns2.corp.example</td>
+<td>Secondary DNS</td>
+<td>192.168.9.11</td>
+<td>从 ns1 同步 zone</td>
+</tr>
+<tr>
+<td>gitlab.corp.example</td>
+<td>应用服务</td>
+<td>192.168.9.21</td>
+<td>示例 A 记录</td>
+</tr>
+<tr>
+<td>api.corp.example</td>
+<td>应用别名</td>
+<td>CNAME -&gt; gitlab</td>
+<td>示例 CNAME</td>
+</tr>
+</tbody></table>
+<p>功能目标：</p>
+<ul>
+<li>内网主机可以解析 <code>*.corp.example</code>。</li>
+<li>内网主机可以通过 BIND 递归解析公网域名。</li>
+<li>ns2 自动从 ns1 同步 zone。</li>
+<li>限制递归只允许内网客户端使用。</li>
+<li>限制 zone transfer 只允许 ns2，并使用 TSIG 签名。</li>
+<li>提供常用排障命令与生产加固建议。</li>
+</ul>
+<h3 id="4-版本与系统差异"><a href="#4-版本与系统差异" class="headerlink" title="4. 版本与系统差异"></a>4. 版本与系统差异</h3><p>本文主要以 RHEL 9 &#x2F; Rocky Linux 9 &#x2F; AlmaLinux 9 兼容系为主，CentOS 7 差异会单独说明。Debian&#x2F;Ubuntu 路径也会给出对照。</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>RHEL&#x2F;Rocky&#x2F;Alma&#x2F;CentOS</th>
+<th>Debian&#x2F;Ubuntu</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>服务名</td>
+<td><code>named</code></td>
+<td><code>bind9</code></td>
+</tr>
+<tr>
+<td>主配置</td>
+<td><code>/etc/named.conf</code></td>
+<td><code>/etc/bind/named.conf</code></td>
+</tr>
+<tr>
+<td>options 配置</td>
+<td>通常直接在 <code>/etc/named.conf</code></td>
+<td><code>/etc/bind/named.conf.options</code></td>
+</tr>
+<tr>
+<td>本地区域配置</td>
+<td><code>/etc/named.rfc1912.zones</code> 或自定义 include</td>
+<td><code>/etc/bind/named.conf.local</code></td>
+</tr>
+<tr>
+<td>zone 目录</td>
+<td><code>/var/named</code></td>
+<td><code>/var/cache/bind</code> 或 <code>/etc/bind/zones</code></td>
+</tr>
+<tr>
+<td>运行用户</td>
+<td><code>named</code></td>
+<td><code>bind</code></td>
+</tr>
+<tr>
+<td>工具包</td>
+<td><code>bind-utils</code></td>
+<td><code>bind9utils</code>、<code>dnsutils</code></td>
+</tr>
+</tbody></table>
+<p>生产建议：</p>
+<ul>
+<li>新项目优先用系统发行版维护的安全更新包，或者使用 ISC 官方支持分支。</li>
+<li>如果你追求稳定，不要随便上 development branch。</li>
+<li>配置从旧版本迁移到 BIND 9.18&#x2F;9.20 时，一定跑 <code>named-checkconf</code> 和 <code>named-checkzone</code>。</li>
+<li>不要盲目复制旧教程中的所有参数。旧配置里有些参数在新版本里已经默认、废弃或行为改变。</li>
+</ul>
+<h3 id="5-安装-BIND"><a href="#5-安装-BIND" class="headerlink" title="5. 安装 BIND"></a>5. 安装 BIND</h3><h4 id="5-1-RHEL-9-Rocky-Linux-9-AlmaLinux-9"><a href="#5-1-RHEL-9-Rocky-Linux-9-AlmaLinux-9" class="headerlink" title="5.1 RHEL 9 &#x2F; Rocky Linux 9 &#x2F; AlmaLinux 9"></a>5.1 RHEL 9 &#x2F; Rocky Linux 9 &#x2F; AlmaLinux 9</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dnf install -y <span class="hljs-built_in">bind</span> bind-utils<br>named -v<br></code></pre></td></tr></table></figure>
+
+<p>启动并设置开机自启：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl <span class="hljs-built_in">enable</span> --now named<br><span class="hljs-built_in">sudo</span> systemctl status named<br></code></pre></td></tr></table></figure>
+
+<p>开放防火墙：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> firewall-cmd --permanent --add-service=dns<br><span class="hljs-built_in">sudo</span> firewall-cmd --reload<br><span class="hljs-built_in">sudo</span> firewall-cmd --list-services<br></code></pre></td></tr></table></figure>
+
+<p>DNS 使用 TCP&#x2F;UDP 53。很多人只开 UDP 53，结果小响应没问题，大响应、zone transfer、部分 DNSSEC 场景开始抽风。记住：<strong>UDP 53 和 TCP 53 都要考虑</strong>。</p>
+<h4 id="5-2-CentOS-7"><a href="#5-2-CentOS-7" class="headerlink" title="5.2 CentOS 7"></a>5.2 CentOS 7</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> yum install -y <span class="hljs-built_in">bind</span> bind-utils<br><span class="hljs-built_in">sudo</span> systemctl <span class="hljs-built_in">enable</span> --now named<br><span class="hljs-built_in">sudo</span> firewall-cmd --permanent --add-service=dns<br><span class="hljs-built_in">sudo</span> firewall-cmd --reload<br></code></pre></td></tr></table></figure>
+
+<p>CentOS 7 自带 BIND 版本较老，很多教程也是围绕它写的。能跑不代表适合长期生产。公网暴露、递归控制、DNSSEC、TSIG 这些地方要格外谨慎。</p>
+<h4 id="5-3-Debian-Ubuntu"><a href="#5-3-Debian-Ubuntu" class="headerlink" title="5.3 Debian &#x2F; Ubuntu"></a>5.3 Debian &#x2F; Ubuntu</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> apt update<br><span class="hljs-built_in">sudo</span> apt install -y bind9 bind9utils dnsutils<br><span class="hljs-built_in">sudo</span> systemctl <span class="hljs-built_in">enable</span> --now bind9<br><span class="hljs-built_in">sudo</span> systemctl status bind9<br></code></pre></td></tr></table></figure>
+
+<p>Ubuntu 使用 UFW 时：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> ufw allow 53/tcp<br><span class="hljs-built_in">sudo</span> ufw allow 53/udp<br><span class="hljs-built_in">sudo</span> ufw reload<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-Primary-DNS-配置"><a href="#6-Primary-DNS-配置" class="headerlink" title="6. Primary DNS 配置"></a>6. Primary DNS 配置</h3><p>下面以 <code>ns1 = 192.168.9.10</code> 为例。</p>
+<h4 id="6-1-目录准备"><a href="#6-1-目录准备" class="headerlink" title="6.1 目录准备"></a>6.1 目录准备</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /var/named/zones<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /etc/named.keys<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chown</span> root:named /var/named/zones /etc/named.keys<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chmod</span> 750 /var/named/zones /etc/named.keys<br></code></pre></td></tr></table></figure>
+
+<p>如果 SELinux 开启，并且你使用了自定义目录，建议设置上下文：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dnf install -y policycoreutils-python-utils<br><span class="hljs-built_in">sudo</span> semanage fcontext -a -t named_zone_t <span class="hljs-string">&quot;/var/named/zones(/.*)?&quot;</span><br><span class="hljs-built_in">sudo</span> restorecon -Rv /var/named/zones<br></code></pre></td></tr></table></figure>
+
+<p>如果只是放在 <code>/var/named</code> 标准目录下，通常系统策略已经处理好了。</p>
+<h4 id="6-2-生成-TSIG-Key"><a href="#6-2-生成-TSIG-Key" class="headerlink" title="6.2 生成 TSIG Key"></a>6.2 生成 TSIG Key</h4><p>主从同步建议使用 TSIG。不要只靠 IP 放行。IP 放行是门卫看脸，TSIG 至少还要验身份证。</p>
+<p>在 ns1 上执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> tsig-keygen -a hmac-sha256 ns1-ns2. | <span class="hljs-built_in">sudo</span> <span class="hljs-built_in">tee</span> /etc/named.keys/ns1-ns2.key<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chown</span> root:named /etc/named.keys/ns1-ns2.key<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chmod</span> 640 /etc/named.keys/ns1-ns2.key<br></code></pre></td></tr></table></figure>
+
+<p>把 <code>/etc/named.keys/ns1-ns2.key</code> 安全复制到 ns2 的同一路径：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> scp /etc/named.keys/ns1-ns2.key root@192.168.9.11:/etc/named.keys/ns1-ns2.key<br></code></pre></td></tr></table></figure>
+
+<p>注意：TSIG key 是共享密钥，不能放到 Git 仓库里，更不能贴到工单截图里。</p>
+<h4 id="6-3-etc-named-conf-主配置"><a href="#6-3-etc-named-conf-主配置" class="headerlink" title="6.3 /etc/named.conf 主配置"></a>6.3 <code>/etc/named.conf</code> 主配置</h4><p>编辑：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> vi /etc/named.conf<br></code></pre></td></tr></table></figure>
+
+<p>示例配置如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br></pre></td><td class="code"><pre><code class="hljs conf">acl &quot;trusted&quot; &#123;<br>    127.0.0.1;<br>    localhost;<br>    192.168.9.0/24;<br>&#125;;<br><br>include &quot;/etc/named.keys/ns1-ns2.key&quot;;<br><br>options &#123;<br>    listen-on port 53 &#123; 127.0.0.1; 192.168.9.10; &#125;;<br>    // 如果你已经规划了 IPv6，可以显式写 IPv6 地址；不用 IPv6 时可关闭监听。<br>    listen-on-v6 port 53 &#123; none; &#125;;<br><br>    directory       &quot;/var/named&quot;;<br>    dump-file       &quot;/var/named/data/cache_dump.db&quot;;<br>    statistics-file &quot;/var/named/data/named_stats.txt&quot;;<br>    memstatistics-file &quot;/var/named/data/named_mem_stats.txt&quot;;<br>    secroots-file   &quot;/var/named/data/named.secroots&quot;;<br>    recursing-file  &quot;/var/named/data/named.recursing&quot;;<br><br>    // 权威查询：本例只服务内网。如果是公网权威 DNS，allow-query 通常会放开到 any。<br>    allow-query &#123; trusted; &#125;;<br><br>    // 递归解析：只允许可信内网，避免变成 Open Resolver。<br>    recursion yes;<br>    allow-recursion &#123; trusted; &#125;;<br>    allow-query-cache &#123; trusted; &#125;;<br><br>    // 主从传输默认先关闭，在具体 zone 中再精确放开。<br>    allow-transfer &#123; none; &#125;;<br><br>    // 上游 DNS，可替换为公司出口 DNS、运营商 DNS 或可信公共 DNS。<br>    // 如果希望 BIND 自己从 root 递归，可删除 forwarders。<br>    forwarders &#123;<br>        223.5.5.5;<br>        119.29.29.29;<br>        1.1.1.1;<br>        8.8.8.8;<br>    &#125;;<br>    // 打开后，如果 forwarder 不响应，不再回退到根递归。<br>    // 内网出口策略严格时建议开启；实验环境可按需关闭。<br>    forward only;<br><br>    // BIND 9.20 推荐大多数 resolver 使用默认 auto。<br>    dnssec-validation auto;<br><br>    // 隐藏真实版本，降低被按版本打洞的概率。<br>    version &quot;not available&quot;;<br><br>    // 视内存情况设置，避免缓存吃掉过多内存。<br>    max-cache-size 512M;<br><br>    // 若使用自定义私有 TLD 且遇到 DNSSEC 验证问题，可谨慎使用 validate-except。<br>    // validate-except &#123; &quot;corp.example&quot;; &#125;;<br>&#125;;<br><br>logging &#123;<br>    channel named_default &#123;<br>        file &quot;/var/named/data/named.default.log&quot; versions 7 size 20m;<br>        severity info;<br>        print-time yes;<br>        print-severity yes;<br>        print-category yes;<br>    &#125;;<br><br>    category default &#123; named_default; &#125;;<br>    category general &#123; named_default; &#125;;<br>    category security &#123; named_default; &#125;;<br>    category config &#123; named_default; &#125;;<br>&#125;;<br><br>zone &quot;.&quot; IN &#123;<br>    type hint;<br>    file &quot;named.ca&quot;;<br>&#125;;<br><br>include &quot;/etc/named.rfc1912.zones&quot;;<br>include &quot;/etc/named.root.key&quot;;<br>include &quot;/etc/named/named.conf.local&quot;;<br></code></pre></td></tr></table></figure>
+
+<p>创建本地 zone 配置文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /etc/named<br><span class="hljs-built_in">sudo</span> vi /etc/named/named.conf.local<br></code></pre></td></tr></table></figure>
+
+<p>写入：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs conf">zone &quot;corp.example&quot; IN &#123;<br>    type primary;<br>    file &quot;zones/db.corp.example&quot;;<br>    allow-query &#123; trusted; &#125;;<br>    allow-transfer &#123; key ns1-ns2.; 192.168.9.11; &#125;;<br>    notify yes;<br>    also-notify &#123; 192.168.9.11 key ns1-ns2.; &#125;;<br>    allow-update &#123; none; &#125;;<br>&#125;;<br><br>zone &quot;9.168.192.in-addr.arpa&quot; IN &#123;<br>    type primary;<br>    file &quot;zones/db.192.168.9&quot;;<br>    allow-query &#123; trusted; &#125;;<br>    allow-transfer &#123; key ns1-ns2.; 192.168.9.11; &#125;;<br>    notify yes;<br>    also-notify &#123; 192.168.9.11 key ns1-ns2.; &#125;;<br>    allow-update &#123; none; &#125;;<br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p>这里有几个设计选择：</p>
+<ul>
+<li><code>allow-transfer</code> 放在 zone 里，而不是全局放开。</li>
+<li><code>allow-transfer</code> 同时限制 TSIG key 和 ns2 IP。</li>
+<li><code>notify yes</code> 让主服务器 zone 更新后通知从服务器。</li>
+<li><code>allow-update { none; };</code> 禁止动态更新，避免客户端乱写 DNS。</li>
+</ul>
+<h3 id="7-正向-Zone-文件"><a href="#7-正向-Zone-文件" class="headerlink" title="7. 正向 Zone 文件"></a>7. 正向 Zone 文件</h3><p>创建正向解析文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> vi /var/named/zones/db.corp.example<br></code></pre></td></tr></table></figure>
+
+<p>内容如下：</p>
+<figure class="highlight zone"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><code class="hljs zone"><span class="hljs-meta">$TTL</span> <span class="hljs-number">1h</span><br>@   <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">SOA</span> ns1.corp.example. hostmaster.corp.example. (<br>            <span class="hljs-number">2026061601</span> <span class="hljs-comment">; serial，建议使用 YYYYMMDDNN</span><br>            <span class="hljs-number">1h</span>         <span class="hljs-comment">; refresh，从服务器多久检查一次</span><br>            <span class="hljs-number">15m</span>        <span class="hljs-comment">; retry，失败后多久重试</span><br>            <span class="hljs-number">7d</span>         <span class="hljs-comment">; expire，多久联系不上主服务器后认为 zone 过期</span><br>            <span class="hljs-number">10m</span>        <span class="hljs-comment">; negative cache TTL</span><br>)<br><br><span class="hljs-comment">; Name servers</span><br>@       <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">NS</span>      ns1.corp.example.<br>@       <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">NS</span>      ns2.corp.example.<br><br><span class="hljs-comment">; DNS servers</span><br>ns1     <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">A</span>       <span class="hljs-number">192.168.9.10</span><br>ns2     <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">A</span>       <span class="hljs-number">192.168.9.11</span><br><br><span class="hljs-comment">; Application hosts</span><br>gitlab  <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">A</span>       <span class="hljs-number">192.168.9.21</span><br>jenkins <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">A</span>       <span class="hljs-number">192.168.9.22</span><br>harbor  <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">A</span>       <span class="hljs-number">192.168.9.23</span><br><br><span class="hljs-comment">; Alias</span><br>api     <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">CNAME</span>   gitlab.corp.example.<br><br><span class="hljs-comment">; Optional mail example</span><br>mail    <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">A</span>       <span class="hljs-number">192.168.9.30</span><br>@       <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">MX</span> <span class="hljs-number">10</span>   mail.corp.example.<br><br><span class="hljs-comment">; Optional text record</span><br>@       <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">TXT</span>     &quot;private dns zone for corp.example&quot;<br></code></pre></td></tr></table></figure>
+
+<p>设置权限：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chown</span> root:named /var/named/zones/db.corp.example<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chmod</span> 640 /var/named/zones/db.corp.example<br><span class="hljs-built_in">sudo</span> restorecon -v /var/named/zones/db.corp.example<br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> named-checkzone corp.example /var/named/zones/db.corp.example<br></code></pre></td></tr></table></figure>
+
+<p>看到 <code>OK</code> 才继续。</p>
+<h3 id="8-反向-Zone-文件"><a href="#8-反向-Zone-文件" class="headerlink" title="8. 反向 Zone 文件"></a>8. 反向 Zone 文件</h3><p><code>192.168.9.0/24</code> 的反向 zone 是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">9.168.192.in-addr.arpa<br></code></pre></td></tr></table></figure>
+
+<p>创建：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> vi /var/named/zones/db.192.168.9<br></code></pre></td></tr></table></figure>
+
+<p>内容如下：</p>
+<figure class="highlight zone"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs zone"><span class="hljs-meta">$TTL</span> <span class="hljs-number">1h</span><br>@   <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">SOA</span> ns1.corp.example. hostmaster.corp.example. (<br>            <span class="hljs-number">2026061601</span> <span class="hljs-comment">; serial</span><br>            <span class="hljs-number">1h</span>         <span class="hljs-comment">; refresh</span><br>            <span class="hljs-number">15m</span>        <span class="hljs-comment">; retry</span><br>            <span class="hljs-number">7d</span>         <span class="hljs-comment">; expire</span><br>            <span class="hljs-number">10m</span>        <span class="hljs-comment">; negative cache TTL</span><br>)<br><br>@       <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">NS</span>      ns1.corp.example.<br>@       <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">NS</span>      ns2.corp.example.<br><br><span class="hljs-number">10</span>      <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">PTR</span>     ns1.corp.example.<br><span class="hljs-number">11</span>      <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">PTR</span>     ns2.corp.example.<br><span class="hljs-number">21</span>      <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">PTR</span>     gitlab.corp.example.<br><span class="hljs-number">22</span>      <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">PTR</span>     jenkins.corp.example.<br><span class="hljs-number">23</span>      <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">PTR</span>     harbor.corp.example.<br><span class="hljs-number">30</span>      <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">PTR</span>     mail.corp.example.<br></code></pre></td></tr></table></figure>
+
+<p>设置权限并检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chown</span> root:named /var/named/zones/db.192.168.9<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chmod</span> 640 /var/named/zones/db.192.168.9<br><span class="hljs-built_in">sudo</span> restorecon -v /var/named/zones/db.192.168.9<br><br><span class="hljs-built_in">sudo</span> named-checkzone 9.168.192.in-addr.arpa /var/named/zones/db.192.168.9<br></code></pre></td></tr></table></figure>
+
+<h3 id="9-检查并启动-Primary"><a href="#9-检查并启动-Primary" class="headerlink" title="9. 检查并启动 Primary"></a>9. 检查并启动 Primary</h3><p>检查主配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> named-checkconf<br></code></pre></td></tr></table></figure>
+
+<p>如果希望连 zone 一起加载检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> named-checkconf -z<br></code></pre></td></tr></table></figure>
+
+<p>重启：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl restart named<br><span class="hljs-built_in">sudo</span> systemctl status named<br></code></pre></td></tr></table></figure>
+
+<p>看日志：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> journalctl -u named -xe<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">tail</span> -f /var/named/data/named.default.log<br></code></pre></td></tr></table></figure>
+
+<p>测试正向解析：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.10 gitlab.corp.example A +short<br>dig @192.168.9.10 api.corp.example CNAME +short<br>dig @192.168.9.10 corp.example SOA +short<br></code></pre></td></tr></table></figure>
+
+<p>测试反向解析：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.10 -x 192.168.9.21 +short<br></code></pre></td></tr></table></figure>
+
+<p>测试公网递归：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.10 www.baidu.com A +short<br>dig @192.168.9.10 github.com A +short<br></code></pre></td></tr></table></figure>
+
+<p>测试是否隐藏版本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.10 version.bind chaos txt<br></code></pre></td></tr></table></figure>
+
+<h3 id="10-Secondary-DNS-配置"><a href="#10-Secondary-DNS-配置" class="headerlink" title="10. Secondary DNS 配置"></a>10. Secondary DNS 配置</h3><p>下面以 <code>ns2 = 192.168.9.11</code> 为例。</p>
+<h4 id="10-1-安装与目录"><a href="#10-1-安装与目录" class="headerlink" title="10.1 安装与目录"></a>10.1 安装与目录</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dnf install -y <span class="hljs-built_in">bind</span> bind-utils<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /var/named/slaves<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /etc/named.keys<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chown</span> named:named /var/named/slaves<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chmod</span> 750 /var/named/slaves<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chown</span> root:named /etc/named.keys<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chmod</span> 750 /etc/named.keys<br></code></pre></td></tr></table></figure>
+
+<p>把 ns1 上的 TSIG key 复制到 ns2：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chown</span> root:named /etc/named.keys/ns1-ns2.key<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chmod</span> 640 /etc/named.keys/ns1-ns2.key<br></code></pre></td></tr></table></figure>
+
+<h4 id="10-2-ns2-的-etc-named-conf"><a href="#10-2-ns2-的-etc-named-conf" class="headerlink" title="10.2 ns2 的 /etc/named.conf"></a>10.2 ns2 的 <code>/etc/named.conf</code></h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><code class="hljs conf">acl &quot;trusted&quot; &#123;<br>    127.0.0.1;<br>    localhost;<br>    192.168.9.0/24;<br>&#125;;<br><br>include &quot;/etc/named.keys/ns1-ns2.key&quot;;<br><br>options &#123;<br>    listen-on port 53 &#123; 127.0.0.1; 192.168.9.11; &#125;;<br>    listen-on-v6 port 53 &#123; none; &#125;;<br><br>    directory       &quot;/var/named&quot;;<br>    dump-file       &quot;/var/named/data/cache_dump.db&quot;;<br>    statistics-file &quot;/var/named/data/named_stats.txt&quot;;<br>    memstatistics-file &quot;/var/named/data/named_mem_stats.txt&quot;;<br>    secroots-file   &quot;/var/named/data/named.secroots&quot;;<br>    recursing-file  &quot;/var/named/data/named.recursing&quot;;<br><br>    allow-query &#123; trusted; &#125;;<br>    recursion yes;<br>    allow-recursion &#123; trusted; &#125;;<br>    allow-query-cache &#123; trusted; &#125;;<br>    allow-transfer &#123; none; &#125;;<br><br>    forwarders &#123;<br>        223.5.5.5;<br>        119.29.29.29;<br>        1.1.1.1;<br>        8.8.8.8;<br>    &#125;;<br>    forward only;<br><br>    dnssec-validation auto;<br>    version &quot;not available&quot;;<br>    max-cache-size 512M;<br>&#125;;<br><br>logging &#123;<br>    channel named_default &#123;<br>        file &quot;/var/named/data/named.default.log&quot; versions 7 size 20m;<br>        severity info;<br>        print-time yes;<br>        print-severity yes;<br>        print-category yes;<br>    &#125;;<br>    category default &#123; named_default; &#125;;<br>    category general &#123; named_default; &#125;;<br>    category security &#123; named_default; &#125;;<br>    category config &#123; named_default; &#125;;<br>&#125;;<br><br>zone &quot;.&quot; IN &#123;<br>    type hint;<br>    file &quot;named.ca&quot;;<br>&#125;;<br><br>include &quot;/etc/named.rfc1912.zones&quot;;<br>include &quot;/etc/named.root.key&quot;;<br>include &quot;/etc/named/named.conf.local&quot;;<br></code></pre></td></tr></table></figure>
+
+<p>创建 <code>/etc/named/named.conf.local</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs conf">server 192.168.9.10 &#123;<br>    keys &#123; ns1-ns2.; &#125;;<br>&#125;;<br><br>zone &quot;corp.example&quot; IN &#123;<br>    type secondary;<br>    file &quot;slaves/db.corp.example&quot;;<br>    primaries &#123; 192.168.9.10 key ns1-ns2.; &#125;;<br>    allow-query &#123; trusted; &#125;;<br>&#125;;<br><br>zone &quot;9.168.192.in-addr.arpa&quot; IN &#123;<br>    type secondary;<br>    file &quot;slaves/db.192.168.9&quot;;<br>    primaries &#123; 192.168.9.10 key ns1-ns2.; &#125;;<br>    allow-query &#123; trusted; &#125;;<br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p>检查并启动：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> named-checkconf<br><span class="hljs-built_in">sudo</span> named-checkconf -z<br><span class="hljs-built_in">sudo</span> systemctl <span class="hljs-built_in">enable</span> --now named<br><span class="hljs-built_in">sudo</span> systemctl restart named<br><span class="hljs-built_in">sudo</span> journalctl -u named -xe<br></code></pre></td></tr></table></figure>
+
+<p>检查从服务器是否拉取成功：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">ls</span> -l /var/named/slaves<br><span class="hljs-built_in">sudo</span> journalctl -u named | grep -i transfer<br></code></pre></td></tr></table></figure>
+
+<p>测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.11 gitlab.corp.example A +short<br>dig @192.168.9.11 -x 192.168.9.21 +short<br>dig @192.168.9.11 corp.example SOA +short<br></code></pre></td></tr></table></figure>
+
+<h3 id="11-客户端配置"><a href="#11-客户端配置" class="headerlink" title="11. 客户端配置"></a>11. 客户端配置</h3><h4 id="11-1-通过-NetworkManager-配置-Linux-客户端"><a href="#11-1-通过-NetworkManager-配置-Linux-客户端" class="headerlink" title="11.1 通过 NetworkManager 配置 Linux 客户端"></a>11.1 通过 NetworkManager 配置 Linux 客户端</h4><p>假设网卡连接名是 <code>System eth0</code>，先查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">nmcli con show<br></code></pre></td></tr></table></figure>
+
+<p>设置 DNS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> nmcli con mod <span class="hljs-string">&quot;System eth0&quot;</span> ipv4.dns <span class="hljs-string">&quot;192.168.9.10 192.168.9.11&quot;</span><br><span class="hljs-built_in">sudo</span> nmcli con mod <span class="hljs-string">&quot;System eth0&quot;</span> ipv4.dns-search <span class="hljs-string">&quot;corp.example&quot;</span><br><span class="hljs-built_in">sudo</span> nmcli con mod <span class="hljs-string">&quot;System eth0&quot;</span> ipv4.ignore-auto-dns <span class="hljs-built_in">yes</span><br><span class="hljs-built_in">sudo</span> nmcli con up <span class="hljs-string">&quot;System eth0&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/resolv.conf<br>resolvectl status 2&gt;/dev/null || <span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig gitlab.corp.example +short<br>ping -c 3 gitlab.corp.example<br></code></pre></td></tr></table></figure>
+
+<h4 id="11-2-macOS-客户端"><a href="#11-2-macOS-客户端" class="headerlink" title="11.2 macOS 客户端"></a>11.2 macOS 客户端</h4><p>查看网络服务名：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">networksetup -listallnetworkservices<br></code></pre></td></tr></table></figure>
+
+<p>设置 Wi-Fi DNS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> networksetup -setdnsservers Wi-Fi 192.168.9.10 192.168.9.11<br></code></pre></td></tr></table></figure>
+
+<p>清理缓存：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dscacheutil -flushcache<br><span class="hljs-built_in">sudo</span> killall -HUP mDNSResponder<br></code></pre></td></tr></table></figure>
+
+<p>测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig gitlab.corp.example +short<br></code></pre></td></tr></table></figure>
+
+<h4 id="11-3-推荐通过-DHCP-下发"><a href="#11-3-推荐通过-DHCP-下发" class="headerlink" title="11.3 推荐通过 DHCP 下发"></a>11.3 推荐通过 DHCP 下发</h4><p>生产环境不要让每台机器手工改 DNS。建议在 DHCP 中下发：</p>
+<ul>
+<li>Option 6：DNS Server，填 <code>192.168.9.10, 192.168.9.11</code></li>
+<li>Option 15：DNS Search Domain，填 <code>corp.example</code></li>
+</ul>
+<p>这样新增机器自动接入 DNS，减少“这台能访问，那台不能访问”的薛定谔式排障。</p>
+<h3 id="12-日常维护流程"><a href="#12-日常维护流程" class="headerlink" title="12. 日常维护流程"></a>12. 日常维护流程</h3><h4 id="12-1-添加一条-A-记录"><a href="#12-1-添加一条-A-记录" class="headerlink" title="12.1 添加一条 A 记录"></a>12.1 添加一条 A 记录</h4><p>编辑 ns1 的正向 zone：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> vi /var/named/zones/db.corp.example<br></code></pre></td></tr></table></figure>
+
+<p>添加：</p>
+<figure class="highlight zone"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs zone">nexus   <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">A</span>   <span class="hljs-number">192.168.9.24</span><br></code></pre></td></tr></table></figure>
+
+<p>同时编辑反向 zone：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> vi /var/named/zones/db.192.168.9<br></code></pre></td></tr></table></figure>
+
+<p>添加：</p>
+<figure class="highlight zone"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs zone"><span class="hljs-number">24</span>      <span class="hljs-keyword">IN</span>  <span class="hljs-keyword">PTR</span> nexus.corp.example.<br></code></pre></td></tr></table></figure>
+
+<p>两个 zone 的 SOA serial 都要递增，例如：</p>
+<figure class="highlight zone"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs zone"><span class="hljs-number">2026061602</span> <span class="hljs-comment">; serial</span><br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> named-checkzone corp.example /var/named/zones/db.corp.example<br><span class="hljs-built_in">sudo</span> named-checkzone 9.168.192.in-addr.arpa /var/named/zones/db.192.168.9<br></code></pre></td></tr></table></figure>
+
+<p>重载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> rndc reload corp.example<br><span class="hljs-built_in">sudo</span> rndc reload 9.168.192.in-addr.arpa<br></code></pre></td></tr></table></figure>
+
+<p>验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.10 nexus.corp.example +short<br>dig @192.168.9.11 nexus.corp.example +short<br>dig @192.168.9.10 -x 192.168.9.24 +short<br>dig @192.168.9.11 -x 192.168.9.24 +short<br></code></pre></td></tr></table></figure>
+
+<h4 id="12-2-常用-rndc-命令"><a href="#12-2-常用-rndc-命令" class="headerlink" title="12.2 常用 rndc 命令"></a>12.2 常用 rndc 命令</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 查看服务状态</span><br><span class="hljs-built_in">sudo</span> rndc status<br><br><span class="hljs-comment"># 重载所有配置和 zone</span><br><span class="hljs-built_in">sudo</span> rndc reload<br><br><span class="hljs-comment"># 只重载某个 zone</span><br><span class="hljs-built_in">sudo</span> rndc reload corp.example<br><br><span class="hljs-comment"># 重新读取 named.conf，不一定重载 zone</span><br><span class="hljs-built_in">sudo</span> rndc reconfig<br><br><span class="hljs-comment"># 清空全部缓存</span><br><span class="hljs-built_in">sudo</span> rndc flush<br><br><span class="hljs-comment"># 清空某个名字的缓存</span><br><span class="hljs-built_in">sudo</span> rndc flushname github.com<br><br><span class="hljs-comment"># 临时打开/关闭查询日志，不建议长期开启</span><br><span class="hljs-built_in">sudo</span> rndc querylog on<br><span class="hljs-built_in">sudo</span> rndc querylog off<br></code></pre></td></tr></table></figure>
+
+<h3 id="13-递归、转发与-Open-Resolver"><a href="#13-递归、转发与-Open-Resolver" class="headerlink" title="13. 递归、转发与 Open Resolver"></a>13. 递归、转发与 Open Resolver</h3><p><code>recursion yes;</code> 不是洪水猛兽，问题在于你让谁用。</p>
+<p>安全写法：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs conf">acl &quot;trusted&quot; &#123;<br>    127.0.0.1;<br>    localhost;<br>    192.168.9.0/24;<br>&#125;;<br><br>options &#123;<br>    recursion yes;<br>    allow-recursion &#123; trusted; &#125;;<br>    allow-query-cache &#123; trusted; &#125;;<br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p>危险写法：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs conf">options &#123;<br>    recursion yes;<br>    allow-recursion &#123; any; &#125;;<br>    allow-query-cache &#123; any; &#125;;<br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p>后者会让你的 DNS 变成 Open Resolver，有机会被用于 DNS 放大攻击。公网服务器尤其要避免。</p>
+<p>如果你只做权威 DNS，不提供递归：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs conf">options &#123;<br>    recursion no;<br>    allow-query-cache &#123; none; &#125;;<br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p>更推荐的生产架构是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">内网客户端 -&gt; 递归/缓存 DNS 集群<br>业务域名   -&gt; 权威 DNS 主从集群<br></code></pre></td></tr></table></figure>
+
+<p>也就是说，递归和权威最好分开。小团队或实验环境可以放在一台机器上，但要通过 ACL 严格限制。</p>
+<h3 id="14-Split-DNS-View-配置思路"><a href="#14-Split-DNS-View-配置思路" class="headerlink" title="14. Split DNS &#x2F; View 配置思路"></a>14. Split DNS &#x2F; View 配置思路</h3><p>有些场景需要同一个域名内外解析不同 IP：</p>
+<ul>
+<li>内网：<code>app.example.com -&gt; 192.168.9.50</code></li>
+<li>外网：<code>app.example.com -&gt; 203.0.113.50</code></li>
+</ul>
+<p>这时可以使用 BIND view。</p>
+<p>示例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><code class="hljs conf">acl &quot;internal&quot; &#123;<br>    192.168.9.0/24;<br>    127.0.0.1;<br>&#125;;<br><br>view &quot;internal-view&quot; &#123;<br>    match-clients &#123; internal; &#125;;<br>    recursion yes;<br>    allow-recursion &#123; internal; &#125;;<br>    allow-query-cache &#123; internal; &#125;;<br><br>    zone &quot;example.com&quot; IN &#123;<br>        type primary;<br>        file &quot;zones/internal/db.example.com&quot;;<br>    &#125;;<br>&#125;;<br><br>view &quot;external-view&quot; &#123;<br>    match-clients &#123; any; &#125;;<br>    recursion no;<br>    allow-query-cache &#123; none; &#125;;<br><br>    zone &quot;example.com&quot; IN &#123;<br>        type primary;<br>        file &quot;zones/external/db.example.com&quot;;<br>    &#125;;<br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p>使用 view 时注意：</p>
+<ol>
+<li>一旦启用 view，相关 zone 通常都要放进 view 中。</li>
+<li>view 的顺序很重要，先匹配先命中。</li>
+<li>Split DNS 很强，但也会提高维护复杂度。能用清晰子域解决的，不一定非要上 view。</li>
+</ol>
+<h3 id="15-日志配置建议"><a href="#15-日志配置建议" class="headerlink" title="15. 日志配置建议"></a>15. 日志配置建议</h3><p>默认日志已经够用。只有排障时才建议打开查询日志。</p>
+<p>更细的日志配置：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs conf">logging &#123;<br>    channel default_file &#123;<br>        file &quot;/var/named/data/default.log&quot; versions 7 size 50m;<br>        severity info;<br>        print-time yes;<br>        print-severity yes;<br>        print-category yes;<br>    &#125;;<br><br>    channel query_file &#123;<br>        file &quot;/var/named/data/query.log&quot; versions 5 size 100m;<br>        severity info;<br>        print-time yes;<br>    &#125;;<br><br>    category default &#123; default_file; &#125;;<br>    category general &#123; default_file; &#125;;<br>    category security &#123; default_file; &#125;;<br><br>    // 生产环境慎开，查询量大时会明显增加 IO 和 CPU 压力。<br>    // category queries &#123; query_file; &#125;;<br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p>如果是高流量 DNS，长期记录查询建议考虑 dnstap，而不是传统 query log。</p>
+<h3 id="16-安全加固清单"><a href="#16-安全加固清单" class="headerlink" title="16. 安全加固清单"></a>16. 安全加固清单</h3><h4 id="16-1-严格限制递归"><a href="#16-1-严格限制递归" class="headerlink" title="16.1 严格限制递归"></a>16.1 严格限制递归</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs conf">recursion yes;<br>allow-recursion &#123; trusted; &#125;;<br>allow-query-cache &#123; trusted; &#125;;<br></code></pre></td></tr></table></figure>
+
+<p>不要把递归开放给公网。</p>
+<h4 id="16-2-严格限制-zone-transfer"><a href="#16-2-严格限制-zone-transfer" class="headerlink" title="16.2 严格限制 zone transfer"></a>16.2 严格限制 zone transfer</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs conf">allow-transfer &#123; none; &#125;;<br></code></pre></td></tr></table></figure>
+
+<p>在具体 zone 中放开：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs conf">allow-transfer &#123; key ns1-ns2.; 192.168.9.11; &#125;;<br></code></pre></td></tr></table></figure>
+
+<h4 id="16-3-主从同步使用-TSIG"><a href="#16-3-主从同步使用-TSIG" class="headerlink" title="16.3 主从同步使用 TSIG"></a>16.3 主从同步使用 TSIG</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs conf">include &quot;/etc/named.keys/ns1-ns2.key&quot;;<br></code></pre></td></tr></table></figure>
+
+<p>从服务器：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs conf">primaries &#123; 192.168.9.10 key ns1-ns2.; &#125;;<br></code></pre></td></tr></table></figure>
+
+<h4 id="16-4-不暴露真实版本"><a href="#16-4-不暴露真实版本" class="headerlink" title="16.4 不暴露真实版本"></a>16.4 不暴露真实版本</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs conf">version &quot;not available&quot;;<br></code></pre></td></tr></table></figure>
+
+<h4 id="16-5-最小化监听地址"><a href="#16-5-最小化监听地址" class="headerlink" title="16.5 最小化监听地址"></a>16.5 最小化监听地址</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs conf">listen-on port 53 &#123; 127.0.0.1; 192.168.9.10; &#125;;<br></code></pre></td></tr></table></figure>
+
+<p>不要为了省事写：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs conf">listen-on port 53 &#123; any; &#125;;<br></code></pre></td></tr></table></figure>
+
+<p>除非你明确知道所有接口都应该提供 DNS 服务。</p>
+<h4 id="16-6-保持-SELinux-Enforcing"><a href="#16-6-保持-SELinux-Enforcing" class="headerlink" title="16.6 保持 SELinux Enforcing"></a>16.6 保持 SELinux Enforcing</h4><p>RHEL 系系统默认 SELinux enforcing。不要一遇到权限问题就 <code>setenforce 0</code>。先检查文件属主、权限、SELinux context。</p>
+<p>常用命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> -Z /var/named/zones<br><span class="hljs-built_in">sudo</span> restorecon -Rv /var/named/zones<br><span class="hljs-built_in">sudo</span> ausearch -m avc -ts recent<br></code></pre></td></tr></table></figure>
+
+<h4 id="16-7-定期更新"><a href="#16-7-定期更新" class="headerlink" title="16.7 定期更新"></a>16.7 定期更新</h4><p>BIND 是基础设施软件，要关注安全公告。至少做到：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dnf update <span class="hljs-built_in">bind</span> bind-utils<br>named -v<br></code></pre></td></tr></table></figure>
+
+<p>并订阅发行版安全公告或 ISC BIND announce。</p>
+<h4 id="16-8-谨慎启用动态更新"><a href="#16-8-谨慎启用动态更新" class="headerlink" title="16.8 谨慎启用动态更新"></a>16.8 谨慎启用动态更新</h4><p>如果不需要 DDNS，不要开：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs conf">allow-update &#123; none; &#125;;<br></code></pre></td></tr></table></figure>
+
+<p>如果要开，优先使用 TSIG 或 <code>update-policy</code>，不要只靠 IP。</p>
+<h4 id="16-9-可选：响应速率限制-RRL"><a href="#16-9-可选：响应速率限制-RRL" class="headerlink" title="16.9 可选：响应速率限制 RRL"></a>16.9 可选：响应速率限制 RRL</h4><p>公网权威 DNS 可以考虑：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs conf">options &#123;<br>    rate-limit &#123;<br>        responses-per-second 10;<br>        window 5;<br>    &#125;;<br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p>RRL 不是万能药，生产上要结合业务流量测试。不要为了“看起来安全”直接拍脑袋上参数。</p>
+<h3 id="17-常见故障排查"><a href="#17-常见故障排查" class="headerlink" title="17. 常见故障排查"></a>17. 常见故障排查</h3><h4 id="17-1-named-checkconf-没输出是什么意思？"><a href="#17-1-named-checkconf-没输出是什么意思？" class="headerlink" title="17.1 named-checkconf 没输出是什么意思？"></a>17.1 <code>named-checkconf</code> 没输出是什么意思？</h4><p>没输出通常就是语法正确。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> named-checkconf<br></code></pre></td></tr></table></figure>
+
+<p>想让它检查 zone 加载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> named-checkconf -z<br></code></pre></td></tr></table></figure>
+
+<h4 id="17-2-zone-文件检查-OK，但解析不到"><a href="#17-2-zone-文件检查-OK，但解析不到" class="headerlink" title="17.2 zone 文件检查 OK，但解析不到"></a>17.2 zone 文件检查 OK，但解析不到</h4><p>按顺序检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 1. zone 是否在 named.conf 中 include 了</span><br><span class="hljs-built_in">sudo</span> named-checkconf -z<br><br><span class="hljs-comment"># 2. 服务是否监听 53</span><br><span class="hljs-built_in">sudo</span> ss -lntup | grep <span class="hljs-string">&#x27;:53&#x27;</span><br><br><span class="hljs-comment"># 3. 防火墙是否放行</span><br><span class="hljs-built_in">sudo</span> firewall-cmd --list-services<br><br><span class="hljs-comment"># 4. 客户端是否真的用这台 DNS</span><br><span class="hljs-built_in">cat</span> /etc/resolv.conf<br><br><span class="hljs-comment"># 5. 指定 DNS 直接查</span><br> dig @192.168.9.10 gitlab.corp.example A<br></code></pre></td></tr></table></figure>
+
+<h4 id="17-3-从服务器不同步"><a href="#17-3-从服务器不同步" class="headerlink" title="17.3 从服务器不同步"></a>17.3 从服务器不同步</h4><p>检查这些点：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># ns1 上检查 zone serial 是否递增</span><br>dig @192.168.9.10 corp.example SOA +short<br><br><span class="hljs-comment"># ns2 上看日志</span><br><span class="hljs-built_in">sudo</span> journalctl -u named | grep -iE <span class="hljs-string">&#x27;transfer|xfer|notauth|badkey|badsig&#x27;</span><br><br><span class="hljs-comment"># ns2 是否能访问 ns1 TCP 53</span><br>nc -vz 192.168.9.10 53<br><br><span class="hljs-comment"># TSIG key 是否两边完全一致</span><br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">sha256sum</span> /etc/named.keys/ns1-ns2.key<br></code></pre></td></tr></table></figure>
+
+<p>常见原因：</p>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>可能原因</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Transfer status: failed</code></td>
+<td>防火墙没开 TCP 53</td>
+<td>放行 TCP&#x2F;UDP 53</td>
+</tr>
+<tr>
+<td><code>NOTAUTH</code></td>
+<td>TSIG key 不一致或 zone 不允许 transfer</td>
+<td>对比 key，检查 <code>allow-transfer</code></td>
+</tr>
+<tr>
+<td>ns2 一直旧数据</td>
+<td>SOA serial 没递增</td>
+<td>修改 zone 后递增 serial</td>
+</tr>
+<tr>
+<td>ns2 没收到通知</td>
+<td><code>notify</code>&#x2F;<code>also-notify</code> 配置问题</td>
+<td>检查主服务器 zone 配置</td>
+</tr>
+</tbody></table>
+<h4 id="17-4-SERVFAIL"><a href="#17-4-SERVFAIL" class="headerlink" title="17.4 SERVFAIL"></a>17.4 <code>SERVFAIL</code></h4><p><code>SERVFAIL</code> 是 DNS 世界的“你猜”。常见原因：</p>
+<ul>
+<li>DNSSEC 验证失败。</li>
+<li>上游 forwarder 不可用。</li>
+<li>zone 文件格式错误。</li>
+<li>权限或 SELinux 阻止 named 读取文件。</li>
+<li>递归被 ACL 拒绝。</li>
+</ul>
+<p>排查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.10 github.com A +dnssec<br><span class="hljs-built_in">sudo</span> journalctl -u named -xe<br><span class="hljs-built_in">sudo</span> named-checkconf -z<br><span class="hljs-built_in">sudo</span> rndc status<br></code></pre></td></tr></table></figure>
+
+<p>如果只有公网域名 <code>SERVFAIL</code>，重点看 forwarders、DNSSEC、出口网络。如果只有内网域名失败，重点看 zone、include、权限、ACL。</p>
+<h4 id="17-5-REFUSED"><a href="#17-5-REFUSED" class="headerlink" title="17.5 REFUSED"></a>17.5 <code>REFUSED</code></h4><p><code>REFUSED</code> 多数是 ACL 问题。</p>
+<p>检查：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs conf">allow-query &#123; trusted; &#125;;<br>allow-recursion &#123; trusted; &#125;;<br>allow-query-cache &#123; trusted; &#125;;<br></code></pre></td></tr></table></figure>
+
+<p>确认客户端 IP 是否在 <code>trusted</code> ACL 里。</p>
+<h4 id="17-6-connection-timed-out-no-servers-could-be-reached"><a href="#17-6-connection-timed-out-no-servers-could-be-reached" class="headerlink" title="17.6 connection timed out; no servers could be reached"></a>17.6 <code>connection timed out; no servers could be reached</code></h4><p>一般不是 DNS 记录问题，而是网络连不上：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">ping 192.168.9.10<br>nc -vz 192.168.9.10 53<br>dig @192.168.9.10 corp.example SOA<br><span class="hljs-built_in">sudo</span> firewall-cmd --list-all<br><span class="hljs-built_in">sudo</span> ss -lntup | grep <span class="hljs-string">&#x27;:53&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="17-7-修改-zone-后客户端仍然拿到旧结果"><a href="#17-7-修改-zone-后客户端仍然拿到旧结果" class="headerlink" title="17.7 修改 zone 后客户端仍然拿到旧结果"></a>17.7 修改 zone 后客户端仍然拿到旧结果</h4><p>可能是 TTL 缓存。</p>
+<p>处理方式：</p>
+<ul>
+<li>降低记录 TTL，等旧 TTL 过期后再切换。</li>
+<li>在 BIND 上执行：</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> rndc flushname gitlab.corp.example<br></code></pre></td></tr></table></figure>
+
+<ul>
+<li>客户端也可能有缓存，Linux&#x2F;macOS&#x2F;浏览器都可能缓存。</li>
+</ul>
+<h3 id="18-权威-DNS-与递归-DNS-是否应该分开？"><a href="#18-权威-DNS-与递归-DNS-是否应该分开？" class="headerlink" title="18. 权威 DNS 与递归 DNS 是否应该分开？"></a>18. 权威 DNS 与递归 DNS 是否应该分开？</h3><p>生产建议：<strong>尽量分开</strong>。</p>
+<p>推荐架构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">客户端 -&gt; 内网递归 DNS / 缓存 DNS<br>业务服务 -&gt; 内网权威 DNS 主从<br>公网域名 -&gt; 公网权威 DNS 服务商或独立集群<br></code></pre></td></tr></table></figure>
+
+<p>为什么？</p>
+<ol>
+<li>权限模型不同：递归 DNS 只应该服务可信客户端，权威 DNS 可能需要对更多来源提供查询。</li>
+<li>风险不同：递归 DNS 容易成为放大攻击组件；权威 DNS 更关注 zone 数据安全和可用性。</li>
+<li>性能模型不同：递归 DNS 重缓存命中率和上游性能；权威 DNS 重 zone 查询和传输。</li>
+<li>排障更清晰：出了问题知道是“本地域数据错了”还是“外部递归解析错了”。</li>
+</ol>
+<p>但在小型内网、实验室、个人机房中，一台 BIND 同时做权威和递归也很常见。关键是：<strong>用 ACL 把递归锁死在内网</strong>。</p>
+<h3 id="19-Debian-Ubuntu-配置映射"><a href="#19-Debian-Ubuntu-配置映射" class="headerlink" title="19. Debian&#x2F;Ubuntu 配置映射"></a>19. Debian&#x2F;Ubuntu 配置映射</h3><p>如果你在 Debian&#x2F;Ubuntu 上配置，结构通常是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/bind/named.conf<br>/etc/bind/named.conf.options<br>/etc/bind/named.conf.local<br>/etc/bind/zones/db.corp.example<br>/etc/bind/zones/db.192.168.9<br></code></pre></td></tr></table></figure>
+
+<p>安装：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> apt install -y bind9 bind9utils dnsutils<br></code></pre></td></tr></table></figure>
+
+<p><code>named.conf.options</code> 可写：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><code class="hljs conf">acl &quot;trusted&quot; &#123;<br>    127.0.0.1;<br>    localhost;<br>    192.168.9.0/24;<br>&#125;;<br><br>options &#123;<br>    directory &quot;/var/cache/bind&quot;;<br><br>    listen-on &#123; 127.0.0.1; 192.168.9.10; &#125;;<br>    listen-on-v6 &#123; none; &#125;;<br><br>    allow-query &#123; trusted; &#125;;<br>    recursion yes;<br>    allow-recursion &#123; trusted; &#125;;<br>    allow-query-cache &#123; trusted; &#125;;<br><br>    forwarders &#123;<br>        223.5.5.5;<br>        119.29.29.29;<br>        1.1.1.1;<br>        8.8.8.8;<br>    &#125;;<br>    forward only;<br><br>    dnssec-validation auto;<br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p><code>named.conf.local</code> 写 zone：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs conf">include &quot;/etc/bind/keys/ns1-ns2.key&quot;;<br><br>zone &quot;corp.example&quot; &#123;<br>    type primary;<br>    file &quot;/etc/bind/zones/db.corp.example&quot;;<br>    allow-transfer &#123; key ns1-ns2.; 192.168.9.11; &#125;;<br>&#125;;<br><br>zone &quot;9.168.192.in-addr.arpa&quot; &#123;<br>    type primary;<br>    file &quot;/etc/bind/zones/db.192.168.9&quot;;<br>    allow-transfer &#123; key ns1-ns2.; 192.168.9.11; &#125;;<br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p>检查与重启：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> named-checkconf<br><span class="hljs-built_in">sudo</span> named-checkconf -z<br><span class="hljs-built_in">sudo</span> named-checkzone corp.example /etc/bind/zones/db.corp.example<br><span class="hljs-built_in">sudo</span> systemctl restart bind9<br></code></pre></td></tr></table></figure>
+
+<h3 id="20-生产实践建议"><a href="#20-生产实践建议" class="headerlink" title="20. 生产实践建议"></a>20. 生产实践建议</h3><h4 id="20-1-Zone-文件纳入版本管理，但密钥不要入库"><a href="#20-1-Zone-文件纳入版本管理，但密钥不要入库" class="headerlink" title="20.1 Zone 文件纳入版本管理，但密钥不要入库"></a>20.1 Zone 文件纳入版本管理，但密钥不要入库</h4><p>建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">dns-config/<br>  named.conf.local<br>  zones/<br>    db.corp.example<br>    db.192.168.9<br>  README.md<br></code></pre></td></tr></table></figure>
+
+<p>不要提交：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">*.key<br>rndc.key<br>ns1-ns2.key<br></code></pre></td></tr></table></figure>
+
+<p>可以在 Git 中写模板：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">include &quot;/etc/named.keys/ns1-ns2.key&quot;;<br></code></pre></td></tr></table></figure>
+
+<p>密钥由部署系统或人工安全下发。</p>
+<h4 id="20-2-变更流程"><a href="#20-2-变更流程" class="headerlink" title="20.2 变更流程"></a>20.2 变更流程</h4><p>推荐流程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">修改 zone -&gt; 递增 serial -&gt; named-checkzone -&gt; named-checkconf -z -&gt; rndc reload zone -&gt; dig 验证 ns1/ns2 -&gt; 合并变更记录<br></code></pre></td></tr></table></figure>
+
+<p>不要直接 <code>systemctl restart named</code> 解决一切。<code>rndc reload zone</code> 更温和，也更适合生产。</p>
+<h4 id="20-3-TTL-策略"><a href="#20-3-TTL-策略" class="headerlink" title="20.3 TTL 策略"></a>20.3 TTL 策略</h4><p>常见设置：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>TTL 建议</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>频繁切换的服务</td>
+<td>30s - 5m</td>
+</tr>
+<tr>
+<td>普通内网服务</td>
+<td>5m - 1h</td>
+</tr>
+<tr>
+<td>基础设施记录 NS&#x2F;MX</td>
+<td>1h - 1d</td>
+</tr>
+<tr>
+<td>迁移前准备</td>
+<td>先提前降低 TTL，迁移后再调回</td>
+</tr>
+</tbody></table>
+<p>不要全局无脑 <code>TTL 1s</code>。低 TTL 会增加 DNS 压力，也不一定能绕开所有客户端缓存。</p>
+<h4 id="20-4-命名规范"><a href="#20-4-命名规范" class="headerlink" title="20.4 命名规范"></a>20.4 命名规范</h4><p>建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">服务名.环境.区域.公司域名<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">gitlab.infra.sg.corp.example<br>api.prod.sg.corp.example<br>db01.prod.sg.corp.example<br></code></pre></td></tr></table></figure>
+
+<p>小团队可以简单一点：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">gitlab.corp.example<br>jenkins.corp.example<br>harbor.corp.example<br></code></pre></td></tr></table></figure>
+
+<p>关键是稳定、一致、能看懂。DNS 名字是基础设施的门牌号，别写成脑筋急转弯。</p>
+<h3 id="21-一份最小可用配置清单"><a href="#21-一份最小可用配置清单" class="headerlink" title="21. 一份最小可用配置清单"></a>21. 一份最小可用配置清单</h3><p>如果你只想快速落地，至少需要这些文件。</p>
+<p>Primary：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/named.conf<br>/etc/named/named.conf.local<br>/etc/named.keys/ns1-ns2.key<br>/var/named/zones/db.corp.example<br>/var/named/zones/db.192.168.9<br></code></pre></td></tr></table></figure>
+
+<p>Secondary：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/named.conf<br>/etc/named/named.conf.local<br>/etc/named.keys/ns1-ns2.key<br>/var/named/slaves/<br></code></pre></td></tr></table></figure>
+
+<p>最小检查命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> named-checkconf<br><span class="hljs-built_in">sudo</span> named-checkconf -z<br><span class="hljs-built_in">sudo</span> named-checkzone corp.example /var/named/zones/db.corp.example<br><span class="hljs-built_in">sudo</span> named-checkzone 9.168.192.in-addr.arpa /var/named/zones/db.192.168.9<br><span class="hljs-built_in">sudo</span> systemctl restart named<br></code></pre></td></tr></table></figure>
+
+<p>最小验证命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.10 corp.example SOA +short<br>dig @192.168.9.10 gitlab.corp.example A +short<br>dig @192.168.9.10 -x 192.168.9.21 +short<br>dig @192.168.9.11 gitlab.corp.example A +short<br>dig @192.168.9.10 github.com A +short<br></code></pre></td></tr></table></figure>
+
+<h3 id="22-一页速查表"><a href="#22-一页速查表" class="headerlink" title="22. 一页速查表"></a>22. 一页速查表</h3><table>
+<thead>
+<tr>
+<th>目标</th>
+<th>命令</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>检查主配置</td>
+<td><code>named-checkconf</code></td>
+</tr>
+<tr>
+<td>检查配置并加载 zone</td>
+<td><code>named-checkconf -z</code></td>
+</tr>
+<tr>
+<td>检查正向 zone</td>
+<td><code>named-checkzone corp.example /var/named/zones/db.corp.example</code></td>
+</tr>
+<tr>
+<td>检查反向 zone</td>
+<td><code>named-checkzone 9.168.192.in-addr.arpa /var/named/zones/db.192.168.9</code></td>
+</tr>
+<tr>
+<td>重载全部</td>
+<td><code>rndc reload</code></td>
+</tr>
+<tr>
+<td>重载单个 zone</td>
+<td><code>rndc reload corp.example</code></td>
+</tr>
+<tr>
+<td>查看状态</td>
+<td><code>rndc status</code></td>
+</tr>
+<tr>
+<td>清空缓存</td>
+<td><code>rndc flush</code></td>
+</tr>
+<tr>
+<td>清空指定域名缓存</td>
+<td><code>rndc flushname example.com</code></td>
+</tr>
+<tr>
+<td>查 A 记录</td>
+<td><code>dig @192.168.9.10 gitlab.corp.example A</code></td>
+</tr>
+<tr>
+<td>查 PTR</td>
+<td><code>dig @192.168.9.10 -x 192.168.9.21</code></td>
+</tr>
+<tr>
+<td>查 SOA</td>
+<td><code>dig @192.168.9.10 corp.example SOA</code></td>
+</tr>
+<tr>
+<td>查 NS</td>
+<td><code>dig @192.168.9.10 corp.example NS</code></td>
+</tr>
+<tr>
+<td>看日志</td>
+<td><code>journalctl -u named -xe</code></td>
+</tr>
+<tr>
+<td>看监听</td>
+<td>&#96;ss -lntup \</td>
+</tr>
+</tbody></table>
+<h2 id="结论"><a href="#结论" class="headerlink" title="结论"></a>结论</h2><p>BIND 的配置并不难，真正难的是把它做成一套可维护、可审计、可排障的基础设施。私有 DNS 推荐至少做到下面几点：</p>
+<ol>
+<li>正向区和反向区都配置，别只做单向解析。</li>
+<li>修改 zone 必须递增 SOA serial。</li>
+<li>主从同步使用 TSIG，不要只靠 IP 放行。</li>
+<li>递归只允许可信内网，避免 Open Resolver。</li>
+<li>zone transfer 默认关闭，在具体 zone 精确放开。</li>
+<li>开启 SELinux 时优先修权限和 context，不要直接关闭 SELinux。</li>
+<li>日常使用 <code>named-checkconf</code>、<code>named-checkzone</code>、<code>rndc reload</code>、<code>dig</code>，少用“重启大法”。</li>
+<li>新版本 BIND 的默认行为和旧教程不完全一样，迁移时一定看版本说明。</li>
+</ol>
+<p>如果只是个人小网络，BIND 可能显得重；CoreDNS、dnsmasq、Unbound 也都能解决部分问题。但如果你需要权威 DNS、主从同步、TSIG、View、复杂 zone 管理，BIND 仍然是非常稳的选择。它有点老派，但老派不等于落后；老派的好处是，坑大多已经有人替你踩过了。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>ISC BIND 9 官方页面：<a target="_blank" rel="noopener" href="https://www.isc.org/bind/">https://www.isc.org/bind/</a></li>
+<li>BIND 9 Administrator Reference Manual：<a target="_blank" rel="noopener" href="https://bind9.readthedocs.io/">https://bind9.readthedocs.io/</a></li>
+<li>BIND 9 Configuration and Zone Files：<a target="_blank" rel="noopener" href="https://bind9.readthedocs.io/en/v9.20.23/chapter3.html">https://bind9.readthedocs.io/en/v9.20.23/chapter3.html</a></li>
+<li>BIND 9 Name Server Operations：<a target="_blank" rel="noopener" href="https://bind9.readthedocs.io/en/v9.20.23/chapter4.html">https://bind9.readthedocs.io/en/v9.20.23/chapter4.html</a></li>
+<li>BIND 9 Security Configurations：<a target="_blank" rel="noopener" href="https://bind9.readthedocs.io/en/v9.20.23/chapter7.html">https://bind9.readthedocs.io/en/v9.20.23/chapter7.html</a></li>
+<li>BIND 9 Configuration Reference：<a target="_blank" rel="noopener" href="https://bind9.readthedocs.io/en/v9.20.23/reference.html">https://bind9.readthedocs.io/en/v9.20.23/reference.html</a></li>
+<li>ISC BIND Best Practices - Recursive：<a target="_blank" rel="noopener" href="https://kb.isc.org/docs/bind-best-practices-recursive">https://kb.isc.org/docs/bind-best-practices-recursive</a></li>
+<li>ISC 关于 allow-recursion 与 allow-query-cache 行为说明：<a target="_blank" rel="noopener" href="https://kb.isc.org/docs/aa-00269">https://kb.isc.org/docs/aa-00269</a></li>
+<li>ISC Software Support Policy and Version Numbering：<a target="_blank" rel="noopener" href="https://kb.isc.org/docs/aa-00896">https://kb.isc.org/docs/aa-00896</a></li>
+<li>ISC BIND 9.20 Significant Changes：<a target="_blank" rel="noopener" href="https://kb.isc.org/docs/bind-920-changes">https://kb.isc.org/docs/bind-920-changes</a></li>
+<li>Red Hat Enterprise Linux 9 BIND DNS Server 文档：<a target="_blank" rel="noopener" href="https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/managing_networking_infrastructure_services/assembly_setting-up-and-configuring-a-bind-dns-server_networking-infrastructure-services">https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/managing_networking_infrastructure_services/assembly_setting-up-and-configuring-a-bind-dns-server_networking-infrastructure-services</a></li>
+<li>RFC 8375 - Special-Use Domain <code>home.arpa.</code>：<a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/html/rfc8375">https://datatracker.ietf.org/doc/html/rfc8375</a></li>
+<li>RFC 6762 - Multicast DNS：<a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/html/rfc6762">https://datatracker.ietf.org/doc/html/rfc6762</a></li>
+<li>DoHerasYang：ISC BIND9 从零开始搭建与原理讲解：<a target="_blank" rel="noopener" href="https://www.cnblogs.com/doherasyang/p/14464999.html">https://www.cnblogs.com/doherasyang/p/14464999.html</a></li>
+<li>Zhanming’s blog：CentOS 7 使用 bind 配置私有网络 DNS：<a target="_blank" rel="noopener" href="https://qizhanming.com/blog/2017/05/27/how-to-configure-bind-as-a-private-network-dns-server-on-centos-7">https://qizhanming.com/blog/2017/05/27/how-to-configure-bind-as-a-private-network-dns-server-on-centos-7</a></li>
+</ul>
+<h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p><code>基础设施最怕“能跑就行”，DNS 尤其如此。能解析只是第一步，能安全、稳定、可回滚地解析，才算真正交付。</code></p>
+<p><code>富贵岂由人，时会高志须酬。</code></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Linux/" class="category-chain-item">Linux</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Linux/" class="print-no-link">#Linux</a>
+      
+        <a href="/tags/DNS/" class="print-no-link">#DNS</a>
+      
+        <a href="/tags/BIND/" class="print-no-link">#BIND</a>
+      
+        <a href="/tags/CentOS/" class="print-no-link">#CentOS</a>
+      
+        <a href="/tags/Rocky-Linux/" class="print-no-link">#Rocky Linux</a>
+      
+        <a href="/tags/%E8%BF%90%E7%BB%B4/" class="print-no-link">#运维</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>BIND 9 私有 DNS 服务搭建与生产实践：从 named.conf 到主从、递归、安全与排障</div>
+      <div>https://allendericdalexander.github.io/2026/06/16/devops/infra/bind9-private-dns-hexo-blog/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年6月16日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/06/17/devops/infra/openwrt-dnsmasq-adguard-home-lan-hexo-blog/" title="基于 OpenWrt、dnsmasq 与 AdGuard Home 的家庭内网 DNS 实战方案">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">基于 OpenWrt、dnsmasq 与 AdGuard Home 的家庭内网 DNS 实战方案</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/06/16/devops/infra/dnsmasq-private-dns-dhcp-pxe-hexo-blog/" title="使用 dnsmasq 搭建轻量级内网 DNS、DHCP 与 PXE 服务">
+                        <span class="hidden-mobile">使用 dnsmasq 搭建轻量级内网 DNS、DHCP 与 PXE 服务</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

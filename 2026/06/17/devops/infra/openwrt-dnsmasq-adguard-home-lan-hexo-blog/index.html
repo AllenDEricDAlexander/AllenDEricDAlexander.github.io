@@ -1,0 +1,1289 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="家庭内网 DNS 很容易被低估：一开始只是想让 nas、git、router 这些名字能访问，后来开始有公网 IP、反向代理、HTTPS、Docker、虚拟机、NAS、监控、Git、Jenkins、对象存储，DNS 就会从“小功能”变成“所有服务的入口”。 这篇文章给出一套适合家庭&#x2F;小型 Homelab 的实战方案：OpenWrt 负责路由、防火墙和 DHCP；dnsmasq 负责 DH">
+<meta property="og:type" content="article">
+<meta property="og:title" content="基于 OpenWrt、dnsmasq 与 AdGuard Home 的家庭内网 DNS 实战方案">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/06/17/devops/infra/openwrt-dnsmasq-adguard-home-lan-hexo-blog/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="家庭内网 DNS 很容易被低估：一开始只是想让 nas、git、router 这些名字能访问，后来开始有公网 IP、反向代理、HTTPS、Docker、虚拟机、NAS、监控、Git、Jenkins、对象存储，DNS 就会从“小功能”变成“所有服务的入口”。 这篇文章给出一套适合家庭&#x2F;小型 Homelab 的实战方案：OpenWrt 负责路由、防火墙和 DHCP；dnsmasq 负责 DH">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-16T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-16T16:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="AdGuard Home">
+<meta property="article:tag" content="DHCP">
+<meta property="article:tag" content="DNS">
+<meta property="article:tag" content="Homelab">
+<meta property="article:tag" content="OpenWrt">
+<meta property="article:tag" content="Reverse Proxy">
+<meta property="article:tag" content="dnsmasq">
+<meta property="article:tag" content="家庭内网">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>基于 OpenWrt、dnsmasq 与 AdGuard Home 的家庭内网 DNS 实战方案 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="基于 OpenWrt、dnsmasq 与 AdGuard Home 的家庭内网 DNS 实战方案"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-06-17 00:00" pubdate>
+          2026年6月17日 凌晨
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          5.6k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          47 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">基于 OpenWrt、dnsmasq 与 AdGuard Home 的家庭内网 DNS 实战方案</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>家庭内网 DNS 很容易被低估：一开始只是想让 <code>nas</code>、<code>git</code>、<code>router</code> 这些名字能访问，后来开始有公网 IP、反向代理、HTTPS、Docker、虚拟机、NAS、监控、Git、Jenkins、对象存储，DNS 就会从“小功能”变成“所有服务的入口”。</p>
+<p>这篇文章给出一套适合家庭&#x2F;小型 Homelab 的实战方案：<strong>OpenWrt 负责路由、防火墙和 DHCP；dnsmasq 负责 DHCP 租约和本地主机名；AdGuard Home 作为全网 DNS 入口，负责过滤、统计、内网域名重写和上游 DNS 转发</strong>。</p>
+<span id="more"></span>
+
+<blockquote>
+<p>目标不是把家庭网络做成运营商机房，而是做成“稳定、清晰、可排障、后续能升级”的内网 DNS 体系。DNS 架构最怕职责混乱，混乱之后排障就像在黑屋子里找网线，摸到什么都像答案。</p>
+</blockquote>
+<h2 id="1-适用场景"><a href="#1-适用场景" class="headerlink" title="1. 适用场景"></a>1. 适用场景</h2><p>本文方案适合下面这种网络：</p>
+<ul>
+<li>家里或小型工作室使用 OpenWrt 做主路由；</li>
+<li>内网设备不算特别多，一般几十台以内；</li>
+<li>有 NAS、服务器、Docker、虚拟机、开发环境；</li>
+<li>希望内网访问服务时使用域名，而不是记 IP；</li>
+<li>希望全网广告过滤、恶意域名拦截、DNS 查询统计；</li>
+<li>有公网 IP，部分内网服务需要对外提供访问；</li>
+<li>暂时不想上 BIND9 &#x2F; PowerDNS &#x2F; Kea 这种更重的 DNS&#x2F;DHCP 体系。</li>
+</ul>
+<p>如果你的内网规模已经很大，例如有多个办公区域、大量 VLAN、上百条 DNS 记录、需要正式主从权威 DNS、需要 DDNS 自动注册 PTR&#x2F;A 记录，那么可以考虑 BIND9、PowerDNS 或 Kea。对于普通家庭内网来说，OpenWrt + dnsmasq + AdGuard Home 已经足够好用。</p>
+<h2 id="2-总体架构"><a href="#2-总体架构" class="headerlink" title="2. 总体架构"></a>2. 总体架构</h2><p>推荐架构如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs text">Internet<br>   |<br>公网 IP<br>   |<br>OpenWrt<br>  - 路由<br>  - 防火墙<br>  - NAT<br>  - DHCP / dnsmasq<br>  - 端口转发 80/443 到反向代理<br>   |<br>   +-----------------------------+<br>   |                             |<br>AdGuard Home                 Reverse Proxy<br>DNS 入口 / 过滤 / 统计 / 重写    Caddy / Nginx Proxy Manager<br>   |                             |<br>   |                             +--&gt; Git / Jenkins / NAS / API / Blog<br>   |<br>公网 DNS 上游 / DoH / DoT<br></code></pre></td></tr></table></figure>
+
+<p>更具体一点，可以这样规划：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">OpenWrt 网关：       192.168.9.1<br>AdGuard Home：      192.168.9.2<br>反向代理：           192.168.7.10<br>NAS / 存储：         192.168.8.10<br>业务服务：           192.168.7.20 ~ 192.168.7.99<br>管理设备：           192.168.9.10 ~ 192.168.9.99<br>普通客户端：         192.168.9.100 ~ 192.168.9.250<br></code></pre></td></tr></table></figure>
+
+<p>如果你只有一个网段，也可以简化成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">OpenWrt：            192.168.1.1<br>AdGuard Home：       192.168.1.2<br>反向代理：            192.168.1.10<br>NAS：                192.168.1.20<br>其他服务：            192.168.1.30+<br></code></pre></td></tr></table></figure>
+
+<h2 id="3-组件职责划分"><a href="#3-组件职责划分" class="headerlink" title="3. 组件职责划分"></a>3. 组件职责划分</h2><h3 id="3-1-OpenWrt：网络入口"><a href="#3-1-OpenWrt：网络入口" class="headerlink" title="3.1 OpenWrt：网络入口"></a>3.1 OpenWrt：网络入口</h3><p>OpenWrt 负责：</p>
+<ul>
+<li>WAN 拨号或公网 IP 接入；</li>
+<li>LAN&#x2F;VLAN 管理；</li>
+<li>防火墙；</li>
+<li>NAT；</li>
+<li>端口转发；</li>
+<li>DHCP 服务；</li>
+<li>DHCP Option 下发 DNS 服务器地址。</li>
+</ul>
+<p>OpenWrt 默认通过 dnsmasq 和 odhcpd 提供 DNS、DHCP、DHCPv6 等能力。这里我们保留 dnsmasq 的 DHCP 能力，但把“全网 DNS 查询入口”交给 AdGuard Home。</p>
+<h3 id="3-2-dnsmasq：DHCP-与本地主机名"><a href="#3-2-dnsmasq：DHCP-与本地主机名" class="headerlink" title="3.2 dnsmasq：DHCP 与本地主机名"></a>3.2 dnsmasq：DHCP 与本地主机名</h3><p>dnsmasq 是轻量级 DNS&#x2F;DHCP&#x2F;TFTP&#x2F;PXE 工具，适合小型网络、路由器、防火墙和虚拟化网络。本文中 dnsmasq 主要负责：</p>
+<ul>
+<li>DHCP 地址池；</li>
+<li>静态租约；</li>
+<li>客户端主机名；</li>
+<li>本地域名 <code>home.arpa</code> 的基础解析；</li>
+<li>给 AdGuard Home 提供私有反向解析来源。</li>
+</ul>
+<p>不建议把复杂内网 DNS 全部塞进 dnsmasq。简单主机名可以放 dnsmasq，服务域名和公网域名内外网分流更适合放 AdGuard Home DNS Rewrite。</p>
+<h3 id="3-3-AdGuard-Home：全网-DNS-入口"><a href="#3-3-AdGuard-Home：全网-DNS-入口" class="headerlink" title="3.3 AdGuard Home：全网 DNS 入口"></a>3.3 AdGuard Home：全网 DNS 入口</h3><p>AdGuard Home 负责：</p>
+<ul>
+<li>全网 DNS 查询入口；</li>
+<li>广告过滤；</li>
+<li>恶意域名拦截；</li>
+<li>DNS 查询日志；</li>
+<li>客户端统计；</li>
+<li>DNS Rewrite；</li>
+<li>指定域名转发到本地 dnsmasq；</li>
+<li>公网 DNS 通过 DoH&#x2F;DoT 转发到上游。</li>
+</ul>
+<h3 id="3-4-反向代理：公网服务入口"><a href="#3-4-反向代理：公网服务入口" class="headerlink" title="3.4 反向代理：公网服务入口"></a>3.4 反向代理：公网服务入口</h3><p>如果你有公网 IP，并且内网服务要对外暴露，强烈建议增加反向代理层，例如 Caddy 或 Nginx Proxy Manager。</p>
+<p>公网只开放：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">80/tcp<br>443/tcp<br>WireGuard VPN 端口，可选<br></code></pre></td></tr></table></figure>
+
+<p>不要把 PostgreSQL、Redis、Jenkins、NAS 管理端、Docker API 等端口直接暴露到公网。那不是自建服务，那是给扫描器开自助餐。</p>
+<h2 id="4-域名设计"><a href="#4-域名设计" class="headerlink" title="4. 域名设计"></a>4. 域名设计</h2><p>家庭内网建议分两套域名。</p>
+<h3 id="4-1-内网基础设施域名：home-arpa"><a href="#4-1-内网基础设施域名：home-arpa" class="headerlink" title="4.1 内网基础设施域名：home.arpa"></a>4.1 内网基础设施域名：home.arpa</h3><p>推荐使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">router.home.arpa       -&gt; 192.168.9.1<br>adguard.home.arpa      -&gt; 192.168.9.2<br>proxy.home.arpa        -&gt; 192.168.7.10<br>nas.home.arpa          -&gt; 192.168.8.10<br>git.home.arpa          -&gt; 192.168.7.20<br>jenkins.home.arpa      -&gt; 192.168.7.21<br></code></pre></td></tr></table></figure>
+
+<p><code>home.arpa</code> 是 RFC 8375 指定给家庭网络使用的特殊域名。它的语义比随便造一个 <code>.lan</code>、<code>.home</code>、<code>.internal</code> 更规范。</p>
+<p>不建议使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">.local<br></code></pre></td></tr></table></figure>
+
+<p><code>.local</code> 是 mDNS 使用的特殊域名，macOS、iOS、Linux Avahi、部分智能设备会把它当作多播 DNS 处理。你拿它做普通 DNS，后面非常容易出现“有的设备能解析，有的设备不能解析”的玄学问题。</p>
+<h3 id="4-2-对外服务域名：真实公网域名"><a href="#4-2-对外服务域名：真实公网域名" class="headerlink" title="4.2 对外服务域名：真实公网域名"></a>4.2 对外服务域名：真实公网域名</h3><p>如果你有自己的公网域名，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">example.com<br></code></pre></td></tr></table></figure>
+
+<p>建议对外服务使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">git.lab.example.com<br>jenkins.lab.example.com<br>api.lab.example.com<br>blog.lab.example.com<br>nas.lab.example.com<br></code></pre></td></tr></table></figure>
+
+<p>公网 DNS 中配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">*.lab.example.com    A    你的公网 IPv4<br></code></pre></td></tr></table></figure>
+
+<p>或者逐条配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">git.lab.example.com       A    你的公网 IPv4<br>jenkins.lab.example.com   A    你的公网 IPv4<br>api.lab.example.com       A    你的公网 IPv4<br></code></pre></td></tr></table></figure>
+
+<p>内网 AdGuard Home 中配置 DNS Rewrite：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">*.lab.example.com    -&gt;   192.168.7.10<br></code></pre></td></tr></table></figure>
+
+<p><code>192.168.7.10</code> 是反向代理地址。</p>
+<p>这样访问路径就会变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs text">外网用户：<br>git.lab.example.com<br>  -&gt; 公网 DNS<br>  -&gt; 公网 IP<br>  -&gt; OpenWrt 端口转发<br>  -&gt; 反向代理<br>  -&gt; Git 服务<br><br>内网用户：<br>git.lab.example.com<br>  -&gt; AdGuard Home DNS Rewrite<br>  -&gt; 192.168.7.10<br>  -&gt; 反向代理<br>  -&gt; Git 服务<br></code></pre></td></tr></table></figure>
+
+<p>这就是 Split DNS，也叫内外网分流解析。它比依赖 NAT Loopback &#x2F; Hairpin NAT 更清楚。</p>
+<h2 id="5-推荐部署方式"><a href="#5-推荐部署方式" class="headerlink" title="5. 推荐部署方式"></a>5. 推荐部署方式</h2><p>有两种常见方式。</p>
+<h2 id="5-1-方式一：AdGuard-Home-直接跑在-OpenWrt-上"><a href="#5-1-方式一：AdGuard-Home-直接跑在-OpenWrt-上" class="headerlink" title="5.1 方式一：AdGuard Home 直接跑在 OpenWrt 上"></a>5.1 方式一：AdGuard Home 直接跑在 OpenWrt 上</h2><p>适合：</p>
+<ul>
+<li>x86 OpenWrt；</li>
+<li>路由器 CPU&#x2F;内存足够；</li>
+<li>不想单独开一台服务器；</li>
+<li>内网设备不多。</li>
+</ul>
+<p>架构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Client<br>  -&gt; OpenWrt:53 / AdGuard Home<br>      -&gt; dnsmasq:5353 / 本地 DHCP 主机名<br>      -&gt; 公网 DNS 上游<br></code></pre></td></tr></table></figure>
+
+<p>这种方式需要解决端口冲突：OpenWrt 默认 dnsmasq 监听 53，AdGuard Home 也需要监听 53。</p>
+<p>做法是把 dnsmasq 改到 5353，让 AdGuard Home 监听 53：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">uci <span class="hljs-built_in">set</span> dhcp.@dnsmasq[0].port=<span class="hljs-string">&#x27;5353&#x27;</span><br>uci commit dhcp<br>/etc/init.d/dnsmasq restart<br></code></pre></td></tr></table></figure>
+
+<p>然后 AdGuard Home 上游里配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">[/home.arpa/]127.0.0.1:5353<br>[/lan/]127.0.0.1:5353<br></code></pre></td></tr></table></figure>
+
+<p>私有反向 DNS 服务器配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">127.0.0.1:5353<br></code></pre></td></tr></table></figure>
+
+<p>优点：简单。<br>缺点：OpenWrt 负载变大，路由器挂了 DNS 也一起挂。</p>
+<p>如果你的 OpenWrt 不是 x86，而是普通家用路由器，我更推荐下一种方式。</p>
+<h2 id="5-2-方式二：AdGuard-Home-跑在内网服务器上"><a href="#5-2-方式二：AdGuard-Home-跑在内网服务器上" class="headerlink" title="5.2 方式二：AdGuard Home 跑在内网服务器上"></a>5.2 方式二：AdGuard Home 跑在内网服务器上</h2><p>这是更推荐的方式。</p>
+<p>架构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Client<br>  -&gt; AdGuard Home:53<br>      -&gt; OpenWrt dnsmasq:53 / home.arpa / PTR<br>      -&gt; 公网 DNS 上游<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">OpenWrt：        192.168.9.1<br>AdGuard Home：   192.168.9.2<br>反向代理：        192.168.7.10<br></code></pre></td></tr></table></figure>
+
+<p>OpenWrt 上 dnsmasq 保持默认 53 端口，继续负责 DHCP 和本地主机名。AdGuard Home 跑在 NAS、虚拟机、小主机或 Docker 中。</p>
+<p>优点：</p>
+<ul>
+<li>OpenWrt 负载低；</li>
+<li>AdGuard 日志、统计、过滤更稳定；</li>
+<li>Docker 迁移方便；</li>
+<li>后续可以部署第二个 AdGuard Home 做备用。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>AdGuard 服务器挂了，全网 DNS 受影响；</li>
+<li>最好准备第二个 DNS 或备用方案。</li>
+</ul>
+<p>本文后续以“AdGuard Home 跑在内网服务器上”为主进行实战说明。</p>
+<h2 id="6-实战环境假设"><a href="#6-实战环境假设" class="headerlink" title="6. 实战环境假设"></a>6. 实战环境假设</h2><p>本文使用下面的示例环境：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">OpenWrt 网关：       192.168.9.1<br>AdGuard Home：      192.168.9.2<br>反向代理：           192.168.7.10<br>NAS：                192.168.8.10<br>Git：                192.168.7.20<br>Jenkins：            192.168.7.21<br>内网域名：            home.arpa<br>公网域名：            lab.example.com<br></code></pre></td></tr></table></figure>
+
+<p>你可以按自己的网络替换这些 IP 和域名。</p>
+<h2 id="7-第一步：给-AdGuard-Home-固定-IP"><a href="#7-第一步：给-AdGuard-Home-固定-IP" class="headerlink" title="7. 第一步：给 AdGuard Home 固定 IP"></a>7. 第一步：给 AdGuard Home 固定 IP</h2><p>AdGuard Home 必须使用固定 IP。否则 DHCP 租约变动后，全网 DNS 会直接失效。</p>
+<p>可以在 OpenWrt LuCI 中操作：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">网络 -&gt; DHCP/DNS -&gt; 静态地址分配 -&gt; 添加<br></code></pre></td></tr></table></figure>
+
+<p>设置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">主机名：adguard<br>MAC 地址：AdGuard 服务器网卡 MAC<br>IPv4 地址：192.168.9.2<br></code></pre></td></tr></table></figure>
+
+<p>也可以通过 UCI 配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash">uci add dhcp host<br>uci <span class="hljs-built_in">set</span> dhcp.@host[-1].name=<span class="hljs-string">&#x27;adguard&#x27;</span><br>uci <span class="hljs-built_in">set</span> dhcp.@host[-1].mac=<span class="hljs-string">&#x27;AA:BB:CC:DD:EE:FF&#x27;</span><br>uci <span class="hljs-built_in">set</span> dhcp.@host[-1].ip=<span class="hljs-string">&#x27;192.168.9.2&#x27;</span><br>uci commit dhcp<br>/etc/init.d/dnsmasq restart<br></code></pre></td></tr></table></figure>
+
+<p>注意替换 MAC 地址。</p>
+<h2 id="8-第二步：配置-OpenWrt-dnsmasq-本地域名"><a href="#8-第二步：配置-OpenWrt-dnsmasq-本地域名" class="headerlink" title="8. 第二步：配置 OpenWrt dnsmasq 本地域名"></a>8. 第二步：配置 OpenWrt dnsmasq 本地域名</h2><p>建议把 OpenWrt 的本地域名设置为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>LuCI 路径：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">网络 -&gt; DHCP/DNS -&gt; 常规设置<br></code></pre></td></tr></table></figure>
+
+<p>建议配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">本地域名：home.arpa<br>展开主机名：启用<br>本地服务：启用<br>过滤私有地址反向查询：启用<br></code></pre></td></tr></table></figure>
+
+<p>UCI 示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs bash">uci <span class="hljs-built_in">set</span> dhcp.@dnsmasq[0].domain=<span class="hljs-string">&#x27;home.arpa&#x27;</span><br>uci <span class="hljs-built_in">set</span> dhcp.@dnsmasq[0].<span class="hljs-built_in">local</span>=<span class="hljs-string">&#x27;/home.arpa/&#x27;</span><br>uci <span class="hljs-built_in">set</span> dhcp.@dnsmasq[0].expandhosts=<span class="hljs-string">&#x27;1&#x27;</span><br>uci <span class="hljs-built_in">set</span> dhcp.@dnsmasq[0].domainneeded=<span class="hljs-string">&#x27;1&#x27;</span><br>uci <span class="hljs-built_in">set</span> dhcp.@dnsmasq[0].boguspriv=<span class="hljs-string">&#x27;1&#x27;</span><br>uci <span class="hljs-built_in">set</span> dhcp.@dnsmasq[0].authoritative=<span class="hljs-string">&#x27;1&#x27;</span><br>uci commit dhcp<br>/etc/init.d/dnsmasq restart<br></code></pre></td></tr></table></figure>
+
+<p>这样 dnsmasq 可以把 DHCP 静态租约里的主机名解析成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">adguard.home.arpa<br>router.home.arpa<br>nas.home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>如果你有多个网段，可以分别设置 DHCP 地址池和静态租约。核心思想不变：<strong>dnsmasq 管“设备拿什么 IP”，AdGuard Home 管“客户端 DNS 查询从哪里进来”。</strong></p>
+<h2 id="9-第三步：让-DHCP-下发-AdGuard-Home-作为-DNS"><a href="#9-第三步：让-DHCP-下发-AdGuard-Home-作为-DNS" class="headerlink" title="9. 第三步：让 DHCP 下发 AdGuard Home 作为 DNS"></a>9. 第三步：让 DHCP 下发 AdGuard Home 作为 DNS</h2><p>让所有客户端通过 DHCP 拿到 AdGuard Home 作为 DNS 服务器。</p>
+<p>LuCI 路径：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">网络 -&gt; 接口 -&gt; LAN -&gt; DHCP 服务器 -&gt; 高级设置 -&gt; DHCP 选项<br></code></pre></td></tr></table></figure>
+
+<p>填入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">6,192.168.9.2<br></code></pre></td></tr></table></figure>
+
+<p><code>6</code> 是 DHCP Option 6，表示 DNS Server。</p>
+<p>UCI 示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">uci add_list dhcp.lan.dhcp_option=<span class="hljs-string">&#x27;6,192.168.9.2&#x27;</span><br>uci commit dhcp<br>/etc/init.d/dnsmasq restart<br></code></pre></td></tr></table></figure>
+
+<p>如果你的接口不是 <code>lan</code>，请替换成实际接口名。</p>
+<p>验证客户端拿到的 DNS：</p>
+<p>Linux&#x2F;macOS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">scutil --dns | grep nameserver<br><span class="hljs-comment"># 或</span><br>resolvectl status<br></code></pre></td></tr></table></figure>
+
+<p>Windows：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs powershell">ipconfig /all<br></code></pre></td></tr></table></figure>
+
+<p>应该能看到 DNS Server 是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.9.2<br></code></pre></td></tr></table></figure>
+
+<h2 id="10-第四步：部署-AdGuard-Home"><a href="#10-第四步：部署-AdGuard-Home" class="headerlink" title="10. 第四步：部署 AdGuard Home"></a>10. 第四步：部署 AdGuard Home</h2><h3 id="10-1-Docker-Compose-部署方式"><a href="#10-1-Docker-Compose-部署方式" class="headerlink" title="10.1 Docker Compose 部署方式"></a>10.1 Docker Compose 部署方式</h3><p>如果 AdGuard Home 跑在 Linux 服务器或 NAS 上，推荐用 Docker Compose。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">services:</span><br>  <span class="hljs-attr">adguardhome:</span><br>    <span class="hljs-attr">image:</span> <span class="hljs-string">adguard/adguardhome:latest</span><br>    <span class="hljs-attr">container_name:</span> <span class="hljs-string">adguardhome</span><br>    <span class="hljs-attr">restart:</span> <span class="hljs-string">unless-stopped</span><br>    <span class="hljs-attr">network_mode:</span> <span class="hljs-string">host</span><br>    <span class="hljs-attr">volumes:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">./work:/opt/adguardhome/work</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">./conf:/opt/adguardhome/conf</span><br></code></pre></td></tr></table></figure>
+
+<p>启动：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker compose up -d<br></code></pre></td></tr></table></figure>
+
+<p>首次访问：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">http://192.168.9.2:3000<br></code></pre></td></tr></table></figure>
+
+<p>初始化时建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">DNS 监听地址：0.0.0.0:53<br>Web 管理地址：192.168.9.2:3000 或 0.0.0.0:3000<br></code></pre></td></tr></table></figure>
+
+<p>如果服务器上已有其他 DNS 服务占用 53，先检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> ss -lntup | grep <span class="hljs-string">&#x27;:53&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>常见占用来源：</p>
+<ul>
+<li>systemd-resolved；</li>
+<li>本机 dnsmasq；</li>
+<li>Docker 相关 DNS；</li>
+<li>其他安全软件。</li>
+</ul>
+<h3 id="10-2-OpenWrt-上部署-AdGuard-Home"><a href="#10-2-OpenWrt-上部署-AdGuard-Home" class="headerlink" title="10.2 OpenWrt 上部署 AdGuard Home"></a>10.2 OpenWrt 上部署 AdGuard Home</h3><p>如果你选择把 AdGuard Home 跑在 OpenWrt 上，重点是让 AdGuard Home 使用 53 端口，并把 dnsmasq 移到其他端口。</p>
+<p>常见做法：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">uci <span class="hljs-built_in">set</span> dhcp.@dnsmasq[0].port=<span class="hljs-string">&#x27;5353&#x27;</span><br>uci commit dhcp<br>/etc/init.d/dnsmasq restart<br></code></pre></td></tr></table></figure>
+
+<p>AdGuard Home 上游配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">[/home.arpa/]127.0.0.1:5353<br>[/lan/]127.0.0.1:5353<br></code></pre></td></tr></table></figure>
+
+<p>但还是那句话：如果路由器性能一般，别硬上。DNS 过滤、日志、统计都吃资源，x86 OpenWrt 没问题，普通小路由器可能会被折腾成“电子暖手宝”。</p>
+<h2 id="11-第五步：配置-AdGuard-Home-上游-DNS"><a href="#11-第五步：配置-AdGuard-Home-上游-DNS" class="headerlink" title="11. 第五步：配置 AdGuard Home 上游 DNS"></a>11. 第五步：配置 AdGuard Home 上游 DNS</h2><p>进入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">AdGuard Home -&gt; 设置 -&gt; DNS 设置 -&gt; 上游 DNS 服务器<br></code></pre></td></tr></table></figure>
+
+<p>推荐配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">https://dns.alidns.com/dns-query<br>https://223.5.5.5/dns-query<br>https://1.1.1.1/dns-query<br>https://cloudflare-dns.com/dns-query<br></code></pre></td></tr></table></figure>
+
+<p>如果你更重视国内解析速度，可以优先使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">https://dns.alidns.com/dns-query<br>https://doh.pub/dns-query<br></code></pre></td></tr></table></figure>
+
+<p>如果你更重视隐私和国际服务解析，可以使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">https://1.1.1.1/dns-query<br>https://dns.google/dns-query<br></code></pre></td></tr></table></figure>
+
+<p>不要一次塞太多上游 DNS。上游 DNS 不是火锅，不是什么都放进去就更香。一般 2~4 个足够。</p>
+<h2 id="12-第六步：配置内网域名转发"><a href="#12-第六步：配置内网域名转发" class="headerlink" title="12. 第六步：配置内网域名转发"></a>12. 第六步：配置内网域名转发</h2><p>由于 dnsmasq 还管理 DHCP 租约和本地主机名，因此 AdGuard Home 需要把 <code>home.arpa</code> 转发给 OpenWrt dnsmasq。</p>
+<p>在 AdGuard Home 的上游 DNS 中添加：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">[/home.arpa/]192.168.9.1<br></code></pre></td></tr></table></figure>
+
+<p>如果你还保留 OpenWrt 默认的 <code>lan</code> 域，也可以加：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">[/lan/]192.168.9.1<br></code></pre></td></tr></table></figure>
+
+<p>完整示例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">[/home.arpa/]192.168.9.1<br>https://dns.alidns.com/dns-query<br>https://1.1.1.1/dns-query<br></code></pre></td></tr></table></figure>
+
+<p>含义：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">home.arpa 域名 -&gt; OpenWrt dnsmasq<br>其他域名       -&gt; 公网上游 DNS<br></code></pre></td></tr></table></figure>
+
+<p>测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.2 router.home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>应该能返回：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">router.home.arpa.  A  192.168.9.1<br></code></pre></td></tr></table></figure>
+
+<h2 id="13-第七步：配置私有反向-DNS"><a href="#13-第七步：配置私有反向-DNS" class="headerlink" title="13. 第七步：配置私有反向 DNS"></a>13. 第七步：配置私有反向 DNS</h2><p>AdGuard Home 查询日志里如果只显示一堆 IP，不好排查。可以让 AdGuard Home 通过 OpenWrt dnsmasq 做私有反向解析。</p>
+<p>进入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">AdGuard Home -&gt; 设置 -&gt; DNS 设置 -&gt; 私有反向 DNS 服务器<br></code></pre></td></tr></table></figure>
+
+<p>填写：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.9.1<br></code></pre></td></tr></table></figure>
+
+<p>这样查询日志中客户端可能显示为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">iphone.home.arpa<br>macbook.home.arpa<br>nas.home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>而不是只有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.9.123<br></code></pre></td></tr></table></figure>
+
+<p>这对排查非常有帮助。</p>
+<h2 id="14-第八步：配置-DNS-Rewrite"><a href="#14-第八步：配置-DNS-Rewrite" class="headerlink" title="14. 第八步：配置 DNS Rewrite"></a>14. 第八步：配置 DNS Rewrite</h2><p>DNS Rewrite 是 AdGuard Home 非常适合家庭内网的功能。</p>
+<p>进入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">过滤器 -&gt; DNS 重写<br></code></pre></td></tr></table></figure>
+
+<p>添加：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">router.home.arpa      -&gt; 192.168.9.1<br>adguard.home.arpa     -&gt; 192.168.9.2<br>proxy.home.arpa       -&gt; 192.168.7.10<br>nas.home.arpa         -&gt; 192.168.8.10<br></code></pre></td></tr></table></figure>
+
+<p>如果你有公网服务域名：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">git.lab.example.com<br>jenkins.lab.example.com<br>api.lab.example.com<br></code></pre></td></tr></table></figure>
+
+<p>可以统一重写到反向代理：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">*.lab.example.com     -&gt; 192.168.7.10<br></code></pre></td></tr></table></figure>
+
+<p>如果 AdGuard Home 当前版本界面不支持通配符重写，或者行为和预期不一致，就逐条写：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">git.lab.example.com       -&gt; 192.168.7.10<br>jenkins.lab.example.com   -&gt; 192.168.7.10<br>api.lab.example.com       -&gt; 192.168.7.10<br></code></pre></td></tr></table></figure>
+
+<p>测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.2 git.lab.example.com<br></code></pre></td></tr></table></figure>
+
+<p>应该返回：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.7.10<br></code></pre></td></tr></table></figure>
+
+<h2 id="15-第九步：公网服务暴露设计"><a href="#15-第九步：公网服务暴露设计" class="headerlink" title="15. 第九步：公网服务暴露设计"></a>15. 第九步：公网服务暴露设计</h2><p>如果你有公网 IP，需要对外提供服务，推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">公网 DNS -&gt; OpenWrt -&gt; 反向代理 -&gt; 内网服务<br></code></pre></td></tr></table></figure>
+
+<p>不要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">公网端口 3000 -&gt; Gitea<br>公网端口 8080 -&gt; Jenkins<br>公网端口 9000 -&gt; MinIO<br>公网端口 5000 -&gt; 某个后台<br></code></pre></td></tr></table></figure>
+
+<p>推荐只开放：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">80/tcp<br>443/tcp<br></code></pre></td></tr></table></figure>
+
+<p>如果需要远程管理，再开放 VPN，例如 WireGuard：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">51820/udp<br></code></pre></td></tr></table></figure>
+
+<h3 id="15-1-公网-DNS-配置"><a href="#15-1-公网-DNS-配置" class="headerlink" title="15.1 公网 DNS 配置"></a>15.1 公网 DNS 配置</h3><p>在你的域名服务商中添加：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">*.lab.example.com    A    你的公网 IPv4<br></code></pre></td></tr></table></figure>
+
+<p>如果公网 IP 会变化，使用 DDNS：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">OpenWrt DDNS -&gt; 更新域名 A 记录<br></code></pre></td></tr></table></figure>
+
+<p>如果你有公网 IPv6，先不要急着发布 AAAA 记录。IPv6 下设备可能直接暴露在公网，主要靠防火墙拦截，不像 IPv4 NAT 那样天然隔离。</p>
+<h3 id="15-2-OpenWrt-端口转发"><a href="#15-2-OpenWrt-端口转发" class="headerlink" title="15.2 OpenWrt 端口转发"></a>15.2 OpenWrt 端口转发</h3><p>LuCI 路径：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">网络 -&gt; 防火墙 -&gt; 端口转发 -&gt; 添加<br></code></pre></td></tr></table></figure>
+
+<p>添加两条：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs text">名称：HTTP to Proxy<br>协议：TCP<br>外部区域：wan<br>外部端口：80<br>内部区域：lan<br>内部 IP：192.168.7.10<br>内部端口：80<br><br>名称：HTTPS to Proxy<br>协议：TCP<br>外部区域：wan<br>外部端口：443<br>内部区域：lan<br>内部 IP：192.168.7.10<br>内部端口：443<br></code></pre></td></tr></table></figure>
+
+<p>UCI 示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs bash">uci add firewall redirect<br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].name=<span class="hljs-string">&#x27;HTTP-to-Proxy&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].src=<span class="hljs-string">&#x27;wan&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].src_dport=<span class="hljs-string">&#x27;80&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].dest=<span class="hljs-string">&#x27;lan&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].dest_ip=<span class="hljs-string">&#x27;192.168.7.10&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].dest_port=<span class="hljs-string">&#x27;80&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].proto=<span class="hljs-string">&#x27;tcp&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].target=<span class="hljs-string">&#x27;DNAT&#x27;</span><br><br>uci add firewall redirect<br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].name=<span class="hljs-string">&#x27;HTTPS-to-Proxy&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].src=<span class="hljs-string">&#x27;wan&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].src_dport=<span class="hljs-string">&#x27;443&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].dest=<span class="hljs-string">&#x27;lan&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].dest_ip=<span class="hljs-string">&#x27;192.168.7.10&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].dest_port=<span class="hljs-string">&#x27;443&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].proto=<span class="hljs-string">&#x27;tcp&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].target=<span class="hljs-string">&#x27;DNAT&#x27;</span><br><br>uci commit firewall<br>/etc/init.d/firewall restart<br></code></pre></td></tr></table></figure>
+
+<h2 id="16-第十步：反向代理配置示例"><a href="#16-第十步：反向代理配置示例" class="headerlink" title="16. 第十步：反向代理配置示例"></a>16. 第十步：反向代理配置示例</h2><p>这里以 Caddy 为例。Caddy 的优点是配置简单，自动 HTTPS，适合家庭内网和小型自托管服务。</p>
+<p><code>Caddyfile</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs caddyfile">git.lab.example.com &#123;<br>    reverse_proxy 192.168.7.20:3000<br>&#125;<br><br>jenkins.lab.example.com &#123;<br>    reverse_proxy 192.168.7.21:8080<br>&#125;<br><br>api.lab.example.com &#123;<br>    reverse_proxy 192.168.7.22:8080<br>&#125;<br><br>nas.lab.example.com &#123;<br>    reverse_proxy 192.168.8.10:5000<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果你的服务只允许内网访问，不想对公网暴露，不要放到公网 DNS 和反向代理公开站点里。可以只用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">nas.home.arpa<br>postgres.home.arpa<br>redis.home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>这些域名只在内网 AdGuard Home 中解析。</p>
+<h2 id="17-第十一步：强制客户端使用-AdGuard-Home，可选"><a href="#17-第十一步：强制客户端使用-AdGuard-Home，可选" class="headerlink" title="17. 第十一步：强制客户端使用 AdGuard Home，可选"></a>17. 第十一步：强制客户端使用 AdGuard Home，可选</h2><p>有些设备会自己写死 DNS，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">8.8.8.8<br>1.1.1.1<br>114.114.114.114<br></code></pre></td></tr></table></figure>
+
+<p>如果你希望全网 DNS 都经过 AdGuard Home，可以在 OpenWrt 上把 LAN 侧 53 端口请求重定向到 AdGuard Home。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs bash">uci add firewall redirect<br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].name=<span class="hljs-string">&#x27;Redirect-LAN-DNS-to-AdGuard&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].src=<span class="hljs-string">&#x27;lan&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].src_dport=<span class="hljs-string">&#x27;53&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].dest=<span class="hljs-string">&#x27;lan&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].dest_ip=<span class="hljs-string">&#x27;192.168.9.2&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].dest_port=<span class="hljs-string">&#x27;53&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].proto=<span class="hljs-string">&#x27;tcp udp&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@redirect[-1].target=<span class="hljs-string">&#x27;DNAT&#x27;</span><br>uci commit firewall<br>/etc/init.d/firewall restart<br></code></pre></td></tr></table></figure>
+
+<p>注意：这只能拦截传统 DNS 的 53 端口。对于 DoH，也就是 DNS-over-HTTPS，因为走 443，很难完全拦截；对于 DoT，也就是 DNS-over-TLS，可以考虑阻断 853 端口。</p>
+<p>阻断 DoT 示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs bash">uci add firewall rule<br>uci <span class="hljs-built_in">set</span> firewall.@rule[-1].name=<span class="hljs-string">&#x27;Block-DoT-to-WAN&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@rule[-1].src=<span class="hljs-string">&#x27;lan&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@rule[-1].dest=<span class="hljs-string">&#x27;wan&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@rule[-1].dest_port=<span class="hljs-string">&#x27;853&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@rule[-1].proto=<span class="hljs-string">&#x27;tcp udp&#x27;</span><br>uci <span class="hljs-built_in">set</span> firewall.@rule[-1].target=<span class="hljs-string">&#x27;REJECT&#x27;</span><br>uci commit firewall<br>/etc/init.d/firewall restart<br></code></pre></td></tr></table></figure>
+
+<p>这一步不是必须。家庭网络里先稳定再强制，别一上来就把规则配满。防火墙规则配得太猛，最后可能先把自己关在门外。</p>
+<h2 id="18-IPv6-注意事项"><a href="#18-IPv6-注意事项" class="headerlink" title="18. IPv6 注意事项"></a>18. IPv6 注意事项</h2><p>如果你的宽带有公网 IPv6，要特别注意：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">IPv4：通常通过 NAT 隔离<br>IPv6：设备可能直接拥有公网地址，主要靠防火墙保护<br></code></pre></td></tr></table></figure>
+
+<p>建议：</p>
+<ul>
+<li>没有明确需求，不要在公网 DNS 发布内网服务的 AAAA 记录；</li>
+<li>OpenWrt IPv6 入站默认保持拒绝；</li>
+<li>对外 IPv6 服务也统一经过反向代理；</li>
+<li>AdGuard Home 里可以配置 IPv6 DNS，但要确保客户端拿到的是你想要的 DNS；</li>
+<li>手机、平板、IoT 设备经常优先使用 IPv6，排障时要同时测试 A 和 AAAA。</li>
+</ul>
+<p>测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig A git.lab.example.com @192.168.9.2<br>dig AAAA git.lab.example.com @192.168.9.2<br></code></pre></td></tr></table></figure>
+
+<p>如果你没有准备开放 IPv6，<code>AAAA</code> 不应该返回公网 IPv6 地址。</p>
+<h2 id="19-常用测试命令"><a href="#19-常用测试命令" class="headerlink" title="19. 常用测试命令"></a>19. 常用测试命令</h2><h3 id="19-1-测试-AdGuard-Home-是否可用"><a href="#19-1-测试-AdGuard-Home-是否可用" class="headerlink" title="19.1 测试 AdGuard Home 是否可用"></a>19.1 测试 AdGuard Home 是否可用</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.2 www.baidu.com<br></code></pre></td></tr></table></figure>
+
+<h3 id="19-2-测试内网域名"><a href="#19-2-测试内网域名" class="headerlink" title="19.2 测试内网域名"></a>19.2 测试内网域名</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.2 router.home.arpa<br>dig @192.168.9.2 adguard.home.arpa<br>dig @192.168.9.2 nas.home.arpa<br></code></pre></td></tr></table></figure>
+
+<h3 id="19-3-测试-dnsmasq-本地解析"><a href="#19-3-测试-dnsmasq-本地解析" class="headerlink" title="19.3 测试 dnsmasq 本地解析"></a>19.3 测试 dnsmasq 本地解析</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.1 router.home.arpa<br></code></pre></td></tr></table></figure>
+
+<h3 id="19-4-测试公网服务域名的内网-Rewrite"><a href="#19-4-测试公网服务域名的内网-Rewrite" class="headerlink" title="19.4 测试公网服务域名的内网 Rewrite"></a>19.4 测试公网服务域名的内网 Rewrite</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.2 git.lab.example.com<br></code></pre></td></tr></table></figure>
+
+<p>内网应该返回：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.7.10<br></code></pre></td></tr></table></figure>
+
+<p>外网查询应该返回：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">你的公网 IP<br></code></pre></td></tr></table></figure>
+
+<h3 id="19-5-测试客户端实际-DNS"><a href="#19-5-测试客户端实际-DNS" class="headerlink" title="19.5 测试客户端实际 DNS"></a>19.5 测试客户端实际 DNS</h3><p>macOS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">scutil --dns | grep nameserver<br></code></pre></td></tr></table></figure>
+
+<p>Linux：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">resolvectl status<br></code></pre></td></tr></table></figure>
+
+<p>Windows：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs powershell">ipconfig /all<br>nslookup git.lab.example.com<br></code></pre></td></tr></table></figure>
+
+<h3 id="19-6-清理缓存"><a href="#19-6-清理缓存" class="headerlink" title="19.6 清理缓存"></a>19.6 清理缓存</h3><p>macOS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dscacheutil -flushcache<br><span class="hljs-built_in">sudo</span> killall -HUP mDNSResponder<br></code></pre></td></tr></table></figure>
+
+<p>Windows：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs powershell">ipconfig /flushdns<br></code></pre></td></tr></table></figure>
+
+<p>Linux systemd-resolved：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> resolvectl flush-caches<br></code></pre></td></tr></table></figure>
+
+<p>OpenWrt：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">/etc/init.d/dnsmasq restart<br>logread -e dnsmasq<br></code></pre></td></tr></table></figure>
+
+<p>AdGuard Home：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker logs -f adguardhome<br></code></pre></td></tr></table></figure>
+
+<h2 id="20-常见问题排查"><a href="#20-常见问题排查" class="headerlink" title="20. 常见问题排查"></a>20. 常见问题排查</h2><h3 id="20-1-客户端没有走-AdGuard-Home"><a href="#20-1-客户端没有走-AdGuard-Home" class="headerlink" title="20.1 客户端没有走 AdGuard Home"></a>20.1 客户端没有走 AdGuard Home</h3><p>检查 DHCP 下发的 DNS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">ipconfig /all<br>scutil --dns<br>resolvectl status<br></code></pre></td></tr></table></figure>
+
+<p>如果客户端 DNS 不是 <code>192.168.9.2</code>，检查 OpenWrt DHCP Option：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">uci show dhcp | grep dhcp_option<br></code></pre></td></tr></table></figure>
+
+<p>重新获取 DHCP：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># Windows</span><br>ipconfig /release<br>ipconfig /renew<br><br><span class="hljs-comment"># Linux</span><br><span class="hljs-built_in">sudo</span> dhclient -r<br><span class="hljs-built_in">sudo</span> dhclient<br></code></pre></td></tr></table></figure>
+
+<p>手机直接断开 Wi-Fi 后重连。</p>
+<h3 id="20-2-AdGuard-Home-启动不了-53-端口"><a href="#20-2-AdGuard-Home-启动不了-53-端口" class="headerlink" title="20.2 AdGuard Home 启动不了 53 端口"></a>20.2 AdGuard Home 启动不了 53 端口</h3><p>检查端口占用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> ss -lntup | grep <span class="hljs-string">&#x27;:53&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果是 systemd-resolved 占用，需要调整本机 DNS 服务。<br>如果是 dnsmasq 占用，要么关闭本机 dnsmasq，要么让 AdGuard Home 使用另一个 IP 监听。</p>
+<h3 id="20-3-home-arpa-不能解析"><a href="#20-3-home-arpa-不能解析" class="headerlink" title="20.3 home.arpa 不能解析"></a>20.3 home.arpa 不能解析</h3><p>分两层测：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.1 router.home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>如果 OpenWrt 自己都不能解析，问题在 dnsmasq &#x2F; 静态租约 &#x2F; 本地域名。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.2 router.home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>如果 OpenWrt 能解析，但 AdGuard 不能解析，问题在 AdGuard Home 的上游域名转发：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">[/home.arpa/]192.168.9.1<br></code></pre></td></tr></table></figure>
+
+<h3 id="20-4-内网访问公网域名走了公网-IP"><a href="#20-4-内网访问公网域名走了公网-IP" class="headerlink" title="20.4 内网访问公网域名走了公网 IP"></a>20.4 内网访问公网域名走了公网 IP</h3><p>比如内网访问：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">git.lab.example.com<br></code></pre></td></tr></table></figure>
+
+<p>返回的是公网 IP，而不是 <code>192.168.7.10</code>。</p>
+<p>检查 AdGuard Home DNS Rewrite：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">git.lab.example.com -&gt; 192.168.7.10<br></code></pre></td></tr></table></figure>
+
+<p>然后清理客户端 DNS 缓存。</p>
+<h3 id="20-5-外网访问不了服务"><a href="#20-5-外网访问不了服务" class="headerlink" title="20.5 外网访问不了服务"></a>20.5 外网访问不了服务</h3><p>检查链路：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">公网 DNS 是否指向公网 IP？<br>OpenWrt 是否有公网 IP？<br>运营商是否封锁 80/443？<br>OpenWrt 端口转发是否正确？<br>反向代理是否监听 80/443？<br>后端服务是否正常？<br>服务自己的访问控制是否允许？<br></code></pre></td></tr></table></figure>
+
+<p>如果运营商封锁 80&#x2F;443，可以考虑：</p>
+<ul>
+<li>更换端口；</li>
+<li>使用 Cloudflare Tunnel；</li>
+<li>使用 FRP &#x2F; WireGuard；</li>
+<li>使用 VPS 做中转。</li>
+</ul>
+<h3 id="20-6-AdGuard-Home-查询日志显示-IP，不显示主机名"><a href="#20-6-AdGuard-Home-查询日志显示-IP，不显示主机名" class="headerlink" title="20.6 AdGuard Home 查询日志显示 IP，不显示主机名"></a>20.6 AdGuard Home 查询日志显示 IP，不显示主机名</h3><p>配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">私有反向 DNS 服务器：192.168.9.1<br></code></pre></td></tr></table></figure>
+
+<p>同时确认 OpenWrt dnsmasq 能反向解析：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.1 -x 192.168.9.2<br></code></pre></td></tr></table></figure>
+
+<h3 id="20-7-Android-iOS-仍然绕过-DNS"><a href="#20-7-Android-iOS-仍然绕过-DNS" class="headerlink" title="20.7 Android &#x2F; iOS 仍然绕过 DNS"></a>20.7 Android &#x2F; iOS 仍然绕过 DNS</h3><p>Android 可能开启了“私人 DNS”，iOS 可能使用配置描述文件或 App 内 DoH。解决思路：</p>
+<ul>
+<li>关闭客户端私人 DNS；</li>
+<li>阻断 853 端口；</li>
+<li>对常见 DoH 域名做策略控制；</li>
+<li>接受部分 App 自带 DoH 无法完全管控。</li>
+</ul>
+<p>家庭网络不必追求“百分百管控”，否则你会比公司网管还累，还没人给你发工资。</p>
+<h2 id="21-安全清单"><a href="#21-安全清单" class="headerlink" title="21. 安全清单"></a>21. 安全清单</h2><h3 id="21-1-AdGuard-Home-不要暴露公网"><a href="#21-1-AdGuard-Home-不要暴露公网" class="headerlink" title="21.1 AdGuard Home 不要暴露公网"></a>21.1 AdGuard Home 不要暴露公网</h3><p>不要开放：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">WAN -&gt; AdGuard Home 53<br>WAN -&gt; AdGuard Home 3000<br>WAN -&gt; AdGuard Home 80/443 管理页<br></code></pre></td></tr></table></figure>
+
+<p>AdGuard Home 只服务内网：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.9.0/24<br>192.168.8.0/24<br>192.168.7.0/24<br></code></pre></td></tr></table></figure>
+
+<h3 id="21-2-只暴露反向代理"><a href="#21-2-只暴露反向代理" class="headerlink" title="21.2 只暴露反向代理"></a>21.2 只暴露反向代理</h3><p>公网端口建议只开放：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">80/tcp<br>443/tcp<br></code></pre></td></tr></table></figure>
+
+<p>管理入口走 VPN：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">WireGuard<br>Tailscale<br>ZeroTier<br></code></pre></td></tr></table></figure>
+
+<h3 id="21-3-服务加认证"><a href="#21-3-服务加认证" class="headerlink" title="21.3 服务加认证"></a>21.3 服务加认证</h3><p>即使已经有反向代理，也建议：</p>
+<ul>
+<li>Jenkins 加强密码和权限；</li>
+<li>NAS 管理端不要直接公网暴露；</li>
+<li>Git 服务开启 2FA；</li>
+<li>管理后台加 Basic Auth &#x2F; OAuth &#x2F; Authelia；</li>
+<li>数据库、Redis、Docker API 永远不要直接公网暴露。</li>
+</ul>
+<h3 id="21-4-备份配置"><a href="#21-4-备份配置" class="headerlink" title="21.4 备份配置"></a>21.4 备份配置</h3><p>至少备份：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">OpenWrt /etc/config/network<br>OpenWrt /etc/config/dhcp<br>OpenWrt /etc/config/firewall<br>AdGuardHome.yaml<br>Caddyfile / Nginx Proxy Manager 数据目录<br></code></pre></td></tr></table></figure>
+
+<p>建议把配置放到 Git 私有仓库里，但注意不要提交密码、Token、证书私钥。</p>
+<h2 id="22-什么时候需要升级到-BIND9-或-PowerDNS？"><a href="#22-什么时候需要升级到-BIND9-或-PowerDNS？" class="headerlink" title="22. 什么时候需要升级到 BIND9 或 PowerDNS？"></a>22. 什么时候需要升级到 BIND9 或 PowerDNS？</h2><p>OpenWrt + dnsmasq + AdGuard Home 很适合小型家庭内网，但不是万能。</p>
+<p>出现下面情况，可以考虑升级：</p>
+<ul>
+<li>DNS 记录超过 50 条；</li>
+<li>需要大量 PTR 反向解析；</li>
+<li>需要标准权威 DNS zone；</li>
+<li>需要主从 DNS；</li>
+<li>需要 TSIG、zone transfer；</li>
+<li>需要和 CMDB &#x2F; IPAM &#x2F; 自动化平台联动；</li>
+<li>希望所有 DNS 记录 GitOps 管理。</li>
+</ul>
+<p>升级方向：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">小型家庭网络：<br>OpenWrt + dnsmasq + AdGuard Home<br><br>中型 Homelab：<br>OpenWrt + AdGuard Home + BIND9<br><br>自动化 Homelab / 小型企业：<br>OpenWrt + AdGuard Home + PowerDNS + API<br><br>企业级 DHCP/DDNS：<br>OpenWrt/网关 + Kea DHCP + BIND9/PowerDNS<br></code></pre></td></tr></table></figure>
+
+<p>本文这套方案的定位是第一档到第二档之间：够用、清晰、成本低、后续能平滑升级。</p>
+<h2 id="23-最终推荐配置汇总"><a href="#23-最终推荐配置汇总" class="headerlink" title="23. 最终推荐配置汇总"></a>23. 最终推荐配置汇总</h2><h3 id="OpenWrt"><a href="#OpenWrt" class="headerlink" title="OpenWrt"></a>OpenWrt</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">职责：路由 / 防火墙 / DHCP / NAT / 端口转发<br>IP：192.168.9.1<br>DHCP 下发 DNS：192.168.9.2<br>本地域名：home.arpa<br></code></pre></td></tr></table></figure>
+
+<h3 id="dnsmasq"><a href="#dnsmasq" class="headerlink" title="dnsmasq"></a>dnsmasq</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">职责：DHCP / 静态租约 / 本地主机名 / PTR 来源<br>local：/home.arpa/<br>domain：home.arpa<br>expandhosts：1<br></code></pre></td></tr></table></figure>
+
+<h3 id="AdGuard-Home"><a href="#AdGuard-Home" class="headerlink" title="AdGuard Home"></a>AdGuard Home</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">职责：全网 DNS 入口 / 广告过滤 / 查询日志 / DNS Rewrite<br>IP：192.168.9.2<br>上游：DoH / DoT / 公共 DNS<br>内网域名转发：[/home.arpa/]192.168.9.1<br>私有反向 DNS：192.168.9.1<br></code></pre></td></tr></table></figure>
+
+<h3 id="反向代理"><a href="#反向代理" class="headerlink" title="反向代理"></a>反向代理</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">职责：公网服务统一入口 / HTTPS / 域名分流<br>IP：192.168.7.10<br>公网开放：80/443<br></code></pre></td></tr></table></figure>
+
+<h3 id="域名"><a href="#域名" class="headerlink" title="域名"></a>域名</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">内网基础设施：home.arpa<br>对外服务：lab.example.com<br></code></pre></td></tr></table></figure>
+
+<h3 id="访问路径"><a href="#访问路径" class="headerlink" title="访问路径"></a>访问路径</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">内网访问基础设施：<br>nas.home.arpa -&gt; AdGuard Home -&gt; OpenWrt dnsmasq -&gt; 192.168.8.10<br><br>内网访问公网服务域名：<br>git.lab.example.com -&gt; AdGuard Home DNS Rewrite -&gt; 192.168.7.10 -&gt; 反向代理 -&gt; Git<br><br>外网访问公网服务域名：<br>git.lab.example.com -&gt; 公网 DNS -&gt; 公网 IP -&gt; OpenWrt -&gt; 反向代理 -&gt; Git<br></code></pre></td></tr></table></figure>
+
+<h2 id="24-结语"><a href="#24-结语" class="headerlink" title="24. 结语"></a>24. 结语</h2><p>这套方案的核心不是“用了多少工具”，而是职责清晰：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">OpenWrt：管网络入口<br>dnsmasq：管 DHCP 和本地主机名<br>AdGuard Home：管 DNS 入口、过滤、统计和重写<br>反向代理：管公网服务入口和 HTTPS<br></code></pre></td></tr></table></figure>
+
+<p>家庭内网的 DNS 建设，一开始不要追求复杂。先把下面几件事做好：</p>
+<ul>
+<li>全网 DNS 统一走 AdGuard Home；</li>
+<li>内网基础设施使用 <code>home.arpa</code>；</li>
+<li>对外服务使用真实公网域名；</li>
+<li>内外网用 Split DNS 分流；</li>
+<li>公网只暴露反向代理；</li>
+<li>管理入口走 VPN；</li>
+<li>配置可备份、可恢复、可排障。</li>
+</ul>
+<p>做到这一步，你的家庭内网就已经比很多“临时拼起来的 Homelab”稳很多了。后面服务变多，再引入 BIND9 或 PowerDNS，也不会推倒重来。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>OpenWrt Wiki：DHCP and DNS configuration<br><a target="_blank" rel="noopener" href="https://openwrt.org/docs/guide-user/base-system/dhcp">https://openwrt.org/docs/guide-user/base-system/dhcp</a></li>
+<li>OpenWrt Wiki：DHCP and DNS examples<br><a target="_blank" rel="noopener" href="https://openwrt.org/docs/guide-user/base-system/dhcp_configuration">https://openwrt.org/docs/guide-user/base-system/dhcp_configuration</a></li>
+<li>OpenWrt Wiki：AdGuard Home<br><a target="_blank" rel="noopener" href="https://openwrt.org/docs/guide-user/services/dns/adguard-home">https://openwrt.org/docs/guide-user/services/dns/adguard-home</a></li>
+<li>OpenWrt Wiki：Firewall configuration<br><a target="_blank" rel="noopener" href="https://openwrt.org/docs/guide-user/firewall/firewall_configuration">https://openwrt.org/docs/guide-user/firewall/firewall_configuration</a></li>
+<li>OpenWrt Wiki：Port forwarding &#x2F; DNAT<br><a target="_blank" rel="noopener" href="https://openwrt.org/docs/guide-user/firewall/fw3_configurations/port_forwarding">https://openwrt.org/docs/guide-user/firewall/fw3_configurations/port_forwarding</a></li>
+<li>dnsmasq 官方文档<br><a target="_blank" rel="noopener" href="https://thekelleys.org.uk/dnsmasq/doc.html">https://thekelleys.org.uk/dnsmasq/doc.html</a></li>
+<li>dnsmasq man page<br><a target="_blank" rel="noopener" href="https://thekelleys.org.uk/dnsmasq/docs/dnsmasq-man.html">https://thekelleys.org.uk/dnsmasq/docs/dnsmasq-man.html</a></li>
+<li>AdGuard Home Configuration Wiki<br><a target="_blank" rel="noopener" href="https://github.com/AdguardTeam/AdGuardHome/wiki/Configuration">https://github.com/AdguardTeam/AdGuardHome/wiki/Configuration</a></li>
+<li>AdGuard DNS Filtering Syntax<br><a target="_blank" rel="noopener" href="https://adguard-dns.io/kb/general/dns-filtering-syntax/">https://adguard-dns.io/kb/general/dns-filtering-syntax/</a></li>
+<li>RFC 8375：Special-Use Domain <code>home.arpa.</code><br><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc8375.html">https://www.rfc-editor.org/rfc/rfc8375.html</a></li>
+<li>RFC 6762：Multicast DNS，<code>.local</code> 保留语义<br><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc6762.html">https://www.rfc-editor.org/rfc/rfc6762.html</a></li>
+<li>Caddy Reverse Proxy Quick-start<br><a target="_blank" rel="noopener" href="https://caddyserver.com/docs/quick-starts/reverse-proxy">https://caddyserver.com/docs/quick-starts/reverse-proxy</a></li>
+<li>Caddy Automatic HTTPS<br><a target="_blank" rel="noopener" href="https://caddyserver.com/docs/automatic-https">https://caddyserver.com/docs/automatic-https</a></li>
+</ul>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Homelab/" class="category-chain-item">Homelab</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/Homelab/Network/" class="category-chain-item">Network</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/OpenWrt/" class="print-no-link">#OpenWrt</a>
+      
+        <a href="/tags/dnsmasq/" class="print-no-link">#dnsmasq</a>
+      
+        <a href="/tags/AdGuard-Home/" class="print-no-link">#AdGuard Home</a>
+      
+        <a href="/tags/DNS/" class="print-no-link">#DNS</a>
+      
+        <a href="/tags/DHCP/" class="print-no-link">#DHCP</a>
+      
+        <a href="/tags/Homelab/" class="print-no-link">#Homelab</a>
+      
+        <a href="/tags/Reverse-Proxy/" class="print-no-link">#Reverse Proxy</a>
+      
+        <a href="/tags/%E5%AE%B6%E5%BA%AD%E5%86%85%E7%BD%91/" class="print-no-link">#家庭内网</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>基于 OpenWrt、dnsmasq 与 AdGuard Home 的家庭内网 DNS 实战方案</div>
+      <div>https://allendericdalexander.github.io/2026/06/17/devops/infra/openwrt-dnsmasq-adguard-home-lan-hexo-blog/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年6月17日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/06/16/devops/infra/bind9-private-dns-hexo-blog/" title="BIND 9 私有 DNS 服务搭建与生产实践：从 named.conf 到主从、递归、安全与排障">
+                        <span class="hidden-mobile">BIND 9 私有 DNS 服务搭建与生产实践：从 named.conf 到主从、递归、安全与排障</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

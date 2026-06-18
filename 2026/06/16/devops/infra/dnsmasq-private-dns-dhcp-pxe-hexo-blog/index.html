@@ -1,0 +1,1684 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="欢迎你来读这篇博客，这篇博客主要围绕 dnsmasq 的内网 DNS、DNS 缓存、域名分流、DHCP、TFTP&#x2F;PXE、OpenWrt 集成和生产化排障展开。 如果你之前用过 BIND，会发现 dnsmasq 的思路完全不一样：它不是一个“重量级权威 DNS平台”，而是一个“小而顺手的网络基础设施瑞士军刀”。家庭实验室、小公司内网、开发测试环境、软路由、虚拟化网络、PXE装机环境里，它">
+<meta property="og:type" content="article">
+<meta property="og:title" content="使用 dnsmasq 搭建轻量级内网 DNS、DHCP 与 PXE 服务">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/06/16/devops/infra/dnsmasq-private-dns-dhcp-pxe-hexo-blog/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="欢迎你来读这篇博客，这篇博客主要围绕 dnsmasq 的内网 DNS、DNS 缓存、域名分流、DHCP、TFTP&#x2F;PXE、OpenWrt 集成和生产化排障展开。 如果你之前用过 BIND，会发现 dnsmasq 的思路完全不一样：它不是一个“重量级权威 DNS平台”，而是一个“小而顺手的网络基础设施瑞士军刀”。家庭实验室、小公司内网、开发测试环境、软路由、虚拟化网络、PXE装机环境里，它">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-15T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-15T16:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="DHCP">
+<meta property="article:tag" content="DNS">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="OpenWrt">
+<meta property="article:tag" content="PXE">
+<meta property="article:tag" content="dnsmasq">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>使用 dnsmasq 搭建轻量级内网 DNS、DHCP 与 PXE 服务 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="使用 dnsmasq 搭建轻量级内网 DNS、DHCP 与 PXE 服务"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-06-16 00:00" pubdate>
+          2026年6月16日 凌晨
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          7.8k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          66 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">使用 dnsmasq 搭建轻量级内网 DNS、DHCP 与 PXE 服务</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>欢迎你来读这篇博客，这篇博客主要围绕 <code>dnsmasq</code> 的内网 DNS、DNS 缓存、域名分流、DHCP、TFTP&#x2F;PXE、OpenWrt 集成和生产化排障展开。</p>
+<p>如果你之前用过 BIND，会发现 dnsmasq 的思路完全不一样：它不是一个“重量级权威 DNS<br>平台”，而是一个“小而顺手的网络基础设施瑞士军刀”。家庭实验室、小公司内网、开发测试环境、软路由、虚拟化网络、PXE<br>装机环境里，它非常好用；但如果你想管理大量正式公网 Zone、复杂主从复制、DNS 视图、企业级审计，那 BIND、PowerDNS 或 CoreDNS 会更合适。</p>
+<span id="more"></span>
+
+<h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><p>内网 DNS 这件事，看起来很小，实际很容易变成“玄学现场”：</p>
+<ul>
+<li>同一个服务，一会儿 <code>nas.local</code> 能访问，一会儿不行；</li>
+<li>服务器上 <code>dig</code> 正常，浏览器却解析不到；</li>
+<li>dnsmasq 启动失败，结果发现 53 端口被 <code>systemd-resolved</code> 占了；</li>
+<li>在 OpenWrt 上装 <code>dnsmasq-full</code>，装到一半路由器自己断网；</li>
+<li>配了 <code>address=/example.com/192.168.1.10</code>，结果反向解析没有；</li>
+<li>想让某些域名走指定 DNS，最后把内网域名泄露到了公网 DNS。</li>
+</ul>
+<p>dnsmasq 解决的是“小网络里 DNS&#x2F;DHCP&#x2F;TFTP&#x2F;PXE 的一体化治理”。它的优点不是功能最全，而是配置简单、启动快、依赖少、能和 DHCP<br>租约天然联动。对内网环境来说，这个组合拳经常比 BIND 更顺手。BIND 像重型工程车，dnsmasq 像皮卡：不能拉摩天楼，但拉服务器、工具箱、网线和咖啡都刚刚好。</p>
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h3 id="chapter-1：dnsmasq-是什么"><a href="#chapter-1：dnsmasq-是什么" class="headerlink" title="chapter 1：dnsmasq 是什么"></a>chapter 1：dnsmasq 是什么</h3><p>dnsmasq 是一个轻量级网络服务程序，常见能力包括：</p>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>说明</th>
+<th>常见场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>DNS Forwarder</td>
+<td>接收客户端 DNS 查询，转发给上游 DNS</td>
+<td>内网统一 DNS 出口</td>
+</tr>
+<tr>
+<td>DNS Cache</td>
+<td>缓存常见 A&#x2F;AAAA&#x2F;CNAME&#x2F;PTR 等记录</td>
+<td>减少重复解析，加快访问</td>
+</tr>
+<tr>
+<td>Local DNS</td>
+<td>通过 <code>/etc/hosts</code>、<code>addn-hosts</code>、<code>host-record</code>、<code>address</code> 提供本地域名</td>
+<td><code>nas.home.arpa</code>、<code>gitlab.home.arpa</code></td>
+</tr>
+<tr>
+<td>Split DNS</td>
+<td>指定某些域名走特定上游 DNS</td>
+<td>VPN、公司内网、国内外分流</td>
+</tr>
+<tr>
+<td>DHCPv4&#x2F;DHCPv6</td>
+<td>分配地址、网关、DNS、搜索域</td>
+<td>小型局域网、实验室</td>
+</tr>
+<tr>
+<td>Router Advertisement</td>
+<td>IPv6 RA</td>
+<td>IPv6 内网</td>
+</tr>
+<tr>
+<td>TFTP&#x2F;PXE</td>
+<td>网络启动、装机引导</td>
+<td>自动装机、实验室批量部署</td>
+</tr>
+<tr>
+<td>OpenWrt 集成</td>
+<td>路由器默认 DNS&#x2F;DHCP 组件</td>
+<td>软路由、旁路由、家庭网关</td>
+</tr>
+</tbody></table>
+<p>一句话：<strong>dnsmasq 最适合做内网的 DNS&#x2F;DHCP 中枢，而不是替代大型权威 DNS 系统。</strong></p>
+<h3 id="chapter-2：dnsmasq-和-BIND-怎么选"><a href="#chapter-2：dnsmasq-和-BIND-怎么选" class="headerlink" title="chapter 2：dnsmasq 和 BIND 怎么选"></a>chapter 2：dnsmasq 和 BIND 怎么选</h3><table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>dnsmasq</th>
+<th>BIND</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>定位</td>
+<td>轻量 DNS 转发、缓存、DHCP、PXE</td>
+<td>完整 DNS 服务器</td>
+</tr>
+<tr>
+<td>配置复杂度</td>
+<td>低</td>
+<td>中高</td>
+</tr>
+<tr>
+<td>内网主机名解析</td>
+<td>很方便，尤其结合 DHCP</td>
+<td>可以做，但略重</td>
+</tr>
+<tr>
+<td>DNS 缓存</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>递归解析</td>
+<td>主要做转发，也可缓存</td>
+<td>可做完整递归解析器</td>
+</tr>
+<tr>
+<td>权威 DNS</td>
+<td>支持简单 authoritative mode，但不是强项</td>
+<td>强项</td>
+</tr>
+<tr>
+<td>主从复制</td>
+<td>有简单 zone transfer 场景，但不主打</td>
+<td>成熟</td>
+</tr>
+<tr>
+<td>DHCP</td>
+<td>内置</td>
+<td>不内置</td>
+</tr>
+<tr>
+<td>PXE&#x2F;TFTP</td>
+<td>内置</td>
+<td>不内置</td>
+</tr>
+<tr>
+<td>适合场景</td>
+<td>家庭实验室、小公司、软路由、开发环境</td>
+<td>企业 DNS、公网 Zone、复杂 DNS 体系</td>
+</tr>
+</tbody></table>
+<p>我的建议：</p>
+<ul>
+<li>只是想让 <code>gitlab.home.arpa</code>、<code>nas.home.arpa</code>、<code>jenkins.home.arpa</code> 在内网可访问：选 dnsmasq。</li>
+<li>想让 DHCP 分配出来的主机名自动进入 DNS：选 dnsmasq。</li>
+<li>想做 PXE 装机：选 dnsmasq。</li>
+<li>想维护企业正式域名、主从 DNS、复杂 Zone 文件、DNSSEC 签名：选 BIND 或 PowerDNS。</li>
+<li>想做 Kubernetes 内部服务发现：选 CoreDNS。</li>
+<li>想做本地广告拦截平台：可以用 dnsmasq，也可以用 Pi-hole &#x2F; AdGuard Home。</li>
+</ul>
+<h3 id="chapter-3：先理解-Linux-的域名解析链路"><a href="#chapter-3：先理解-Linux-的域名解析链路" class="headerlink" title="chapter 3：先理解 Linux 的域名解析链路"></a>chapter 3：先理解 Linux 的域名解析链路</h3><p>很多 dnsmasq 问题不是 dnsmasq 本身的问题，而是客户端解析链路的问题。</p>
+<p>一个普通 Linux 程序解析域名，大致会经过：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs text">应用程序<br>  ↓<br>glibc / getaddrinfo()<br>  ↓<br>/etc/nsswitch.conf<br>  ↓<br>files → dns → mdns/resolve 等模块<br>  ↓<br>/etc/hosts<br>  ↓<br>systemd-resolved / NetworkManager / resolv.conf 中的 nameserver<br>  ↓<br>dnsmasq<br>  ↓<br>上游 DNS<br></code></pre></td></tr></table></figure>
+
+<p>所以要注意：</p>
+<ol>
+<li><code>dig</code> &#x2F; <code>nslookup</code> 通常直接查 DNS，不完全等同于浏览器或 Java 程序的解析链路。</li>
+<li><code>/etc/hosts</code> 的优先级通常高于 DNS。</li>
+<li>Ubuntu&#x2F;Fedora 新系统常见 <code>systemd-resolved</code>，默认会提供本机 stub resolver。</li>
+<li>NetworkManager 也可能启动自己的 dnsmasq 实例。</li>
+<li><code>.local</code> 往往会被 mDNS&#x2F;Bonjour 处理，不建议拿来做传统单播 DNS 域。</li>
+</ol>
+<p>排查时不要只问“dnsmasq 有没有启动”，还要问：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/nsswitch.conf<br><span class="hljs-built_in">cat</span> /etc/resolv.conf<br>resolvectl status<br>nmcli dev show | grep -i dns<br>ss -lntup | grep <span class="hljs-string">&#x27;:53&#x27;</span><br>ss -lnup  | grep <span class="hljs-string">&#x27;:53&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>DNS 不是玄学，只是它喜欢“绕路”。它一绕路，人就开始玄学了。</p>
+<h3 id="chapter-4：规划实验网络"><a href="#chapter-4：规划实验网络" class="headerlink" title="chapter 4：规划实验网络"></a>chapter 4：规划实验网络</h3><p>下面用一个家庭实验室&#x2F;小型开发网络举例。</p>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>网段</td>
+<td><code>192.168.9.0/24</code></td>
+</tr>
+<tr>
+<td>网关</td>
+<td><code>192.168.9.1</code></td>
+</tr>
+<tr>
+<td>dnsmasq 服务器</td>
+<td><code>192.168.9.2</code></td>
+</tr>
+<tr>
+<td>内网域名</td>
+<td><code>home.arpa</code></td>
+</tr>
+<tr>
+<td>DHCP 地址池</td>
+<td><code>192.168.9.100 - 192.168.9.199</code></td>
+</tr>
+<tr>
+<td>NAS</td>
+<td><code>192.168.9.10</code> &#x2F; <code>nas.home.arpa</code></td>
+</tr>
+<tr>
+<td>GitLab</td>
+<td><code>192.168.9.20</code> &#x2F; <code>gitlab.home.arpa</code></td>
+</tr>
+<tr>
+<td>Jenkins</td>
+<td><code>192.168.9.21</code> &#x2F; <code>jenkins.home.arpa</code></td>
+</tr>
+<tr>
+<td>跳板机</td>
+<td><code>192.168.9.30</code> &#x2F; <code>jump.home.arpa</code></td>
+</tr>
+</tbody></table>
+<p>为什么用 <code>home.arpa</code>？</p>
+<ul>
+<li><code>home.arpa</code> 是为家庭&#x2F;本地网络保留的特殊用途域。</li>
+<li><code>.local</code> 是 mDNS 常用域，容易和 Apple Bonjour、Avahi、systemd-resolved 产生冲突。</li>
+<li><code>.lan</code>、<code>.home</code> 虽然很多路由器默认使用，但它们不是最规范的选择。</li>
+</ul>
+<p>如果你是公司内网，最好用公司真实域名的子域，比如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">corp.example.com<br>dev.example.com<br>lab.example.com<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">gitlab.dev.example.com<br>nacos.dev.example.com<br>jenkins.dev.example.com<br></code></pre></td></tr></table></figure>
+
+<p>这比自己拍脑袋造一个 <code>.local</code>、<code>.corp</code>、<code>.internal</code> 更稳。</p>
+<h3 id="chapter-5：安装-dnsmasq"><a href="#chapter-5：安装-dnsmasq" class="headerlink" title="chapter 5：安装 dnsmasq"></a>chapter 5：安装 dnsmasq</h3><h4 id="Debian-Ubuntu"><a href="#Debian-Ubuntu" class="headerlink" title="Debian &#x2F; Ubuntu"></a>Debian &#x2F; Ubuntu</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> apt update<br><span class="hljs-built_in">sudo</span> apt install -y dnsmasq dnsutils<br>dnsmasq --version<br></code></pre></td></tr></table></figure>
+
+<p><code>dnsutils</code> 提供 <code>dig</code>、<code>nslookup</code> 等工具。</p>
+<h4 id="RHEL-CentOS-Stream-Rocky-Linux-AlmaLinux-Fedora"><a href="#RHEL-CentOS-Stream-Rocky-Linux-AlmaLinux-Fedora" class="headerlink" title="RHEL &#x2F; CentOS Stream &#x2F; Rocky Linux &#x2F; AlmaLinux &#x2F; Fedora"></a>RHEL &#x2F; CentOS Stream &#x2F; Rocky Linux &#x2F; AlmaLinux &#x2F; Fedora</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dnf install -y dnsmasq bind-utils<br>dnsmasq --version<br></code></pre></td></tr></table></figure>
+
+<p><code>bind-utils</code> 提供 <code>dig</code>、<code>nslookup</code>、<code>host</code> 等工具。</p>
+<h4 id="OpenWrt"><a href="#OpenWrt" class="headerlink" title="OpenWrt"></a>OpenWrt</h4><p>OpenWrt 默认通常已经安装并启用了 dnsmasq：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">opkg list-installed | grep dnsmasq<br>/etc/init.d/dnsmasq status<br></code></pre></td></tr></table></figure>
+
+<p>如果需要 <code>ipset</code> &#x2F; <code>nftset</code> 等高级能力，可能需要 <code>dnsmasq-full</code>。不过 OpenWrt 上替换 dnsmasq 要谨慎，因为它本身负责<br>DNS&#x2F;DHCP；卸载默认包后，如果新包没装上，路由器可能直接失去解析能力。</p>
+<p>安全做法：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">opkg update<br>opkg download dnsmasq-full<br>opkg remove dnsmasq<br>opkg install ./dnsmasq-full_*.ipk<br>/etc/init.d/dnsmasq restart<br></code></pre></td></tr></table></figure>
+
+<p>如果担心断网，先临时写一个外部 DNS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;nameserver 223.5.5.5&quot;</span> &gt; /tmp/resolv.conf<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-6：配置文件组织方式"><a href="#chapter-6：配置文件组织方式" class="headerlink" title="chapter 6：配置文件组织方式"></a>chapter 6：配置文件组织方式</h3><p>dnsmasq 默认主配置文件通常是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/dnsmasq.conf<br></code></pre></td></tr></table></figure>
+
+<p>推荐不要把所有配置都塞进主文件，而是采用目录拆分：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/dnsmasq.conf<br>/etc/dnsmasq.d/<br>  ├── 00-base.conf<br>  ├── 10-upstream.conf<br>  ├── 20-local-records.conf<br>  ├── 30-dhcp.conf<br>  ├── 40-pxe.conf<br>  └── 90-debug.conf<br></code></pre></td></tr></table></figure>
+
+<p>在 <code>/etc/dnsmasq.conf</code> 中保留一行：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">conf-dir</span>=/etc/dnsmasq.d,*.conf<br></code></pre></td></tr></table></figure>
+
+<p>注意这里的 <code>*.conf</code> 是“只加载 <code>.conf</code> 后缀文件”。这样可以避免误加载临时备份：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">20-local-records.conf.bak<br>20-local-records.conf~<br>.#20-local-records.conf<br></code></pre></td></tr></table></figure>
+
+<p>修改配置后检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dnsmasq --<span class="hljs-built_in">test</span><br></code></pre></td></tr></table></figure>
+
+<p>启动和重启：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl <span class="hljs-built_in">enable</span> --now dnsmasq<br><span class="hljs-built_in">sudo</span> systemctl restart dnsmasq<br><span class="hljs-built_in">sudo</span> systemctl status dnsmasq --no-pager<br></code></pre></td></tr></table></figure>
+
+<p>查看日志：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">journalctl -u dnsmasq -f<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-7：最小可用-DNS-配置"><a href="#chapter-7：最小可用-DNS-配置" class="headerlink" title="chapter 7：最小可用 DNS 配置"></a>chapter 7：最小可用 DNS 配置</h3><p>创建基础配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /etc/dnsmasq.d<br><span class="hljs-built_in">sudo</span> vim /etc/dnsmasq.d/00-base.conf<br></code></pre></td></tr></table></figure>
+
+<p>写入：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-comment"># 只监听指定接口或地址，避免变成公网开放递归 DNS</span><br><span class="hljs-attr">interface</span>=eth0<br><span class="hljs-attr">listen-address</span>=<span class="hljs-number">127.0</span>.<span class="hljs-number">0.1</span>,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.2</span><br><br><span class="hljs-comment"># 如果同一台机器上还有 systemd-resolved、BIND、CoreDNS、Docker DNS 等，建议启用</span><br>bind-interfaces<br><br><span class="hljs-comment"># 基础安全项</span><br>domain-needed<br>bogus-priv<br>stop-dns-rebind<br>local-service<br><br><span class="hljs-comment"># 内网域名，不向上游泄露</span><br><span class="hljs-attr">local</span>=/home.arpa/<br><span class="hljs-attr">domain</span>=home.arpa<br>expand-hosts<br><br><span class="hljs-comment"># 读取额外 hosts</span><br><span class="hljs-attr">addn-hosts</span>=/etc/dnsmasq.hosts<br><br><span class="hljs-comment"># 不使用系统 /etc/resolv.conf 里的 DNS，改用自己指定的上游</span><br>no-resolv<br><br><span class="hljs-comment"># 上游 DNS</span><br><span class="hljs-attr">server</span>=<span class="hljs-number">223.5</span>.<span class="hljs-number">5.5</span><br><span class="hljs-attr">server</span>=<span class="hljs-number">119.29</span>.<span class="hljs-number">29.29</span><br><span class="hljs-attr">server</span>=<span class="hljs-number">1.1</span>.<span class="hljs-number">1.1</span><br><span class="hljs-attr">server</span>=<span class="hljs-number">8.8</span>.<span class="hljs-number">8.8</span><br><br><span class="hljs-comment"># DNS 缓存</span><br><span class="hljs-attr">cache-size</span>=<span class="hljs-number">1000</span><br><br><span class="hljs-comment"># 新版建议保持 1232，除非你非常清楚为什么要改</span><br><span class="hljs-attr">edns-packet-max</span>=<span class="hljs-number">1232</span><br></code></pre></td></tr></table></figure>
+
+<p>创建本地域名记录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> vim /etc/dnsmasq.hosts<br></code></pre></td></tr></table></figure>
+
+<p>写入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.9.10 nas nas.home.arpa<br>192.168.9.20 gitlab gitlab.home.arpa<br>192.168.9.21 jenkins jenkins.home.arpa<br>192.168.9.30 jump jump.home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>检查并重启：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dnsmasq --<span class="hljs-built_in">test</span><br><span class="hljs-built_in">sudo</span> systemctl restart dnsmasq<br></code></pre></td></tr></table></figure>
+
+<p>测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @127.0.0.1 nas.home.arpa +short<br>dig @192.168.9.2 gitlab.home.arpa +short<br>dig @192.168.9.2 www.baidu.com +short<br></code></pre></td></tr></table></figure>
+
+<p>预期：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.9.10<br>192.168.9.20<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-8：几个核心配置项解释"><a href="#chapter-8：几个核心配置项解释" class="headerlink" title="chapter 8：几个核心配置项解释"></a>chapter 8：几个核心配置项解释</h3><h4 id="interface-与-listen-address"><a href="#interface-与-listen-address" class="headerlink" title="interface 与 listen-address"></a><code>interface</code> 与 <code>listen-address</code></h4><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">interface</span>=eth0<br><span class="hljs-attr">listen-address</span>=<span class="hljs-number">127.0</span>.<span class="hljs-number">0.1</span>,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.2</span><br></code></pre></td></tr></table></figure>
+
+<p><code>interface</code> 限制监听网卡，<code>listen-address</code> 限制监听地址。</p>
+<p>如果你只写：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">listen-address</span>=<span class="hljs-number">192.168</span>.<span class="hljs-number">9.2</span><br></code></pre></td></tr></table></figure>
+
+<p>dnsmasq 不一定会自动监听 <code>127.0.0.1</code>，所以本机测试可能失败。建议明确写上：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">listen-address</span>=<span class="hljs-number">127.0</span>.<span class="hljs-number">0.1</span>,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.2</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="bind-interfaces-与-bind-dynamic"><a href="#bind-interfaces-与-bind-dynamic" class="headerlink" title="bind-interfaces 与 bind-dynamic"></a><code>bind-interfaces</code> 与 <code>bind-dynamic</code></h4><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini">bind-interfaces<br></code></pre></td></tr></table></figure>
+
+<p><code>bind-interfaces</code> 会让 dnsmasq 真正绑定到指定接口&#x2F;地址，而不是先绑定通配地址再丢弃不该处理的请求。它常用于：</p>
+<ul>
+<li>同机运行多个 DNS 服务；</li>
+<li>避免和 <code>systemd-resolved</code>、BIND、CoreDNS 冲突；</li>
+<li>容器或虚拟化环境中控制监听范围。</li>
+</ul>
+<p>如果网卡地址会动态变化，可以考虑：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini">bind-dynamic<br></code></pre></td></tr></table></figure>
+
+<p>但它只在 Linux 上完整支持。</p>
+<h4 id="domain-needed"><a href="#domain-needed" class="headerlink" title="domain-needed"></a><code>domain-needed</code></h4><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini">domain-needed<br></code></pre></td></tr></table></figure>
+
+<p>不把没有点号的短名称转发到上游 DNS。例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">nas<br>gitlab<br>jenkins<br></code></pre></td></tr></table></figure>
+
+<p>如果本地没有记录，直接返回不存在，不把这些名字丢给公网 DNS。内网主机名不应该出去裸奔。</p>
+<h4 id="bogus-priv"><a href="#bogus-priv" class="headerlink" title="bogus-priv"></a><code>bogus-priv</code></h4><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini">bogus-priv<br></code></pre></td></tr></table></figure>
+
+<p>对于私有地址的反向解析，如果本地没有记录，不转发给上游 DNS，直接返回不存在。比如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">10.in-addr.arpa<br>168.192.in-addr.arpa<br>16.172.in-addr.arpa ~ 31.172.in-addr.arpa<br></code></pre></td></tr></table></figure>
+
+<h4 id="local-home-arpa"><a href="#local-home-arpa" class="headerlink" title="local=/home.arpa/"></a><code>local=/home.arpa/</code></h4><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">local</span>=/home.arpa/<br></code></pre></td></tr></table></figure>
+
+<p>表示 <code>home.arpa</code> 是本地域，dnsmasq 只从本地 hosts、DHCP 租约、配置记录里回答，不转发到公网 DNS。</p>
+<p>这个配置非常重要。否则你拼错了一个内网域名，可能会把内部命名习惯泄露给上游 DNS。</p>
+<h4 id="no-resolv-与-server"><a href="#no-resolv-与-server" class="headerlink" title="no-resolv 与 server"></a><code>no-resolv</code> 与 <code>server</code></h4><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs ini">no-resolv<br><span class="hljs-attr">server</span>=<span class="hljs-number">223.5</span>.<span class="hljs-number">5.5</span><br><span class="hljs-attr">server</span>=<span class="hljs-number">119.29</span>.<span class="hljs-number">29.29</span><br><span class="hljs-attr">server</span>=<span class="hljs-number">1.1</span>.<span class="hljs-number">1.1</span><br></code></pre></td></tr></table></figure>
+
+<p><code>no-resolv</code> 表示不要读取系统的 <code>/etc/resolv.conf</code>。这样 dnsmasq 的上游 DNS 完全由 <code>server=</code> 控制。</p>
+<p>如果不加 <code>no-resolv</code>，dnsmasq 会继续读取系统 resolver 配置，容易出现环路：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">系统 resolv.conf → 127.0.0.1 → dnsmasq → resolv.conf → 127.0.0.1 → dnsmasq → ...<br></code></pre></td></tr></table></figure>
+
+<p>DNS 环路不是浪漫，是自嗨。</p>
+<h4 id="strict-order-与-all-servers"><a href="#strict-order-与-all-servers" class="headerlink" title="strict-order 与 all-servers"></a><code>strict-order</code> 与 <code>all-servers</code></h4><p>这两个不要随便一起用。</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini">strict-order<br></code></pre></td></tr></table></figure>
+
+<p>严格按配置顺序查询上游 DNS。适合你有明确主备关系：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">server</span>=<span class="hljs-number">192.168</span>.<span class="hljs-number">9.1</span><br><span class="hljs-attr">server</span>=<span class="hljs-number">223.5</span>.<span class="hljs-number">5.5</span><br><span class="hljs-attr">server</span>=<span class="hljs-number">1.1</span>.<span class="hljs-number">1.1</span><br>strict-order<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini">all-servers<br></code></pre></td></tr></table></figure>
+
+<p>同时向所有上游发起查询，谁先回来用谁。适合追求响应速度，但会增加查询量，也会把查询同时发给多个上游，隐私性更差。</p>
+<p>建议：</p>
+<ul>
+<li>稳定优先：<code>strict-order</code></li>
+<li>速度优先：<code>all-servers</code></li>
+<li>普通家庭&#x2F;实验室：默认即可，不一定非要加</li>
+</ul>
+<h4 id="cache-size"><a href="#cache-size" class="headerlink" title="cache-size"></a><code>cache-size</code></h4><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">cache-size</span>=<span class="hljs-number">1000</span><br></code></pre></td></tr></table></figure>
+
+<p>默认缓存较小。内网几十台机器，<code>1000 ~ 5000</code> 通常够用。不要无脑写成 <code>1000000</code>，缓存不是越大越好，太大反而影响性能和内存。</p>
+<p>查看缓存统计：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">kill</span> -USR1 <span class="hljs-string">&quot;<span class="hljs-subst">$(pidof dnsmasq)</span>&quot;</span><br>journalctl -u dnsmasq -n 100<br></code></pre></td></tr></table></figure>
+
+<p>如果开启了 <code>log-queries</code>，也可以观察命中情况。</p>
+<h4 id="edns-packet-max"><a href="#edns-packet-max" class="headerlink" title="edns-packet-max"></a><code>edns-packet-max</code></h4><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">edns-packet-max</span>=<span class="hljs-number">1232</span><br></code></pre></td></tr></table></figure>
+
+<p>新版 dnsmasq 默认已经是 1232。老版本曾经默认 4096，这在 DNS Flag Day 2020 后不再推荐，也曾引出安全问题。除非你非常清楚网络路径<br>MTU 和 EDNS 行为，否则保持 1232。</p>
+<h3 id="chapter-9：本地域名记录怎么写"><a href="#chapter-9：本地域名记录怎么写" class="headerlink" title="chapter 9：本地域名记录怎么写"></a>chapter 9：本地域名记录怎么写</h3><p>dnsmasq 提供很多写法，容易混。实战里常用四种。</p>
+<h4 id="方式一：addn-hosts"><a href="#方式一：addn-hosts" class="headerlink" title="方式一：addn-hosts"></a>方式一：<code>addn-hosts</code></h4><p>适合静态主机名，一行一个 IP 和多个域名。</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">addn-hosts</span>=/etc/dnsmasq.hosts<br></code></pre></td></tr></table></figure>
+
+<p><code>/etc/dnsmasq.hosts</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.9.10 nas nas.home.arpa<br>192.168.9.20 gitlab gitlab.home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>优点：</p>
+<ul>
+<li>简单；</li>
+<li>可读性好；</li>
+<li>和 <code>/etc/hosts</code> 语法一致；</li>
+<li>适合 NAS、GitLab、Jenkins、Nacos、数据库等固定服务。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>不适合泛域名；</li>
+<li>多环境很多记录时不如拆分配置灵活。</li>
+</ul>
+<h4 id="方式二：host-record"><a href="#方式二：host-record" class="headerlink" title="方式二：host-record"></a>方式二：<code>host-record</code></h4><p>适合同时定义 A&#x2F;AAAA&#x2F;PTR 记录。</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">host-record</span>=nas.home.arpa,nas,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.10</span><br><span class="hljs-attr">host-record</span>=gitlab.home.arpa,gitlab,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.20</span><br><span class="hljs-attr">host-record</span>=jenkins.home.arpa,jenkins,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.21</span><br></code></pre></td></tr></table></figure>
+
+<p>优点：</p>
+<ul>
+<li>比 <code>address</code> 更像“真实主机记录”；</li>
+<li>可自动处理 PTR 的语义更清晰；</li>
+<li>支持 TTL。</li>
+</ul>
+<p>例如：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">host-record</span>=nas.home.arpa,nas,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.10</span>,<span class="hljs-number">300</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="方式三：address"><a href="#方式三：address" class="headerlink" title="方式三：address"></a>方式三：<code>address</code></h4><p>适合泛域名、强制劫持、黑洞地址。</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">address</span>=/gitlab.home.arpa/<span class="hljs-number">192.168</span>.<span class="hljs-number">9.20</span><br><span class="hljs-attr">address</span>=/dev.home.arpa/<span class="hljs-number">192.168</span>.<span class="hljs-number">9.20</span><br><span class="hljs-attr">address</span>=/ads.example.com/<span class="hljs-number">0.0</span>.<span class="hljs-number">0.0</span><br><span class="hljs-attr">address</span>=/doubleclick.net/<span class="hljs-number">0.0</span>.<span class="hljs-number">0.0</span><br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">address</span>=/dev.home.arpa/<span class="hljs-number">192.168</span>.<span class="hljs-number">9.20</span><br></code></pre></td></tr></table></figure>
+
+<p>会匹配：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">dev.home.arpa<br>a.dev.home.arpa<br>b.c.dev.home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>它更像“域名规则”，不是单纯主机记录。</p>
+<p>缺点：</p>
+<ul>
+<li>不适合需要完整 PTR 的主机；</li>
+<li>配多了以后容易误伤；</li>
+<li>拿它做广告屏蔽可以，但维护大型规则集更建议用专门工具。</li>
+</ul>
+<h4 id="方式四：ptr-record"><a href="#方式四：ptr-record" class="headerlink" title="方式四：ptr-record"></a>方式四：<code>ptr-record</code></h4><p>适合手工指定反向解析。</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">ptr-record</span>=<span class="hljs-number">10.9</span>.<span class="hljs-number">168.192</span>.in-addr.arpa,nas.home.arpa<br><span class="hljs-attr">ptr-record</span>=<span class="hljs-number">20.9</span>.<span class="hljs-number">168.192</span>.in-addr.arpa,gitlab.home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.2 -x 192.168.9.10 +short<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-10：域名分流：让指定域名走指定-DNS"><a href="#chapter-10：域名分流：让指定域名走指定-DNS" class="headerlink" title="chapter 10：域名分流：让指定域名走指定 DNS"></a>chapter 10：域名分流：让指定域名走指定 DNS</h3><p>这是 dnsmasq 很常用的功能。</p>
+<h4 id="指定-cn-走国内-DNS"><a href="#指定-cn-走国内-DNS" class="headerlink" title="指定 .cn 走国内 DNS"></a>指定 <code>.cn</code> 走国内 DNS</h4><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">server</span>=/cn/<span class="hljs-number">223.5</span>.<span class="hljs-number">5.5</span><br><span class="hljs-attr">server</span>=/cn/<span class="hljs-number">119.29</span>.<span class="hljs-number">29.29</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="指定公司内网域名走-VPN-DNS"><a href="#指定公司内网域名走-VPN-DNS" class="headerlink" title="指定公司内网域名走 VPN DNS"></a>指定公司内网域名走 VPN DNS</h4><p>假设公司内网 DNS 是 <code>10.8.0.53</code>：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">server</span>=/corp.example.com/<span class="hljs-number">10.8</span>.<span class="hljs-number">0.53</span><br><span class="hljs-attr">server</span>=/<span class="hljs-number">10</span>.in-addr.arpa/<span class="hljs-number">10.8</span>.<span class="hljs-number">0.53</span><br></code></pre></td></tr></table></figure>
+
+<p>这样：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.2 gitlab.corp.example.com<br></code></pre></td></tr></table></figure>
+
+<p>会转发给 <code>10.8.0.53</code>。</p>
+<h4 id="指定某个域名不转发"><a href="#指定某个域名不转发" class="headerlink" title="指定某个域名不转发"></a>指定某个域名不转发</h4><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">local</span>=/home.arpa/<br><span class="hljs-attr">server</span>=/home.arpa/<br></code></pre></td></tr></table></figure>
+
+<p><code>local</code> 本身就是 <code>server</code> 的同义语法，表达上更清楚：这是本地域。</p>
+<h4 id="匹配规则注意点"><a href="#匹配规则注意点" class="headerlink" title="匹配规则注意点"></a>匹配规则注意点</h4><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">server</span>=/google.com/<span class="hljs-number">1.1</span>.<span class="hljs-number">1.1</span><br></code></pre></td></tr></table></figure>
+
+<p>会匹配：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">google.com<br>www.google.com<br>mail.google.com<br></code></pre></td></tr></table></figure>
+
+<p>但不会匹配：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">supergoogle.com<br></code></pre></td></tr></table></figure>
+
+<p>如果你写：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">server</span>=/.google.com/<span class="hljs-number">1.1</span>.<span class="hljs-number">1.1</span><br></code></pre></td></tr></table></figure>
+
+<p>历史原因上，它和 <code>/google.com/</code> 基本等价。</p>
+<p>如果你真的想匹配“任意以 google.com 结尾的字符串”，需要用：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">server</span>=/*google.com/<span class="hljs-number">1.1</span>.<span class="hljs-number">1.1</span><br></code></pre></td></tr></table></figure>
+
+<p>但这种写法要非常谨慎，容易误伤。</p>
+<h3 id="chapter-11：客户端如何使用-dnsmasq"><a href="#chapter-11：客户端如何使用-dnsmasq" class="headerlink" title="chapter 11：客户端如何使用 dnsmasq"></a>chapter 11：客户端如何使用 dnsmasq</h3><p>dnsmasq 服务端配好了，不代表客户端会用它。</p>
+<h4 id="临时测试"><a href="#临时测试" class="headerlink" title="临时测试"></a>临时测试</h4><p>Linux&#x2F;macOS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.2 nas.home.arpa +short<br>nslookup nas.home.arpa 192.168.9.2<br></code></pre></td></tr></table></figure>
+
+<h4 id="Linux-临时改-DNS"><a href="#Linux-临时改-DNS" class="headerlink" title="Linux 临时改 DNS"></a>Linux 临时改 DNS</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> vim /etc/resolv.conf<br></code></pre></td></tr></table></figure>
+
+<p>写入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">nameserver 192.168.9.2<br>search home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>但很多系统会自动覆盖 <code>/etc/resolv.conf</code>，所以这通常只适合临时验证。</p>
+<h4 id="NetworkManager"><a href="#NetworkManager" class="headerlink" title="NetworkManager"></a>NetworkManager</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">nmcli con show<br>nmcli con mod <span class="hljs-string">&quot;Wired connection 1&quot;</span> ipv4.dns <span class="hljs-string">&quot;192.168.9.2&quot;</span><br>nmcli con mod <span class="hljs-string">&quot;Wired connection 1&quot;</span> ipv4.ignore-auto-dns <span class="hljs-built_in">yes</span><br>nmcli con down <span class="hljs-string">&quot;Wired connection 1&quot;</span><br>nmcli con up <span class="hljs-string">&quot;Wired connection 1&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">nmcli dev show | grep -i dns<br></code></pre></td></tr></table></figure>
+
+<h4 id="systemd-resolved"><a href="#systemd-resolved" class="headerlink" title="systemd-resolved"></a>systemd-resolved</h4><p>查看状态：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">resolvectl status<br></code></pre></td></tr></table></figure>
+
+<p>给某个网卡设置 DNS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> resolvectl dns eth0 192.168.9.2<br><span class="hljs-built_in">sudo</span> resolvectl domain eth0 home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>如果要持久化，建议通过 Netplan 或 NetworkManager 配置。</p>
+<h4 id="Ubuntu-Netplan"><a href="#Ubuntu-Netplan" class="headerlink" title="Ubuntu Netplan"></a>Ubuntu Netplan</h4><p>示例：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">network:</span><br>  <span class="hljs-attr">version:</span> <span class="hljs-number">2</span><br>  <span class="hljs-attr">ethernets:</span><br>    <span class="hljs-attr">ens160:</span><br>      <span class="hljs-attr">dhcp4:</span> <span class="hljs-literal">true</span><br>      <span class="hljs-attr">dhcp4-overrides:</span><br>        <span class="hljs-attr">use-dns:</span> <span class="hljs-literal">false</span><br>      <span class="hljs-attr">nameservers:</span><br>        <span class="hljs-attr">addresses:</span><br>          <span class="hljs-bullet">-</span> <span class="hljs-number">192.168</span><span class="hljs-number">.9</span><span class="hljs-number">.2</span><br>        <span class="hljs-attr">search:</span><br>          <span class="hljs-bullet">-</span> <span class="hljs-string">home.arpa</span><br></code></pre></td></tr></table></figure>
+
+<p>应用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> netplan apply<br></code></pre></td></tr></table></figure>
+
+<h4 id="macOS"><a href="#macOS" class="headerlink" title="macOS"></a>macOS</h4><p>查看 DNS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">scutil --dns<br></code></pre></td></tr></table></figure>
+
+<p>设置 DNS 可以在系统设置中配置，也可以命令行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">networksetup -setdnsservers <span class="hljs-string">&quot;Wi-Fi&quot;</span> 192.168.9.2<br>networksetup -setsearchdomains <span class="hljs-string">&quot;Wi-Fi&quot;</span> home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>恢复自动 DNS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">networksetup -setdnsservers <span class="hljs-string">&quot;Wi-Fi&quot;</span> Empty<br></code></pre></td></tr></table></figure>
+
+<h4 id="最推荐方式：通过-DHCP-下发-DNS"><a href="#最推荐方式：通过-DHCP-下发-DNS" class="headerlink" title="最推荐方式：通过 DHCP 下发 DNS"></a>最推荐方式：通过 DHCP 下发 DNS</h4><p>如果 dnsmasq 同时做 DHCP，那直接通过 DHCP 下发：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">dhcp-option</span>=option:dns-server,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.2</span><br><span class="hljs-attr">dhcp-option</span>=option:domain-search,home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>这样客户端不用逐台配置。</p>
+<h3 id="chapter-12：Ubuntu-Fedora-上的-53-端口冲突"><a href="#chapter-12：Ubuntu-Fedora-上的-53-端口冲突" class="headerlink" title="chapter 12：Ubuntu&#x2F;Fedora 上的 53 端口冲突"></a>chapter 12：Ubuntu&#x2F;Fedora 上的 53 端口冲突</h3><p>这是新版 Linux 最常见的坑。</p>
+<p>Ubuntu 默认可能有：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemd-resolved<br></code></pre></td></tr></table></figure>
+
+<p>它通常监听：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">127.0.0.53:53<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">ss -lntup | grep <span class="hljs-string">&#x27;:53&#x27;</span><br>ss -lnup  | grep <span class="hljs-string">&#x27;:53&#x27;</span><br>resolvectl status<br></code></pre></td></tr></table></figure>
+
+<h4 id="方案一：dnsmasq-只监听局域网-IP"><a href="#方案一：dnsmasq-只监听局域网-IP" class="headerlink" title="方案一：dnsmasq 只监听局域网 IP"></a>方案一：dnsmasq 只监听局域网 IP</h4><p>如果 dnsmasq 只给局域网提供 DNS，不一定要占用 <code>127.0.0.53</code>。</p>
+<p>配置：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">interface</span>=eth0<br><span class="hljs-attr">listen-address</span>=<span class="hljs-number">192.168</span>.<span class="hljs-number">9.2</span><br>bind-interfaces<br></code></pre></td></tr></table></figure>
+
+<p>这样经常可以和 <code>systemd-resolved</code> 共存。</p>
+<h4 id="方案二：关闭-systemd-resolved-的-stub-listener"><a href="#方案二：关闭-systemd-resolved-的-stub-listener" class="headerlink" title="方案二：关闭 systemd-resolved 的 stub listener"></a>方案二：关闭 systemd-resolved 的 stub listener</h4><p>如果你希望 dnsmasq 监听本机 <code>127.0.0.1:53</code>，或者监听所有地址 <code>0.0.0.0:53</code>，就需要处理冲突。</p>
+<p>创建配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /etc/systemd/resolved.conf.d<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">tee</span> /etc/systemd/resolved.conf.d/no-stub.conf &gt;/dev/null &lt;&lt;<span class="hljs-string">&#x27;EOF&#x27;</span><br>[Resolve]<br>DNSStubListener=no<br>EOF<br></code></pre></td></tr></table></figure>
+
+<p>重建 <code>/etc/resolv.conf</code> 链接：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">rm</span> -f /etc/resolv.conf<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">ln</span> -s /run/systemd/resolve/resolv.conf /etc/resolv.conf<br><span class="hljs-built_in">sudo</span> systemctl restart systemd-resolved<br></code></pre></td></tr></table></figure>
+
+<p>然后重启 dnsmasq：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl restart dnsmasq<br></code></pre></td></tr></table></figure>
+
+<h4 id="不建议直接禁用-systemd-resolved-的情况"><a href="#不建议直接禁用-systemd-resolved-的情况" class="headerlink" title="不建议直接禁用 systemd-resolved 的情况"></a>不建议直接禁用 systemd-resolved 的情况</h4><p>很多文章会让你：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl <span class="hljs-built_in">disable</span> --now systemd-resolved<br></code></pre></td></tr></table></figure>
+
+<p>这不是绝对不能用，但要谨慎。原因：</p>
+<ul>
+<li>VPN 可能依赖它做 split DNS；</li>
+<li>Netplan&#x2F;桌面网络管理可能会受影响；</li>
+<li>禁用后你要自己维护 <code>/etc/resolv.conf</code>；</li>
+<li>服务挂了以后宿主机可能无法解析域名。</li>
+</ul>
+<p>更稳的做法是关闭 stub listener，而不是直接把整个服务扬了。粗暴能解决问题，但容易把下一个问题请进门。</p>
+<h3 id="chapter-13：使用-dnsmasq-提供-DHCP"><a href="#chapter-13：使用-dnsmasq-提供-DHCP" class="headerlink" title="chapter 13：使用 dnsmasq 提供 DHCP"></a>chapter 13：使用 dnsmasq 提供 DHCP</h3><p>如果你的路由器已经提供 DHCP，就不要再随便开第二个 DHCP。一个网段两个 DHCP，客户端会像抽盲盒一样拿配置，运气好叫“高可用”，运气差叫“全网事故”。</p>
+<p>启用 DHCP 示例：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-comment"># /etc/dnsmasq.d/30-dhcp.conf</span><br><br><span class="hljs-attr">interface</span>=eth0<br>bind-interfaces<br><br><span class="hljs-comment"># DHCP 地址池</span><br><span class="hljs-attr">dhcp-range</span>=<span class="hljs-number">192.168</span>.<span class="hljs-number">9.100</span>,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.199</span>,<span class="hljs-number">255.255</span>.<span class="hljs-number">255.0</span>,<span class="hljs-number">12</span>h<br><br><span class="hljs-comment"># 网关</span><br><span class="hljs-attr">dhcp-option</span>=option:router,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.1</span><br><br><span class="hljs-comment"># DNS 服务器</span><br><span class="hljs-attr">dhcp-option</span>=option:dns-server,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.2</span><br><br><span class="hljs-comment"># 搜索域</span><br><span class="hljs-attr">dhcp-option</span>=option:domain-search,home.arpa<br><br><span class="hljs-comment"># 声明本 DHCP 对当前网段权威，适合你确认没有其他 DHCP 的场景</span><br>dhcp-authoritative<br><br><span class="hljs-comment"># 静态地址绑定：MAC, 主机名, IP, 租期</span><br><span class="hljs-attr">dhcp-host</span>=AA:BB:CC:DD:EE:<span class="hljs-number">01</span>,nas,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.10</span>,infinite<br><span class="hljs-attr">dhcp-host</span>=AA:BB:CC:DD:EE:<span class="hljs-number">02</span>,gitlab,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.20</span>,infinite<br><span class="hljs-attr">dhcp-host</span>=AA:BB:CC:DD:EE:<span class="hljs-number">03</span>,jenkins,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.21</span>,infinite<br></code></pre></td></tr></table></figure>
+
+<p>重启：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dnsmasq --<span class="hljs-built_in">test</span><br><span class="hljs-built_in">sudo</span> systemctl restart dnsmasq<br></code></pre></td></tr></table></figure>
+
+<p>查看租约：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /var/lib/misc/dnsmasq.leases<br></code></pre></td></tr></table></figure>
+
+<p>不同发行版 lease 文件位置可能不同，也可能在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">/var/lib/dnsmasq/dnsmasq.leases<br>/tmp/dhcp.leases<br></code></pre></td></tr></table></figure>
+
+<h4 id="DHCP-分配的主机会自动进入-DNS"><a href="#DHCP-分配的主机会自动进入-DNS" class="headerlink" title="DHCP 分配的主机会自动进入 DNS"></a>DHCP 分配的主机会自动进入 DNS</h4><p>如果配置了：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">domain</span>=home.arpa<br>expand-hosts<br></code></pre></td></tr></table></figure>
+
+<p>并且 DHCP 客户端上报 hostname，例如 <code>workstation01</code>，那么 dnsmasq 可以解析：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">workstation01<br>workstation01.home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>这就是 dnsmasq 比单独维护 <code>/etc/hosts</code> 更舒服的地方。</p>
+<h3 id="chapter-14：DHCP-多网段与标签"><a href="#chapter-14：DHCP-多网段与标签" class="headerlink" title="chapter 14：DHCP 多网段与标签"></a>chapter 14：DHCP 多网段与标签</h3><p>dnsmasq 支持多个 DHCP range：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">dhcp-range</span>=set:<span class="hljs-literal">off</span>ice,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.100</span>,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.199</span>,<span class="hljs-number">255.255</span>.<span class="hljs-number">255.0</span>,<span class="hljs-number">12</span>h<br><span class="hljs-attr">dhcp-range</span>=set:lab,<span class="hljs-number">192.168</span>.<span class="hljs-number">8.100</span>,<span class="hljs-number">192.168</span>.<span class="hljs-number">8.199</span>,<span class="hljs-number">255.255</span>.<span class="hljs-number">255.0</span>,<span class="hljs-number">12</span>h<br></code></pre></td></tr></table></figure>
+
+<p>给不同网段下发不同网关：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">dhcp-option</span>=tag:<span class="hljs-literal">off</span>ice,option:router,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.1</span><br><span class="hljs-attr">dhcp-option</span>=tag:lab,option:router,<span class="hljs-number">192.168</span>.<span class="hljs-number">8.1</span><br></code></pre></td></tr></table></figure>
+
+<p>给不同设备下发不同配置：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">dhcp-host</span>=set:printer,AA:BB:CC:DD:EE:<span class="hljs-number">10</span>,printer01,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.50</span>,infinite<br><span class="hljs-attr">dhcp-option</span>=tag:printer,option:dns-server,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.2</span><br></code></pre></td></tr></table></figure>
+
+<p>基于 MAC 厂商匹配：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">dhcp-mac</span>=set:apple,DC:A6:<span class="hljs-number">32</span>:*:*:*<br><span class="hljs-attr">dhcp-option</span>=tag:apple,option:domain-search,home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>这个能力适合小规模网络。如果你要做复杂 IPAM、审批、审计、租约报表，那还是上专门的 DHCP&#x2F;IPAM 系统。</p>
+<h3 id="chapter-15：PXE-TFTP-网络启动"><a href="#chapter-15：PXE-TFTP-网络启动" class="headerlink" title="chapter 15：PXE &#x2F; TFTP 网络启动"></a>chapter 15：PXE &#x2F; TFTP 网络启动</h3><p>dnsmasq 内置 TFTP 和 PXE 支持，很适合实验室自动装机。</p>
+<p>基础配置：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-comment"># /etc/dnsmasq.d/40-pxe.conf</span><br><br><span class="hljs-attr">interface</span>=eth0<br>bind-interfaces<br><br><span class="hljs-attr">dhcp-range</span>=<span class="hljs-number">192.168</span>.<span class="hljs-number">9.100</span>,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.199</span>,<span class="hljs-number">255.255</span>.<span class="hljs-number">255.0</span>,<span class="hljs-number">12</span>h<br><span class="hljs-attr">dhcp-option</span>=option:router,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.1</span><br><span class="hljs-attr">dhcp-option</span>=option:dns-server,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.2</span><br><br>enable-tftp<br><span class="hljs-attr">tftp-root</span>=/srv/tftp<br>tftp-secure<br><br><span class="hljs-comment"># BIOS PXE</span><br><span class="hljs-attr">dhcp-boot</span>=pxelinux.<span class="hljs-number">0</span><br></code></pre></td></tr></table></figure>
+
+<p>创建目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /srv/tftp<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chown</span> -R dnsmasq:dnsmasq /srv/tftp || <span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>RHEL&#x2F;Rocky&#x2F;AlmaLinux 如果启用了 SELinux：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> semanage fcontext -a -t tftpdir_t <span class="hljs-string">&quot;/srv/tftp(/.*)?&quot;</span><br><span class="hljs-built_in">sudo</span> restorecon -Rv /srv/tftp<br></code></pre></td></tr></table></figure>
+
+<p>如果没有 <code>semanage</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dnf install -y policycoreutils-python-utils<br></code></pre></td></tr></table></figure>
+
+<p>UEFI 启动通常需要不同文件，例如：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">dhcp-match</span>=set:efi-x<span class="hljs-number">86_64</span>,option:client-arch,<span class="hljs-number">7</span><br><span class="hljs-attr">dhcp-boot</span>=tag:efi-x<span class="hljs-number">86_64</span>,efi/BOOTX64.EFI<br><span class="hljs-attr">dhcp-boot</span>=tag:!efi-x<span class="hljs-number">86_64</span>,pxelinux.<span class="hljs-number">0</span><br></code></pre></td></tr></table></figure>
+
+<p>更完整的 iPXE 方式：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-comment"># iPXE 客户端已经启动后，给它脚本</span><br><span class="hljs-attr">dhcp-userclass</span>=set:ipxe,iPXE<br><span class="hljs-attr">dhcp-boot</span>=tag:ipxe,http://<span class="hljs-number">192.168</span>.<span class="hljs-number">9.2</span>/boot.ipxe<br><br><span class="hljs-comment"># 普通 PXE 客户端先引导到 iPXE</span><br><span class="hljs-attr">dhcp-match</span>=set:efi-x<span class="hljs-number">86_64</span>,option:client-arch,<span class="hljs-number">7</span><br><span class="hljs-attr">dhcp-boot</span>=tag:efi-x<span class="hljs-number">86_64</span>,ipxe/snponly.efi<br><span class="hljs-attr">dhcp-boot</span>=tag:!efi-x<span class="hljs-number">86_64</span>,ipxe/undionly.kpxe<br></code></pre></td></tr></table></figure>
+
+<p>示例 <code>boot.ipxe</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">#!ipxe<br>dhcp<br>set base-url http://192.168.9.2/images/ubuntu<br>kernel $&#123;base-url&#125;/vmlinuz ip=dhcp url=$&#123;base-url&#125;/ubuntu.iso<br>initrd $&#123;base-url&#125;/initrd<br>boot<br></code></pre></td></tr></table></figure>
+
+<p>注意：PXE 涉及 DHCP、TFTP、HTTP、启动固件，排障时要分层：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">journalctl -u dnsmasq -f<br>tcpdump -i eth0 -nn port 67 or port 68 or port 69<br>tftp 192.168.9.2 -c get pxelinux.0<br>curl -I http://192.168.9.2/boot.ipxe<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-16：OpenWrt-上的-dnsmasq"><a href="#chapter-16：OpenWrt-上的-dnsmasq" class="headerlink" title="chapter 16：OpenWrt 上的 dnsmasq"></a>chapter 16：OpenWrt 上的 dnsmasq</h3><p>OpenWrt 的 dnsmasq 配置不完全等于普通 Linux，因为它有 UCI 配置系统。常见文件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/config/dhcp<br>/etc/dnsmasq.conf<br>/etc/dnsmasq.d/<br>/tmp/resolv.conf.d/resolv.conf.auto<br>/tmp/dhcp.leases<br></code></pre></td></tr></table></figure>
+
+<p>OpenWrt 常用 UCI 配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">uci show dhcp.@dnsmasq[0]<br></code></pre></td></tr></table></figure>
+
+<p>设置本地域：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">uci <span class="hljs-built_in">set</span> dhcp.@dnsmasq[0].domain=<span class="hljs-string">&#x27;home.arpa&#x27;</span><br>uci <span class="hljs-built_in">set</span> dhcp.@dnsmasq[0].<span class="hljs-built_in">local</span>=<span class="hljs-string">&#x27;/home.arpa/&#x27;</span><br>uci <span class="hljs-built_in">set</span> dhcp.@dnsmasq[0].expandhosts=<span class="hljs-string">&#x27;1&#x27;</span><br>uci commit dhcp<br>/etc/init.d/dnsmasq restart<br></code></pre></td></tr></table></figure>
+
+<p>设置缓存：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">uci <span class="hljs-built_in">set</span> dhcp.@dnsmasq[0].cachesize=<span class="hljs-string">&#x27;1000&#x27;</span><br>uci commit dhcp<br>/etc/init.d/dnsmasq restart<br></code></pre></td></tr></table></figure>
+
+<p>添加额外配置目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">uci <span class="hljs-built_in">set</span> dhcp.@dnsmasq[0].confdir=<span class="hljs-string">&#x27;/etc/dnsmasq.d&#x27;</span><br>uci commit dhcp<br><span class="hljs-built_in">mkdir</span> -p /etc/dnsmasq.d<br>/etc/init.d/dnsmasq restart<br></code></pre></td></tr></table></figure>
+
+<p>添加自定义域名：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> &gt;/etc/dnsmasq.d/20-local.conf &lt;&lt;<span class="hljs-string">&#x27;EOF&#x27;</span><br>host-record=nas.home.arpa,nas,192.168.9.10<br>host-record=gitlab.home.arpa,gitlab,192.168.9.20<br>server=/corp.example.com/10.8.0.53<br>address=/dev.home.arpa/192.168.9.20<br>EOF<br><br>/etc/init.d/dnsmasq restart<br></code></pre></td></tr></table></figure>
+
+<h4 id="dnsmasq-full、ipset-与-nftset"><a href="#dnsmasq-full、ipset-与-nftset" class="headerlink" title="dnsmasq-full、ipset 与 nftset"></a>dnsmasq-full、ipset 与 nftset</h4><p>老教程里常见：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">ipset</span>=/example.com/saveresult<br></code></pre></td></tr></table></figure>
+
+<p>这是为了把域名解析结果写入 ipset，再交给 iptables 做策略路由或访问控制。</p>
+<p>但新版 OpenWrt、nftables 生态里，很多场景开始转向 <code>nftset</code>。所以你要先确认当前 dnsmasq 编译能力：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dnsmasq --version<br></code></pre></td></tr></table></figure>
+
+<p>观察输出里是否有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">ipset<br>nftset<br></code></pre></td></tr></table></figure>
+
+<p>如果没有对应能力，配置写了也没用，甚至可能启动失败。</p>
+<p>示例 nftset 思路：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">nftset</span>=/github.com/<span class="hljs-number">4</span><span class="hljs-comment">#inet#fw4#github4</span><br><span class="hljs-attr">nftset</span>=/github.com/<span class="hljs-number">6</span><span class="hljs-comment">#inet#fw4#github6</span><br></code></pre></td></tr></table></figure>
+
+<p>然后在 nftables&#x2F;firewall 里使用这些 set 做路由或放行。不同 OpenWrt 版本、firewall4<br>配置差异较大，生产前一定要先在测试环境验证。路由器不是练胆子的地方，尤其是远程改防火墙的时候。</p>
+<h3 id="chapter-17：安全加固"><a href="#chapter-17：安全加固" class="headerlink" title="chapter 17：安全加固"></a>chapter 17：安全加固</h3><p>dnsmasq 一旦开放给公网，就可能变成 DNS 放大攻击工具。所以安全配置不是可选项。</p>
+<h4 id="只监听内网地址"><a href="#只监听内网地址" class="headerlink" title="只监听内网地址"></a>只监听内网地址</h4><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">interface</span>=eth0<br><span class="hljs-attr">listen-address</span>=<span class="hljs-number">127.0</span>.<span class="hljs-number">0.1</span>,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.2</span><br>bind-interfaces<br></code></pre></td></tr></table></figure>
+
+<p>不要无脑监听：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">listen-address</span>=<span class="hljs-number">0.0</span>.<span class="hljs-number">0.0</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="限制只服务本地网络"><a href="#限制只服务本地网络" class="headerlink" title="限制只服务本地网络"></a>限制只服务本地网络</h4><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini">local-service<br></code></pre></td></tr></table></figure>
+
+<p>如果你已经显式写了 <code>interface</code> &#x2F; <code>listen-address</code>，也不要因此忽视防火墙。</p>
+<h4 id="防止内网域名泄露"><a href="#防止内网域名泄露" class="headerlink" title="防止内网域名泄露"></a>防止内网域名泄露</h4><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs ini">domain-needed<br>bogus-priv<br><span class="hljs-attr">local</span>=/home.arpa/<br></code></pre></td></tr></table></figure>
+
+<h4 id="防-DNS-Rebinding"><a href="#防-DNS-Rebinding" class="headerlink" title="防 DNS Rebinding"></a>防 DNS Rebinding</h4><figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini">stop-dns-rebind<br></code></pre></td></tr></table></figure>
+
+<p>如果你确实需要某些域名返回私网地址，例如公司 VPN 域名：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">rebind-domain-ok</span>=/corp.example.com/<br></code></pre></td></tr></table></figure>
+
+<p>不要直接全局关闭 rebind 防护。</p>
+<h4 id="控制日志"><a href="#控制日志" class="headerlink" title="控制日志"></a>控制日志</h4><p>调试时：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini">log-queries<br><span class="hljs-attr">log-facility</span>=/var/log/dnsmasq.log<br></code></pre></td></tr></table></figure>
+
+<p>生产中谨慎开启 <code>log-queries</code>，因为它会记录大量访问域名，既影响性能，也涉及隐私。</p>
+<p>推荐生产：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">log-async</span>=<span class="hljs-number">25</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="防火墙"><a href="#防火墙" class="headerlink" title="防火墙"></a>防火墙</h4><p>RHEL&#x2F;Rocky&#x2F;AlmaLinux：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> firewall-cmd --permanent --add-rich-rule=<span class="hljs-string">&#x27;rule family=&quot;ipv4&quot; source address=&quot;192.168.9.0/24&quot; service name=&quot;dns&quot; accept&#x27;</span><br><span class="hljs-built_in">sudo</span> firewall-cmd --reload<br></code></pre></td></tr></table></figure>
+
+<p>如果启用 DHCP：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> firewall-cmd --permanent --add-service=dhcp<br><span class="hljs-built_in">sudo</span> firewall-cmd --reload<br></code></pre></td></tr></table></figure>
+
+<p>如果启用 TFTP：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> firewall-cmd --permanent --add-service=tftp<br><span class="hljs-built_in">sudo</span> firewall-cmd --reload<br></code></pre></td></tr></table></figure>
+
+<p>Ubuntu UFW：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> ufw allow <span class="hljs-keyword">in</span> on eth0 from 192.168.9.0/24 to any port 53 proto udp<br><span class="hljs-built_in">sudo</span> ufw allow <span class="hljs-keyword">in</span> on eth0 from 192.168.9.0/24 to any port 53 proto tcp<br><span class="hljs-built_in">sudo</span> ufw allow <span class="hljs-keyword">in</span> on eth0 from 192.168.9.0/24 to any port 67 proto udp<br><span class="hljs-built_in">sudo</span> ufw allow <span class="hljs-keyword">in</span> on eth0 from 192.168.9.0/24 to any port 69 proto udp<br></code></pre></td></tr></table></figure>
+
+<h4 id="版本安全"><a href="#版本安全" class="headerlink" title="版本安全"></a>版本安全</h4><p>查看版本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dnsmasq --version<br></code></pre></td></tr></table></figure>
+
+<p>建议：</p>
+<ul>
+<li>优先使用发行版安全仓库里的 dnsmasq；</li>
+<li>不要盲目源码编译覆盖系统包；</li>
+<li>关注发行版安全公告；</li>
+<li>老版本尤其要注意 EDNS.0 UDP packet size、DNSSEC 相关 CVE；</li>
+<li>OpenWrt 上注意 <code>dnsmasq</code> &#x2F; <code>dnsmasq-full</code> 的编译选项，不同固件差异明显。</li>
+</ul>
+<h3 id="chapter-18：DNSSEC-怎么看"><a href="#chapter-18：DNSSEC-怎么看" class="headerlink" title="chapter 18：DNSSEC 怎么看"></a>chapter 18：DNSSEC 怎么看</h3><p>dnsmasq 可以做 DNSSEC validation，但前提是编译时启用了 DNSSEC 支持，并且配置了 trust anchor。</p>
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dnsmasq --version | grep -i dnssec<br></code></pre></td></tr></table></figure>
+
+<p>配置示例：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini">dnssec<br><span class="hljs-attr">trust-anchor</span>=.,<span class="hljs-number">20326</span>,<span class="hljs-number">8</span>,<span class="hljs-number">2</span>,E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D<br></code></pre></td></tr></table></figure>
+
+<p>不过实战建议：</p>
+<ul>
+<li>家庭&#x2F;实验室一般不必一上来就启用 DNSSEC；</li>
+<li>如果上游已经是可信 validating resolver，可以先简化；</li>
+<li>如果你启用 dnsmasq DNSSEC，必须确保系统时间准确；</li>
+<li>DNSSEC 会增加查询和缓存复杂度；</li>
+<li>出问题时 <code>SERVFAIL</code> 会明显增多，要能排查。</li>
+</ul>
+<p>可以测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.2 dnssec-failed.org<br>dig @192.168.9.2 cloudflare.com +dnssec<br></code></pre></td></tr></table></figure>
+
+<p>如果你只是想“内网域名解析稳定”，先不要把 DNSSEC 当第一优先级。先让车能开，再装氮气加速。</p>
+<h3 id="chapter-19：完整推荐配置"><a href="#chapter-19：完整推荐配置" class="headerlink" title="chapter 19：完整推荐配置"></a>chapter 19：完整推荐配置</h3><p>下面给一个较完整的内网 DNS + DHCP 配置。</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-comment"># /etc/dnsmasq.d/00-lab.conf</span><br><br><span class="hljs-comment">########################################</span><br><span class="hljs-comment"># 1. 监听范围</span><br><span class="hljs-comment">########################################</span><br><span class="hljs-attr">interface</span>=eth0<br><span class="hljs-attr">listen-address</span>=<span class="hljs-number">127.0</span>.<span class="hljs-number">0.1</span>,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.2</span><br>bind-interfaces<br>local-service<br><br><span class="hljs-comment">########################################</span><br><span class="hljs-comment"># 2. 基础安全</span><br><span class="hljs-comment">########################################</span><br>domain-needed<br>bogus-priv<br>stop-dns-rebind<br>dns-loop-detect<br><br><span class="hljs-comment">########################################</span><br><span class="hljs-comment"># 3. 本地域</span><br><span class="hljs-comment">########################################</span><br><span class="hljs-attr">local</span>=/home.arpa/<br><span class="hljs-attr">domain</span>=home.arpa<br>expand-hosts<br><span class="hljs-attr">addn-hosts</span>=/etc/dnsmasq.hosts<br><br><span class="hljs-comment">########################################</span><br><span class="hljs-comment"># 4. 上游 DNS</span><br><span class="hljs-comment">########################################</span><br>no-resolv<br><span class="hljs-attr">server</span>=<span class="hljs-number">223.5</span>.<span class="hljs-number">5.5</span><br><span class="hljs-attr">server</span>=<span class="hljs-number">119.29</span>.<span class="hljs-number">29.29</span><br><span class="hljs-attr">server</span>=<span class="hljs-number">1.1</span>.<span class="hljs-number">1.1</span><br><br><span class="hljs-comment"># 公司 VPN 域名</span><br><span class="hljs-attr">server</span>=/corp.example.com/<span class="hljs-number">10.8</span>.<span class="hljs-number">0.53</span><br><span class="hljs-attr">server</span>=/<span class="hljs-number">10</span>.in-addr.arpa/<span class="hljs-number">10.8</span>.<span class="hljs-number">0.53</span><br><br><span class="hljs-comment">########################################</span><br><span class="hljs-comment"># 5. 缓存与 EDNS</span><br><span class="hljs-comment">########################################</span><br><span class="hljs-attr">cache-size</span>=<span class="hljs-number">2000</span><br><span class="hljs-attr">edns-packet-max</span>=<span class="hljs-number">1232</span><br><br><span class="hljs-comment">########################################</span><br><span class="hljs-comment"># 6. DHCP</span><br><span class="hljs-comment">########################################</span><br><span class="hljs-attr">dhcp-range</span>=<span class="hljs-number">192.168</span>.<span class="hljs-number">9.100</span>,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.199</span>,<span class="hljs-number">255.255</span>.<span class="hljs-number">255.0</span>,<span class="hljs-number">12</span>h<br><span class="hljs-attr">dhcp-option</span>=option:router,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.1</span><br><span class="hljs-attr">dhcp-option</span>=option:dns-server,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.2</span><br><span class="hljs-attr">dhcp-option</span>=option:domain-search,home.arpa<br>dhcp-authoritative<br><br><span class="hljs-comment"># 静态租约</span><br><span class="hljs-attr">dhcp-host</span>=AA:BB:CC:DD:EE:<span class="hljs-number">01</span>,nas,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.10</span>,infinite<br><span class="hljs-attr">dhcp-host</span>=AA:BB:CC:DD:EE:<span class="hljs-number">02</span>,gitlab,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.20</span>,infinite<br><span class="hljs-attr">dhcp-host</span>=AA:BB:CC:DD:EE:<span class="hljs-number">03</span>,jenkins,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.21</span>,infinite<br><br><span class="hljs-comment">########################################</span><br><span class="hljs-comment"># 7. 日志</span><br><span class="hljs-comment">########################################</span><br><span class="hljs-attr">log-async</span>=<span class="hljs-number">25</span><br><span class="hljs-comment"># 调试时再打开</span><br><span class="hljs-comment"># log-queries</span><br><span class="hljs-comment"># log-facility=/var/log/dnsmasq.log</span><br></code></pre></td></tr></table></figure>
+
+<p><code>/etc/dnsmasq.hosts</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.9.10 nas nas.home.arpa<br>192.168.9.20 gitlab gitlab.home.arpa<br>192.168.9.21 jenkins jenkins.home.arpa<br>192.168.9.30 jump jump.home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dnsmasq --<span class="hljs-built_in">test</span><br><span class="hljs-built_in">sudo</span> systemctl restart dnsmasq<br><br>dig @127.0.0.1 nas.home.arpa +short<br>dig @192.168.9.2 gitlab.home.arpa +short<br>dig @192.168.9.2 www.baidu.com +short<br>dig @192.168.9.2 -x 192.168.9.10 +short<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-20：排障手册"><a href="#chapter-20：排障手册" class="headerlink" title="chapter 20：排障手册"></a>chapter 20：排障手册</h3><h4 id="1-dnsmasq-启动失败"><a href="#1-dnsmasq-启动失败" class="headerlink" title="1. dnsmasq 启动失败"></a>1. dnsmasq 启动失败</h4><p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status dnsmasq --no-pager<br>journalctl -u dnsmasq -n 100 --no-pager<br><span class="hljs-built_in">sudo</span> dnsmasq --<span class="hljs-built_in">test</span><br></code></pre></td></tr></table></figure>
+
+<p>常见原因：</p>
+<ul>
+<li>配置项拼写错误；</li>
+<li><code>conf-dir</code> 指向不存在目录；</li>
+<li>同一个配置项重复定义；</li>
+<li>53 端口冲突；</li>
+<li>DHCP 地址池和网卡网段不匹配；</li>
+<li>TFTP root 不存在；</li>
+<li>SELinux 拦截。</li>
+</ul>
+<h4 id="2-53-端口被占用"><a href="#2-53-端口被占用" class="headerlink" title="2. 53 端口被占用"></a>2. 53 端口被占用</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> ss -lntup | grep <span class="hljs-string">&#x27;:53&#x27;</span><br><span class="hljs-built_in">sudo</span> ss -lnup  | grep <span class="hljs-string">&#x27;:53&#x27;</span><br><span class="hljs-built_in">sudo</span> lsof -i :53<br></code></pre></td></tr></table></figure>
+
+<p>可能占用者：</p>
+<ul>
+<li><code>systemd-resolved</code></li>
+<li><code>named</code></li>
+<li><code>coredns</code></li>
+<li><code>dnsmasq</code></li>
+<li><code>NetworkManager</code> 启动的内置 dnsmasq</li>
+<li>Docker &#x2F; Kubernetes 相关 DNS 组件</li>
+<li>Pi-hole &#x2F; AdGuard Home</li>
+</ul>
+<h4 id="3-本机能解析，客户端不能解析"><a href="#3-本机能解析，客户端不能解析" class="headerlink" title="3. 本机能解析，客户端不能解析"></a>3. 本机能解析，客户端不能解析</h4><p>检查服务端是否监听 LAN IP：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">ss -lntup | grep <span class="hljs-string">&#x27;:53&#x27;</span><br>ss -lnup  | grep <span class="hljs-string">&#x27;:53&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>检查防火墙：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> firewall-cmd --list-all<br><span class="hljs-built_in">sudo</span> ufw status<br></code></pre></td></tr></table></figure>
+
+<p>客户端直接指定 DNS 测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.2 nas.home.arpa +short<br></code></pre></td></tr></table></figure>
+
+<p>如果这个成功，但普通访问失败，说明客户端没有把 <code>192.168.9.2</code> 当 DNS。</p>
+<h4 id="4-dig-成功，浏览器失败"><a href="#4-dig-成功，浏览器失败" class="headerlink" title="4. dig 成功，浏览器失败"></a>4. <code>dig</code> 成功，浏览器失败</h4><p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/nsswitch.conf<br><span class="hljs-built_in">cat</span> /etc/resolv.conf<br>resolvectl status<br></code></pre></td></tr></table></figure>
+
+<p>可能原因：</p>
+<ul>
+<li>浏览器开启了 DoH；</li>
+<li>系统走了 mDNS；</li>
+<li><code>/etc/hosts</code> 覆盖；</li>
+<li>VPN 改写了 DNS；</li>
+<li>NetworkManager&#x2F;resolved 没刷新。</li>
+</ul>
+<p>Chrome&#x2F;Edge&#x2F;Firefox 都可能启用“安全 DNS &#x2F; DNS over HTTPS”，这会绕过你的内网 DNS。内网解析要稳定，浏览器 DoH 也要纳入治理。</p>
+<h4 id="5-local-解析异常"><a href="#5-local-解析异常" class="headerlink" title="5. .local 解析异常"></a>5. <code>.local</code> 解析异常</h4><p>不要用 <code>.local</code> 做传统内网 DNS。它经常被 mDNS 接管。</p>
+<p>把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">nas.local<br>gitlab.local<br></code></pre></td></tr></table></figure>
+
+<p>改成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">nas.home.arpa<br>gitlab.home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>或者公司真实子域：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">nas.dev.example.com<br>gitlab.dev.example.com<br></code></pre></td></tr></table></figure>
+
+<h4 id="6-外网能解析，内网域名不能解析"><a href="#6-外网能解析，内网域名不能解析" class="headerlink" title="6. 外网能解析，内网域名不能解析"></a>6. 外网能解析，内网域名不能解析</h4><p>检查是否配置：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">local</span>=/home.arpa/<br><span class="hljs-attr">addn-hosts</span>=/etc/dnsmasq.hosts<br><span class="hljs-attr">domain</span>=home.arpa<br>expand-hosts<br></code></pre></td></tr></table></figure>
+
+<p>检查记录文件是否存在：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> -l /etc/dnsmasq.hosts<br><span class="hljs-built_in">cat</span> /etc/dnsmasq.hosts<br></code></pre></td></tr></table></figure>
+
+<p>重载 hosts：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl reload dnsmasq<br></code></pre></td></tr></table></figure>
+
+<p>注意：dnsmasq 收到 SIGHUP 会重新读取 hosts、租约等文件，但不一定重新读取主配置文件。改了主配置后，建议直接 restart。</p>
+<h4 id="7-DHCP-不分配地址"><a href="#7-DHCP-不分配地址" class="headerlink" title="7. DHCP 不分配地址"></a>7. DHCP 不分配地址</h4><p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">journalctl -u dnsmasq -f<br>tcpdump -i eth0 -nn port 67 or port 68<br></code></pre></td></tr></table></figure>
+
+<p>常见原因：</p>
+<ul>
+<li>网段里已有另一个 DHCP；</li>
+<li><code>dhcp-range</code> 不在接口网段内；</li>
+<li>防火墙拦 UDP 67&#x2F;68；</li>
+<li>dnsmasq 没监听正确接口；</li>
+<li>虚拟机网络模式不允许 DHCP 广播；</li>
+<li>交换机&#x2F;VLAN 隔离。</li>
+</ul>
+<h4 id="8-PXE-客户端拿不到启动文件"><a href="#8-PXE-客户端拿不到启动文件" class="headerlink" title="8. PXE 客户端拿不到启动文件"></a>8. PXE 客户端拿不到启动文件</h4><p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">tcpdump -i eth0 -nn port 67 or port 68 or port 69<br>journalctl -u dnsmasq -f<br><span class="hljs-built_in">ls</span> -lah /srv/tftp<br></code></pre></td></tr></table></figure>
+
+<p>TFTP 测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">tftp 192.168.9.2 -c get pxelinux.0<br></code></pre></td></tr></table></figure>
+
+<p>常见原因：</p>
+<ul>
+<li><code>enable-tftp</code> 未开启；</li>
+<li><code>tftp-root</code> 目录错误；</li>
+<li>文件权限错误；</li>
+<li>SELinux context 错误；</li>
+<li>UEFI&#x2F;BIOS 启动文件不匹配；</li>
+<li>DHCP Option 93 架构判断错误。</li>
+</ul>
+<h3 id="chapter-21：dnsmasq-与-Docker-虚拟化"><a href="#chapter-21：dnsmasq-与-Docker-虚拟化" class="headerlink" title="chapter 21：dnsmasq 与 Docker &#x2F; 虚拟化"></a>chapter 21：dnsmasq 与 Docker &#x2F; 虚拟化</h3><p>很多开发机上会出现这些 DNS：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">127.0.0.11       Docker 容器内部 DNS<br>192.168.122.1    libvirt dnsmasq<br>127.0.0.53       systemd-resolved<br></code></pre></td></tr></table></figure>
+
+<p>libvirt 默认会给虚拟网络启动自己的 dnsmasq：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">ps aux | grep dnsmasq<br>virsh net-list --all<br>virsh net-dumpxml default<br></code></pre></td></tr></table></figure>
+
+<p>这不一定和系统 dnsmasq 冲突，因为它可能监听在虚拟网桥地址，比如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.122.1:53<br></code></pre></td></tr></table></figure>
+
+<p>如果你自己也运行 dnsmasq，要注意：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">interface</span>=eth0<br><span class="hljs-attr">except-interface</span>=virbr0<br>bind-interfaces<br></code></pre></td></tr></table></figure>
+
+<p>或者只监听明确地址：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">listen-address</span>=<span class="hljs-number">127.0</span>.<span class="hljs-number">0.1</span>,<span class="hljs-number">192.168</span>.<span class="hljs-number">9.2</span><br></code></pre></td></tr></table></figure>
+
+<p>容器内使用宿主机 dnsmasq，可以在 Docker daemon 配置：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;dns&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;192.168.9.2&quot;</span><br>  <span class="hljs-punctuation">]</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>保存到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/docker/daemon.json<br></code></pre></td></tr></table></figure>
+
+<p>重启：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl restart docker<br></code></pre></td></tr></table></figure>
+
+<p>但注意：Docker 容器内默认的 <code>127.0.0.11</code> 是 Docker 自己的嵌入式 DNS，应用看到的不一定是宿主机 DNS。</p>
+<h3 id="chapter-22：高可用怎么做"><a href="#chapter-22：高可用怎么做" class="headerlink" title="chapter 22：高可用怎么做"></a>chapter 22：高可用怎么做</h3><p>dnsmasq 本身不是强 HA 系统，但小规模可以这么做。</p>
+<h4 id="方案一：两个-dnsmasq，客户端配置两个-DNS"><a href="#方案一：两个-dnsmasq，客户端配置两个-DNS" class="headerlink" title="方案一：两个 dnsmasq，客户端配置两个 DNS"></a>方案一：两个 dnsmasq，客户端配置两个 DNS</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">DNS1: 192.168.9.2<br>DNS2: 192.168.9.3<br></code></pre></td></tr></table></figure>
+
+<p>优点简单，缺点是不同客户端对 DNS1&#x2F;DNS2 的使用策略不完全一致。</p>
+<h4 id="方案二：Keepalived-VIP"><a href="#方案二：Keepalived-VIP" class="headerlink" title="方案二：Keepalived VIP"></a>方案二：Keepalived VIP</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">VIP: 192.168.9.53<br>node1: 192.168.9.2<br>node2: 192.168.9.3<br></code></pre></td></tr></table></figure>
+
+<p>客户端只配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.9.53<br></code></pre></td></tr></table></figure>
+
+<p>Keepalived 检测 dnsmasq 进程，失败时漂移 VIP。</p>
+<h4 id="方案三：路由器下发多个-DNS"><a href="#方案三：路由器下发多个-DNS" class="headerlink" title="方案三：路由器下发多个 DNS"></a>方案三：路由器下发多个 DNS</h4><p>如果你的 DHCP 在路由器上，可以下发：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.9.2<br>192.168.9.3<br></code></pre></td></tr></table></figure>
+
+<h4 id="DHCP-高可用要谨慎"><a href="#DHCP-高可用要谨慎" class="headerlink" title="DHCP 高可用要谨慎"></a>DHCP 高可用要谨慎</h4><p>DNS 做双活容易，DHCP 做双活要小心。两个 DHCP 如果没有明确划分地址池，可能重复分配 IP。</p>
+<p>可以拆池：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">node1: 192.168.9.100 - 192.168.9.149<br>node2: 192.168.9.150 - 192.168.9.199<br></code></pre></td></tr></table></figure>
+
+<p>但静态租约、主机名、租约状态仍要考虑同步。小网络可以接受，企业场景建议上专业 DHCP&#x2F;IPAM。</p>
+<h3 id="chapter-23：和-BIND-AdGuard-Home-Pi-hole-的组合"><a href="#chapter-23：和-BIND-AdGuard-Home-Pi-hole-的组合" class="headerlink" title="chapter 23：和 BIND &#x2F; AdGuard Home &#x2F; Pi-hole 的组合"></a>chapter 23：和 BIND &#x2F; AdGuard Home &#x2F; Pi-hole 的组合</h3><h4 id="dnsmasq-BIND"><a href="#dnsmasq-BIND" class="headerlink" title="dnsmasq + BIND"></a>dnsmasq + BIND</h4><p>常见组合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">客户端 → dnsmasq → BIND → 公网递归<br></code></pre></td></tr></table></figure>
+
+<p>dnsmasq 负责：</p>
+<ul>
+<li>DHCP；</li>
+<li>本地主机名；</li>
+<li>简单域名分流。</li>
+</ul>
+<p>BIND 负责：</p>
+<ul>
+<li>复杂 Zone；</li>
+<li>递归缓存；</li>
+<li>DNSSEC validation；</li>
+<li>企业 DNS 策略。</li>
+</ul>
+<p>配置示例：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">server</span>=/corp.example.com/<span class="hljs-number">192.168</span>.<span class="hljs-number">9.5</span><br><span class="hljs-attr">server</span>=<span class="hljs-number">192.168</span>.<span class="hljs-number">9.5</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="dnsmasq-AdGuard-Home-Pi-hole"><a href="#dnsmasq-AdGuard-Home-Pi-hole" class="headerlink" title="dnsmasq + AdGuard Home &#x2F; Pi-hole"></a>dnsmasq + AdGuard Home &#x2F; Pi-hole</h4><p>常见组合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">客户端 → AdGuard Home/Pi-hole → dnsmasq → 上游 DNS<br></code></pre></td></tr></table></figure>
+
+<p>或：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">客户端 → dnsmasq → AdGuard Home/Pi-hole → 上游 DNS<br></code></pre></td></tr></table></figure>
+
+<p>推荐前者：</p>
+<ul>
+<li>AdGuard&#x2F;Pi-hole 做过滤；</li>
+<li>dnsmasq 做内网主机名和 DHCP；</li>
+<li>过滤平台转发内网域名给 dnsmasq。</li>
+</ul>
+<p>例如 AdGuard 上游设置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">[/home.arpa/]192.168.9.2<br>https://dns.alidns.com/dns-query<br>https://cloudflare-dns.com/dns-query<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-24：常用命令速查"><a href="#chapter-24：常用命令速查" class="headerlink" title="chapter 24：常用命令速查"></a>chapter 24：常用命令速查</h3><h4 id="服务管理"><a href="#服务管理" class="headerlink" title="服务管理"></a>服务管理</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl <span class="hljs-built_in">enable</span> --now dnsmasq<br><span class="hljs-built_in">sudo</span> systemctl restart dnsmasq<br><span class="hljs-built_in">sudo</span> systemctl reload dnsmasq<br><span class="hljs-built_in">sudo</span> systemctl status dnsmasq --no-pager<br></code></pre></td></tr></table></figure>
+
+<h4 id="配置检查"><a href="#配置检查" class="headerlink" title="配置检查"></a>配置检查</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dnsmasq --<span class="hljs-built_in">test</span><br>dnsmasq --version<br></code></pre></td></tr></table></figure>
+
+<h4 id="端口检查"><a href="#端口检查" class="headerlink" title="端口检查"></a>端口检查</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">ss -lntup | grep <span class="hljs-string">&#x27;:53&#x27;</span><br>ss -lnup  | grep <span class="hljs-string">&#x27;:53&#x27;</span><br>lsof -i :53<br></code></pre></td></tr></table></figure>
+
+<h4 id="DNS-测试"><a href="#DNS-测试" class="headerlink" title="DNS 测试"></a>DNS 测试</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">dig @192.168.9.2 nas.home.arpa +short<br>dig @192.168.9.2 www.baidu.com<br>dig @192.168.9.2 -x 192.168.9.10 +short<br>nslookup nas.home.arpa 192.168.9.2<br>host nas.home.arpa 192.168.9.2<br></code></pre></td></tr></table></figure>
+
+<h4 id="客户端状态"><a href="#客户端状态" class="headerlink" title="客户端状态"></a>客户端状态</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/resolv.conf<br><span class="hljs-built_in">cat</span> /etc/nsswitch.conf<br>resolvectl status<br>nmcli dev show | grep -i dns<br>scutil --dns<br></code></pre></td></tr></table></figure>
+
+<h4 id="日志"><a href="#日志" class="headerlink" title="日志"></a>日志</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">journalctl -u dnsmasq -f<br>journalctl -u dnsmasq -n 200 --no-pager<br></code></pre></td></tr></table></figure>
+
+<h4 id="抓包"><a href="#抓包" class="headerlink" title="抓包"></a>抓包</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> tcpdump -i eth0 -nn port 53<br><span class="hljs-built_in">sudo</span> tcpdump -i eth0 -nn port 67 or port 68<br><span class="hljs-built_in">sudo</span> tcpdump -i eth0 -nn port 69<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-25：FAQ"><a href="#chapter-25：FAQ" class="headerlink" title="chapter 25：FAQ"></a>chapter 25：FAQ</h3><h4 id="Q1：dnsmasq-能不能替代-BIND？"><a href="#Q1：dnsmasq-能不能替代-BIND？" class="headerlink" title="Q1：dnsmasq 能不能替代 BIND？"></a>Q1：dnsmasq 能不能替代 BIND？</h4><p>看场景。内网小型 DNS&#x2F;DHCP 可以，企业复杂权威 DNS 不建议。</p>
+<h4 id="Q2：address-和-host-record-怎么选？"><a href="#Q2：address-和-host-record-怎么选？" class="headerlink" title="Q2：address 和 host-record 怎么选？"></a>Q2：<code>address</code> 和 <code>host-record</code> 怎么选？</h4><ul>
+<li>单个主机：优先 <code>host-record</code> 或 <code>addn-hosts</code>。</li>
+<li>泛域名：用 <code>address</code>。</li>
+<li>反向解析强需求：用 <code>host-record</code> 或补 <code>ptr-record</code>。</li>
+</ul>
+<h4 id="Q3：为什么不要用-local？"><a href="#Q3：为什么不要用-local？" class="headerlink" title="Q3：为什么不要用 .local？"></a>Q3：为什么不要用 <code>.local</code>？</h4><p><code>.local</code> 常用于 mDNS，会被 Avahi、Bonjour、systemd-resolved 等处理。你用传统 DNS 配 <code>.local</code>，客户端不一定问 dnsmasq。</p>
+<h4 id="Q4：dnsmasq-修改配置后-reload-还是-restart？"><a href="#Q4：dnsmasq-修改配置后-reload-还是-restart？" class="headerlink" title="Q4：dnsmasq 修改配置后 reload 还是 restart？"></a>Q4：dnsmasq 修改配置后 reload 还是 restart？</h4><ul>
+<li>改 hosts、租约相关文件：reload 通常可以。</li>
+<li>改主配置、监听地址、DHCP、PXE：建议 restart。</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl restart dnsmasq<br></code></pre></td></tr></table></figure>
+
+<h4 id="Q5：为什么-resolv-file-里不要写自己？"><a href="#Q5：为什么-resolv-file-里不要写自己？" class="headerlink" title="Q5：为什么 resolv-file 里不要写自己？"></a>Q5：为什么 <code>resolv-file</code> 里不要写自己？</h4><p>例如：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">resolv-file</span>=/etc/dnsmasq-resolv.conf<br></code></pre></td></tr></table></figure>
+
+<p>如果里面写：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">nameserver 127.0.0.1<br></code></pre></td></tr></table></figure>
+
+<p>就容易出现 dnsmasq 查询自己，形成转发环路。上游 DNS 文件应该写真正上游，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">nameserver 223.5.5.5<br>nameserver 119.29.29.29<br></code></pre></td></tr></table></figure>
+
+<p>或者直接用：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs ini">no-resolv<br><span class="hljs-attr">server</span>=<span class="hljs-number">223.5</span>.<span class="hljs-number">5.5</span><br><span class="hljs-attr">server</span>=<span class="hljs-number">119.29</span>.<span class="hljs-number">29.29</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="Q6：为什么-cache-size-10000-不一定好？"><a href="#Q6：为什么-cache-size-10000-不一定好？" class="headerlink" title="Q6：为什么 cache-size=10000 不一定好？"></a>Q6：为什么 <code>cache-size=10000</code> 不一定好？</h4><p>缓存大不是免费的。内网几十台机器没有必要上来就巨大缓存。一般：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">cache-size</span>=<span class="hljs-number">1000</span><br></code></pre></td></tr></table></figure>
+
+<p>已经够用。大量域名过滤、企业出口场景再逐步调大，并通过 <code>SIGUSR1</code> 观察统计。</p>
+<h4 id="Q7：OpenWrt-上配置写-etc-dnsmasq-conf-还是-etc-config-dhcp？"><a href="#Q7：OpenWrt-上配置写-etc-dnsmasq-conf-还是-etc-config-dhcp？" class="headerlink" title="Q7：OpenWrt 上配置写 /etc/dnsmasq.conf 还是 /etc/config/dhcp？"></a>Q7：OpenWrt 上配置写 <code>/etc/dnsmasq.conf</code> 还是 <code>/etc/config/dhcp</code>？</h4><p>优先理解 OpenWrt 的 UCI：</p>
+<ul>
+<li>常规 DNS&#x2F;DHCP 行为：写 <code>/etc/config/dhcp</code>；</li>
+<li>自定义高级规则：通过 <code>confdir</code> 加载 <code>/etc/dnsmasq.d/*.conf</code>；</li>
+<li>不建议和 UCI 重复定义同一项，否则容易冲突。</li>
+</ul>
+<h4 id="Q8：dnsmasq-能不能做广告屏蔽？"><a href="#Q8：dnsmasq-能不能做广告屏蔽？" class="headerlink" title="Q8：dnsmasq 能不能做广告屏蔽？"></a>Q8：dnsmasq 能不能做广告屏蔽？</h4><p>可以，典型写法：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-attr">address</span>=/ads.example.com/<span class="hljs-number">0.0</span>.<span class="hljs-number">0.0</span><br><span class="hljs-attr">address</span>=/tracker.example.com/<span class="hljs-number">0.0</span>.<span class="hljs-number">0.0</span><br></code></pre></td></tr></table></figure>
+
+<p>但大型广告规则维护、统计、Web 管理、自动更新，建议用 Pi-hole 或 AdGuard Home。</p>
+<h4 id="Q9：内网-DNS-要不要启用-DNSSEC？"><a href="#Q9：内网-DNS-要不要启用-DNSSEC？" class="headerlink" title="Q9：内网 DNS 要不要启用 DNSSEC？"></a>Q9：内网 DNS 要不要启用 DNSSEC？</h4><p>不是第一优先级。先确保：</p>
+<ul>
+<li>内网域名不泄露；</li>
+<li>上游可靠；</li>
+<li>解析链路稳定；</li>
+<li>时间同步正常；</li>
+<li>日志和排障可控。</li>
+</ul>
+<p>有这些基础后，再考虑 DNSSEC。</p>
+<h4 id="Q10：dnsmasq-能不能做生产？"><a href="#Q10：dnsmasq-能不能做生产？" class="headerlink" title="Q10：dnsmasq 能不能做生产？"></a>Q10：dnsmasq 能不能做生产？</h4><p>可以，但要定义“生产”边界。</p>
+<p>适合：</p>
+<ul>
+<li>小型办公室；</li>
+<li>实验室；</li>
+<li>单机房内部服务名；</li>
+<li>PXE 装机网络；</li>
+<li>OpenWrt&#x2F;软路由；</li>
+<li>虚拟化测试环境。</li>
+</ul>
+<p>不适合：</p>
+<ul>
+<li>大规模多地域企业 DNS；</li>
+<li>大量权威 Zone；</li>
+<li>强审计和审批；</li>
+<li>复杂主从复制；</li>
+<li>公网 DNS 服务。</li>
+</ul>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>dnsmasq 官方文档：<a target="_blank" rel="noopener" href="https://thekelleys.org.uk/dnsmasq/doc.html">https://thekelleys.org.uk/dnsmasq/doc.html</a></li>
+<li>dnsmasq man page：<a target="_blank" rel="noopener" href="https://thekelleys.org.uk/dnsmasq/docs/dnsmasq-man.html">https://thekelleys.org.uk/dnsmasq/docs/dnsmasq-man.html</a></li>
+<li>dnsmasq 下载目录：<a target="_blank" rel="noopener" href="https://dnsmasq.org/">https://dnsmasq.org/</a></li>
+<li>dnsmasq CHANGELOG：<a target="_blank" rel="noopener" href="https://thekelleys.org.uk/dnsmasq/CHANGELOG">https://thekelleys.org.uk/dnsmasq/CHANGELOG</a></li>
+<li>RFC 8375：Special-Use Domain <code>home.arpa.</code>：<a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/html/rfc8375">https://datatracker.ietf.org/doc/html/rfc8375</a></li>
+<li>RFC 6762：Multicast DNS：<a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/html/rfc6762">https://datatracker.ietf.org/doc/html/rfc6762</a></li>
+<li>Ubuntu DNSSEC &#x2F; systemd-resolved 文档：<a target="_blank" rel="noopener" href="https://ubuntu.com/server/docs/explanation/dnssec/dnssec/">https://ubuntu.com/server/docs/explanation/dnssec/dnssec/</a></li>
+<li>Pi-hole Docker Tips：Disable systemd-resolved port 53：<a target="_blank" rel="noopener" href="https://docs.pi-hole.net/docker/tips-and-tricks/">https://docs.pi-hole.net/docker/tips-and-tricks/</a></li>
+<li>Oracle Linux：Configuring Dnsmasq to Support PXE<br>Clients：<a target="_blank" rel="noopener" href="https://docs.oracle.com/en/operating-systems/oracle-linux/6/install/ol-dnsmasq-conf.html">https://docs.oracle.com/en/operating-systems/oracle-linux/6/install/ol-dnsmasq-conf.html</a></li>
+<li>NVD CVE-2023-28450：<a target="_blank" rel="noopener" href="https://nvd.nist.gov/vuln/detail/cve-2023-28450">https://nvd.nist.gov/vuln/detail/cve-2023-28450</a></li>
+<li>Marco Nie：dnsmasq 使用教程：<a target="_blank" rel="noopener" href="https://blog.niekun.net/archives/1869.html">https://blog.niekun.net/archives/1869.html</a></li>
+<li>梦徒：使用 dnsmasq 配置内网域名解析：<a target="_blank" rel="noopener" href="https://www.cnblogs.com/saneri/p/14141397.html">https://www.cnblogs.com/saneri/p/14141397.html</a></li>
+<li>Marco Nie：dnsmasq nftset 和 nftables：<a target="_blank" rel="noopener" href="https://blog.niekun.net/archives/dnsmasq-nftset-nftables-1.html">https://blog.niekun.net/archives/dnsmasq-nftset-nftables-1.html</a></li>
+</ul>
+<h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p>dnsmasq 的价值不在于“替代所有 DNS 工具”，而在于它把小网络里最常见的 DNS、DHCP、TFTP、PXE<br>串成了一条很短的路径。路径越短，越容易维护；配置越少，越不容易凌晨背锅。</p>
+<p><code>富贵岂由人，时会高志须酬。</code></p>
+<p><code>能成功于千载者，必以近察远。</code></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Linux/" class="category-chain-item">Linux</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Linux/" class="print-no-link">#Linux</a>
+      
+        <a href="/tags/OpenWrt/" class="print-no-link">#OpenWrt</a>
+      
+        <a href="/tags/dnsmasq/" class="print-no-link">#dnsmasq</a>
+      
+        <a href="/tags/DNS/" class="print-no-link">#DNS</a>
+      
+        <a href="/tags/DHCP/" class="print-no-link">#DHCP</a>
+      
+        <a href="/tags/PXE/" class="print-no-link">#PXE</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>使用 dnsmasq 搭建轻量级内网 DNS、DHCP 与 PXE 服务</div>
+      <div>https://allendericdalexander.github.io/2026/06/16/devops/infra/dnsmasq-private-dns-dhcp-pxe-hexo-blog/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年6月16日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/06/16/devops/infra/bind9-private-dns-hexo-blog/" title="BIND 9 私有 DNS 服务搭建与生产实践：从 named.conf 到主从、递归、安全与排障">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">BIND 9 私有 DNS 服务搭建与生产实践：从 named.conf 到主从、递归、安全与排障</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/06/12/devTools/idea-docker-deep-practice/" title="IDEA 中如何使用 Docker：从环境配置到 Spring Boot 容器化调试的深度实战">
+                        <span class="hidden-mobile">IDEA 中如何使用 Docker：从环境配置到 Spring Boot 容器化调试的深度实战</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
