@@ -1,0 +1,1883 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="vSphere 8 + Rocky Linux 10 内网生产级 Kubernetes 集群架构设计1. 背景与目标当前内网基础设施基于 vSphere 8：  3 台 Dell R730 物理服务器。 每台服务器安装 ESXi 8 Dell 定制版。 已部署 VCSA 8。 vSphere &#x2F; ESXi 具备企业许可。 每台物理机配置约： 40 核 CPU。 128 GB 内存。 51">
+<meta property="og:type" content="article">
+<meta property="og:title" content="vSphere 8 + Rocky Linux 10 内网生产级 Kubernetes 集群架构设计">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/06/21/devops/management/k8s-vsphere-rocky10-production-architecture/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="vSphere 8 + Rocky Linux 10 内网生产级 Kubernetes 集群架构设计1. 背景与目标当前内网基础设施基于 vSphere 8：  3 台 Dell R730 物理服务器。 每台服务器安装 ESXi 8 Dell 定制版。 已部署 VCSA 8。 vSphere &#x2F; ESXi 具备企业许可。 每台物理机配置约： 40 核 CPU。 128 GB 内存。 51">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-21T00:52:33.141Z">
+<meta property="article:modified_time" content="2026-06-20T16:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="cilium">
+<meta property="article:tag" content="containerd">
+<meta property="article:tag" content="kubeadm">
+<meta property="article:tag" content="kubernetes">
+<meta property="article:tag" content="production">
+<meta property="article:tag" content="rocky-linux-10">
+<meta property="article:tag" content="vsphere8">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>vSphere 8 + Rocky Linux 10 内网生产级 Kubernetes 集群架构设计 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="vSphere 8 + Rocky Linux 10 内网生产级 Kubernetes 集群架构设计"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-06-21 08:52" pubdate>
+          2026年6月21日 早上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          6.7k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          56 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">vSphere 8 + Rocky Linux 10 内网生产级 Kubernetes 集群架构设计</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <h1 id="vSphere-8-Rocky-Linux-10-内网生产级-Kubernetes-集群架构设计"><a href="#vSphere-8-Rocky-Linux-10-内网生产级-Kubernetes-集群架构设计" class="headerlink" title="vSphere 8 + Rocky Linux 10 内网生产级 Kubernetes 集群架构设计"></a>vSphere 8 + Rocky Linux 10 内网生产级 Kubernetes 集群架构设计</h1><h2 id="1-背景与目标"><a href="#1-背景与目标" class="headerlink" title="1. 背景与目标"></a>1. 背景与目标</h2><p>当前内网基础设施基于 vSphere 8：</p>
+<ul>
+<li>3 台 Dell R730 物理服务器。</li>
+<li>每台服务器安装 ESXi 8 Dell 定制版。</li>
+<li>已部署 VCSA 8。</li>
+<li>vSphere &#x2F; ESXi 具备企业许可。</li>
+<li>每台物理机配置约：<ul>
+<li>40 核 CPU。</li>
+<li>128 GB 内存。</li>
+<li>512 GB SSD 系统盘。</li>
+<li>2 TB NVMe SSD。</li>
+<li>RAID 后约 12 TB 机械盘。</li>
+<li>1 张 4 口网卡。</li>
+</ul>
+</li>
+<li>当前物理网络：<code>192.168.9.0/24</code>，已经被部分物理设备使用。</li>
+<li>当前容器环境：已有 Docker，但 Kubernetes 生产运行时希望迁移到 containerd。</li>
+</ul>
+<p>本设计目标是在现有 vSphere 8 上，通过 Rocky Linux 10 虚拟机构建一套严格生产级的 Kubernetes 集群，支持：</p>
+<ul>
+<li>3 个 control-plane 节点。</li>
+<li>3 个 stacked etcd 节点，与 control-plane 共部署。</li>
+<li>control-plane 与 worker 不混合承担业务角色。</li>
+<li>kubeadm 部署，并逐步封装为 Ansible 自动化。</li>
+<li>containerd 作为 CRI 运行时。</li>
+<li>Cilium 作为 CNI，启用 NetworkPolicy 与 Hubble 东西向可观测。</li>
+<li>Ingress Controller 暴露内网服务。</li>
+<li>后续支持公网入口。</li>
+<li>dev &#x2F; test &#x2F; staging &#x2F; prod 共用一个集群，但通过 namespace、RBAC、NetworkPolicy、Quota、NodePool 做强隔离。</li>
+<li>支持 Harbor、GitLab、Java 后端、Nacos、Redis、PostgreSQL、AI&#x2F;RAG、前端、SSR、监控、日志、链路追踪等服务。</li>
+<li>支持滚动发布、灰度发布、蓝绿发布。</li>
+<li>一小时内恢复目标。</li>
+</ul>
+<h2 id="2-总体结论"><a href="#2-总体结论" class="headerlink" title="2. 总体结论"></a>2. 总体结论</h2><h3 id="2-1-推荐路线"><a href="#2-1-推荐路线" class="headerlink" title="2.1 推荐路线"></a>2.1 推荐路线</h3><p>推荐架构如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">vSphere 8 / ESXi 8 / VCSA 8<br>  ├─ Rocky Linux 10 VM: k8s-cp-01      control-plane + etcd<br>  ├─ Rocky Linux 10 VM: k8s-cp-02      control-plane + etcd<br>  ├─ Rocky Linux 10 VM: k8s-cp-03      control-plane + etcd<br>  ├─ Rocky Linux 10 VM: k8s-infra-01   ingress / harbor / gitops / monitoring / logging<br>  ├─ Rocky Linux 10 VM: k8s-infra-02   ingress / harbor / gitops / monitoring / logging<br>  ├─ Rocky Linux 10 VM: k8s-infra-03   ingress / harbor / gitops / monitoring / logging<br>  ├─ Rocky Linux 10 VM: k8s-app-01     Java / frontend / SSR / AI-RAG<br>  ├─ Rocky Linux 10 VM: k8s-app-02     Java / frontend / SSR / AI-RAG<br>  ├─ Rocky Linux 10 VM: k8s-app-03     Java / frontend / SSR / AI-RAG<br>  └─ Rocky Linux 10 VM: k8s-data-01~03 future stateful node pool, optional<br></code></pre></td></tr></table></figure>
+
+<p>第一阶段建议先建设：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">3 control-plane + 3 infra worker + 3 app worker<br></code></pre></td></tr></table></figure>
+
+<p>后续如果要把 PostgreSQL、Redis、Nacos、MinIO、Elasticsearch 等核心有状态服务迁入 Kubernetes，再单独扩展：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">3 data worker<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-2-关键技术选型"><a href="#2-2-关键技术选型" class="headerlink" title="2.2 关键技术选型"></a>2.2 关键技术选型</h3><table>
+<thead>
+<tr>
+<th>层级</th>
+<th>推荐选型</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>虚拟化</td>
+<td>vSphere 8</td>
+<td>已有企业许可，便于 VM 生命周期、快照、备份、迁移、资源调度</td>
+</tr>
+<tr>
+<td>OS</td>
+<td>Rocky Linux 10</td>
+<td>RHEL 系，适合生产标准化</td>
+</tr>
+<tr>
+<td>Kubernetes 部署</td>
+<td>kubeadm + Ansible</td>
+<td>官方、透明、可控，便于学习和生产排障</td>
+</tr>
+<tr>
+<td>容器运行时</td>
+<td>containerd</td>
+<td>直接符合 Kubernetes CRI，不再依赖 Docker dockershim &#x2F; cri-dockerd</td>
+</tr>
+<tr>
+<td>CNI</td>
+<td>Cilium</td>
+<td>eBPF、NetworkPolicy、Hubble 东西向可观测能力强</td>
+</tr>
+<tr>
+<td>API Server HA</td>
+<td>HAProxy + Keepalived VIP</td>
+<td>简单、成熟、内网可控</td>
+</tr>
+<tr>
+<td>Service LB</td>
+<td>MetalLB L2</td>
+<td>内网裸金属&#x2F;虚拟化环境常用，给 LoadBalancer Service 分配内网 IP</td>
+</tr>
+<tr>
+<td>Ingress</td>
+<td>ingress-nginx，后续可评估 Cilium Gateway API</td>
+<td>运维资料多，兼容性强</td>
+</tr>
+<tr>
+<td>证书</td>
+<td>cert-manager + 内网 CA</td>
+<td>内网统一签发 TLS，公网另走 ACME &#x2F; DNS-01</td>
+</tr>
+<tr>
+<td>镜像仓库</td>
+<td>Harbor + Trivy</td>
+<td>私有镜像、代理缓存、漏洞扫描</td>
+</tr>
+<tr>
+<td>GitOps</td>
+<td>Argo CD</td>
+<td>环境声明式部署与回滚</td>
+</tr>
+<tr>
+<td>灰度&#x2F;蓝绿</td>
+<td>Argo Rollouts</td>
+<td>支持 canary、blue-green、分析指标联动</td>
+</tr>
+<tr>
+<td>监控</td>
+<td>kube-prometheus-stack</td>
+<td>Prometheus Operator + Grafana + Alertmanager 标准组合</td>
+</tr>
+<tr>
+<td>日志</td>
+<td>Loki + Grafana Alloy</td>
+<td>轻量、与 Grafana 体系集成好</td>
+</tr>
+<tr>
+<td>链路追踪</td>
+<td>OpenTelemetry Collector + Tempo</td>
+<td>Java 服务接入简单，和 Grafana 联动好</td>
+</tr>
+<tr>
+<td>备份</td>
+<td>etcd snapshot + Velero + MinIO&#x2F;S3</td>
+<td>免费开源，可备份 K8s 资源与部分 PVC 数据</td>
+</tr>
+<tr>
+<td>策略治理</td>
+<td>Kyverno + Pod Security Admission</td>
+<td>镜像来源、权限、资源、运行时安全策略管控</td>
+</tr>
+</tbody></table>
+<h2 id="3-重要原则"><a href="#3-重要原则" class="headerlink" title="3. 重要原则"></a>3. 重要原则</h2><h3 id="3-1-Kubernetes-节点不要直接安装在-ESXi-物理宿主机上"><a href="#3-1-Kubernetes-节点不要直接安装在-ESXi-物理宿主机上" class="headerlink" title="3.1 Kubernetes 节点不要直接安装在 ESXi 物理宿主机上"></a>3.1 Kubernetes 节点不要直接安装在 ESXi 物理宿主机上</h3><p>虽然可以把 Rocky Linux 10 直接装在物理机上，但当前已经有 vSphere 8 与 VCSA 8，建议 Kubernetes 节点全部使用 VM。</p>
+<p>原因：</p>
+<ul>
+<li>不污染 ESXi 宿主机。</li>
+<li>VM 可复制、快照、迁移、重建。</li>
+<li>control-plane 可通过反亲和规则分布到不同 ESXi。</li>
+<li>后续新增、缩容、替换节点更方便。</li>
+<li>物理层故障与 K8s 节点故障边界更清晰。</li>
+</ul>
+<h3 id="3-2-Docker-保留给构建，Kubernetes-运行时切换到-containerd"><a href="#3-2-Docker-保留给构建，Kubernetes-运行时切换到-containerd" class="headerlink" title="3.2 Docker 保留给构建，Kubernetes 运行时切换到 containerd"></a>3.2 Docker 保留给构建，Kubernetes 运行时切换到 containerd</h3><p>生产集群节点建议不再使用 Docker 作为 Kubernetes runtime。</p>
+<p>推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">开发 / CI 构建镜像：Docker / BuildKit / Kaniko / Buildah 均可<br>Kubernetes 节点运行 Pod：containerd<br></code></pre></td></tr></table></figure>
+
+<p>不建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Kubernetes + Docker Engine + cri-dockerd<br></code></pre></td></tr></table></figure>
+
+<p>cri-dockerd 可以用，但会多一层兼容链路。新建生产集群没有必要绕路。</p>
+<h3 id="3-3-严格生产级与“四套环境共用一个集群”存在天然冲突"><a href="#3-3-严格生产级与“四套环境共用一个集群”存在天然冲突" class="headerlink" title="3.3 严格生产级与“四套环境共用一个集群”存在天然冲突"></a>3.3 严格生产级与“四套环境共用一个集群”存在天然冲突</h3><p>你希望 dev &#x2F; test &#x2F; staging &#x2F; prod 共用一个集群。这个可以做，但要实话实说：</p>
+<ul>
+<li>严格生产环境最理想是 prod 独立集群。</li>
+<li>dev &#x2F; test 的不稳定变更不应影响 prod。</li>
+<li>共用集群会共享 API Server、etcd、CNI、Ingress、存储、监控等基础面。</li>
+<li>一旦集群级组件异常，四套环境会一起受影响。</li>
+</ul>
+<p>因此本方案采用两阶段策略：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">阶段 1：一个生产级集群，多 namespace 强隔离，先跑起来。<br>阶段 2：稳定后拆出 prod 独立集群，dev/test/staging 单独集群。<br></code></pre></td></tr></table></figure>
+
+<p>阶段 1 必须配套：</p>
+<ul>
+<li>namespace 隔离。</li>
+<li>RBAC 隔离。</li>
+<li>NetworkPolicy 默认拒绝。</li>
+<li>ResourceQuota &#x2F; LimitRange。</li>
+<li>独立 Ingress 域名。</li>
+<li>独立 secret。</li>
+<li>独立 Argo CD Application。</li>
+<li>prod workload 优先级更高。</li>
+<li>prod 禁止使用 latest 镜像。</li>
+<li>prod 禁止开发者直接 kubectl apply。</li>
+</ul>
+<h2 id="4-物理与虚拟化架构"><a href="#4-物理与虚拟化架构" class="headerlink" title="4. 物理与虚拟化架构"></a>4. 物理与虚拟化架构</h2><h2 id="4-1-物理主机规划"><a href="#4-1-物理主机规划" class="headerlink" title="4.1 物理主机规划"></a>4.1 物理主机规划</h2><table>
+<thead>
+<tr>
+<th>ESXi 主机</th>
+<th>角色</th>
+<th>建议承载</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>esxi-01</td>
+<td>物理宿主机</td>
+<td>k8s-cp-01、k8s-infra-01、k8s-app-01、后续 k8s-data-01</td>
+</tr>
+<tr>
+<td>esxi-02</td>
+<td>物理宿主机</td>
+<td>k8s-cp-02、k8s-infra-02、k8s-app-02、后续 k8s-data-02</td>
+</tr>
+<tr>
+<td>esxi-03</td>
+<td>物理宿主机</td>
+<td>k8s-cp-03、k8s-infra-03、k8s-app-03、后续 k8s-data-03</td>
+</tr>
+</tbody></table>
+<p>必须配置：</p>
+<ul>
+<li>control-plane VM 反亲和：3 个 control-plane 分散到 3 台 ESXi。</li>
+<li>infra worker VM 反亲和：Ingress &#x2F; Harbor &#x2F; 监控副本尽量分散。</li>
+<li>app worker VM 按业务副本反亲和。</li>
+<li>如果启用 DRS，应避免所有关键 VM 被迁移到同一台 ESXi。</li>
+<li>不建议长期依赖 VMware snapshot 作为备份。</li>
+</ul>
+<h2 id="4-2-VM-规格建议"><a href="#4-2-VM-规格建议" class="headerlink" title="4.2 VM 规格建议"></a>4.2 VM 规格建议</h2><h3 id="control-plane-etcd-VM"><a href="#control-plane-etcd-VM" class="headerlink" title="control-plane + etcd VM"></a>control-plane + etcd VM</h3><table>
+<thead>
+<tr>
+<th>项</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>数量</td>
+<td>3</td>
+</tr>
+<tr>
+<td>vCPU</td>
+<td>6~8</td>
+</tr>
+<tr>
+<td>内存</td>
+<td>16~24 GB</td>
+</tr>
+<tr>
+<td>系统盘</td>
+<td>100 GB SSD</td>
+</tr>
+<tr>
+<td>containerd 盘</td>
+<td>100~200 GB SSD，挂载 <code>/var/lib/containerd</code></td>
+</tr>
+<tr>
+<td>etcd 盘</td>
+<td>100~200 GB SSD&#x2F;NVMe，挂载 <code>/var/lib/etcd</code></td>
+</tr>
+<tr>
+<td>网络</td>
+<td>1 个 VMXNET3 vNIC，接入 K8s Node VLAN</td>
+</tr>
+</tbody></table>
+<p>control-plane 节点必须 taint，禁止普通业务 Pod 调度：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">node-role.kubernetes.io/control-plane:NoSchedule<br></code></pre></td></tr></table></figure>
+
+<h3 id="infra-worker-VM"><a href="#infra-worker-VM" class="headerlink" title="infra worker VM"></a>infra worker VM</h3><table>
+<thead>
+<tr>
+<th>项</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>数量</td>
+<td>3</td>
+</tr>
+<tr>
+<td>vCPU</td>
+<td>8~12</td>
+</tr>
+<tr>
+<td>内存</td>
+<td>32~48 GB</td>
+</tr>
+<tr>
+<td>系统盘</td>
+<td>100 GB SSD</td>
+</tr>
+<tr>
+<td>containerd 盘</td>
+<td>300~500 GB SSD&#x2F;NVMe</td>
+</tr>
+<tr>
+<td>数据盘</td>
+<td>按 Harbor、监控、日志需求单独挂载</td>
+</tr>
+<tr>
+<td>角色</td>
+<td>Ingress、Harbor、Argo CD、监控、日志、链路追踪、cert-manager 等</td>
+</tr>
+</tbody></table>
+<h3 id="app-worker-VM"><a href="#app-worker-VM" class="headerlink" title="app worker VM"></a>app worker VM</h3><table>
+<thead>
+<tr>
+<th>项</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>数量</td>
+<td>3 起步，建议后续 6</td>
+</tr>
+<tr>
+<td>vCPU</td>
+<td>8~16</td>
+</tr>
+<tr>
+<td>内存</td>
+<td>32~64 GB</td>
+</tr>
+<tr>
+<td>系统盘</td>
+<td>100 GB SSD</td>
+</tr>
+<tr>
+<td>containerd 盘</td>
+<td>300~500 GB SSD&#x2F;NVMe</td>
+</tr>
+<tr>
+<td>角色</td>
+<td>Java 后端、前端、SSR、AI&#x2F;RAG 服务</td>
+</tr>
+</tbody></table>
+<h3 id="data-worker-VM，第二阶段"><a href="#data-worker-VM，第二阶段" class="headerlink" title="data worker VM，第二阶段"></a>data worker VM，第二阶段</h3><table>
+<thead>
+<tr>
+<th>项</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>数量</td>
+<td>3 起步</td>
+</tr>
+<tr>
+<td>vCPU</td>
+<td>8~16</td>
+</tr>
+<tr>
+<td>内存</td>
+<td>64 GB 起</td>
+</tr>
+<tr>
+<td>系统盘</td>
+<td>100 GB SSD</td>
+</tr>
+<tr>
+<td>containerd 盘</td>
+<td>300 GB SSD</td>
+</tr>
+<tr>
+<td>数据盘</td>
+<td>独立 VMDK，优先 NVMe&#x2F;SSD，避免和系统盘混用</td>
+</tr>
+<tr>
+<td>角色</td>
+<td>PostgreSQL、Redis、Nacos、MinIO、对象存储、向量库等</td>
+</tr>
+</tbody></table>
+<h2 id="5-网络架构"><a href="#5-网络架构" class="headerlink" title="5. 网络架构"></a>5. 网络架构</h2><h2 id="5-1-是否需要重新规划网段？"><a href="#5-1-是否需要重新规划网段？" class="headerlink" title="5.1 是否需要重新规划网段？"></a>5.1 是否需要重新规划网段？</h2><p>建议重新规划。</p>
+<p>当前 <code>192.168.9.0/24</code> 已经被物理机器、vCenter、ESXi 等使用。Kubernetes 节点、Ingress、MetalLB、存储、备份如果继续堆在这个网段，后期会出现：</p>
+<ul>
+<li>地址管理混乱。</li>
+<li>MetalLB IP 池和现有设备冲突。</li>
+<li>防火墙规则难以收敛。</li>
+<li>DNS 记录难维护。</li>
+<li>VPN &#x2F; 路由排错困难。</li>
+</ul>
+<p>推荐将 <code>192.168.9.0/24</code> 保留为管理网，不再继续塞业务入口。</p>
+<h2 id="5-2-VLAN-子网建议"><a href="#5-2-VLAN-子网建议" class="headerlink" title="5.2 VLAN &#x2F; 子网建议"></a>5.2 VLAN &#x2F; 子网建议</h2><p>如果交换机、OpenWrt、ESXi vSwitch &#x2F; vDS 支持 VLAN，建议规划如下：</p>
+<table>
+<thead>
+<tr>
+<th>网络</th>
+<th align="right">VLAN</th>
+<th>CIDR</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>管理网</td>
+<td align="right">9</td>
+<td><code>192.168.9.0/24</code></td>
+<td>ESXi、VCSA、路由器、管理跳板机</td>
+</tr>
+<tr>
+<td>K8s Node 网</td>
+<td align="right">20</td>
+<td><code>192.168.20.0/24</code></td>
+<td>K8s VM 节点、API VIP、MetalLB、Ingress 内网入口</td>
+</tr>
+<tr>
+<td>存储网</td>
+<td align="right">30</td>
+<td><code>192.168.30.0/24</code></td>
+<td>后续 vSAN &#x2F; Ceph &#x2F; Longhorn &#x2F; NFS &#x2F; iSCSI</td>
+</tr>
+<tr>
+<td>备份网</td>
+<td align="right">40</td>
+<td><code>192.168.40.0/24</code></td>
+<td>Velero、MinIO、备份任务、离线备份</td>
+</tr>
+<tr>
+<td>DMZ &#x2F; 公网入口</td>
+<td align="right">50</td>
+<td><code>192.168.50.0/24</code></td>
+<td>公网反代、WAF、边界网关，可选</td>
+</tr>
+</tbody></table>
+<p>如果短期不想上 VLAN，最低限度也建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">管理网继续 192.168.9.0/24<br>K8s 节点新建 192.168.20.0/24<br></code></pre></td></tr></table></figure>
+
+<p>这要求 OpenWrt 或三层交换机能在两个网段之间路由。</p>
+<h2 id="5-3-K8s-地址规划"><a href="#5-3-K8s-地址规划" class="headerlink" title="5.3 K8s 地址规划"></a>5.3 K8s 地址规划</h2><p>推荐：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>地址段 &#x2F; 地址</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Node 网段</td>
+<td><code>192.168.20.0/24</code></td>
+<td>K8s VM 所在网段</td>
+</tr>
+<tr>
+<td>API Server VIP</td>
+<td><code>192.168.20.10</code></td>
+<td>Keepalived + HAProxy</td>
+</tr>
+<tr>
+<td>MetalLB Pool</td>
+<td><code>192.168.20.100-192.168.20.149</code></td>
+<td>LoadBalancer Service IP 池</td>
+</tr>
+<tr>
+<td>Ingress 内网 IP</td>
+<td><code>192.168.20.100</code></td>
+<td>ingress-nginx LoadBalancer IP</td>
+</tr>
+<tr>
+<td>Harbor IP</td>
+<td><code>192.168.20.101</code></td>
+<td>如果 Harbor 暴露为 LoadBalancer</td>
+</tr>
+<tr>
+<td>GitLab IP</td>
+<td><code>192.168.20.102</code></td>
+<td>如果 GitLab 暴露为 LoadBalancer</td>
+</tr>
+<tr>
+<td>Pod CIDR</td>
+<td><code>10.244.0.0/16</code></td>
+<td>Cilium Pod 地址池</td>
+</tr>
+<tr>
+<td>Service CIDR</td>
+<td><code>10.96.0.0/12</code></td>
+<td>Kubernetes Service 地址池</td>
+</tr>
+</tbody></table>
+<p>注意：</p>
+<ul>
+<li>Pod CIDR &#x2F; Service CIDR 不能与现有内网、VPN、未来 WireGuard&#x2F;OpenVPN 网段冲突。</li>
+<li>如果未来 VPN 会使用 <code>10.0.0.0/8</code> 的一部分，需要提前确认，避免后面重建集群。</li>
+<li>API VIP、MetalLB IP 池必须从 DHCP 地址池中排除。</li>
+</ul>
+<h2 id="5-4-API-Server-高可用"><a href="#5-4-API-Server-高可用" class="headerlink" title="5.4 API Server 高可用"></a>5.4 API Server 高可用</h2><p>采用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Keepalived VIP: 192.168.20.10<br>HAProxy: 监听 6443，转发到 3 个 control-plane 的 6443<br></code></pre></td></tr></table></figure>
+
+<p>建议部署方式：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">k8s-cp-01: keepalived + haproxy<br>k8s-cp-02: keepalived + haproxy<br>k8s-cp-03: keepalived + haproxy<br></code></pre></td></tr></table></figure>
+
+<p>请求链路：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">kubectl / kubelet / kubeadm join<br>  -&gt; 192.168.20.10:6443<br>    -&gt; HAProxy<br>      -&gt; k8s-cp-01:6443 / k8s-cp-02:6443 / k8s-cp-03:6443<br></code></pre></td></tr></table></figure>
+
+<h2 id="5-5-Service-与-Ingress-入口"><a href="#5-5-Service-与-Ingress-入口" class="headerlink" title="5.5 Service 与 Ingress 入口"></a>5.5 Service 与 Ingress 入口</h2><p>内网服务暴露采用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">MetalLB L2<br>  -&gt; ingress-nginx Service type=LoadBalancer<br>    -&gt; Ingress rules<br>      -&gt; namespace service<br>        -&gt; pod<br></code></pre></td></tr></table></figure>
+
+<p>典型访问链路：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">client<br>  -&gt; DNS: app.prod.egon.home.arpa<br>  -&gt; 192.168.20.100<br>  -&gt; ingress-nginx<br>  -&gt; prod namespace service<br>  -&gt; pod<br></code></pre></td></tr></table></figure>
+
+<p>公网访问建议不要直接暴露整个 K8s 节点网段，而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">公网 IP<br>  -&gt; OpenWrt / 边界防火墙 / WAF<br>  -&gt; 端口转发或反代到 Ingress 公网入口 IP<br>  -&gt; public IngressClass<br>  -&gt; 指定 namespace service<br></code></pre></td></tr></table></figure>
+
+<p>公网入口建议单独建：</p>
+<ul>
+<li>独立 IngressClass：<code>nginx-public</code>。</li>
+<li>独立 LoadBalancer IP。</li>
+<li>独立 NetworkPolicy。</li>
+<li>独立证书策略。</li>
+<li>可选 WAF &#x2F; rate limit &#x2F; IP allowlist。</li>
+</ul>
+<h2 id="6-DNS-与域名规划"><a href="#6-DNS-与域名规划" class="headerlink" title="6. DNS 与域名规划"></a>6. DNS 与域名规划</h2><h2 id="6-1-不建议继续使用-local"><a href="#6-1-不建议继续使用-local" class="headerlink" title="6.1 不建议继续使用 .local"></a>6.1 不建议继续使用 <code>.local</code></h2><p><code>.local</code> 与 mDNS &#x2F; Bonjour 存在冲突，尤其 macOS、iOS、部分 Linux 桌面环境、打印机、NAS、智能家居设备会默认把 <code>.local</code> 当作多播 DNS 使用。</p>
+<p>因此不建议继续使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">*.egon.local<br></code></pre></td></tr></table></figure>
+
+<h2 id="6-2-推荐域名方案"><a href="#6-2-推荐域名方案" class="headerlink" title="6.2 推荐域名方案"></a>6.2 推荐域名方案</h2><h3 id="方案-A：拥有公网域名，最佳长期方案"><a href="#方案-A：拥有公网域名，最佳长期方案" class="headerlink" title="方案 A：拥有公网域名，最佳长期方案"></a>方案 A：拥有公网域名，最佳长期方案</h3><p>如果你有自己的公网域名，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">egon.example.com<br></code></pre></td></tr></table></figure>
+
+<p>推荐使用 split-horizon DNS：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">内网：*.home.egon.example.com -&gt; 内网 IP<br>公网：*.egon.example.com      -&gt; 公网 IP / CDN / WAF<br></code></pre></td></tr></table></figure>
+
+<p>优点：</p>
+<ul>
+<li>可以申请公网可信证书。</li>
+<li>不和特殊用途域名冲突。</li>
+<li>内外网 DNS 分离清晰。</li>
+<li>企业化程度最高。</li>
+</ul>
+<h3 id="方案-B：纯内网，推荐-home-arpa"><a href="#方案-B：纯内网，推荐-home-arpa" class="headerlink" title="方案 B：纯内网，推荐 home.arpa"></a>方案 B：纯内网，推荐 <code>home.arpa</code></h3><p>如果只是内网自用，可以使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">*.egon.home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">api.k8s.egon.home.arpa        -&gt; 192.168.20.10<br>*.apps.egon.home.arpa         -&gt; 192.168.20.100<br>harbor.egon.home.arpa         -&gt; 192.168.20.101<br>gitlab.egon.home.arpa         -&gt; 192.168.20.102<br>grafana.egon.home.arpa        -&gt; 192.168.20.100<br>argocd.egon.home.arpa         -&gt; 192.168.20.100<br></code></pre></td></tr></table></figure>
+
+<p>缺点：</p>
+<ul>
+<li>不能申请公开可信 TLS 证书。</li>
+<li>需要内网 CA。</li>
+<li>外网访问要用公网域名另配。</li>
+</ul>
+<h3 id="方案-C：-internal"><a href="#方案-C：-internal" class="headerlink" title="方案 C：.internal"></a>方案 C：<code>.internal</code></h3><p><code>.internal</code> 近年来被保留给私有用途，但家庭&#x2F;小型内网生态兼容性不如 <code>home.arpa</code> 明确。你的场景如果偏家庭&#x2F;实验室&#x2F;内网，优先 <code>home.arpa</code>；如果更偏公司内部网络，且你明确要私有命名，可以评估 <code>.internal</code>。</p>
+<p>本方案推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">内网：egon.home.arpa<br>公网：使用你实际拥有的公网域名<br></code></pre></td></tr></table></figure>
+
+<h2 id="6-3-OpenWrt-AdGuard-dnsmasq-建议拓扑"><a href="#6-3-OpenWrt-AdGuard-dnsmasq-建议拓扑" class="headerlink" title="6.3 OpenWrt + AdGuard + dnsmasq 建议拓扑"></a>6.3 OpenWrt + AdGuard + dnsmasq 建议拓扑</h2><p>推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">客户端 DHCP DNS -&gt; AdGuard Home<br>AdGuard Home:<br>  - 普通公网域名 -&gt; 上游 DNS / DoH / DoT<br>  - egon.home.arpa -&gt; 转发到 OpenWrt dnsmasq<br>  - 20.168.192.in-addr.arpa -&gt; 转发到 OpenWrt dnsmasq<br>OpenWrt dnsmasq:<br>  - 管理本地域名记录<br>  - 管理 DHCP 静态租约<br>  - 管理 K8s VIP / Ingress / Harbor 等静态记录<br></code></pre></td></tr></table></figure>
+
+<p>最低可先配置一条泛域名：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">*.apps.egon.home.arpa -&gt; 192.168.20.100<br></code></pre></td></tr></table></figure>
+
+<p>这样大部分服务只需要配置 Ingress host，不需要每个服务都改 DNS。</p>
+<h2 id="7-Kubernetes-核心组件设计"><a href="#7-Kubernetes-核心组件设计" class="headerlink" title="7. Kubernetes 核心组件设计"></a>7. Kubernetes 核心组件设计</h2><h2 id="7-1-Kubernetes-版本"><a href="#7-1-Kubernetes-版本" class="headerlink" title="7.1 Kubernetes 版本"></a>7.1 Kubernetes 版本</h2><p>建议选择当前稳定维护分支中的一个版本，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Kubernetes v1.36.x 或 v1.35.x<br></code></pre></td></tr></table></figure>
+
+<p>由于 Rocky Linux 10 较新，第一版建议先在测试 VM 上验证：</p>
+<ul>
+<li>containerd。</li>
+<li>kubelet。</li>
+<li>Cilium。</li>
+<li>SELinux enforcing。</li>
+<li>firewalld rules。</li>
+<li>ingress-nginx。</li>
+<li>MetalLB。</li>
+</ul>
+<p>生产版本策略：</p>
+<ul>
+<li>固定 minor 版本。</li>
+<li>固定 patch 版本。</li>
+<li>禁止无计划自动升级 kubelet &#x2F; kubeadm &#x2F; kubectl。</li>
+<li>每季度规划升级窗口。</li>
+<li>先升级测试 namespace，再升级 staging，再滚动升级 worker，最后升级 control-plane。</li>
+</ul>
+<h2 id="7-2-容器运行时-containerd"><a href="#7-2-容器运行时-containerd" class="headerlink" title="7.2 容器运行时 containerd"></a>7.2 容器运行时 containerd</h2><p>节点统一使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">containerd + runc<br>SystemdCgroup = true<br></code></pre></td></tr></table></figure>
+
+<p>建议目录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">/var/lib/containerd   独立磁盘<br>/var/log              独立或足够空间<br>/var/lib/kubelet      与 containerd 同盘或独立盘<br></code></pre></td></tr></table></figure>
+
+<p>镜像源：</p>
+<ul>
+<li>Harbor 作为内部私有仓库。</li>
+<li>Harbor 配置 Docker Hub &#x2F; GHCR &#x2F; Quay 等代理缓存。</li>
+<li>containerd 配置 registry mirror 指向 Harbor。</li>
+<li>生产 namespace 只允许从 Harbor 拉镜像。</li>
+</ul>
+<h2 id="7-3-kubeadm-部署模式"><a href="#7-3-kubeadm-部署模式" class="headerlink" title="7.3 kubeadm 部署模式"></a>7.3 kubeadm 部署模式</h2><p>使用 kubeadm 部署 stacked etcd 高可用集群：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">3 control-plane + 3 etcd members<br></code></pre></td></tr></table></figure>
+
+<p>kubeadm 初始化时关键参数：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">controlPlaneEndpoint:</span> <span class="hljs-string">&quot;api.k8s.egon.home.arpa:6443&quot;</span><br><span class="hljs-attr">networking:</span><br>  <span class="hljs-attr">podSubnet:</span> <span class="hljs-string">&quot;10.244.0.0/16&quot;</span><br>  <span class="hljs-attr">serviceSubnet:</span> <span class="hljs-string">&quot;10.96.0.0/12&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p><code>api.k8s.egon.home.arpa</code> 解析到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.20.10<br></code></pre></td></tr></table></figure>
+
+<p>也就是 Keepalived VIP。</p>
+<h2 id="7-4-Cilium-网络"><a href="#7-4-Cilium-网络" class="headerlink" title="7.4 Cilium 网络"></a>7.4 Cilium 网络</h2><p>推荐 Cilium 配置方向：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">CNI: Cilium<br>kube-proxy replacement: enabled 或 strict，先在测试验证<br>Hubble: enabled<br>Hubble UI: enabled<br>NetworkPolicy: enabled<br>CiliumNetworkPolicy: enabled<br></code></pre></td></tr></table></figure>
+
+<p>建议启用能力：</p>
+<ul>
+<li>L3&#x2F;L4 NetworkPolicy。</li>
+<li>DNS-aware egress policy。</li>
+<li>Hubble flow visibility。</li>
+<li>Service map。</li>
+<li>严格 egress 管控。</li>
+</ul>
+<p>NetworkPolicy 默认策略：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">每个业务 namespace 默认 deny all ingress。<br>只显式放通：<br>  - Ingress Controller -&gt; Service<br>  - 同 namespace 必要服务调用<br>  - app -&gt; database/cache/message queue<br>  - app -&gt; DNS<br>  - app -&gt; 外部 API 白名单<br></code></pre></td></tr></table></figure>
+
+<h2 id="8-环境与命名空间规划"><a href="#8-环境与命名空间规划" class="headerlink" title="8. 环境与命名空间规划"></a>8. 环境与命名空间规划</h2><h2 id="8-1-Namespace-设计"><a href="#8-1-Namespace-设计" class="headerlink" title="8.1 Namespace 设计"></a>8.1 Namespace 设计</h2><p>建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs text">platform-system        平台级工具聚合 namespace，可选<br>argocd                 GitOps<br>cert-manager           证书管理<br>cilium                 CNI<br>hubble                 Cilium 可观测，可与 cilium 合并<br>metallb-system         MetalLB<br>ingress-nginx          Ingress Controller<br>monitoring             Prometheus / Grafana / Alertmanager<br>logging                Loki / Alloy<br>tracing                Tempo / OpenTelemetry Collector<br>harbor                 镜像仓库，如部署在集群内<br>gitlab                 GitLab，如部署在集群内<br>velero                 备份<br>security               Kyverno / policy / scanner<br>nacos                  平台中间件，可按环境拆分<br>redis                  平台中间件，可按环境拆分<br>postgres               数据库，可按环境拆分<br><br>dev                    开发环境<br>test                   测试环境<br>staging                预发环境<br>prod                   生产环境<br></code></pre></td></tr></table></figure>
+
+<p>更严格的做法：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">prod-xxx<br>staging-xxx<br>test-xxx<br>dev-xxx<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">prod-order<br>prod-finance<br>prod-rag<br>staging-order<br>staging-finance<br>dev-order<br></code></pre></td></tr></table></figure>
+
+<p>如果应用很多，不建议所有 prod 应用挤在一个 <code>prod</code> namespace。</p>
+<h2 id="8-2-Node-Label-Taint-设计"><a href="#8-2-Node-Label-Taint-设计" class="headerlink" title="8.2 Node Label &#x2F; Taint 设计"></a>8.2 Node Label &#x2F; Taint 设计</h2><p>示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash">node-role.kubernetes.io/control-plane=<span class="hljs-literal">true</span><br>node-pool=infra<br>node-pool=app<br>node-pool=data<br>env-capacity=prod<br>storage-tier=ssd<br>storage-tier=hdd<br></code></pre></td></tr></table></figure>
+
+<p>control-plane：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Taint: node-role.kubernetes.io/control-plane:NoSchedule<br></code></pre></td></tr></table></figure>
+
+<p>data node：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Taint: dedicated=data:NoSchedule<br></code></pre></td></tr></table></figure>
+
+<p>infra node 可按需设置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Taint: dedicated=infra:NoSchedule<br></code></pre></td></tr></table></figure>
+
+<p>关键平台组件通过 toleration 调度到 infra node。</p>
+<h2 id="8-3-环境隔离"><a href="#8-3-环境隔离" class="headerlink" title="8.3 环境隔离"></a>8.3 环境隔离</h2><p>每个环境至少配置：</p>
+<ul>
+<li>ResourceQuota。</li>
+<li>LimitRange。</li>
+<li>NetworkPolicy。</li>
+<li>RBAC Role &#x2F; RoleBinding。</li>
+<li>独立 Secret。</li>
+<li>独立 ConfigMap。</li>
+<li>独立 Ingress host。</li>
+<li>独立 Argo CD Project。</li>
+</ul>
+<p>示例域名：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">dev-order.apps.egon.home.arpa<br>test-order.apps.egon.home.arpa<br>staging-order.apps.egon.home.arpa<br>order.apps.egon.home.arpa<br></code></pre></td></tr></table></figure>
+
+<p>prod 可以省略 <code>prod</code> 前缀，但内部资源命名仍建议保留 <code>prod</code>。</p>
+<h2 id="9-存储架构"><a href="#9-存储架构" class="headerlink" title="9. 存储架构"></a>9. 存储架构</h2><h2 id="9-1-当前结论"><a href="#9-1-当前结论" class="headerlink" title="9.1 当前结论"></a>9.1 当前结论</h2><p>当前没有 NAS、Ceph、vSAN 明确规划，因此不建议第一阶段把核心数据库直接迁入 Kubernetes。</p>
+<p>第一阶段建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">PostgreSQL / Redis / Nacos 数据库 / GitLab / Harbor 元数据<br>优先放在 K8s 外部或专用 VM<br></code></pre></td></tr></table></figure>
+
+<p>Kubernetes 内部第一阶段只承载：</p>
+<ul>
+<li>无状态 Java 服务。</li>
+<li>前端 &#x2F; SSR。</li>
+<li>AI&#x2F;RAG 无状态 API。</li>
+<li>Nacos 客户端接入，Nacos 本体可暂时外部。</li>
+<li>Redis 可暂时外部。</li>
+<li>PostgreSQL 暂时外部。</li>
+<li>监控、日志可以部署在集群内，但要有备份。</li>
+</ul>
+<h2 id="9-2-PVC-方案对比"><a href="#9-2-PVC-方案对比" class="headerlink" title="9.2 PVC 方案对比"></a>9.2 PVC 方案对比</h2><table>
+<thead>
+<tr>
+<th>方案</th>
+<th>推荐程度</th>
+<th>适用</th>
+<th>问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>vSphere CSI + vSAN&#x2F;shared datastore</td>
+<td>强烈推荐，如果具备共享存储</td>
+<td>生产 PVC、VM 生命周期一致</td>
+<td>需要 vSAN 或共享存储基础</td>
+</tr>
+<tr>
+<td>Longhorn</td>
+<td>中小规模推荐</td>
+<td>非核心 PVC、监控、日志、低中负载服务</td>
+<td>对网络和磁盘稳定性敏感，高写入数据库需谨慎</td>
+</tr>
+<tr>
+<td>Rook Ceph</td>
+<td>生产能力强</td>
+<td>对象、块、文件，多副本存储</td>
+<td>运维复杂，对网络、磁盘、经验要求高</td>
+</tr>
+<tr>
+<td>NFS</td>
+<td>仅推荐非核心</td>
+<td>备份、共享文件、低要求数据</td>
+<td>单点、性能、锁、一致性风险</td>
+</tr>
+<tr>
+<td>Local PV</td>
+<td>特定场景</td>
+<td>高性能单节点绑定工作负载</td>
+<td>节点故障恢复复杂，不适合自动漂移</td>
+</tr>
+</tbody></table>
+<h2 id="9-3-本方案推荐分阶段路线"><a href="#9-3-本方案推荐分阶段路线" class="headerlink" title="9.3 本方案推荐分阶段路线"></a>9.3 本方案推荐分阶段路线</h2><h3 id="阶段-1：保守生产"><a href="#阶段-1：保守生产" class="headerlink" title="阶段 1：保守生产"></a>阶段 1：保守生产</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">核心数据库外置 VM<br>Harbor/GitLab 尽量外置 VM<br>K8s 内部使用 Longhorn 或 vSphere CSI 承载非核心 PVC<br>Velero 备份到 MinIO/S3<br></code></pre></td></tr></table></figure>
+
+<h3 id="阶段-2：建设共享存储"><a href="#阶段-2：建设共享存储" class="headerlink" title="阶段 2：建设共享存储"></a>阶段 2：建设共享存储</h3><p>优先级：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 如果 vSphere 企业许可和硬件条件允许，优先评估 vSAN + vSphere CSI。<br>2. 如果不走 vSAN，评估独立 TrueNAS / NFS / iSCSI。<br>3. 如果希望纯开源分布式存储，评估 Rook Ceph。<br>4. 如果希望简单落地，Longhorn 作为中小规模折中方案。<br></code></pre></td></tr></table></figure>
+
+<h3 id="阶段-3：迁入有状态服务"><a href="#阶段-3：迁入有状态服务" class="headerlink" title="阶段 3：迁入有状态服务"></a>阶段 3：迁入有状态服务</h3><p>迁入顺序建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Nacos -&gt; Redis -&gt; MinIO -&gt; GitLab/Harbor -&gt; PostgreSQL<br></code></pre></td></tr></table></figure>
+
+<p>PostgreSQL 最后迁，因为它对存储、备份、恢复、延迟、IO 抖动最敏感。数据库不是不能上 K8s，是不能在存储没想清楚时上 K8s。这个坑很大，掉进去声音都带回声。</p>
+<h2 id="10-镜像仓库与供应链安全"><a href="#10-镜像仓库与供应链安全" class="headerlink" title="10. 镜像仓库与供应链安全"></a>10. 镜像仓库与供应链安全</h2><h2 id="10-1-Harbor-部署建议"><a href="#10-1-Harbor-部署建议" class="headerlink" title="10.1 Harbor 部署建议"></a>10.1 Harbor 部署建议</h2><p>第一阶段建议 Harbor 部署在独立 VM，而不是直接部署在同一个 K8s 集群内。</p>
+<p>原因：</p>
+<ul>
+<li>集群拉镜像依赖 Harbor。</li>
+<li>如果 Harbor 也只在集群内，集群恢复时可能出现“鸡生蛋，蛋生鸡”的问题。</li>
+<li>Harbor 需要可靠存储和备份。</li>
+</ul>
+<p>推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">harbor.egon.home.arpa -&gt; Harbor VM 或后续 K8s infra node<br></code></pre></td></tr></table></figure>
+
+<p>Harbor 功能：</p>
+<ul>
+<li>私有镜像仓库。</li>
+<li>Docker Hub 代理缓存。</li>
+<li>GHCR &#x2F; Quay 代理缓存。</li>
+<li>项目级权限。</li>
+<li>Trivy 漏洞扫描。</li>
+<li>镜像保留策略。</li>
+<li>镜像不可变 tag。</li>
+<li>robot account 给 CI&#x2F;CD 使用。</li>
+</ul>
+<h2 id="10-2-镜像策略"><a href="#10-2-镜像策略" class="headerlink" title="10.2 镜像策略"></a>10.2 镜像策略</h2><p>生产要求：</p>
+<ul>
+<li>禁止使用 <code>latest</code>。</li>
+<li>生产镜像必须来自 Harbor。</li>
+<li>镜像 tag 使用：</li>
+</ul>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">应用名:git-sha<br>应用名:semver-gitsha<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">harbor.egon.home.arpa/prod/order-service:1.8.3-a1b2c3d<br></code></pre></td></tr></table></figure>
+
+<p>建议后续引入：</p>
+<ul>
+<li>Cosign 镜像签名。</li>
+<li>Kyverno 校验镜像仓库来源。</li>
+<li>Kyverno 校验禁止 privileged 容器。</li>
+<li>Trivy 扫描 critical&#x2F;high 阈值阻断。</li>
+</ul>
+<h2 id="11-安全架构"><a href="#11-安全架构" class="headerlink" title="11. 安全架构"></a>11. 安全架构</h2><h2 id="11-1-OS-安全"><a href="#11-1-OS-安全" class="headerlink" title="11.1 OS 安全"></a>11.1 OS 安全</h2><p>建议：</p>
+<ul>
+<li>SELinux 优先保持 enforcing。</li>
+<li>firewalld 开启，并按 zone 管理。</li>
+<li>禁用 root SSH 登录。</li>
+<li>SSH 使用 key 登录。</li>
+<li>所有节点时间同步。</li>
+<li>所有节点开启 auditd。</li>
+<li>kubelet、containerd、crictl 版本固定。</li>
+<li>生产节点禁止安装无关工具。</li>
+<li>禁止在节点上直接 docker run。</li>
+</ul>
+<h2 id="11-2-firewalld-策略"><a href="#11-2-firewalld-策略" class="headerlink" title="11.2 firewalld 策略"></a>11.2 firewalld 策略</h2><p>不建议生产环境简单关闭 firewalld。</p>
+<p>建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">管理网 zone: 允许 SSH、监控 agent、必要管理端口<br>K8s node zone: 允许 Kubernetes / Cilium / MetalLB / Ingress 必要端口<br>公网/DMZ zone: 仅允许 80/443 到指定入口<br></code></pre></td></tr></table></figure>
+
+<p>需要在部署阶段整理端口白名单，包括：</p>
+<ul>
+<li>Kubernetes API Server 6443。</li>
+<li>etcd 2379&#x2F;2380。</li>
+<li>kubelet 10250。</li>
+<li>HAProxy &#x2F; Keepalived VRRP。</li>
+<li>Cilium VXLAN&#x2F;Geneve 或 native routing 所需端口。</li>
+<li>Hubble relay &#x2F; UI。</li>
+<li>MetalLB memberlist 7946 TCP&#x2F;UDP。</li>
+<li>Ingress 80&#x2F;443。</li>
+<li>Node exporter &#x2F; Prometheus scrape。</li>
+</ul>
+<h2 id="11-3-Kubernetes-安全"><a href="#11-3-Kubernetes-安全" class="headerlink" title="11.3 Kubernetes 安全"></a>11.3 Kubernetes 安全</h2><p>必须配置：</p>
+<ul>
+<li>RBAC 最小权限。</li>
+<li>Pod Security Admission。</li>
+<li>namespace 默认 deny NetworkPolicy。</li>
+<li>Kyverno 策略。</li>
+<li>ResourceQuota 防止 dev&#x2F;test 抢资源。</li>
+<li>LimitRange 避免 Pod 无限制。</li>
+<li>Secret 不进 Git 明文。</li>
+<li>kubeconfig 分角色管理。</li>
+<li>禁止生产环境人工 kubectl apply。</li>
+<li>禁止特权容器。</li>
+<li>禁止 hostPath，除非平台组件明确需要。</li>
+<li>禁止 hostNetwork，除非平台组件明确需要。</li>
+<li>禁止容器 root 用户运行，例外需审批。</li>
+</ul>
+<h2 id="11-4-认证与权限"><a href="#11-4-认证与权限" class="headerlink" title="11.4 认证与权限"></a>11.4 认证与权限</h2><p>你当前暂无统一认证，第一阶段：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">admin kubeconfig 严格保管<br>平台管理员独立 kubeconfig<br>开发者只通过 Argo CD / GitLab CI 发布<br></code></pre></td></tr></table></figure>
+
+<p>第二阶段建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Keycloak / Authentik / Dex + OIDC<br></code></pre></td></tr></table></figure>
+
+<p>对接：</p>
+<ul>
+<li>Kubernetes API。</li>
+<li>Argo CD。</li>
+<li>Grafana。</li>
+<li>Harbor。</li>
+<li>GitLab。</li>
+</ul>
+<h2 id="12-证书架构"><a href="#12-证书架构" class="headerlink" title="12. 证书架构"></a>12. 证书架构</h2><h2 id="12-1-内网证书"><a href="#12-1-内网证书" class="headerlink" title="12.1 内网证书"></a>12.1 内网证书</h2><p>推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">自建 Root CA<br>  -&gt; cert-manager ClusterIssuer<br>    -&gt; 为 *.apps.egon.home.arpa 签发服务证书<br></code></pre></td></tr></table></figure>
+
+<p>流程：</p>
+<ol>
+<li>生成内网 Root CA。</li>
+<li>安装到 Mac、Windows、Linux、移动设备的受信任根证书。</li>
+<li>cert-manager 使用 CA Issuer 签发 Ingress TLS。</li>
+<li>所有内网 HTTPS 服务统一走 cert-manager。</li>
+</ol>
+<h2 id="12-2-公网证书"><a href="#12-2-公网证书" class="headerlink" title="12.2 公网证书"></a>12.2 公网证书</h2><p>公网不要使用 <code>home.arpa</code>。</p>
+<p>公网建议使用你实际拥有的公网域名，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">*.egon.example.com<br></code></pre></td></tr></table></figure>
+
+<p>申请方式：</p>
+<ul>
+<li>Let’s Encrypt HTTP-01：适合公网 80&#x2F;443 直通。</li>
+<li>Let’s Encrypt DNS-01：适合泛域名证书，推荐。</li>
+</ul>
+<p>公网入口建议和内网入口分离：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">nginx-internal IngressClass<br>nginx-public IngressClass<br></code></pre></td></tr></table></figure>
+
+<h2 id="13-可观测性架构"><a href="#13-可观测性架构" class="headerlink" title="13. 可观测性架构"></a>13. 可观测性架构</h2><h2 id="13-1-监控"><a href="#13-1-监控" class="headerlink" title="13.1 监控"></a>13.1 监控</h2><p>推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">kube-prometheus-stack<br>  - Prometheus Operator<br>  - Prometheus<br>  - Alertmanager<br>  - Grafana<br>  - node-exporter<br>  - kube-state-metrics<br></code></pre></td></tr></table></figure>
+
+<p>监控对象：</p>
+<ul>
+<li>ESXi &#x2F; vCenter，后续通过 exporter 或 Telegraf。</li>
+<li>Kubernetes API Server。</li>
+<li>etcd。</li>
+<li>kubelet。</li>
+<li>containerd。</li>
+<li>Cilium。</li>
+<li>CoreDNS。</li>
+<li>Ingress Controller。</li>
+<li>MetalLB。</li>
+<li>Harbor。</li>
+<li>GitLab Runner。</li>
+<li>Java 应用 JVM。</li>
+<li>PostgreSQL &#x2F; Redis &#x2F; Nacos。</li>
+<li>节点磁盘、网络、CPU、内存。</li>
+</ul>
+<p>核心告警：</p>
+<ul>
+<li>etcd leader 变更频繁。</li>
+<li>etcd fsync 延迟高。</li>
+<li>API Server 错误率升高。</li>
+<li>Node NotReady。</li>
+<li>Pod CrashLoopBackOff。</li>
+<li>节点磁盘压力。</li>
+<li>containerd 镜像盘占用过高。</li>
+<li>Cilium agent 异常。</li>
+<li>Ingress 5xx 升高。</li>
+<li>JVM heap &#x2F; GC 异常。</li>
+<li>PVC 容量不足。</li>
+</ul>
+<h2 id="13-2-日志"><a href="#13-2-日志" class="headerlink" title="13.2 日志"></a>13.2 日志</h2><p>推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Grafana Alloy / Promtail<br>  -&gt; Loki<br>    -&gt; Grafana<br></code></pre></td></tr></table></figure>
+
+<p>日志策略：</p>
+<ul>
+<li>平台组件日志保留 7~15 天。</li>
+<li>应用日志保留 15~30 天。</li>
+<li>prod 关键日志可归档到对象存储。</li>
+<li>Java 应用必须输出 JSON 日志。</li>
+<li>所有日志包含 traceId、spanId、env、namespace、pod、container、app、version。</li>
+</ul>
+<h2 id="13-3-链路追踪"><a href="#13-3-链路追踪" class="headerlink" title="13.3 链路追踪"></a>13.3 链路追踪</h2><p>推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Java App<br>  -&gt; OpenTelemetry Java Agent / SDK<br>    -&gt; OpenTelemetry Collector<br>      -&gt; Tempo<br>        -&gt; Grafana<br></code></pre></td></tr></table></figure>
+
+<p>Java 服务建议统一接入：</p>
+<ul>
+<li>HTTP Server。</li>
+<li>HTTP Client。</li>
+<li>JDBC。</li>
+<li>Redis。</li>
+<li>Kafka&#x2F;RabbitMQ。</li>
+<li>gRPC。</li>
+<li>Dubbo，如果使用。</li>
+</ul>
+<p>日志和 trace 关联：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">日志中输出 trace_id / span_id<br>Grafana 中从日志跳转到 trace<br>Grafana 中从 trace 跳转到指标<br></code></pre></td></tr></table></figure>
+
+<h2 id="13-4-网络可观测"><a href="#13-4-网络可观测" class="headerlink" title="13.4 网络可观测"></a>13.4 网络可观测</h2><p>Cilium Hubble 用于查看：</p>
+<ul>
+<li>Pod 到 Pod 的流量。</li>
+<li>DNS 查询。</li>
+<li>被 NetworkPolicy 拒绝的流量。</li>
+<li>服务依赖关系。</li>
+<li>L7 HTTP 访问流。</li>
+</ul>
+<p>这对排查“服务怎么突然不通了”非常有用。没有 Hubble 的时候，网络问题经常像黑盒魔法；有 Hubble 至少能看见魔法师的手在哪里动。</p>
+<h2 id="14-备份与灾备"><a href="#14-备份与灾备" class="headerlink" title="14. 备份与灾备"></a>14. 备份与灾备</h2><h2 id="14-1-RTO-RPO-目标"><a href="#14-1-RTO-RPO-目标" class="headerlink" title="14.1 RTO &#x2F; RPO 目标"></a>14.1 RTO &#x2F; RPO 目标</h2><p>目标：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">RTO: 1 小时内恢复核心服务<br>RPO: 视业务而定，建议核心配置 15~60 分钟级别<br></code></pre></td></tr></table></figure>
+
+<p>但必须明确：</p>
+<ul>
+<li>etcd 本地快照只能解决误删和部分控制面问题。</li>
+<li>如果快照只留在本机，本机或 datastore 损坏时仍然会丢。</li>
+<li>严格生产必须至少复制到另一台机器或独立备份存储。</li>
+</ul>
+<h2 id="14-2-etcd-备份"><a href="#14-2-etcd-备份" class="headerlink" title="14.2 etcd 备份"></a>14.2 etcd 备份</h2><p>建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">每 1 小时 etcd snapshot<br>本地保留 24 小时<br>每日快照复制到备份存储<br>每周保留 4 周<br>每月保留 6~12 月<br></code></pre></td></tr></table></figure>
+
+<p>备份位置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">/backup/etcd/local<br>MinIO / NFS / 独立备份 VM<br></code></pre></td></tr></table></figure>
+
+<p>必须定期演练：</p>
+<ul>
+<li>单 control-plane 故障恢复。</li>
+<li>etcd member 替换。</li>
+<li>从 snapshot 恢复测试集群。</li>
+</ul>
+<h2 id="14-3-Velero-备份"><a href="#14-3-Velero-备份" class="headerlink" title="14.3 Velero 备份"></a>14.3 Velero 备份</h2><p>推荐使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Velero + MinIO S3<br></code></pre></td></tr></table></figure>
+
+<p>备份内容：</p>
+<ul>
+<li>Namespace。</li>
+<li>Deployment &#x2F; StatefulSet &#x2F; DaemonSet。</li>
+<li>Service &#x2F; Ingress。</li>
+<li>ConfigMap &#x2F; Secret。</li>
+<li>CRD。</li>
+<li>RBAC。</li>
+<li>PVC 数据，取决于 CSI snapshot 或文件系统备份能力。</li>
+</ul>
+<p>建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">每日备份 platform namespace<br>每日备份 prod namespace<br>staging/test/dev 可降低频率<br>重大变更前手动备份<br></code></pre></td></tr></table></figure>
+
+<p>如果存储支持 CSI Snapshot，优先使用 CSI Snapshot。</p>
+<p>如果不支持，可用 Velero FSB &#x2F; Kopia &#x2F; Restic 方式，但要接受性能和一致性限制。</p>
+<h2 id="15-发布与-CI-CD-架构"><a href="#15-发布与-CI-CD-架构" class="headerlink" title="15. 发布与 CI&#x2F;CD 架构"></a>15. 发布与 CI&#x2F;CD 架构</h2><h2 id="15-1-推荐流水线"><a href="#15-1-推荐流水线" class="headerlink" title="15.1 推荐流水线"></a>15.1 推荐流水线</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">Developer push code<br>  -&gt; GitLab CI<br>    -&gt; build image<br>    -&gt; scan image<br>    -&gt; push Harbor<br>    -&gt; update Helm values / Kustomize image tag<br>    -&gt; Argo CD sync<br>      -&gt; dev/test/staging/prod<br></code></pre></td></tr></table></figure>
+
+<h2 id="15-2-GitOps-目录建议"><a href="#15-2-GitOps-目录建议" class="headerlink" title="15.2 GitOps 目录建议"></a>15.2 GitOps 目录建议</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">infra-gitops/<br>  clusters/<br>    k8s-prod-shared/<br>      bootstrap/<br>      platform/<br>      apps/<br>  envs/<br>    dev/<br>    test/<br>    staging/<br>    prod/<br>  charts/<br>  policies/<br></code></pre></td></tr></table></figure>
+
+<h2 id="15-3-发布策略"><a href="#15-3-发布策略" class="headerlink" title="15.3 发布策略"></a>15.3 发布策略</h2><h3 id="滚动发布"><a href="#滚动发布" class="headerlink" title="滚动发布"></a>滚动发布</h3><p>适合大多数 Java 服务：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">strategy:</span><br>  <span class="hljs-attr">type:</span> <span class="hljs-string">RollingUpdate</span><br>  <span class="hljs-attr">rollingUpdate:</span><br>    <span class="hljs-attr">maxUnavailable:</span> <span class="hljs-number">0</span><br>    <span class="hljs-attr">maxSurge:</span> <span class="hljs-number">1</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="蓝绿发布"><a href="#蓝绿发布" class="headerlink" title="蓝绿发布"></a>蓝绿发布</h3><p>适合：</p>
+<ul>
+<li>前端。</li>
+<li>SSR。</li>
+<li>关键后端。</li>
+<li>需要快速回滚的服务。</li>
+</ul>
+<p>使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Argo Rollouts blue-green<br></code></pre></td></tr></table></figure>
+
+<h3 id="灰度发布"><a href="#灰度发布" class="headerlink" title="灰度发布"></a>灰度发布</h3><p>适合：</p>
+<ul>
+<li>新接口。</li>
+<li>新算法。</li>
+<li>AI&#x2F;RAG 服务。</li>
+<li>用户影响较大的变更。</li>
+</ul>
+<p>使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Argo Rollouts canary + Prometheus metrics<br></code></pre></td></tr></table></figure>
+
+<p>灰度指标：</p>
+<ul>
+<li>HTTP 5xx。</li>
+<li>P95&#x2F;P99 latency。</li>
+<li>JVM error。</li>
+<li>business error code。</li>
+<li>AI 服务 token error &#x2F; timeout。</li>
+</ul>
+<h2 id="16-有状态服务迁移策略"><a href="#16-有状态服务迁移策略" class="headerlink" title="16. 有状态服务迁移策略"></a>16. 有状态服务迁移策略</h2><h2 id="16-1-Nacos"><a href="#16-1-Nacos" class="headerlink" title="16.1 Nacos"></a>16.1 Nacos</h2><p>建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">第一阶段：外部 VM 部署 Nacos 集群<br>第二阶段：迁入 K8s，但数据库仍外部<br>第三阶段：Nacos + DB 都纳入完整备份体系<br></code></pre></td></tr></table></figure>
+
+<h2 id="16-2-Redis"><a href="#16-2-Redis" class="headerlink" title="16.2 Redis"></a>16.2 Redis</h2><p>建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">第一阶段：外部 Redis<br>第二阶段：K8s 内部署 Redis Sentinel / Redis Cluster<br></code></pre></td></tr></table></figure>
+
+<p>Redis 迁入前必须明确：</p>
+<ul>
+<li>持久化策略。</li>
+<li>AOF&#x2F;RDB。</li>
+<li>备份方式。</li>
+<li>故障切换演练。</li>
+<li>客户端连接方式。</li>
+</ul>
+<h2 id="16-3-PostgreSQL"><a href="#16-3-PostgreSQL" class="headerlink" title="16.3 PostgreSQL"></a>16.3 PostgreSQL</h2><p>PostgreSQL 不建议第一阶段迁入。</p>
+<p>如果后续迁入，建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">CloudNativePG 或 Zalando Postgres Operator<br>专用 data node<br>专用高速存储<br>WAL 归档到 MinIO/S3<br>定期全量备份<br>PITR 恢复演练<br></code></pre></td></tr></table></figure>
+
+<h2 id="16-4-GitLab"><a href="#16-4-GitLab" class="headerlink" title="16.4 GitLab"></a>16.4 GitLab</h2><p>GitLab 非常吃资源，也有 PostgreSQL、Redis、Gitaly、对象存储等依赖。</p>
+<p>建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">第一阶段：GitLab 独立 VM<br>第二阶段：GitLab Runner 跑在 K8s<br>第三阶段：如果存储成熟，再考虑 GitLab 迁入 K8s<br></code></pre></td></tr></table></figure>
+
+<h2 id="16-5-Harbor"><a href="#16-5-Harbor" class="headerlink" title="16.5 Harbor"></a>16.5 Harbor</h2><p>Harbor 推荐第一阶段独立 VM。</p>
+<p>如果迁入 K8s：</p>
+<ul>
+<li>registry 存储放对象存储或可靠 PVC。</li>
+<li>PostgreSQL &#x2F; Redis 高可用。</li>
+<li>定期备份。</li>
+<li>镜像保留策略。</li>
+<li>镜像扫描数据库更新策略。</li>
+</ul>
+<h2 id="17-Ansible-自动化范围"><a href="#17-Ansible-自动化范围" class="headerlink" title="17. Ansible 自动化范围"></a>17. Ansible 自动化范围</h2><p>第一阶段 Ansible 应覆盖：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs text">inventory 管理<br>OS 初始化<br>主机名 / hosts / DNS 配置<br>时间同步<br>内核参数<br>SELinux / firewalld 策略<br>containerd 安装与配置<br>kubeadm / kubelet / kubectl 安装与版本锁定<br>HAProxy / Keepalived 安装配置<br>kubeadm init / join<br>Cilium 安装<br>MetalLB 安装<br>ingress-nginx 安装<br>cert-manager 安装<br>Argo CD 安装<br>kube-prometheus-stack 安装<br>Loki / Alloy 安装<br>Tempo / OTel Collector 安装<br>Velero 安装<br>Kyverno 安装<br>基础 namespace / quota / networkpolicy 创建<br></code></pre></td></tr></table></figure>
+
+<p>建议目录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><code class="hljs text">ansible-k8s/<br>  inventories/<br>    prod/<br>      hosts.yml<br>      group_vars/<br>  roles/<br>    os-baseline/<br>    containerd/<br>    kubernetes-packages/<br>    haproxy-keepalived/<br>    kubeadm-init/<br>    kubeadm-join-control-plane/<br>    kubeadm-join-worker/<br>    cilium/<br>    metallb/<br>    ingress-nginx/<br>    cert-manager/<br>    observability/<br>    velero/<br>    kyverno/<br>  playbooks/<br>    00-os-baseline.yml<br>    01-containerd.yml<br>    02-k8s-packages.yml<br>    03-lb.yml<br>    04-kubeadm-init.yml<br>    05-cni.yml<br>    06-platform.yml<br></code></pre></td></tr></table></figure>
+
+<h2 id="18-实施阶段规划"><a href="#18-实施阶段规划" class="headerlink" title="18. 实施阶段规划"></a>18. 实施阶段规划</h2><h2 id="阶段-0：前置确认"><a href="#阶段-0：前置确认" class="headerlink" title="阶段 0：前置确认"></a>阶段 0：前置确认</h2><p>必须确认：</p>
+<ul>
+<li>交换机是否支持 VLAN trunk。</li>
+<li>OpenWrt 是否承担三层网关。</li>
+<li>ESXi 是否用 vSwitch 还是 vDS。</li>
+<li>ESXi 之间网络是 1G、10G，还是混合。</li>
+<li>是否计划启用 vSAN。</li>
+<li>是否有共享 datastore。</li>
+<li>是否有独立备份存储。</li>
+<li>公网域名是否已拥有。</li>
+<li>公网 IP 入口是否走 OpenWrt。</li>
+</ul>
+<h2 id="阶段-1：网络与-DNS"><a href="#阶段-1：网络与-DNS" class="headerlink" title="阶段 1：网络与 DNS"></a>阶段 1：网络与 DNS</h2><ul>
+<li>规划 VLAN。</li>
+<li>创建 K8s Node 网段。</li>
+<li>创建 DNS：<code>egon.home.arpa</code>。</li>
+<li>创建 API VIP 记录。</li>
+<li>创建 Ingress 泛域名记录。</li>
+<li>预留 MetalLB 地址池。</li>
+</ul>
+<h2 id="阶段-2：VM-与-OS"><a href="#阶段-2：VM-与-OS" class="headerlink" title="阶段 2：VM 与 OS"></a>阶段 2：VM 与 OS</h2><ul>
+<li>创建 3 个 control-plane VM。</li>
+<li>创建 3 个 infra worker VM。</li>
+<li>创建 3 个 app worker VM。</li>
+<li>安装 Rocky Linux 10。</li>
+<li>Ansible 初始化 OS。</li>
+<li>配置 containerd。</li>
+</ul>
+<h2 id="阶段-3：Kubernetes-核心集群"><a href="#阶段-3：Kubernetes-核心集群" class="headerlink" title="阶段 3：Kubernetes 核心集群"></a>阶段 3：Kubernetes 核心集群</h2><ul>
+<li>部署 HAProxy + Keepalived。</li>
+<li>kubeadm 初始化第一个 control-plane。</li>
+<li>加入其他 control-plane。</li>
+<li>加入 worker。</li>
+<li>安装 Cilium。</li>
+<li>验证 Hubble。</li>
+<li>验证 NetworkPolicy。</li>
+</ul>
+<h2 id="阶段-4：平台组件"><a href="#阶段-4：平台组件" class="headerlink" title="阶段 4：平台组件"></a>阶段 4：平台组件</h2><ul>
+<li>MetalLB。</li>
+<li>ingress-nginx。</li>
+<li>cert-manager。</li>
+<li>Harbor。</li>
+<li>Argo CD。</li>
+<li>kube-prometheus-stack。</li>
+<li>Loki + Alloy。</li>
+<li>Tempo + OTel Collector。</li>
+<li>Velero。</li>
+<li>Kyverno。</li>
+</ul>
+<h2 id="阶段-5：应用上云"><a href="#阶段-5：应用上云" class="headerlink" title="阶段 5：应用上云"></a>阶段 5：应用上云</h2><p>顺序：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">前端 / SSR<br>无状态 Java 服务<br>AI/RAG API<br>Nacos 客户端接入<br>Redis 外部接入<br>PostgreSQL 外部接入<br>灰度发布<br>蓝绿发布<br></code></pre></td></tr></table></figure>
+
+<h2 id="阶段-6：有状态迁移"><a href="#阶段-6：有状态迁移" class="headerlink" title="阶段 6：有状态迁移"></a>阶段 6：有状态迁移</h2><p>满足以下条件后再做：</p>
+<ul>
+<li>存储方案稳定。</li>
+<li>备份恢复演练通过。</li>
+<li>监控告警完善。</li>
+<li>NetworkPolicy 完成。</li>
+<li>发布流程稳定。</li>
+<li>有回滚方案。</li>
+</ul>
+<h2 id="19-风险与对策"><a href="#19-风险与对策" class="headerlink" title="19. 风险与对策"></a>19. 风险与对策</h2><table>
+<thead>
+<tr>
+<th>风险</th>
+<th>说明</th>
+<th>对策</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>单集群承载四环境</td>
+<td>dev&#x2F;test 可能影响 prod</td>
+<td>namespace + RBAC + quota + networkpolicy，后续拆 prod 集群</td>
+</tr>
+<tr>
+<td>无共享存储</td>
+<td>VM &#x2F; PVC 高可用受限</td>
+<td>优先外置数据库，后续 vSAN &#x2F; Ceph &#x2F; Longhorn</td>
+</tr>
+<tr>
+<td>etcd 只本地备份</td>
+<td>宿主机或 datastore 损坏会丢</td>
+<td>快照必须复制到异机或 MinIO&#x2F;NFS</td>
+</tr>
+<tr>
+<td><code>.local</code> 冲突</td>
+<td>mDNS&#x2F;Bonjour 影响解析</td>
+<td>迁移到 <code>egon.home.arpa</code> 或自有公网域名</td>
+</tr>
+<tr>
+<td>Harbor 在集群内自举问题</td>
+<td>集群恢复时拉不到镜像</td>
+<td>第一阶段 Harbor 独立 VM</td>
+</tr>
+<tr>
+<td>生产使用 Docker runtime</td>
+<td>多 cri-dockerd 兼容层</td>
+<td>新集群直接 containerd</td>
+</tr>
+<tr>
+<td>firewalld 关闭</td>
+<td>节点暴露面过大</td>
+<td>开启 firewalld，明确端口白名单</td>
+</tr>
+<tr>
+<td>SELinux 关闭</td>
+<td>OS 安全降低</td>
+<td>尽量 enforcing，遇到问题逐项修复</td>
+</tr>
+<tr>
+<td>1G 网络跑分布式存储</td>
+<td>延迟和吞吐瓶颈</td>
+<td>存储网尽量 10G；核心 DB 外置</td>
+</tr>
+<tr>
+<td>RAG&#x2F;AI 服务资源波动</td>
+<td>CPU&#x2F;内存&#x2F;GPU&#x2F;IO 不稳定</td>
+<td>独立 node pool、quota、HPA&#x2F;VPA、限流</td>
+</tr>
+</tbody></table>
+<h2 id="20-第一版推荐落地配置"><a href="#20-第一版推荐落地配置" class="headerlink" title="20. 第一版推荐落地配置"></a>20. 第一版推荐落地配置</h2><h2 id="20-1-节点"><a href="#20-1-节点" class="headerlink" title="20.1 节点"></a>20.1 节点</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">k8s-cp-01     192.168.20.11<br>k8s-cp-02     192.168.20.12<br>k8s-cp-03     192.168.20.13<br>k8s-infra-01  192.168.20.21<br>k8s-infra-02  192.168.20.22<br>k8s-infra-03  192.168.20.23<br>k8s-app-01    192.168.20.31<br>k8s-app-02    192.168.20.32<br>k8s-app-03    192.168.20.33<br></code></pre></td></tr></table></figure>
+
+<h2 id="20-2-VIP-LB"><a href="#20-2-VIP-LB" class="headerlink" title="20.2 VIP &#x2F; LB"></a>20.2 VIP &#x2F; LB</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">api.k8s.egon.home.arpa        192.168.20.10<br>*.apps.egon.home.arpa         192.168.20.100<br>harbor.egon.home.arpa         192.168.20.101<br>argocd.egon.home.arpa         192.168.20.100<br>grafana.egon.home.arpa        192.168.20.100<br></code></pre></td></tr></table></figure>
+
+<h2 id="20-3-CIDR"><a href="#20-3-CIDR" class="headerlink" title="20.3 CIDR"></a>20.3 CIDR</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Node CIDR:     192.168.20.0/24<br>Pod CIDR:      10.244.0.0/16<br>Service CIDR:  10.96.0.0/12<br>MetalLB Pool:  192.168.20.100-192.168.20.149<br></code></pre></td></tr></table></figure>
+
+<h2 id="20-4-组件部署顺序"><a href="#20-4-组件部署顺序" class="headerlink" title="20.4 组件部署顺序"></a>20.4 组件部署顺序</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs text">1. OpenWrt / DNS / VLAN<br>2. Rocky Linux 10 VM<br>3. Ansible OS baseline<br>4. containerd<br>5. HAProxy + Keepalived<br>6. kubeadm init/join<br>7. Cilium + Hubble<br>8. MetalLB<br>9. ingress-nginx<br>10. cert-manager + 内网 CA<br>11. Harbor<br>12. Argo CD<br>13. Prometheus / Grafana / Alertmanager<br>14. Loki / Alloy<br>15. Tempo / OpenTelemetry Collector<br>16. Velero + MinIO<br>17. Kyverno / Pod Security / NetworkPolicy<br>18. 应用迁移<br></code></pre></td></tr></table></figure>
+
+<h2 id="21-待确认事项"><a href="#21-待确认事项" class="headerlink" title="21. 待确认事项"></a>21. 待确认事项</h2><p>下一版安装手册和 Ansible 脚本前，需要确认：</p>
+<ol>
+<li>交换机型号，是否支持 VLAN trunk。</li>
+<li>ESXi 物理网口是 1G 还是 10G。</li>
+<li>是否启用 vSphere Distributed Switch。</li>
+<li>是否有 vSAN 许可与启用计划。</li>
+<li>三台 ESXi 是否有共享 datastore。</li>
+<li>是否有独立备份机器或备份盘。</li>
+<li>是否拥有公网域名。</li>
+<li>公网 IP 的入口设备是 OpenWrt 还是其他路由器。</li>
+<li>未来 VPN 网段，避免和 Pod&#x2F;Service CIDR 冲突。</li>
+<li>GitLab 是否必须部署在 K8s 内，还是可以先独立 VM。</li>
+<li>Harbor 是否接受第一阶段独立 VM。</li>
+<li>PostgreSQL 当前是否已有外部高可用方案。</li>
+</ol>
+<h2 id="22-参考资料"><a href="#22-参考资料" class="headerlink" title="22. 参考资料"></a>22. 参考资料</h2><ul>
+<li>Kubernetes Container Runtimes: <a target="_blank" rel="noopener" href="https://kubernetes.io/docs/setup/production-environment/container-runtimes/">https://kubernetes.io/docs/setup/production-environment/container-runtimes/</a></li>
+<li>Kubernetes kubeadm HA: <a target="_blank" rel="noopener" href="https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/">https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/</a></li>
+<li>Kubernetes cgroup driver: <a target="_blank" rel="noopener" href="https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/">https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/</a></li>
+<li>Kubernetes releases: <a target="_blank" rel="noopener" href="https://kubernetes.io/releases/">https://kubernetes.io/releases/</a></li>
+<li>Cilium: <a target="_blank" rel="noopener" href="https://cilium.io/">https://cilium.io/</a></li>
+<li>MetalLB: <a target="_blank" rel="noopener" href="https://metallb.io/">https://metallb.io/</a></li>
+<li>RFC 6762 Multicast DNS: <a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/html/rfc6762">https://datatracker.ietf.org/doc/html/rfc6762</a></li>
+<li>RFC 8375 home.arpa: <a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/html/rfc8375">https://datatracker.ietf.org/doc/html/rfc8375</a></li>
+<li>Harbor vulnerability scanning: <a target="_blank" rel="noopener" href="https://goharbor.io/docs/edge/administration/vulnerability-scanning/">https://goharbor.io/docs/edge/administration/vulnerability-scanning/</a></li>
+<li>Velero: <a target="_blank" rel="noopener" href="https://velero.io/">https://velero.io/</a></li>
+<li>cert-manager SelfSigned &#x2F; CA: <a target="_blank" rel="noopener" href="https://cert-manager.io/docs/configuration/selfsigned/">https://cert-manager.io/docs/configuration/selfsigned/</a></li>
+<li>Grafana Tempo: <a target="_blank" rel="noopener" href="https://grafana.com/docs/tempo/latest/">https://grafana.com/docs/tempo/latest/</a></li>
+</ul>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/kubernetes/" class="print-no-link">#kubernetes</a>
+      
+        <a href="/tags/vsphere8/" class="print-no-link">#vsphere8</a>
+      
+        <a href="/tags/rocky-linux-10/" class="print-no-link">#rocky-linux-10</a>
+      
+        <a href="/tags/kubeadm/" class="print-no-link">#kubeadm</a>
+      
+        <a href="/tags/containerd/" class="print-no-link">#containerd</a>
+      
+        <a href="/tags/cilium/" class="print-no-link">#cilium</a>
+      
+        <a href="/tags/production/" class="print-no-link">#production</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>vSphere 8 + Rocky Linux 10 内网生产级 Kubernetes 集群架构设计</div>
+      <div>https://allendericdalexander.github.io/2026/06/21/devops/management/k8s-vsphere-rocky10-production-architecture/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年6月21日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/06/22/java/spring/api-signature-hmac-springboot/" title="开放接口签名设计与 Spring Boot 落地：从 AOP 验签到生产级 HMAC-SHA256">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">开放接口签名设计与 Spring Boot 落地：从 AOP 验签到生产级 HMAC-SHA256</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/06/21/devops/infra/gitlab-self-managed-blog/" title="GitLab 私服从 0 到 1：部署、Runner、备份、升级与安全基线">
+                        <span class="hidden-mobile">GitLab 私服从 0 到 1：部署、Runner、备份、升级与安全基线</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
