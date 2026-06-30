@@ -1,0 +1,1752 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="欢迎你来读这篇博客，这篇博客主要是关于Guava 并发控制与限流。其中包括 Monitor、Guard、enterWhen、enterIf、leave，与 synchronized、Lock、Condition 的对比，以及 RateLimiter 的基本概念、漏桶视角、令牌桶算法、SmoothBursty、SmoothWarmingUp、预热限流、突发流量处理、接口限流和任务提交限流实战。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Guava：并发控制与限流">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/04/01/java/utils/guava/08guava-concurrency-ratelimiter-blog/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="欢迎你来读这篇博客，这篇博客主要是关于Guava 并发控制与限流。其中包括 Monitor、Guard、enterWhen、enterIf、leave，与 synchronized、Lock、Condition 的对比，以及 RateLimiter 的基本概念、漏桶视角、令牌桶算法、SmoothBursty、SmoothWarmingUp、预热限流、突发流量处理、接口限流和任务提交限流实战。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-04-01T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-04-01T04:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Concurrency">
+<meta property="article:tag" content="Guava">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="RateLimiter">
+<meta property="article:tag" content="Spring">
+<meta property="article:tag" content="Spring Boot">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Guava：并发控制与限流 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Guava：并发控制与限流"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-04-01 12:00" pubdate>
+          2026年4月1日 中午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          7.2k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          61 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Guava：并发控制与限流</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>欢迎你来读这篇博客，这篇博客主要是关于<code>Guava 并发控制与限流</code>。<br>其中包括 Monitor、Guard、enterWhen、enterIf、leave，与 synchronized、Lock、Condition 的对比，以及 RateLimiter 的基本概念、漏桶视角、令牌桶算法、SmoothBursty、SmoothWarmingUp、预热限流、突发流量处理、接口限流和任务提交限流实战。</p>
+<span id="more"></span>
+
+<h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><p>并发控制和限流，是 Java 后端开发绕不开的两个主题。</p>
+<p>并发控制解决的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">多个线程同时访问共享资源时，如何保证安全和有序。<br></code></pre></td></tr></table></figure>
+
+<p>限流解决的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">请求太多、任务太多、调用太快时，如何保护系统不被打爆。<br></code></pre></td></tr></table></figure>
+
+<p>比如：</p>
+<ul>
+<li>一个队列满了，生产者应该等待；</li>
+<li>一个队列空了，消费者应该等待；</li>
+<li>一个接口最多每秒处理 100 个请求；</li>
+<li>一个任务提交器不能无限制提交任务；</li>
+<li>调用第三方 API 每秒不能超过 10 次；</li>
+<li>批处理任务不能瞬间把数据库打满；</li>
+<li>秒杀接口不能让所有请求同时打到库存服务。</li>
+</ul>
+<p>Guava 在并发和限流方面提供了两个很有代表性的工具：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">com.google.common.util.concurrent.Monitor<br>com.google.common.util.concurrent.RateLimiter<br></code></pre></td></tr></table></figure>
+
+<p><code>Monitor</code> 用来简化锁和条件等待。</p>
+<p><code>RateLimiter</code> 用来做单机限流。</p>
+<p>这一章对应课程结构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">第 8 章：并发控制与限流<br>  8.1 Monitor 使用讲解<br>  8.2 RateLimiter 在漏桶限流算法中的使用<br>  8.3 RateLimiter 令牌桶算法的使用<br></code></pre></td></tr></table></figure>
+
+<p>对应原课程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">24 Guava 之 Monitor 使用讲解<br>25 Guava 之 RateLimiter 在漏桶限流算法中的使用<br>26 Guava 之 RateLimiter 令牌桶算法的使用<br></code></pre></td></tr></table></figure>
+
+<p>需要先说明一点：</p>
+<blockquote>
+<p>Guava RateLimiter 的实现更接近令牌桶思想，内部通过 storedPermits、stableIntervalMicros 等机制控制许可发放；但从调用者视角看，<code>acquire()</code> 会让请求按固定速率通过，因此也可以用“平滑漏出”的漏桶视角去理解它的限速效果。</p>
+</blockquote>
+<p>所以这一章会同时讲：</p>
+<ul>
+<li>漏桶算法的限速思想；</li>
+<li>令牌桶算法的突发处理能力；</li>
+<li>Guava RateLimiter 的 SmoothBursty 和 SmoothWarmingUp。</li>
+</ul>
+<p>这一章的重点不是背源码，而是掌握工程判断：</p>
+<blockquote>
+<p>什么时候用锁，什么时候用条件等待，什么时候用限流，什么时候 Guava RateLimiter 不够，需要 Redis、Sentinel、Resilience4j 或网关限流。</p>
+</blockquote>
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h3 id="chapter-1：并发控制和限流分别解决什么问题"><a href="#chapter-1：并发控制和限流分别解决什么问题" class="headerlink" title="chapter 1：并发控制和限流分别解决什么问题"></a>chapter 1：并发控制和限流分别解决什么问题</h3><p>并发控制和限流经常一起出现，但它们解决的问题不一样。</p>
+<h4 id="1-并发控制"><a href="#1-并发控制" class="headerlink" title="1. 并发控制"></a>1. 并发控制</h4><p>并发控制关注的是共享资源安全。</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java">queue.add(item);<br>queue.remove();<br>count++;<br>map.put(key, value);<br></code></pre></td></tr></table></figure>
+
+<p>如果多个线程同时执行，就可能出现：</p>
+<ul>
+<li>数据错乱；</li>
+<li>丢数据；</li>
+<li>重复消费；</li>
+<li>条件判断失效；</li>
+<li>死锁；</li>
+<li>线程永久等待。</li>
+</ul>
+<p>常见工具包括：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">synchronized</span><br>ReentrantLock<br>Condition<br>Semaphore<br>CountDownLatch<br>CyclicBarrier<br>BlockingQueue<br>Monitor<br></code></pre></td></tr></table></figure>
+
+<h4 id="2-限流"><a href="#2-限流" class="headerlink" title="2. 限流"></a>2. 限流</h4><p>限流关注的是单位时间内允许多少请求通过。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">每秒最多 100 个请求<br>每秒最多提交 10 个任务<br>每分钟最多调用第三方接口 60 次<br></code></pre></td></tr></table></figure>
+
+<p>常见工具包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">RateLimiter<br>Semaphore<br>令牌桶<br>漏桶<br>滑动窗口<br>固定窗口<br>Sentinel<br>Resilience4j<br>Redis Lua<br>网关限流<br></code></pre></td></tr></table></figure>
+
+<p>并发控制是“同时有多少人在操作”。</p>
+<p>限流是“单位时间允许多少人进来”。</p>
+<p>这两个概念不要混。</p>
+<h3 id="chapter-2：Guava-Monitor-是什么"><a href="#chapter-2：Guava-Monitor-是什么" class="headerlink" title="chapter 2：Guava Monitor 是什么"></a>chapter 2：Guava Monitor 是什么</h3><p><code>Monitor</code> 是 Guava 提供的同步工具。</p>
+<p>包名：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">com.google.common.util.concurrent.Monitor<br></code></pre></td></tr></table></figure>
+
+<p>它可以理解为：</p>
+<blockquote>
+<p>一个更结构化的锁工具，封装了 ReentrantLock 和条件等待逻辑。</p>
+</blockquote>
+<p>Monitor 的核心概念有两个：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">Monitor<br>Monitor.Guard<br></code></pre></td></tr></table></figure>
+
+<p><code>Monitor</code> 表示一个锁。</p>
+<p><code>Guard</code> 表示一个进入锁的条件。</p>
+<p>典型使用方式：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">Monitor</span> <span class="hljs-variable">monitor</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Monitor</span>();<br><br><span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> Monitor.<span class="hljs-type">Guard</span> <span class="hljs-variable">notFull</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Monitor</span>.Guard(monitor) &#123;<br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">isSatisfied</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> count &lt; capacity;<br>    &#125;<br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p>然后：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java">monitor.enterWhen(notFull);<br><span class="hljs-keyword">try</span> &#123;<br>    <span class="hljs-comment">// 条件满足后执行</span><br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    monitor.leave();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这比手写：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java">lock.lock();<br><span class="hljs-keyword">try</span> &#123;<br>    <span class="hljs-keyword">while</span> (!condition) &#123;<br>        condition.await();<br>    &#125;<br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    lock.unlock();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>更简洁。</p>
+<h3 id="chapter-3：Monitor-和-Guard-的关系"><a href="#chapter-3：Monitor-和-Guard-的关系" class="headerlink" title="chapter 3：Monitor 和 Guard 的关系"></a>chapter 3：Monitor 和 Guard 的关系</h3><p><code>Monitor</code> 是锁。</p>
+<p><code>Guard</code> 是条件。</p>
+<p>一个 Monitor 可以有多个 Guard。</p>
+<p>例如有界队列中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">notFull：队列未满，生产者可以放入<br>notEmpty：队列非空，消费者可以取出<br></code></pre></td></tr></table></figure>
+
+<p>代码结构：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">Monitor</span> <span class="hljs-variable">monitor</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Monitor</span>();<br><br><span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> Monitor.<span class="hljs-type">Guard</span> <span class="hljs-variable">notFull</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Monitor</span>.Guard(monitor) &#123;<br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">isSatisfied</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> queue.size() &lt; capacity;<br>    &#125;<br>&#125;;<br><br><span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> Monitor.<span class="hljs-type">Guard</span> <span class="hljs-variable">notEmpty</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Monitor</span>.Guard(monitor) &#123;<br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">isSatisfied</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> !queue.isEmpty();<br>    &#125;<br>&#125;;<br></code></pre></td></tr></table></figure>
+
+<p><code>Guard</code> 的核心方法是：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">isSatisfied</span><span class="hljs-params">()</span><br></code></pre></td></tr></table></figure>
+
+<p>它表示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">当前条件是否满足。<br></code></pre></td></tr></table></figure>
+
+<p>只有条件满足，线程才能继续进入关键区。</p>
+<h3 id="chapter-4：Monitor-基本使用"><a href="#chapter-4：Monitor-基本使用" class="headerlink" title="chapter 4：Monitor 基本使用"></a>chapter 4：Monitor 基本使用</h3><p>最基本的 Monitor 用法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.util.concurrent.Monitor;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">MonitorCounter</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">Monitor</span> <span class="hljs-variable">monitor</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Monitor</span>();<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-type">int</span> <span class="hljs-variable">count</span> <span class="hljs-operator">=</span> <span class="hljs-number">0</span>;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">increment</span><span class="hljs-params">()</span> &#123;<br>        monitor.enter();<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            count++;<br>        &#125; <span class="hljs-keyword">finally</span> &#123;<br>            monitor.leave();<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">int</span> <span class="hljs-title function_">getCount</span><span class="hljs-params">()</span> &#123;<br>        monitor.enter();<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            <span class="hljs-keyword">return</span> count;<br>        &#125; <span class="hljs-keyword">finally</span> &#123;<br>            monitor.leave();<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里的：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">monitor.enter()<br>monitor.leave()<br></code></pre></td></tr></table></figure>
+
+<p>类似于：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">lock.lock()<br>lock.unlock()<br></code></pre></td></tr></table></figure>
+
+<p>必须保证：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">monitor.leave()<br></code></pre></td></tr></table></figure>
+
+<p>在 finally 中执行。</p>
+<p>否则发生异常时锁不会释放。</p>
+<h3 id="chapter-5：enterWhen"><a href="#chapter-5：enterWhen" class="headerlink" title="chapter 5：enterWhen"></a>chapter 5：enterWhen</h3><p><code>enterWhen</code> 用于：</p>
+<blockquote>
+<p>等待某个 Guard 条件满足后进入 Monitor。</p>
+</blockquote>
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java">monitor.enterWhen(notFull);<br><span class="hljs-keyword">try</span> &#123;<br>    <span class="hljs-comment">// 条件满足后执行</span><br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    monitor.leave();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果条件不满足，当前线程会等待。</p>
+<p>条件满足后，它会进入临界区。</p>
+<p><code>enterWhen</code> 是 Monitor 最核心的方法之一。</p>
+<p>它对应 <code>Lock + Condition</code> 中的：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">while</span> (!condition) &#123;<br>    await();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>但写法更高层。</p>
+<h3 id="chapter-6：enterIf"><a href="#chapter-6：enterIf" class="headerlink" title="chapter 6：enterIf"></a>chapter 6：enterIf</h3><p><code>enterIf</code> 用于：</p>
+<blockquote>
+<p>如果条件立即满足，就进入 Monitor；如果不满足，不等待，直接返回 false。</p>
+</blockquote>
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">if</span> (monitor.enterIf(notFull)) &#123;<br>    <span class="hljs-keyword">try</span> &#123;<br>        <span class="hljs-comment">// 条件满足，执行逻辑</span><br>    &#125; <span class="hljs-keyword">finally</span> &#123;<br>        monitor.leave();<br>    &#125;<br>&#125; <span class="hljs-keyword">else</span> &#123;<br>    <span class="hljs-comment">// 条件不满足，直接失败</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>它适合非阻塞场景。</p>
+<p>例如：</p>
+<ul>
+<li>队列满了就返回失败；</li>
+<li>系统忙就快速拒绝；</li>
+<li>状态不满足就不等待；</li>
+<li>尝试获取资源，不强制等待。</li>
+</ul>
+<p>和 <code>enterWhen</code> 的区别：</p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>条件不满足时</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>enterWhen</code></td>
+<td>等待</td>
+</tr>
+<tr>
+<td><code>enterIf</code></td>
+<td>立即返回 false</td>
+</tr>
+</tbody></table>
+<h3 id="chapter-7：leave"><a href="#chapter-7：leave" class="headerlink" title="chapter 7：leave"></a>chapter 7：leave</h3><p><code>leave</code> 用于离开 Monitor。</p>
+<p>所有成功进入 Monitor 的代码，都必须最终调用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">monitor.leave();<br></code></pre></td></tr></table></figure>
+
+<p>推荐写法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java">monitor.enter();<br><br><span class="hljs-keyword">try</span> &#123;<br>    <span class="hljs-comment">// protected code</span><br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    monitor.leave();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java">monitor.enterWhen(guard);<br><br><span class="hljs-keyword">try</span> &#123;<br>    <span class="hljs-comment">// protected code</span><br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    monitor.leave();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>不要这样：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java">monitor.enter();<br>doSomething();<br>monitor.leave();<br></code></pre></td></tr></table></figure>
+
+<p>因为 <code>doSomething()</code> 可能抛异常。</p>
+<p>一旦异常发生，<code>leave()</code> 不执行，就可能导致锁无法释放。</p>
+<h3 id="chapter-8：Monitor-实战：有界队列"><a href="#chapter-8：Monitor-实战：有界队列" class="headerlink" title="chapter 8：Monitor 实战：有界队列"></a>chapter 8：Monitor 实战：有界队列</h3><p>下面实现一个有界队列。</p>
+<p>需求：</p>
+<ol>
+<li>队列有固定容量；</li>
+<li>队列满时，生产者等待；</li>
+<li>队列空时，消费者等待；</li>
+<li>使用 Monitor 和 Guard 实现。</li>
+</ol>
+<p>代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.util.concurrent.Monitor;<br><br><span class="hljs-keyword">import</span> java.util.ArrayDeque;<br><span class="hljs-keyword">import</span> java.util.Queue;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">BoundedQueue</span>&lt;T&gt; &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">Monitor</span> <span class="hljs-variable">monitor</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Monitor</span>();<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> Queue&lt;T&gt; queue = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ArrayDeque</span>&lt;&gt;();<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">int</span> capacity;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> Monitor.<span class="hljs-type">Guard</span> <span class="hljs-variable">notFull</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Monitor</span>.Guard(monitor) &#123;<br>        <span class="hljs-meta">@Override</span><br>        <span class="hljs-keyword">public</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">isSatisfied</span><span class="hljs-params">()</span> &#123;<br>            <span class="hljs-keyword">return</span> queue.size() &lt; capacity;<br>        &#125;<br>    &#125;;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> Monitor.<span class="hljs-type">Guard</span> <span class="hljs-variable">notEmpty</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Monitor</span>.Guard(monitor) &#123;<br>        <span class="hljs-meta">@Override</span><br>        <span class="hljs-keyword">public</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">isSatisfied</span><span class="hljs-params">()</span> &#123;<br>            <span class="hljs-keyword">return</span> !queue.isEmpty();<br>        &#125;<br>    &#125;;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">BoundedQueue</span><span class="hljs-params">(<span class="hljs-type">int</span> capacity)</span> &#123;<br>        <span class="hljs-keyword">if</span> (capacity &lt;= <span class="hljs-number">0</span>) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;capacity must be greater than 0&quot;</span>);<br>        &#125;<br><br>        <span class="hljs-built_in">this</span>.capacity = capacity;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">put</span><span class="hljs-params">(T item)</span> <span class="hljs-keyword">throws</span> InterruptedException &#123;<br>        <span class="hljs-keyword">if</span> (item == <span class="hljs-literal">null</span>) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;item can not be null&quot;</span>);<br>        &#125;<br><br>        monitor.enterWhen(notFull);<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            queue.add(item);<br>        &#125; <span class="hljs-keyword">finally</span> &#123;<br>            monitor.leave();<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> T <span class="hljs-title function_">take</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> InterruptedException &#123;<br>        monitor.enterWhen(notEmpty);<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            <span class="hljs-keyword">return</span> queue.remove();<br>        &#125; <span class="hljs-keyword">finally</span> &#123;<br>            monitor.leave();<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">int</span> <span class="hljs-title function_">size</span><span class="hljs-params">()</span> &#123;<br>        monitor.enter();<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            <span class="hljs-keyword">return</span> queue.size();<br>        &#125; <span class="hljs-keyword">finally</span> &#123;<br>            monitor.leave();<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这个代码里有两个 Guard：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">notFull<br>notEmpty<br></code></pre></td></tr></table></figure>
+
+<p>生产者使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">monitor.enterWhen(notFull)<br></code></pre></td></tr></table></figure>
+
+<p>消费者使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">monitor.enterWhen(notEmpty)<br></code></pre></td></tr></table></figure>
+
+<p>这就实现了条件等待。</p>
+<h3 id="chapter-9：测试有界队列"><a href="#chapter-9：测试有界队列" class="headerlink" title="chapter 9：测试有界队列"></a>chapter 9：测试有界队列</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">BoundedQueueDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> &#123;<br>        BoundedQueue&lt;Integer&gt; queue = <span class="hljs-keyword">new</span> <span class="hljs-title class_">BoundedQueue</span>&lt;&gt;(<span class="hljs-number">3</span>);<br><br>        <span class="hljs-type">Thread</span> <span class="hljs-variable">producer</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Thread</span>(() -&gt; &#123;<br>            <span class="hljs-keyword">try</span> &#123;<br>                <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> <span class="hljs-variable">i</span> <span class="hljs-operator">=</span> <span class="hljs-number">1</span>; i &lt;= <span class="hljs-number">10</span>; i++) &#123;<br>                    queue.put(i);<br>                    System.out.println(<span class="hljs-string">&quot;生产：&quot;</span> + i);<br>                &#125;<br>            &#125; <span class="hljs-keyword">catch</span> (InterruptedException e) &#123;<br>                Thread.currentThread().interrupt();<br>            &#125;<br>        &#125;);<br><br>        <span class="hljs-type">Thread</span> <span class="hljs-variable">consumer</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Thread</span>(() -&gt; &#123;<br>            <span class="hljs-keyword">try</span> &#123;<br>                <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> <span class="hljs-variable">i</span> <span class="hljs-operator">=</span> <span class="hljs-number">1</span>; i &lt;= <span class="hljs-number">10</span>; i++) &#123;<br>                    <span class="hljs-type">Integer</span> <span class="hljs-variable">value</span> <span class="hljs-operator">=</span> queue.take();<br>                    System.out.println(<span class="hljs-string">&quot;消费：&quot;</span> + value);<br><br>                    Thread.sleep(<span class="hljs-number">300</span>);<br>                &#125;<br>            &#125; <span class="hljs-keyword">catch</span> (InterruptedException e) &#123;<br>                Thread.currentThread().interrupt();<br>            &#125;<br>        &#125;);<br><br>        producer.start();<br>        consumer.start();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>当队列满时，生产者会等待。</p>
+<p>当队列空时，消费者会等待。</p>
+<p>Monitor 把条件等待逻辑封装得比较清晰。</p>
+<h3 id="chapter-10：tryPut：使用-enterIf-快速失败"><a href="#chapter-10：tryPut：使用-enterIf-快速失败" class="headerlink" title="chapter 10：tryPut：使用 enterIf 快速失败"></a>chapter 10：tryPut：使用 enterIf 快速失败</h3><p>有时我们不希望队列满时一直等。</p>
+<p>而是希望：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">能放就放，不能放就立即返回 false。<br></code></pre></td></tr></table></figure>
+
+<p>可以使用 <code>enterIf</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">tryPut</span><span class="hljs-params">(T item)</span> &#123;<br>    <span class="hljs-keyword">if</span> (item == <span class="hljs-literal">null</span>) &#123;<br>        <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;item can not be null&quot;</span>);<br>    &#125;<br><br>    <span class="hljs-keyword">if</span> (monitor.enterIf(notFull)) &#123;<br>        <span class="hljs-keyword">try</span> &#123;<br>            queue.add(item);<br>            <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>;<br>        &#125; <span class="hljs-keyword">finally</span> &#123;<br>            monitor.leave();<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这适合任务提交场景。</p>
+<p>例如线程池队列满了，直接拒绝任务。</p>
+<h3 id="chapter-11：tryTake：使用-enterIf-非阻塞获取"><a href="#chapter-11：tryTake：使用-enterIf-非阻塞获取" class="headerlink" title="chapter 11：tryTake：使用 enterIf 非阻塞获取"></a>chapter 11：tryTake：使用 enterIf 非阻塞获取</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> T <span class="hljs-title function_">tryTake</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-keyword">if</span> (monitor.enterIf(notEmpty)) &#123;<br>        <span class="hljs-keyword">try</span> &#123;<br>            <span class="hljs-keyword">return</span> queue.remove();<br>        &#125; <span class="hljs-keyword">finally</span> &#123;<br>            monitor.leave();<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">return</span> <span class="hljs-literal">null</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果队列为空，直接返回 null。</p>
+<p>这种非阻塞写法适合：</p>
+<ul>
+<li>轮询消费；</li>
+<li>尝试获取任务；</li>
+<li>不希望线程阻塞；</li>
+<li>快速失败场景。</li>
+</ul>
+<h3 id="chapter-12：Monitor-与-synchronized-对比"><a href="#chapter-12：Monitor-与-synchronized-对比" class="headerlink" title="chapter 12：Monitor 与 synchronized 对比"></a>chapter 12：Monitor 与 synchronized 对比</h3><p><code>synchronized</code> 是 Java 内置同步机制。</p>
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">synchronized</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">increment</span><span class="hljs-params">()</span> &#123;<br>    count++;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">synchronized</span> (<span class="hljs-built_in">this</span>) &#123;<br>    count++;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>对比：</p>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>synchronized</th>
+<th>Monitor</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>来源</td>
+<td>JDK 原生</td>
+<td>Guava</td>
+</tr>
+<tr>
+<td>锁释放</td>
+<td>自动释放</td>
+<td>必须 leave</td>
+</tr>
+<tr>
+<td>条件等待</td>
+<td>wait&#x2F;notify</td>
+<td>Guard</td>
+</tr>
+<tr>
+<td>可读性</td>
+<td>简单场景好</td>
+<td>条件复杂时更清晰</td>
+</tr>
+<tr>
+<td>可中断等待</td>
+<td>wait 可中断</td>
+<td>enterWhen 可中断</td>
+</tr>
+<tr>
+<td>公平性配置</td>
+<td>不直接支持</td>
+<td>Monitor 可构造公平锁</td>
+</tr>
+<tr>
+<td>推荐场景</td>
+<td>简单同步</td>
+<td>条件守卫更复杂的同步</td>
+</tr>
+</tbody></table>
+<p>如果只是简单互斥，用 <code>synchronized</code> 足够。</p>
+<p>如果有多个条件等待，Monitor 的 Guard 可读性更好。</p>
+<h3 id="chapter-13：Monitor-与-Lock-Condition-对比"><a href="#chapter-13：Monitor-与-Lock-Condition-对比" class="headerlink" title="chapter 13：Monitor 与 Lock &#x2F; Condition 对比"></a>chapter 13：Monitor 与 Lock &#x2F; Condition 对比</h3><p>用 <code>ReentrantLock + Condition</code> 实现有界队列，大概是：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">ReentrantLock</span> <span class="hljs-variable">lock</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ReentrantLock</span>();<br><br><span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">Condition</span> <span class="hljs-variable">notFull</span> <span class="hljs-operator">=</span> lock.newCondition();<br><br><span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">Condition</span> <span class="hljs-variable">notEmpty</span> <span class="hljs-operator">=</span> lock.newCondition();<br></code></pre></td></tr></table></figure>
+
+<p>生产者：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs java">lock.lock();<br><br><span class="hljs-keyword">try</span> &#123;<br>    <span class="hljs-keyword">while</span> (queue.size() == capacity) &#123;<br>        notFull.await();<br>    &#125;<br><br>    queue.add(item);<br>    notEmpty.signal();<br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    lock.unlock();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>消费者：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs java">lock.lock();<br><br><span class="hljs-keyword">try</span> &#123;<br>    <span class="hljs-keyword">while</span> (queue.isEmpty()) &#123;<br>        notEmpty.await();<br>    &#125;<br><br>    <span class="hljs-type">T</span> <span class="hljs-variable">item</span> <span class="hljs-operator">=</span> queue.remove();<br>    notFull.signal();<br><br>    <span class="hljs-keyword">return</span> item;<br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    lock.unlock();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>Monitor 写法更高层：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">monitor.enterWhen(notFull);<br></code></pre></td></tr></table></figure>
+
+<p>Guard 把条件表达出来：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">return</span> queue.size() &lt; capacity;<br></code></pre></td></tr></table></figure>
+
+<p>对比：</p>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>Lock + Condition</th>
+<th>Monitor</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>来源</td>
+<td>JDK</td>
+<td>Guava</td>
+</tr>
+<tr>
+<td>灵活性</td>
+<td>很强</td>
+<td>较高</td>
+</tr>
+<tr>
+<td>控制粒度</td>
+<td>更细</td>
+<td>更抽象</td>
+</tr>
+<tr>
+<td>样板代码</td>
+<td>较多</td>
+<td>较少</td>
+</tr>
+<tr>
+<td>可读性</td>
+<td>需要理解 await&#x2F;signal</td>
+<td>Guard 语义更清楚</td>
+</tr>
+<tr>
+<td>推荐程度</td>
+<td>JDK 标准，通用</td>
+<td>Guava 项目可用，学习价值高</td>
+</tr>
+</tbody></table>
+<p>如果团队熟悉 JDK 并发工具，<code>Lock + Condition</code> 更标准。</p>
+<p>如果项目已有 Guava，Monitor 可以让复杂条件更清晰。</p>
+<h3 id="chapter-14：Monitor-使用注意事项"><a href="#chapter-14：Monitor-使用注意事项" class="headerlink" title="chapter 14：Monitor 使用注意事项"></a>chapter 14：Monitor 使用注意事项</h3><h4 id="1-leave-必须在-finally-中"><a href="#1-leave-必须在-finally-中" class="headerlink" title="1. leave 必须在 finally 中"></a>1. leave 必须在 finally 中</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java">monitor.enter();<br><br><span class="hljs-keyword">try</span> &#123;<br>    <span class="hljs-comment">// logic</span><br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    monitor.leave();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4 id="2-Guard-条件必须访问受-Monitor-保护的状态"><a href="#2-Guard-条件必须访问受-Monitor-保护的状态" class="headerlink" title="2. Guard 条件必须访问受 Monitor 保护的状态"></a>2. Guard 条件必须访问受 Monitor 保护的状态</h4><p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">queue.size()<br></code></pre></td></tr></table></figure>
+
+<p>这个状态应该在 Monitor 保护下修改。</p>
+<h4 id="3-不要在临界区执行长耗时操作"><a href="#3-不要在临界区执行长耗时操作" class="headerlink" title="3. 不要在临界区执行长耗时操作"></a>3. 不要在临界区执行长耗时操作</h4><p>临界区里不要做：</p>
+<ul>
+<li>远程调用；</li>
+<li>长时间 IO；</li>
+<li>sleep；</li>
+<li>大量计算；</li>
+<li>阻塞等待其他系统。</li>
+</ul>
+<p>否则会降低并发性能。</p>
+<h4 id="4-中断要正确处理"><a href="#4-中断要正确处理" class="headerlink" title="4. 中断要正确处理"></a>4. 中断要正确处理</h4><p><code>enterWhen</code> 可能抛出 <code>InterruptedException</code>。</p>
+<p>捕获后应该：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">Thread.currentThread().interrupt();<br></code></pre></td></tr></table></figure>
+
+<h4 id="5-简单场景不要过度使用"><a href="#5-简单场景不要过度使用" class="headerlink" title="5. 简单场景不要过度使用"></a>5. 简单场景不要过度使用</h4><p>如果只是简单计数，<code>AtomicInteger</code> 可能更合适。</p>
+<p>如果只是阻塞队列，JDK <code>ArrayBlockingQueue</code> 已经很好。</p>
+<h3 id="chapter-15：限流是什么"><a href="#chapter-15：限流是什么" class="headerlink" title="chapter 15：限流是什么"></a>chapter 15：限流是什么</h3><p>限流是指：</p>
+<blockquote>
+<p>限制单位时间内允许通过的请求数量或任务数量。</p>
+</blockquote>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">每秒最多处理 100 个请求<br>每秒最多提交 10 个任务<br>每分钟最多调用第三方接口 60 次<br></code></pre></td></tr></table></figure>
+
+<p>限流的目的不是“让系统变慢”。</p>
+<p>限流的目的是：</p>
+<blockquote>
+<p>防止系统被突发流量打垮，让流量按系统能承受的节奏进入。</p>
+</blockquote>
+<p>常见限流场景：</p>
+<ul>
+<li>接口限流；</li>
+<li>登录限流；</li>
+<li>短信发送限流；</li>
+<li>任务提交限流；</li>
+<li>第三方 API 调用限流；</li>
+<li>批处理削峰；</li>
+<li>消息消费限速；</li>
+<li>数据库写入限速。</li>
+</ul>
+<h3 id="chapter-16：常见限流算法"><a href="#chapter-16：常见限流算法" class="headerlink" title="chapter 16：常见限流算法"></a>chapter 16：常见限流算法</h3><p>常见限流算法包括：</p>
+<h4 id="1-固定窗口"><a href="#1-固定窗口" class="headerlink" title="1. 固定窗口"></a>1. 固定窗口</h4><p>例如每秒计数一次。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">第 1 秒允许 100 个<br>第 2 秒允许 100 个<br></code></pre></td></tr></table></figure>
+
+<p>缺点是窗口边界可能瞬间放过 200 个请求。</p>
+<h4 id="2-滑动窗口"><a href="#2-滑动窗口" class="headerlink" title="2. 滑动窗口"></a>2. 滑动窗口</h4><p>把固定窗口拆成多个小窗口，平滑一些。</p>
+<h4 id="3-漏桶算法"><a href="#3-漏桶算法" class="headerlink" title="3. 漏桶算法"></a>3. 漏桶算法</h4><p>请求进入桶，以固定速率流出。</p>
+<p>特点是输出稳定。</p>
+<h4 id="4-令牌桶算法"><a href="#4-令牌桶算法" class="headerlink" title="4. 令牌桶算法"></a>4. 令牌桶算法</h4><p>系统按固定速率生成令牌，请求拿到令牌才能通过。</p>
+<p>特点是允许一定突发。</p>
+<h4 id="5-并发数限制"><a href="#5-并发数限制" class="headerlink" title="5. 并发数限制"></a>5. 并发数限制</h4><p>限制同时执行的请求数。</p>
+<p>例如 Semaphore。</p>
+<p>它不是严格 QPS 限流，而是并发限制。</p>
+<p>Guava RateLimiter 主要是单机令牌桶风格的平滑限流器。</p>
+<h3 id="chapter-17：漏桶算法思想"><a href="#chapter-17：漏桶算法思想" class="headerlink" title="chapter 17：漏桶算法思想"></a>chapter 17：漏桶算法思想</h3><p>漏桶算法可以想象成一个桶。</p>
+<p>请求像水一样进入桶。</p>
+<p>桶底有一个孔，以固定速度漏水。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">请求进入 -&gt; 桶 -&gt; 固定速率流出<br></code></pre></td></tr></table></figure>
+
+<p>如果请求来得太快：</p>
+<ul>
+<li>桶还没满，请求排队；</li>
+<li>桶满了，请求被丢弃或拒绝。</li>
+</ul>
+<p>漏桶算法的核心是：</p>
+<blockquote>
+<p>输出速率稳定。</p>
+</blockquote>
+<p>适合保护下游系统。</p>
+<p>比如数据库只能稳定处理每秒 100 次写入，那就让请求以每秒 100 的速度流出。</p>
+<h3 id="chapter-18：RateLimiter-和漏桶视角"><a href="#chapter-18：RateLimiter-和漏桶视角" class="headerlink" title="chapter 18：RateLimiter 和漏桶视角"></a>chapter 18：RateLimiter 和漏桶视角</h3><p>Guava RateLimiter 不完全是传统漏桶实现。</p>
+<p>但从调用者视角看：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">rateLimiter.acquire();<br></code></pre></td></tr></table></figure>
+
+<p>会阻塞当前线程，让请求按固定速率通过。</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">RateLimiter</span> <span class="hljs-variable">limiter</span> <span class="hljs-operator">=</span> RateLimiter.create(<span class="hljs-number">2.0</span>);<br></code></pre></td></tr></table></figure>
+
+<p>表示每秒 2 个许可。</p>
+<p>也就是平均每 500ms 放行一个请求。</p>
+<p>这看起来就像漏桶：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">请求可以很多，但通过速度被平滑限制。<br></code></pre></td></tr></table></figure>
+
+<p>所以很多课程会从漏桶角度讲 RateLimiter。</p>
+<p>更准确地说：</p>
+<blockquote>
+<p>Guava RateLimiter 内部是令牌桶风格的许可模型，但它通过等待时间控制实现平滑输出效果。</p>
+</blockquote>
+<h3 id="chapter-19：RateLimiter-基本使用"><a href="#chapter-19：RateLimiter-基本使用" class="headerlink" title="chapter 19：RateLimiter 基本使用"></a>chapter 19：RateLimiter 基本使用</h3><p>包名：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">com.google.common.util.concurrent.RateLimiter<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.util.concurrent.RateLimiter;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">RateLimiterBasicDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> &#123;<br>        <span class="hljs-type">RateLimiter</span> <span class="hljs-variable">rateLimiter</span> <span class="hljs-operator">=</span> RateLimiter.create(<span class="hljs-number">2.0</span>);<br><br>        <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> <span class="hljs-variable">i</span> <span class="hljs-operator">=</span> <span class="hljs-number">1</span>; i &lt;= <span class="hljs-number">10</span>; i++) &#123;<br>            <span class="hljs-type">double</span> <span class="hljs-variable">waitedSeconds</span> <span class="hljs-operator">=</span> rateLimiter.acquire();<br><br>            System.out.println(<span class="hljs-string">&quot;任务 &quot;</span> + i<br>                    + <span class="hljs-string">&quot; 获取许可，等待秒数 = &quot;</span><br>                    + waitedSeconds<br>                    + <span class="hljs-string">&quot;，time = &quot;</span><br>                    + System.currentTimeMillis());<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><code>RateLimiter.create(2.0)</code> 表示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">每秒发放 2 个许可。<br></code></pre></td></tr></table></figure>
+
+<p><code>acquire()</code> 会阻塞等待直到拿到许可。</p>
+<p>返回值是等待的秒数。</p>
+<h3 id="chapter-20：acquire"><a href="#chapter-20：acquire" class="headerlink" title="chapter 20：acquire"></a>chapter 20：acquire</h3><p><code>acquire()</code> 表示获取一个许可。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">rateLimiter.acquire();<br></code></pre></td></tr></table></figure>
+
+<p>如果当前可以立即获取，就立即返回。</p>
+<p>如果当前没有许可，就阻塞等待。</p>
+<p>也可以一次获取多个许可：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">rateLimiter.acquire(<span class="hljs-number">5</span>);<br></code></pre></td></tr></table></figure>
+
+<p>这表示获取 5 个许可。</p>
+<p>注意：</p>
+<blockquote>
+<p>一次获取多个许可会影响后续请求的等待时间。</p>
+</blockquote>
+<p>RateLimiter 允许预支一定许可。</p>
+<p>大请求可能会让后面的请求等待更久。</p>
+<h3 id="chapter-21：tryAcquire"><a href="#chapter-21：tryAcquire" class="headerlink" title="chapter 21：tryAcquire"></a>chapter 21：tryAcquire</h3><p><code>tryAcquire()</code> 表示尝试获取许可。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">boolean</span> <span class="hljs-variable">success</span> <span class="hljs-operator">=</span> rateLimiter.tryAcquire();<br></code></pre></td></tr></table></figure>
+
+<p>如果当前能拿到许可，返回 true。</p>
+<p>否则立即返回 false。</p>
+<p>这适合快速失败场景。</p>
+<p>例如接口限流：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">if</span> (!rateLimiter.tryAcquire()) &#123;<br>    <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">RuntimeException</span>(<span class="hljs-string">&quot;too many requests&quot;</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>也可以设置等待时间：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">boolean</span> <span class="hljs-variable">success</span> <span class="hljs-operator">=</span> rateLimiter.tryAcquire(<span class="hljs-number">100</span>, TimeUnit.MILLISECONDS);<br></code></pre></td></tr></table></figure>
+
+<p>表示最多等待 100ms。</p>
+<p>如果 100ms 内拿不到许可，就返回 false。</p>
+<h3 id="chapter-22：acquire-和-tryAcquire-的区别"><a href="#chapter-22：acquire-和-tryAcquire-的区别" class="headerlink" title="chapter 22：acquire 和 tryAcquire 的区别"></a>chapter 22：acquire 和 tryAcquire 的区别</h3><table>
+<thead>
+<tr>
+<th>方法</th>
+<th>行为</th>
+<th>适合场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>acquire()</code></td>
+<td>阻塞直到拿到许可</td>
+<td>后台任务、批处理、调用第三方限速</td>
+</tr>
+<tr>
+<td><code>tryAcquire()</code></td>
+<td>立即尝试，失败返回 false</td>
+<td>接口快速拒绝</td>
+</tr>
+<tr>
+<td><code>tryAcquire(timeout)</code></td>
+<td>最多等待一段时间</td>
+<td>可接受短暂排队的接口</td>
+</tr>
+</tbody></table>
+<p>如果是用户请求接口，通常不建议无限阻塞。</p>
+<p>更推荐：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">tryAcquire()<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">tryAcquire(<span class="hljs-number">50</span>, TimeUnit.MILLISECONDS)<br></code></pre></td></tr></table></figure>
+
+<p>如果是后台任务，希望慢慢执行，可以用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">acquire()<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-23：RateLimiter-实战：任务提交限流"><a href="#chapter-23：RateLimiter-实战：任务提交限流" class="headerlink" title="chapter 23：RateLimiter 实战：任务提交限流"></a>chapter 23：RateLimiter 实战：任务提交限流</h3><p>假设我们有一个任务提交器，每秒最多提交 5 个任务。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.util.concurrent.RateLimiter;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">TaskSubmitLimiter</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">RateLimiter</span> <span class="hljs-variable">rateLimiter</span> <span class="hljs-operator">=</span> RateLimiter.create(<span class="hljs-number">5.0</span>);<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">submit</span><span class="hljs-params">(Runnable task)</span> &#123;<br>        rateLimiter.acquire();<br><br>        task.run();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">TaskSubmitLimiterDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> &#123;<br>        <span class="hljs-type">TaskSubmitLimiter</span> <span class="hljs-variable">limiter</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">TaskSubmitLimiter</span>();<br><br>        <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> <span class="hljs-variable">i</span> <span class="hljs-operator">=</span> <span class="hljs-number">1</span>; i &lt;= <span class="hljs-number">20</span>; i++) &#123;<br>            <span class="hljs-type">int</span> <span class="hljs-variable">taskId</span> <span class="hljs-operator">=</span> i;<br><br>            limiter.submit(() -&gt; &#123;<br>                System.out.println(<span class="hljs-string">&quot;执行任务：&quot;</span> + taskId<br>                        + <span class="hljs-string">&quot;，time = &quot;</span> + System.currentTimeMillis());<br>            &#125;);<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这样任务不会瞬间全部执行，而是按固定速率通过。</p>
+<p>适合：</p>
+<ul>
+<li>批量调用第三方接口；</li>
+<li>批量写数据库；</li>
+<li>批量发送消息；</li>
+<li>批量提交任务。</li>
+</ul>
+<h3 id="chapter-24：RateLimiter-实战：接口限流"><a href="#chapter-24：RateLimiter-实战：接口限流" class="headerlink" title="chapter 24：RateLimiter 实战：接口限流"></a>chapter 24：RateLimiter 实战：接口限流</h3><p>在普通 Java 方法中，可以这样写：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.util.concurrent.RateLimiter;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ApiRateLimitService</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">RateLimiter</span> <span class="hljs-variable">rateLimiter</span> <span class="hljs-operator">=</span> RateLimiter.create(<span class="hljs-number">100.0</span>);<br><br>    <span class="hljs-keyword">public</span> String <span class="hljs-title function_">handleRequest</span><span class="hljs-params">(String request)</span> &#123;<br>        <span class="hljs-keyword">if</span> (!rateLimiter.tryAcquire()) &#123;<br>            <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;请求过多，请稍后再试&quot;</span>;<br>        &#125;<br><br>        <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;处理成功：&quot;</span> + request;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>在 Spring Boot 中，可以放到 Controller 或拦截器里。</p>
+<p>简单 Controller 示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.util.concurrent.RateLimiter;<br><span class="hljs-keyword">import</span> org.springframework.web.bind.annotation.GetMapping;<br><span class="hljs-keyword">import</span> org.springframework.web.bind.annotation.RestController;<br><br><span class="hljs-meta">@RestController</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">DemoRateLimitController</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">RateLimiter</span> <span class="hljs-variable">rateLimiter</span> <span class="hljs-operator">=</span> RateLimiter.create(<span class="hljs-number">10.0</span>);<br><br>    <span class="hljs-meta">@GetMapping(&quot;/limited&quot;)</span><br>    <span class="hljs-keyword">public</span> String <span class="hljs-title function_">limited</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">if</span> (!rateLimiter.tryAcquire()) &#123;<br>            <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;too many requests&quot;</span>;<br>        &#125;<br><br>        <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;ok&quot;</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这个示例只是单机限流。</p>
+<p>如果服务部署多个实例，每个实例都有自己的 RateLimiter。</p>
+<p>总 QPS 会变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">实例数 * 单机限流值<br></code></pre></td></tr></table></figure>
+
+<p>分布式限流要用 Redis、网关、Sentinel 等方案。</p>
+<h3 id="chapter-25：令牌桶算法思想"><a href="#chapter-25：令牌桶算法思想" class="headerlink" title="chapter 25：令牌桶算法思想"></a>chapter 25：令牌桶算法思想</h3><p>令牌桶算法可以想象成一个桶。</p>
+<p>系统按固定速率往桶里放令牌。</p>
+<p>请求来了，需要先拿令牌。</p>
+<p>拿到令牌才能通过。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">系统生成令牌 -&gt; 放入桶<br>请求到来 -&gt; 拿令牌 -&gt; 通过<br></code></pre></td></tr></table></figure>
+
+<p>如果桶里暂时积累了一些令牌，突发请求可以一次性拿走多个令牌。</p>
+<p>这就是令牌桶和漏桶的区别。</p>
+<h4 id="漏桶"><a href="#漏桶" class="headerlink" title="漏桶"></a>漏桶</h4><p>输出稳定，突发会被平滑。</p>
+<h4 id="令牌桶"><a href="#令牌桶" class="headerlink" title="令牌桶"></a>令牌桶</h4><p>平均速率受限，但允许一定突发。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">每秒生成 10 个令牌<br>桶容量 100<br></code></pre></td></tr></table></figure>
+
+<p>如果系统空闲 10 秒，桶里可能积累 100 个令牌。</p>
+<p>之后瞬间来 100 个请求，可以被快速放行。</p>
+<p>这适合允许短暂突发的系统。</p>
+<h3 id="chapter-26：RateLimiter-的令牌桶风格"><a href="#chapter-26：RateLimiter-的令牌桶风格" class="headerlink" title="chapter 26：RateLimiter 的令牌桶风格"></a>chapter 26：RateLimiter 的令牌桶风格</h3><p>Guava RateLimiter 内部维护类似许可的概念。</p>
+<p>关键思想包括：</p>
+<ul>
+<li>按固定速率生成许可；</li>
+<li>空闲时可以积累一定许可；</li>
+<li>请求到来时消费许可；</li>
+<li>如果许可不足，就计算需要等待多久；</li>
+<li>支持平滑突发和预热模式。</li>
+</ul>
+<p>核心实现类包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">SmoothRateLimiter<br>SmoothBursty<br>SmoothWarmingUp<br></code></pre></td></tr></table></figure>
+
+<p>不用背源码细节，但要理解两种模式：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">SmoothBursty：允许突发<br>SmoothWarmingUp：预热限流<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-27：SmoothBursty"><a href="#chapter-27：SmoothBursty" class="headerlink" title="chapter 27：SmoothBursty"></a>chapter 27：SmoothBursty</h3><p><code>RateLimiter.create(double permitsPerSecond)</code> 默认创建的是 SmoothBursty 风格。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">RateLimiter</span> <span class="hljs-variable">limiter</span> <span class="hljs-operator">=</span> RateLimiter.create(<span class="hljs-number">10.0</span>);<br></code></pre></td></tr></table></figure>
+
+<p>它表示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">稳定速率每秒 10 个许可，并允许一定突发。<br></code></pre></td></tr></table></figure>
+
+<p>突发能力来自 storedPermits。</p>
+<p>当系统空闲时，许可可以积累。</p>
+<p>之后突发请求可以更快通过。</p>
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.util.concurrent.RateLimiter;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SmoothBurstyDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> InterruptedException &#123;<br>        <span class="hljs-type">RateLimiter</span> <span class="hljs-variable">limiter</span> <span class="hljs-operator">=</span> RateLimiter.create(<span class="hljs-number">2.0</span>);<br><br>        Thread.sleep(<span class="hljs-number">2000</span>);<br><br>        <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> <span class="hljs-variable">i</span> <span class="hljs-operator">=</span> <span class="hljs-number">1</span>; i &lt;= <span class="hljs-number">5</span>; i++) &#123;<br>            <span class="hljs-type">double</span> <span class="hljs-variable">waited</span> <span class="hljs-operator">=</span> limiter.acquire();<br><br>            System.out.println(<span class="hljs-string">&quot;request &quot;</span> + i + <span class="hljs-string">&quot;, waited = &quot;</span> + waited);<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>由于前面空闲了一段时间，前几个请求可能等待很短。</p>
+<p>这就是 bursty 的效果。</p>
+<h3 id="chapter-28：SmoothWarmingUp"><a href="#chapter-28：SmoothWarmingUp" class="headerlink" title="chapter 28：SmoothWarmingUp"></a>chapter 28：SmoothWarmingUp</h3><p><code>SmoothWarmingUp</code> 表示预热限流。</p>
+<p>创建方式：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">RateLimiter</span> <span class="hljs-variable">limiter</span> <span class="hljs-operator">=</span> RateLimiter.create(<span class="hljs-number">10.0</span>, <span class="hljs-number">5</span>, TimeUnit.SECONDS);<br></code></pre></td></tr></table></figure>
+
+<p>含义：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">目标速率是每秒 10 个许可，但需要 5 秒预热。<br></code></pre></td></tr></table></figure>
+
+<p>刚开始不会立刻达到最大速率。</p>
+<p>而是逐渐升高。</p>
+<p>适合那些不能瞬间打满的系统。</p>
+<p>例如：</p>
+<ul>
+<li>冷启动服务；</li>
+<li>缓存未预热；</li>
+<li>数据库连接刚恢复；</li>
+<li>JVM 刚启动；</li>
+<li>下游系统需要慢慢升流量。</li>
+</ul>
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.util.concurrent.RateLimiter;<br><br><span class="hljs-keyword">import</span> java.util.concurrent.TimeUnit;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SmoothWarmingUpDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> &#123;<br>        <span class="hljs-type">RateLimiter</span> <span class="hljs-variable">limiter</span> <span class="hljs-operator">=</span> RateLimiter.create(<span class="hljs-number">5.0</span>, <span class="hljs-number">3</span>, TimeUnit.SECONDS);<br><br>        <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> <span class="hljs-variable">i</span> <span class="hljs-operator">=</span> <span class="hljs-number">1</span>; i &lt;= <span class="hljs-number">10</span>; i++) &#123;<br>            <span class="hljs-type">double</span> <span class="hljs-variable">waited</span> <span class="hljs-operator">=</span> limiter.acquire();<br><br>            System.out.println(<span class="hljs-string">&quot;request &quot;</span> + i + <span class="hljs-string">&quot;, waited = &quot;</span> + waited);<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>前几个请求等待时间可能更长。</p>
+<p>后面逐渐接近稳定速率。</p>
+<h3 id="chapter-29：预热限流适合什么场景"><a href="#chapter-29：预热限流适合什么场景" class="headerlink" title="chapter 29：预热限流适合什么场景"></a>chapter 29：预热限流适合什么场景</h3><p>预热限流适合：</p>
+<ul>
+<li>服务刚启动；</li>
+<li>缓存刚重建；</li>
+<li>数据库刚恢复；</li>
+<li>线程池刚开始工作；</li>
+<li>下游系统刚从故障中恢复；</li>
+<li>JVM JIT 和连接池还没热起来。</li>
+</ul>
+<p>它的目的不是单纯限制 QPS。</p>
+<p>而是避免系统从 0 瞬间被打到满载。</p>
+<p>这对一些需要预热的系统非常重要。</p>
+<h3 id="chapter-30：突发流量处理"><a href="#chapter-30：突发流量处理" class="headerlink" title="chapter 30：突发流量处理"></a>chapter 30：突发流量处理</h3><p>突发流量有两种处理方式。</p>
+<h4 id="1-完全平滑"><a href="#1-完全平滑" class="headerlink" title="1. 完全平滑"></a>1. 完全平滑</h4><p>所有请求都按固定速度进入。</p>
+<p>优点：</p>
+<ul>
+<li>下游压力稳定。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>突发请求排队时间长。</li>
+</ul>
+<p>更像漏桶。</p>
+<h4 id="2-允许适度突发"><a href="#2-允许适度突发" class="headerlink" title="2. 允许适度突发"></a>2. 允许适度突发</h4><p>平均速率受限，但允许短时间消耗存量令牌。</p>
+<p>优点：</p>
+<ul>
+<li>用户体验更好；</li>
+<li>空闲后的请求可以快速处理。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>下游要能承受短暂峰值。</li>
+</ul>
+<p>更像令牌桶。</p>
+<p>Guava RateLimiter 默认的 SmoothBursty 允许一定突发。</p>
+<p>如果下游非常脆弱，不希望突发，可以设置更保守的速率，或引入队列和并发限制。</p>
+<h3 id="chapter-31：RateLimiter-和-Semaphore-的区别"><a href="#chapter-31：RateLimiter-和-Semaphore-的区别" class="headerlink" title="chapter 31：RateLimiter 和 Semaphore 的区别"></a>chapter 31：RateLimiter 和 Semaphore 的区别</h3><p>很多人会把 RateLimiter 和 Semaphore 混淆。</p>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>RateLimiter</th>
+<th>Semaphore</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>控制目标</td>
+<td>单位时间速率</td>
+<td>同时并发数量</td>
+</tr>
+<tr>
+<td>典型含义</td>
+<td>每秒多少个请求</td>
+<td>同时多少个请求</td>
+</tr>
+<tr>
+<td>是否考虑时间</td>
+<td>是</td>
+<td>否</td>
+</tr>
+<tr>
+<td>适合场景</td>
+<td>QPS 限流</td>
+<td>并发隔离</td>
+</tr>
+<tr>
+<td>示例</td>
+<td>每秒最多 100 个请求</td>
+<td>同时最多 20 个请求执行</td>
+</tr>
+</tbody></table>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">RateLimiter.create(<span class="hljs-number">100.0</span>)<br></code></pre></td></tr></table></figure>
+
+<p>表示每秒 100 个许可。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">new</span> <span class="hljs-title class_">Semaphore</span>(<span class="hljs-number">20</span>)<br></code></pre></td></tr></table></figure>
+
+<p>表示最多 20 个线程同时进入。</p>
+<p>真实系统中经常两者一起用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">RateLimiter 控制入口速率<br>Semaphore 控制同时执行数量<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-32：RateLimiter-和线程池队列的关系"><a href="#chapter-32：RateLimiter-和线程池队列的关系" class="headerlink" title="chapter 32：RateLimiter 和线程池队列的关系"></a>chapter 32：RateLimiter 和线程池队列的关系</h3><p>线程池也能限制任务执行速度吗？</p>
+<p>线程池主要控制：</p>
+<ul>
+<li>并发线程数；</li>
+<li>任务队列长度；</li>
+<li>拒绝策略。</li>
+</ul>
+<p>它不能直接表达：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">每秒最多提交 10 个任务。<br></code></pre></td></tr></table></figure>
+
+<p>RateLimiter 可以表达速率。</p>
+<p>所以可以组合：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">rateLimiter.acquire();<br>executor.submit(task);<br></code></pre></td></tr></table></figure>
+
+<p>这样任务提交速度被限制。</p>
+<p>线程池负责执行资源管理。</p>
+<p>RateLimiter 负责入口速率控制。</p>
+<h3 id="chapter-33：实战：限速调用第三方-API"><a href="#chapter-33：实战：限速调用第三方-API" class="headerlink" title="chapter 33：实战：限速调用第三方 API"></a>chapter 33：实战：限速调用第三方 API</h3><p>假设第三方接口限制：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">每秒最多 5 次调用<br></code></pre></td></tr></table></figure>
+
+<p>代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.util.concurrent.RateLimiter;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ThirdPartyApiClient</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">RateLimiter</span> <span class="hljs-variable">rateLimiter</span> <span class="hljs-operator">=</span> RateLimiter.create(<span class="hljs-number">5.0</span>);<br><br>    <span class="hljs-keyword">public</span> String <span class="hljs-title function_">call</span><span class="hljs-params">(String request)</span> &#123;<br>        rateLimiter.acquire();<br><br>        <span class="hljs-keyword">return</span> doCall(request);<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> String <span class="hljs-title function_">doCall</span><span class="hljs-params">(String request)</span> &#123;<br>        System.out.println(<span class="hljs-string">&quot;调用第三方接口：&quot;</span> + request<br>                + <span class="hljs-string">&quot;，time = &quot;</span> + System.currentTimeMillis());<br><br>        <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;ok&quot;</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果不希望阻塞太久，可以用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">tryAcquire<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.util.concurrent.RateLimiter;<br><br><span class="hljs-keyword">import</span> java.util.concurrent.TimeUnit;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ThirdPartyApiClientWithTimeout</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">RateLimiter</span> <span class="hljs-variable">rateLimiter</span> <span class="hljs-operator">=</span> RateLimiter.create(<span class="hljs-number">5.0</span>);<br><br>    <span class="hljs-keyword">public</span> String <span class="hljs-title function_">call</span><span class="hljs-params">(String request)</span> &#123;<br>        <span class="hljs-type">boolean</span> <span class="hljs-variable">acquired</span> <span class="hljs-operator">=</span> rateLimiter.tryAcquire(<span class="hljs-number">100</span>, TimeUnit.MILLISECONDS);<br><br>        <span class="hljs-keyword">if</span> (!acquired) &#123;<br>            <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;rate limited&quot;</span>;<br>        &#125;<br><br>        <span class="hljs-keyword">return</span> doCall(request);<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> String <span class="hljs-title function_">doCall</span><span class="hljs-params">(String request)</span> &#123;<br>        <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;ok&quot;</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-34：实战：任务提交限流-线程池"><a href="#chapter-34：实战：任务提交限流-线程池" class="headerlink" title="chapter 34：实战：任务提交限流 + 线程池"></a>chapter 34：实战：任务提交限流 + 线程池</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.util.concurrent.RateLimiter;<br><br><span class="hljs-keyword">import</span> java.util.concurrent.ExecutorService;<br><span class="hljs-keyword">import</span> java.util.concurrent.Executors;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LimitedTaskExecutor</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> RateLimiter rateLimiter;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ExecutorService executorService;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">LimitedTaskExecutor</span><span class="hljs-params">(<span class="hljs-type">double</span> permitsPerSecond, <span class="hljs-type">int</span> threads)</span> &#123;<br>        <span class="hljs-built_in">this</span>.rateLimiter = RateLimiter.create(permitsPerSecond);<br>        <span class="hljs-built_in">this</span>.executorService = Executors.newFixedThreadPool(threads);<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">submit</span><span class="hljs-params">(Runnable task)</span> &#123;<br>        rateLimiter.acquire();<br><br>        executorService.submit(task);<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">shutdown</span><span class="hljs-params">()</span> &#123;<br>        executorService.shutdown();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LimitedTaskExecutorDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> &#123;<br>        <span class="hljs-type">LimitedTaskExecutor</span> <span class="hljs-variable">executor</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">LimitedTaskExecutor</span>(<span class="hljs-number">5.0</span>, <span class="hljs-number">4</span>);<br><br>        <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> <span class="hljs-variable">i</span> <span class="hljs-operator">=</span> <span class="hljs-number">1</span>; i &lt;= <span class="hljs-number">20</span>; i++) &#123;<br>            <span class="hljs-type">int</span> <span class="hljs-variable">taskId</span> <span class="hljs-operator">=</span> i;<br><br>            executor.submit(() -&gt; &#123;<br>                System.out.println(<span class="hljs-string">&quot;执行任务：&quot;</span> + taskId<br>                        + <span class="hljs-string">&quot;，thread = &quot;</span><br>                        + Thread.currentThread().getName()<br>                        + <span class="hljs-string">&quot;，time = &quot;</span><br>                        + System.currentTimeMillis());<br>            &#125;);<br>        &#125;<br><br>        executor.shutdown();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这个例子中：</p>
+<ul>
+<li>RateLimiter 控制任务提交速度；</li>
+<li>线程池控制任务执行并发。</li>
+</ul>
+<h3 id="chapter-35：实战：Spring-Boot-单机接口限流拦截器"><a href="#chapter-35：实战：Spring-Boot-单机接口限流拦截器" class="headerlink" title="chapter 35：实战：Spring Boot 单机接口限流拦截器"></a>chapter 35：实战：Spring Boot 单机接口限流拦截器</h3><p>定义限流器：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.util.concurrent.RateLimiter;<br><span class="hljs-keyword">import</span> org.springframework.stereotype.Component;<br><br><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LocalApiRateLimiter</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">RateLimiter</span> <span class="hljs-variable">rateLimiter</span> <span class="hljs-operator">=</span> RateLimiter.create(<span class="hljs-number">100.0</span>);<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">tryAcquire</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> rateLimiter.tryAcquire();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>拦截器：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> jakarta.servlet.http.HttpServletRequest;<br><span class="hljs-keyword">import</span> jakarta.servlet.http.HttpServletResponse;<br><span class="hljs-keyword">import</span> org.springframework.web.servlet.HandlerInterceptor;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">RateLimitInterceptor</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">HandlerInterceptor</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> LocalApiRateLimiter localApiRateLimiter;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">RateLimitInterceptor</span><span class="hljs-params">(LocalApiRateLimiter localApiRateLimiter)</span> &#123;<br>        <span class="hljs-built_in">this</span>.localApiRateLimiter = localApiRateLimiter;<br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">preHandle</span><span class="hljs-params">(HttpServletRequest request,</span><br><span class="hljs-params">                             HttpServletResponse response,</span><br><span class="hljs-params">                             Object handler)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-keyword">if</span> (!localApiRateLimiter.tryAcquire()) &#123;<br>            response.setStatus(<span class="hljs-number">429</span>);<br>            response.getWriter().write(<span class="hljs-string">&quot;too many requests&quot;</span>);<br><br>            <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;<br>        &#125;<br><br>        <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>注册拦截器：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> org.springframework.context.annotation.Configuration;<br><span class="hljs-keyword">import</span> org.springframework.web.servlet.config.annotation.InterceptorRegistry;<br><span class="hljs-keyword">import</span> org.springframework.web.servlet.config.annotation.WebMvcConfigurer;<br><br><span class="hljs-meta">@Configuration</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">WebConfig</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">WebMvcConfigurer</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> LocalApiRateLimiter localApiRateLimiter;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">WebConfig</span><span class="hljs-params">(LocalApiRateLimiter localApiRateLimiter)</span> &#123;<br>        <span class="hljs-built_in">this</span>.localApiRateLimiter = localApiRateLimiter;<br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">addInterceptors</span><span class="hljs-params">(InterceptorRegistry registry)</span> &#123;<br>        registry.addInterceptor(<span class="hljs-keyword">new</span> <span class="hljs-title class_">RateLimitInterceptor</span>(localApiRateLimiter))<br>                .addPathPatterns(<span class="hljs-string">&quot;/api/**&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<blockquote>
+<p>这是单机限流。多实例部署时，每个实例各限各的。</p>
+</blockquote>
+<h3 id="chapter-36：动态调整限流速率"><a href="#chapter-36：动态调整限流速率" class="headerlink" title="chapter 36：动态调整限流速率"></a>chapter 36：动态调整限流速率</h3><p>RateLimiter 支持动态调整速率：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">rateLimiter.setRate(<span class="hljs-number">200.0</span>);<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.util.concurrent.RateLimiter;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">DynamicRateLimiterDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> &#123;<br>        <span class="hljs-type">RateLimiter</span> <span class="hljs-variable">limiter</span> <span class="hljs-operator">=</span> RateLimiter.create(<span class="hljs-number">10.0</span>);<br><br>        System.out.println(<span class="hljs-string">&quot;old rate = &quot;</span> + limiter.getRate());<br><br>        limiter.setRate(<span class="hljs-number">20.0</span>);<br><br>        System.out.println(<span class="hljs-string">&quot;new rate = &quot;</span> + limiter.getRate());<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这适合配置中心动态调整单机限流值。</p>
+<p>例如：</p>
+<ul>
+<li>白天流量大，调高；</li>
+<li>下游系统异常，调低；</li>
+<li>灰度期间限制流量；</li>
+<li>压测期间动态调整。</li>
+</ul>
+<p>真实项目中可以结合 Nacos、Apollo、Spring Cloud Config 等配置中心。</p>
+<h3 id="chapter-37：RateLimiter-的局限性"><a href="#chapter-37：RateLimiter-的局限性" class="headerlink" title="chapter 37：RateLimiter 的局限性"></a>chapter 37：RateLimiter 的局限性</h3><p>Guava RateLimiter 很好用，但有明显局限。</p>
+<h4 id="1-单机限流"><a href="#1-单机限流" class="headerlink" title="1. 单机限流"></a>1. 单机限流</h4><p>多个实例之间不共享状态。</p>
+<p>如果有 10 个实例，每个实例限 100 QPS，总量可能是 1000 QPS。</p>
+<h4 id="2-不支持分布式"><a href="#2-不支持分布式" class="headerlink" title="2. 不支持分布式"></a>2. 不支持分布式</h4><p>不能全局限制用户、IP、接口的总请求数。</p>
+<h4 id="3-不支持复杂规则"><a href="#3-不支持复杂规则" class="headerlink" title="3. 不支持复杂规则"></a>3. 不支持复杂规则</h4><p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">每个用户每分钟 10 次<br>每个 IP 每秒 5 次<br>不同接口不同规则<br>不同租户不同配额<br></code></pre></td></tr></table></figure>
+
+<p>需要自己封装。</p>
+<h4 id="4-不提供监控指标"><a href="#4-不提供监控指标" class="headerlink" title="4. 不提供监控指标"></a>4. 不提供监控指标</h4><p>需要自己接入 Micrometer 或日志。</p>
+<h4 id="5-不负责排队队列管理"><a href="#5-不负责排队队列管理" class="headerlink" title="5. 不负责排队队列管理"></a>5. 不负责排队队列管理</h4><p><code>acquire()</code> 会阻塞当前线程。</p>
+<p>高并发接口里大量阻塞可能拖垮线程池。</p>
+<h4 id="6-不支持集群一致性"><a href="#6-不支持集群一致性" class="headerlink" title="6. 不支持集群一致性"></a>6. 不支持集群一致性</h4><p>集群限流需要 Redis、网关、Sentinel 等方案。</p>
+<h3 id="chapter-38：什么时候不用-Guava-RateLimiter"><a href="#chapter-38：什么时候不用-Guava-RateLimiter" class="headerlink" title="chapter 38：什么时候不用 Guava RateLimiter"></a>chapter 38：什么时候不用 Guava RateLimiter</h3><p>以下场景不建议只用 Guava RateLimiter：</p>
+<h4 id="1-网关层限流"><a href="#1-网关层限流" class="headerlink" title="1. 网关层限流"></a>1. 网关层限流</h4><p>推荐使用网关限流。</p>
+<p>例如：</p>
+<ul>
+<li>Spring Cloud Gateway；</li>
+<li>Nginx；</li>
+<li>Envoy；</li>
+<li>Kong；</li>
+<li>APISIX。</li>
+</ul>
+<h4 id="2-分布式全局限流"><a href="#2-分布式全局限流" class="headerlink" title="2. 分布式全局限流"></a>2. 分布式全局限流</h4><p>推荐 Redis Lua、Sentinel、Resilience4j、分布式限流服务。</p>
+<h4 id="3-强可靠任务削峰"><a href="#3-强可靠任务削峰" class="headerlink" title="3. 强可靠任务削峰"></a>3. 强可靠任务削峰</h4><p>推荐 MQ。</p>
+<p>例如 Kafka、RabbitMQ、RocketMQ。</p>
+<h4 id="4-按用户、IP、租户多维度限流"><a href="#4-按用户、IP、租户多维度限流" class="headerlink" title="4. 按用户、IP、租户多维度限流"></a>4. 按用户、IP、租户多维度限流</h4><p>Guava 可以封装，但复杂度高。</p>
+<p>可能需要专门限流组件。</p>
+<h4 id="5-高并发-Web-接口中长时间阻塞"><a href="#5-高并发-Web-接口中长时间阻塞" class="headerlink" title="5. 高并发 Web 接口中长时间阻塞"></a>5. 高并发 Web 接口中长时间阻塞</h4><p>不要大量使用 <code>acquire()</code> 阻塞 Tomcat&#x2F;Netty 工作线程。</p>
+<p>Web 接口更推荐快速失败或短超时等待。</p>
+<h3 id="chapter-39：限流返回什么状态码"><a href="#chapter-39：限流返回什么状态码" class="headerlink" title="chapter 39：限流返回什么状态码"></a>chapter 39：限流返回什么状态码</h3><p>HTTP 接口限流时，推荐返回：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">429 Too Many Requests<br></code></pre></td></tr></table></figure>
+
+<p>响应内容可以是：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;code&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;TOO_MANY_REQUESTS&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;message&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;请求过于频繁，请稍后再试&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果有重试建议，可以加响应头：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Retry-After: 1<br></code></pre></td></tr></table></figure>
+
+<p>不要返回 500。</p>
+<p>限流不是服务器内部错误。</p>
+<p>它是系统主动保护。</p>
+<h3 id="chapter-40：Monitor-和-RateLimiter-可以组合吗"><a href="#chapter-40：Monitor-和-RateLimiter-可以组合吗" class="headerlink" title="chapter 40：Monitor 和 RateLimiter 可以组合吗"></a>chapter 40：Monitor 和 RateLimiter 可以组合吗</h3><p>可以。</p>
+<p>例如一个任务处理系统：</p>
+<ul>
+<li>RateLimiter 控制任务进入速度；</li>
+<li>Monitor 控制队列容量；</li>
+<li>线程池控制执行并发。</li>
+</ul>
+<p>结构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">请求 -&gt; RateLimiter -&gt; BoundedQueue(Monitor) -&gt; Worker Thread<br></code></pre></td></tr></table></figure>
+
+<p>这样可以同时控制：</p>
+<ul>
+<li>单位时间进入多少任务；</li>
+<li>队列最多堆积多少任务；</li>
+<li>同时有多少线程执行任务。</li>
+</ul>
+<p>这比单独使用某一个工具更稳。</p>
+<h3 id="chapter-41：完整案例：限流有界任务队列"><a href="#chapter-41：完整案例：限流有界任务队列" class="headerlink" title="chapter 41：完整案例：限流有界任务队列"></a>chapter 41：完整案例：限流有界任务队列</h3><p>需求：</p>
+<ol>
+<li>任务提交速率每秒最多 5 个；</li>
+<li>队列容量最多 10 个；</li>
+<li>队列满时快速失败；</li>
+<li>Worker 从队列中取任务执行。</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.util.concurrent.RateLimiter;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LimitedBoundedTaskQueue</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> RateLimiter rateLimiter;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> BoundedQueue&lt;Runnable&gt; queue;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">LimitedBoundedTaskQueue</span><span class="hljs-params">(<span class="hljs-type">double</span> permitsPerSecond, <span class="hljs-type">int</span> capacity)</span> &#123;<br>        <span class="hljs-built_in">this</span>.rateLimiter = RateLimiter.create(permitsPerSecond);<br>        <span class="hljs-built_in">this</span>.queue = <span class="hljs-keyword">new</span> <span class="hljs-title class_">BoundedQueue</span>&lt;&gt;(capacity);<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">submit</span><span class="hljs-params">(Runnable task)</span> &#123;<br>        <span class="hljs-keyword">if</span> (!rateLimiter.tryAcquire()) &#123;<br>            <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;<br>        &#125;<br><br>        <span class="hljs-keyword">return</span> queue.tryPut(task);<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> Runnable <span class="hljs-title function_">take</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> InterruptedException &#123;<br>        <span class="hljs-keyword">return</span> queue.take();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>Worker：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">TaskWorker</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">Runnable</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> LimitedBoundedTaskQueue taskQueue;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">TaskWorker</span><span class="hljs-params">(LimitedBoundedTaskQueue taskQueue)</span> &#123;<br>        <span class="hljs-built_in">this</span>.taskQueue = taskQueue;<br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">run</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">while</span> (!Thread.currentThread().isInterrupted()) &#123;<br>            <span class="hljs-keyword">try</span> &#123;<br>                <span class="hljs-type">Runnable</span> <span class="hljs-variable">task</span> <span class="hljs-operator">=</span> taskQueue.take();<br><br>                task.run();<br>            &#125; <span class="hljs-keyword">catch</span> (InterruptedException e) &#123;<br>                Thread.currentThread().interrupt();<br>            &#125; <span class="hljs-keyword">catch</span> (Exception e) &#123;<br>                System.out.println(<span class="hljs-string">&quot;任务执行失败：&quot;</span> + e.getMessage());<br>            &#125;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>客户端：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LimitedBoundedTaskQueueDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> &#123;<br>        <span class="hljs-type">LimitedBoundedTaskQueue</span> <span class="hljs-variable">queue</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">LimitedBoundedTaskQueue</span>(<span class="hljs-number">5.0</span>, <span class="hljs-number">10</span>);<br><br>        <span class="hljs-type">Thread</span> <span class="hljs-variable">worker</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Thread</span>(<span class="hljs-keyword">new</span> <span class="hljs-title class_">TaskWorker</span>(queue), <span class="hljs-string">&quot;task-worker&quot;</span>);<br>        worker.start();<br><br>        <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> <span class="hljs-variable">i</span> <span class="hljs-operator">=</span> <span class="hljs-number">1</span>; i &lt;= <span class="hljs-number">100</span>; i++) &#123;<br>            <span class="hljs-type">int</span> <span class="hljs-variable">taskId</span> <span class="hljs-operator">=</span> i;<br><br>            <span class="hljs-type">boolean</span> <span class="hljs-variable">success</span> <span class="hljs-operator">=</span> queue.submit(() -&gt; &#123;<br>                System.out.println(<span class="hljs-string">&quot;执行任务：&quot;</span> + taskId);<br>            &#125;);<br><br>            <span class="hljs-keyword">if</span> (!success) &#123;<br>                System.out.println(<span class="hljs-string">&quot;任务提交失败：&quot;</span> + taskId);<br>            &#125;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这个例子同时用到了：</p>
+<ul>
+<li>RateLimiter；</li>
+<li>Monitor；</li>
+<li>Guard；</li>
+<li>有界队列；</li>
+<li>快速失败。</li>
+</ul>
+<h3 id="chapter-42：并发和限流最佳实践"><a href="#chapter-42：并发和限流最佳实践" class="headerlink" title="chapter 42：并发和限流最佳实践"></a>chapter 42：并发和限流最佳实践</h3><h4 id="1-能用-JDK-成熟并发容器，就不要自己造"><a href="#1-能用-JDK-成熟并发容器，就不要自己造" class="headerlink" title="1. 能用 JDK 成熟并发容器，就不要自己造"></a>1. 能用 JDK 成熟并发容器，就不要自己造</h4><p>例如有界队列可以用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">ArrayBlockingQueue<br>LinkedBlockingQueue<br></code></pre></td></tr></table></figure>
+
+<p>Monitor 适合学习和特殊条件控制。</p>
+<h4 id="2-共享状态必须受保护"><a href="#2-共享状态必须受保护" class="headerlink" title="2. 共享状态必须受保护"></a>2. 共享状态必须受保护</h4><p>不要在多线程下裸写 ArrayList、HashMap、普通 int。</p>
+<h4 id="3-临界区要小"><a href="#3-临界区要小" class="headerlink" title="3. 临界区要小"></a>3. 临界区要小</h4><p>锁内不要做远程调用和长时间 IO。</p>
+<h4 id="4-Web-接口限流优先快速失败"><a href="#4-Web-接口限流优先快速失败" class="headerlink" title="4. Web 接口限流优先快速失败"></a>4. Web 接口限流优先快速失败</h4><p>不要无限阻塞请求线程。</p>
+<h4 id="5-单机限流不要误当分布式限流"><a href="#5-单机限流不要误当分布式限流" class="headerlink" title="5. 单机限流不要误当分布式限流"></a>5. 单机限流不要误当分布式限流</h4><p>Guava RateLimiter 只在当前 JVM 内生效。</p>
+<h4 id="6-限流要有监控"><a href="#6-限流要有监控" class="headerlink" title="6. 限流要有监控"></a>6. 限流要有监控</h4><p>至少统计：</p>
+<ul>
+<li>通过数；</li>
+<li>拒绝数；</li>
+<li>等待时间；</li>
+<li>当前配置速率。</li>
+</ul>
+<h4 id="7-限流值要可配置"><a href="#7-限流值要可配置" class="headerlink" title="7. 限流值要可配置"></a>7. 限流值要可配置</h4><p>不要写死在代码里。</p>
+<h4 id="8-限流不是降级的全部"><a href="#8-限流不是降级的全部" class="headerlink" title="8. 限流不是降级的全部"></a>8. 限流不是降级的全部</h4><p>还要考虑：</p>
+<ul>
+<li>熔断；</li>
+<li>超时；</li>
+<li>重试；</li>
+<li>隔离；</li>
+<li>队列；</li>
+<li>缓存；</li>
+<li>MQ 削峰。</li>
+</ul>
+<h4 id="9-任务系统要同时控制速率、并发和队列"><a href="#9-任务系统要同时控制速率、并发和队列" class="headerlink" title="9. 任务系统要同时控制速率、并发和队列"></a>9. 任务系统要同时控制速率、并发和队列</h4><p>只限制其中一个维度通常不够。</p>
+<h4 id="10-中断要正确处理"><a href="#10-中断要正确处理" class="headerlink" title="10. 中断要正确处理"></a>10. 中断要正确处理</h4><p>捕获 <code>InterruptedException</code> 后要恢复中断标记：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">Thread.currentThread().interrupt();<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-43：Monitor-常用-API-速查"><a href="#chapter-43：Monitor-常用-API-速查" class="headerlink" title="chapter 43：Monitor 常用 API 速查"></a>chapter 43：Monitor 常用 API 速查</h3><table>
+<thead>
+<tr>
+<th>API</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>enter()</code></td>
+<td>进入 Monitor，类似加锁</td>
+</tr>
+<tr>
+<td><code>enterIf(Guard)</code></td>
+<td>条件满足才进入，不等待</td>
+</tr>
+<tr>
+<td><code>enterWhen(Guard)</code></td>
+<td>等待条件满足后进入</td>
+</tr>
+<tr>
+<td><code>tryEnter()</code></td>
+<td>尝试进入</td>
+</tr>
+<tr>
+<td><code>leave()</code></td>
+<td>离开 Monitor，类似解锁</td>
+</tr>
+<tr>
+<td><code>Guard.isSatisfied()</code></td>
+<td>判断条件是否满足</td>
+</tr>
+</tbody></table>
+<p>常见结构：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java">monitor.enterWhen(guard);<br><br><span class="hljs-keyword">try</span> &#123;<br>    <span class="hljs-comment">// logic</span><br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    monitor.leave();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-44：RateLimiter-常用-API-速查"><a href="#chapter-44：RateLimiter-常用-API-速查" class="headerlink" title="chapter 44：RateLimiter 常用 API 速查"></a>chapter 44：RateLimiter 常用 API 速查</h3><table>
+<thead>
+<tr>
+<th>API</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>RateLimiter.create(double permitsPerSecond)</code></td>
+<td>创建平滑突发限流器</td>
+</tr>
+<tr>
+<td><code>RateLimiter.create(double permitsPerSecond, long warmupPeriod, TimeUnit unit)</code></td>
+<td>创建预热限流器</td>
+</tr>
+<tr>
+<td><code>acquire()</code></td>
+<td>阻塞获取 1 个许可</td>
+</tr>
+<tr>
+<td><code>acquire(int permits)</code></td>
+<td>阻塞获取多个许可</td>
+</tr>
+<tr>
+<td><code>tryAcquire()</code></td>
+<td>立即尝试获取许可</td>
+</tr>
+<tr>
+<td><code>tryAcquire(timeout, unit)</code></td>
+<td>在指定时间内尝试获取许可</td>
+</tr>
+<tr>
+<td><code>setRate(double permitsPerSecond)</code></td>
+<td>动态调整速率</td>
+</tr>
+<tr>
+<td><code>getRate()</code></td>
+<td>获取当前速率</td>
+</tr>
+</tbody></table>
+<p>选择建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">后台任务：acquire<br>用户接口：tryAcquire 或 tryAcquire(timeout)<br>冷启动系统：SmoothWarmingUp<br>单机轻量限流：RateLimiter<br>分布式限流：Redis / Sentinel / 网关<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-45：一句话总结"><a href="#chapter-45：一句话总结" class="headerlink" title="chapter 45：一句话总结"></a>chapter 45：一句话总结</h3><p>这一章的核心是：</p>
+<blockquote>
+<p>Monitor 解决的是多线程条件同步问题，RateLimiter 解决的是单机速率限制问题。</p>
+</blockquote>
+<p><code>Monitor</code> 用 <code>Guard</code> 表达进入临界区的条件。</p>
+<p>它让：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">锁 + 条件等待<br></code></pre></td></tr></table></figure>
+
+<p>变得更结构化。</p>
+<p>适合理解：</p>
+<ul>
+<li>条件等待；</li>
+<li>有界队列；</li>
+<li>enterWhen；</li>
+<li>enterIf；</li>
+<li>leave；</li>
+<li>与 synchronized、Lock、Condition 的区别。</li>
+</ul>
+<p><code>RateLimiter</code> 用于单机限流。</p>
+<p>它可以：</p>
+<ul>
+<li>平滑请求；</li>
+<li>控制任务提交速率；</li>
+<li>控制第三方接口调用频率；</li>
+<li>支持阻塞获取许可；</li>
+<li>支持快速失败；</li>
+<li>支持预热限流；</li>
+<li>支持一定突发流量。</li>
+</ul>
+<p>但要记住：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Guava RateLimiter 是单 JVM 工具，不是分布式限流系统。<br></code></pre></td></tr></table></figure>
+
+<p>如果你要做全局限流、网关限流、用户维度限流、租户维度限流、可靠削峰，应该考虑更完整的方案。</p>
+<p>好的并发控制不是只会加锁。</p>
+<p>好的限流也不是随手写一个 QPS 数字。</p>
+<p>真正稳定的系统，往往会同时考虑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">速率<br>并发<br>队列<br>超时<br>降级<br>重试<br>隔离<br>监控<br>配置<br></code></pre></td></tr></table></figure>
+
+<p>Guava 的 Monitor 和 RateLimiter 是很好的入门工具。</p>
+<p>但在生产系统里，要知道它们能解决什么，也要知道它们解决不了什么。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>Google Guava API: Monitor.</li>
+<li>Google Guava API: Monitor.Guard.</li>
+<li>Google Guava API: RateLimiter.</li>
+<li>Google Guava API: SmoothRateLimiter.</li>
+<li>Google Guava API: AsyncEventBus.</li>
+<li>Java Documentation: synchronized.</li>
+<li>Java Documentation: ReentrantLock.</li>
+<li>Java Documentation: Condition.</li>
+<li>Java Documentation: Semaphore.</li>
+<li>Java Documentation: BlockingQueue.</li>
+<li>Java Concurrency in Practice.</li>
+<li>Martin Kleppmann. <em>Designing Data-Intensive Applications</em>.</li>
+</ul>
+<h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p><code>富贵岂由人，时会高志须酬。</code></p>
+<p><code>能成功于千载者，必以近察远。</code></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Java/" class="category-chain-item">Java</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Spring-Boot/" class="print-no-link">#Spring Boot</a>
+      
+        <a href="/tags/Spring/" class="print-no-link">#Spring</a>
+      
+        <a href="/tags/Java/" class="print-no-link">#Java</a>
+      
+        <a href="/tags/Guava/" class="print-no-link">#Guava</a>
+      
+        <a href="/tags/Concurrency/" class="print-no-link">#Concurrency</a>
+      
+        <a href="/tags/RateLimiter/" class="print-no-link">#RateLimiter</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Guava：并发控制与限流</div>
+      <div>https://allendericdalexander.github.io/2026/04/01/java/utils/guava/08guava-concurrency-ratelimiter-blog/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年4月1日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/04/01/java/utils/guava/07guava-eventbus-blog/" title="Guava：事件总线 EventBus">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Guava：事件总线 EventBus</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/04/01/java/utils/guava/09guava-cache-reference-collections-blog/" title="Guava：缓存、引用类型与集合工具">
+                        <span class="hidden-mobile">Guava：缓存、引用类型与集合工具</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

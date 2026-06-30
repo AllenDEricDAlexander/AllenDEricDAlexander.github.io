@@ -1,0 +1,1467 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="欢迎你来读这篇博客，这篇博客主要是关于Guava IO 进阶：Source、Sink 与 Streams。其中包括 CharSource、CharSink、ByteSource、ByteSink、CharStreams、ByteStreams 的核心思想、源码设计、模板方法模式、流复制底层实现，以及在 Java 后端文件处理中的实战用法。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Guava IO 进阶：Source、Sink 与 Streams">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/04/01/java/utils/guava/05guava-source-sink-streams-blog/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="欢迎你来读这篇博客，这篇博客主要是关于Guava IO 进阶：Source、Sink 与 Streams。其中包括 CharSource、CharSink、ByteSource、ByteSink、CharStreams、ByteStreams 的核心思想、源码设计、模板方法模式、流复制底层实现，以及在 Java 后端文件处理中的实战用法。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-04-01T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-04-01T04:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Guava">
+<meta property="article:tag" content="IO">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="Spring">
+<meta property="article:tag" content="Spring Boot">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Guava IO 进阶：Source、Sink 与 Streams - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Guava IO 进阶：Source、Sink 与 Streams"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-04-01 12:00" pubdate>
+          2026年4月1日 中午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          6.3k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          53 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Guava IO 进阶：Source、Sink 与 Streams</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>欢迎你来读这篇博客，这篇博客主要是关于<code>Guava IO 进阶：Source、Sink 与 Streams</code>。<br>其中包括 CharSource、CharSink、ByteSource、ByteSink、CharStreams、ByteStreams 的核心思想、源码设计、模板方法模式、流复制底层实现，以及在 Java 后端文件处理中的实战用法。</p>
+<span id="more"></span>
+
+<h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><p>上一章我们讲了 Guava 的 <code>Files</code> 工具类。</p>
+<p><code>Files</code> 很适合做 IO 入门，因为它直接面向文件操作：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java">Files.write(...)<br>Files.copy(...)<br>Files.move(...)<br>Files.readLines(...)<br>Files.equal(...)<br>Files.getFileExtension(...)<br></code></pre></td></tr></table></figure>
+
+<p>这些 API 很直观。</p>
+<p>但如果只停留在 <code>Files</code>，还不算真正理解 Guava IO 的设计思想。</p>
+<p>Guava IO 真正值得学习的是它对 IO 的抽象：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Source：数据从哪里来<br>Sink：数据写到哪里去<br></code></pre></td></tr></table></figure>
+
+<p>再细分为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">ByteSource：字节输入来源<br>ByteSink：字节输出目标<br><br>CharSource：字符输入来源<br>CharSink：字符输出目标<br></code></pre></td></tr></table></figure>
+
+<p>有了这套抽象之后，文件不再是唯一的数据来源。</p>
+<p>数据可以来自：</p>
+<ul>
+<li>文件；</li>
+<li>内存；</li>
+<li>URL；</li>
+<li>classpath 资源；</li>
+<li>网络输入流；</li>
+<li>字节数组；</li>
+<li>字符串；</li>
+<li>其他自定义来源。</li>
+</ul>
+<p>输出目标也可以是：</p>
+<ul>
+<li>文件；</li>
+<li>内存；</li>
+<li>字节流；</li>
+<li>字符流；</li>
+<li>黑洞输出流；</li>
+<li>其他自定义目标。</li>
+</ul>
+<p>这一章对应课程结构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">第 5 章：Guava IO 进阶：Source、Sink 与 Streams<br>  5.1 CharSource 和 CharSink 源码剖析<br>  5.2 ByteSource 和 ByteSink 源码剖析<br>  5.3 CharStreams 和 ByteStreams 源码剖析<br></code></pre></td></tr></table></figure>
+
+<p>对应原课程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">11 Guava 之 CharSource 和 CharSink 源码剖析<br>12 Guava 之 ByteSource 和 ByteSink 源码剖析<br>13 Guava 之 CharStreams 和 ByteStreams 源码剖析<br></code></pre></td></tr></table></figure>
+
+<p>这篇文章的目标不是让你背 API，而是理解 Guava IO 背后的设计：</p>
+<blockquote>
+<p>把 IO 操作从具体文件、具体流中抽象出来，用 Source 表示输入，用 Sink 表示输出，再用 Streams 工具类完成底层复制和读取。</p>
+</blockquote>
+<p>这个思想在后端工程中非常重要。</p>
+<p>因为业务代码最怕被各种 IO 细节淹没。</p>
+<p>好的 IO 代码应该表达清楚：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">从哪里读<br>写到哪里<br>用什么编码<br>是否按字符还是按字节<br>是否一次性读取<br>是否流式复制<br></code></pre></td></tr></table></figure>
+
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h3 id="chapter-1：从-Files-到-Source-Sink"><a href="#chapter-1：从-Files-到-Source-Sink" class="headerlink" title="chapter 1：从 Files 到 Source &#x2F; Sink"></a>chapter 1：从 Files 到 Source &#x2F; Sink</h3><p>上一章我们使用过：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java">Files.asCharSource(file, StandardCharsets.UTF_8)<br>Files.asCharSink(file, StandardCharsets.UTF_8)<br>Files.asByteSource(file)<br>Files.asByteSink(file)<br></code></pre></td></tr></table></figure>
+
+<p>这些方法表面上属于 <code>Files</code> 工具类。</p>
+<p>但它们返回的对象已经不是简单工具方法，而是 Guava IO 的核心抽象：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java">CharSource<br>CharSink<br>ByteSource<br>ByteSink<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">CharSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> Files.asCharSource(file, StandardCharsets.UTF_8);<br><span class="hljs-type">String</span> <span class="hljs-variable">content</span> <span class="hljs-operator">=</span> source.read();<br></code></pre></td></tr></table></figure>
+
+<p>这里的重点不再是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">读某个 File<br></code></pre></td></tr></table></figure>
+
+<p>而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">从一个 CharSource 读取字符内容<br></code></pre></td></tr></table></figure>
+
+<p>同理：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">CharSink</span> <span class="hljs-variable">sink</span> <span class="hljs-operator">=</span> Files.asCharSink(file, StandardCharsets.UTF_8);<br>sink.write(<span class="hljs-string">&quot;hello&quot;</span>);<br></code></pre></td></tr></table></figure>
+
+<p>重点变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">向一个 CharSink 写入字符内容<br></code></pre></td></tr></table></figure>
+
+<p>这就是抽象的力量。</p>
+<p>文件只是 Source &#x2F; Sink 的一种实现。</p>
+<h3 id="chapter-2：Source-Sink-思想"><a href="#chapter-2：Source-Sink-思想" class="headerlink" title="chapter 2：Source &#x2F; Sink 思想"></a>chapter 2：Source &#x2F; Sink 思想</h3><p>Guava IO 把 IO 抽象成四个基本概念：</p>
+<table>
+<thead>
+<tr>
+<th>抽象</th>
+<th>含义</th>
+<th>面向数据类型</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ByteSource</code></td>
+<td>字节输入来源</td>
+<td>byte</td>
+</tr>
+<tr>
+<td><code>ByteSink</code></td>
+<td>字节输出目标</td>
+<td>byte</td>
+</tr>
+<tr>
+<td><code>CharSource</code></td>
+<td>字符输入来源</td>
+<td>char &#x2F; String</td>
+</tr>
+<tr>
+<td><code>CharSink</code></td>
+<td>字符输出目标</td>
+<td>char &#x2F; String</td>
+</tr>
+</tbody></table>
+<p>可以这样理解：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Source = 我能从这里读<br>Sink   = 我能往这里写<br>Byte   = 二进制<br>Char   = 文本字符<br></code></pre></td></tr></table></figure>
+
+<p>比如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">文件       -&gt; 可以是 ByteSource，也可以是 CharSource<br>字符串     -&gt; 可以是 CharSource<br>byte[]     -&gt; 可以是 ByteSource<br>文件输出   -&gt; 可以是 ByteSink，也可以是 CharSink<br></code></pre></td></tr></table></figure>
+
+<p>这种抽象可以让业务代码摆脱具体 IO 类型。</p>
+<p>例如一个方法只关心“读取文本”：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> String <span class="hljs-title function_">loadConfig</span><span class="hljs-params">(CharSource source)</span> <span class="hljs-keyword">throws</span> IOException &#123;<br>    <span class="hljs-keyword">return</span> source.read();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>它可以读取：</p>
+<ul>
+<li>文件；</li>
+<li>字符串；</li>
+<li>classpath 资源；</li>
+<li>URL 资源；</li>
+<li>测试中的内存数据。</li>
+</ul>
+<p>这比写死：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> String <span class="hljs-title function_">loadConfig</span><span class="hljs-params">(File file)</span><br></code></pre></td></tr></table></figure>
+
+<p>更灵活。</p>
+<h3 id="chapter-3：为什么-Source-Sink-比直接使用-File-更灵活"><a href="#chapter-3：为什么-Source-Sink-比直接使用-File-更灵活" class="headerlink" title="chapter 3：为什么 Source &#x2F; Sink 比直接使用 File 更灵活"></a>chapter 3：为什么 Source &#x2F; Sink 比直接使用 File 更灵活</h3><p>如果方法参数是 <code>File</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">importUsers</span><span class="hljs-params">(File file)</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>那么调用方必须提供文件。</p>
+<p>如果测试时不想创建真实文件，就不方便。</p>
+<p>但如果参数是 <code>CharSource</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">importUsers</span><span class="hljs-params">(CharSource source)</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>测试时可以直接使用内存字符串：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">CharSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> CharSource.wrap(<span class="hljs-string">&quot;1,Mario\n2,Luigi&quot;</span>);<br></code></pre></td></tr></table></figure>
+
+<p>生产中可以使用文件：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">CharSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> Files.asCharSource(file, StandardCharsets.UTF_8);<br></code></pre></td></tr></table></figure>
+
+<p>这样业务逻辑不关心数据来自哪里。</p>
+<p>这就是 Source 抽象的价值。</p>
+<p>同理，如果输出参数是 <code>CharSink</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">exportUsers</span><span class="hljs-params">(CharSink sink)</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>生产中可以写文件。</p>
+<p>测试中可以写到内存或自定义 Sink。</p>
+<p>这种设计比到处传 <code>File</code>、<code>InputStream</code>、<code>OutputStream</code> 更有表达力。</p>
+<h3 id="chapter-4：CharSource-是什么"><a href="#chapter-4：CharSource-是什么" class="headerlink" title="chapter 4：CharSource 是什么"></a>chapter 4：CharSource 是什么</h3><p><code>CharSource</code> 表示字符输入来源。</p>
+<p>它的核心职责是：</p>
+<blockquote>
+<p>打开一个 Reader，并基于这个 Reader 提供高级读取方法。</p>
+</blockquote>
+<p>你可以把它理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">CharSource = 一个可重复打开的字符数据来源<br></code></pre></td></tr></table></figure>
+
+<p>常见创建方式：</p>
+<h4 id="1-从文件创建"><a href="#1-从文件创建" class="headerlink" title="1. 从文件创建"></a>1. 从文件创建</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">CharSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> Files.asCharSource(file, StandardCharsets.UTF_8);<br></code></pre></td></tr></table></figure>
+
+<h4 id="2-从字符串创建"><a href="#2-从字符串创建" class="headerlink" title="2. 从字符串创建"></a>2. 从字符串创建</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">CharSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> CharSource.wrap(<span class="hljs-string">&quot;hello guava&quot;</span>);<br></code></pre></td></tr></table></figure>
+
+<h4 id="3-空字符来源"><a href="#3-空字符来源" class="headerlink" title="3. 空字符来源"></a>3. 空字符来源</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">CharSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> CharSource.empty();<br></code></pre></td></tr></table></figure>
+
+<p><code>CharSource</code> 的常见方法包括：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java">openStream()<br>openBufferedStream()<br>read()<br>readFirstLine()<br>readLines()<br>copyTo(...)<br>isEmpty()<br>length()<br></code></pre></td></tr></table></figure>
+
+<p>不同版本 Guava 中部分方法可能有差异，但核心思想一致。</p>
+<h3 id="chapter-5：CharSource-基本用法"><a href="#chapter-5：CharSource-基本用法" class="headerlink" title="chapter 5：CharSource 基本用法"></a>chapter 5：CharSource 基本用法</h3><p>从字符串创建 <code>CharSource</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharSource;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CharSourceWrapDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">CharSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> CharSource.wrap(<span class="hljs-string">&quot;hello\nworld&quot;</span>);<br><br>        <span class="hljs-type">String</span> <span class="hljs-variable">content</span> <span class="hljs-operator">=</span> source.read();<br><br>        System.out.println(content);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">hello<br>world<br></code></pre></td></tr></table></figure>
+
+<p>读取第一行：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">String</span> <span class="hljs-variable">firstLine</span> <span class="hljs-operator">=</span> source.readFirstLine();<br></code></pre></td></tr></table></figure>
+
+<p>读取所有行：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">List&lt;String&gt; lines = source.readLines();<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharSource;<br><br><span class="hljs-keyword">import</span> java.util.List;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CharSourceReadLinesDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">CharSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> CharSource.wrap(<span class="hljs-string">&quot;Mario\nLuigi\nPeach&quot;</span>);<br><br>        List&lt;String&gt; lines = source.readLines();<br><br>        System.out.println(lines);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">[Mario, Luigi, Peach]<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-6：从文件创建-CharSource"><a href="#chapter-6：从文件创建-CharSource" class="headerlink" title="chapter 6：从文件创建 CharSource"></a>chapter 6：从文件创建 CharSource</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharSource;<br><span class="hljs-keyword">import</span> com.google.common.io.Files;<br><br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">FileCharSourceDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">File</span> <span class="hljs-variable">file</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;guava-io-demo/users.txt&quot;</span>);<br><br>        Files.createParentDirs(file);<br>        Files.asCharSink(file, StandardCharsets.UTF_8)<br>                .write(<span class="hljs-string">&quot;1,Mario\n2,Luigi\n3,Peach&quot;</span>);<br><br>        <span class="hljs-type">CharSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> Files.asCharSource(file, StandardCharsets.UTF_8);<br><br>        System.out.println(source.read());<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">Files.asCharSource(file, StandardCharsets.UTF_8)<br></code></pre></td></tr></table></figure>
+
+<p>把一个文件包装成字符来源。</p>
+<p>读取时，<code>CharSource</code> 内部会打开 Reader。</p>
+<p>使用者不需要手动管理 <code>FileInputStream</code>、<code>InputStreamReader</code>、<code>BufferedReader</code> 这些细节。</p>
+<h3 id="chapter-7：CharSource-的模板方法设计"><a href="#chapter-7：CharSource-的模板方法设计" class="headerlink" title="chapter 7：CharSource 的模板方法设计"></a>chapter 7：CharSource 的模板方法设计</h3><p><code>CharSource</code> 的源码设计很典型。</p>
+<p>它通常会把最底层的打开流方法设计成抽象方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">abstract</span> Reader <span class="hljs-title function_">openStream</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> IOException;<br></code></pre></td></tr></table></figure>
+
+<p>然后在父类中基于 <code>openStream()</code> 实现高级方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> String <span class="hljs-title function_">read</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> IOException &#123;<br>    <span class="hljs-comment">// 打开 Reader</span><br>    <span class="hljs-comment">// 调用 CharStreams.toString(reader)</span><br>    <span class="hljs-comment">// 关闭 Reader</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> List&lt;String&gt; <span class="hljs-title function_">readLines</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> IOException &#123;<br>    <span class="hljs-comment">// 打开 Reader</span><br>    <span class="hljs-comment">// 按行读取</span><br>    <span class="hljs-comment">// 关闭 Reader</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这就是典型的模板方法模式：</p>
+<blockquote>
+<p>子类负责提供底层 Reader，父类负责固定读取流程。</p>
+</blockquote>
+<p>例如：</p>
+<ul>
+<li>文件 CharSource 的 <code>openStream()</code> 打开文件 Reader；</li>
+<li>字符串 CharSource 的 <code>openStream()</code> 打开 StringReader；</li>
+<li>资源 CharSource 的 <code>openStream()</code> 打开资源 Reader。</li>
+</ul>
+<p>父类不关心具体来源。</p>
+<p>它只要能拿到 Reader，就能实现读取、按行读取、复制等高级能力。</p>
+<h3 id="chapter-8：CharSource-自定义实现"><a href="#chapter-8：CharSource-自定义实现" class="headerlink" title="chapter 8：CharSource 自定义实现"></a>chapter 8：CharSource 自定义实现</h3><p>我们可以自己实现一个简单 <code>CharSource</code>。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharSource;<br><br><span class="hljs-keyword">import</span> java.io.Reader;<br><span class="hljs-keyword">import</span> java.io.StringReader;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CustomStringCharSource</span> <span class="hljs-keyword">extends</span> <span class="hljs-title class_">CharSource</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> String content;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">CustomStringCharSource</span><span class="hljs-params">(String content)</span> &#123;<br>        <span class="hljs-built_in">this</span>.content = content;<br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> Reader <span class="hljs-title function_">openStream</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">StringReader</span>(content);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CustomCharSourceDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">CharSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">CustomStringCharSource</span>(<span class="hljs-string">&quot;hello custom source&quot;</span>);<br><br>        System.out.println(source.read());<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这个例子说明：</p>
+<blockquote>
+<p>只要你实现了 openStream，CharSource 父类就能提供一系列通用读取能力。</p>
+</blockquote>
+<p>这就是源码设计中模板方法的价值。</p>
+<h3 id="chapter-9：CharSource-复制到-Appendable"><a href="#chapter-9：CharSource-复制到-Appendable" class="headerlink" title="chapter 9：CharSource 复制到 Appendable"></a>chapter 9：CharSource 复制到 Appendable</h3><p><code>CharSource</code> 可以把内容复制到 <code>Appendable</code>。</p>
+<p>例如 <code>StringBuilder</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharSource;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CharSourceCopyToAppendableDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">CharSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> CharSource.wrap(<span class="hljs-string">&quot;hello char source&quot;</span>);<br><br>        <span class="hljs-type">StringBuilder</span> <span class="hljs-variable">builder</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">StringBuilder</span>();<br><br>        source.copyTo(builder);<br><br>        System.out.println(builder);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">hello char source<br></code></pre></td></tr></table></figure>
+
+<p>这里 <code>StringBuilder</code> 实现了 <code>Appendable</code>。</p>
+<p>这体现了 Guava 设计里的“面向抽象”思想。</p>
+<h3 id="chapter-10：CharSource-复制到-CharSink"><a href="#chapter-10：CharSource-复制到-CharSink" class="headerlink" title="chapter 10：CharSource 复制到 CharSink"></a>chapter 10：CharSource 复制到 CharSink</h3><p><code>CharSource</code> 可以复制到 <code>CharSink</code>。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharSink;<br><span class="hljs-keyword">import</span> com.google.common.io.CharSource;<br><span class="hljs-keyword">import</span> com.google.common.io.Files;<br><br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CharSourceCopyToSinkDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">CharSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> CharSource.wrap(<span class="hljs-string">&quot;hello copy to sink&quot;</span>);<br><br>        <span class="hljs-type">File</span> <span class="hljs-variable">targetFile</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;guava-io-demo/copy-char.txt&quot;</span>);<br><br>        Files.createParentDirs(targetFile);<br><br>        <span class="hljs-type">CharSink</span> <span class="hljs-variable">sink</span> <span class="hljs-operator">=</span> Files.asCharSink(targetFile, StandardCharsets.UTF_8);<br><br>        source.copyTo(sink);<br><br>        System.out.println(<span class="hljs-string">&quot;复制完成&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这段代码表达非常清楚：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">从一个字符来源，复制到一个字符目标。<br></code></pre></td></tr></table></figure>
+
+<p>不需要关心 Reader &#x2F; Writer 的细节。</p>
+<h3 id="chapter-11：CharSink-是什么"><a href="#chapter-11：CharSink-是什么" class="headerlink" title="chapter 11：CharSink 是什么"></a>chapter 11：CharSink 是什么</h3><p><code>CharSink</code> 表示字符输出目标。</p>
+<p>它的核心职责是：</p>
+<blockquote>
+<p>打开一个 Writer，并基于这个 Writer 提供高级写入方法。</p>
+</blockquote>
+<p>你可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">CharSink = 一个可以写入字符数据的目的地<br></code></pre></td></tr></table></figure>
+
+<p>常见创建方式：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">CharSink</span> <span class="hljs-variable">sink</span> <span class="hljs-operator">=</span> Files.asCharSink(file, StandardCharsets.UTF_8);<br></code></pre></td></tr></table></figure>
+
+<p>常用方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java">openStream()<br>openBufferedStream()<br>write(CharSequence)<br>writeLines(Iterable)<br>writeFrom(Readable)<br></code></pre></td></tr></table></figure>
+
+<p><code>CharSink</code> 和 <code>CharSource</code> 是一对。</p>
+<ul>
+<li><code>CharSource</code> 负责读；</li>
+<li><code>CharSink</code> 负责写。</li>
+</ul>
+<h3 id="chapter-12：CharSink-基本用法"><a href="#chapter-12：CharSink-基本用法" class="headerlink" title="chapter 12：CharSink 基本用法"></a>chapter 12：CharSink 基本用法</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharSink;<br><span class="hljs-keyword">import</span> com.google.common.io.Files;<br><br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CharSinkBasicDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">File</span> <span class="hljs-variable">file</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;guava-io-demo/charsink-basic.txt&quot;</span>);<br><br>        Files.createParentDirs(file);<br><br>        <span class="hljs-type">CharSink</span> <span class="hljs-variable">sink</span> <span class="hljs-operator">=</span> Files.asCharSink(file, StandardCharsets.UTF_8);<br><br>        sink.write(<span class="hljs-string">&quot;hello CharSink&quot;</span>);<br><br>        System.out.println(<span class="hljs-string">&quot;写入完成&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>写多行：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharSink;<br><span class="hljs-keyword">import</span> com.google.common.io.Files;<br><br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><span class="hljs-keyword">import</span> java.util.List;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CharSinkWriteLinesDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">File</span> <span class="hljs-variable">file</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;guava-io-demo/charsink-lines.txt&quot;</span>);<br><br>        Files.createParentDirs(file);<br><br>        <span class="hljs-type">CharSink</span> <span class="hljs-variable">sink</span> <span class="hljs-operator">=</span> Files.asCharSink(file, StandardCharsets.UTF_8);<br><br>        sink.writeLines(List.of(<span class="hljs-string">&quot;Mario&quot;</span>, <span class="hljs-string">&quot;Luigi&quot;</span>, <span class="hljs-string">&quot;Peach&quot;</span>));<br><br>        System.out.println(<span class="hljs-string">&quot;多行写入完成&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-13：CharSink-追加写入"><a href="#chapter-13：CharSink-追加写入" class="headerlink" title="chapter 13：CharSink 追加写入"></a>chapter 13：CharSink 追加写入</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharSink;<br><span class="hljs-keyword">import</span> com.google.common.io.FileWriteMode;<br><span class="hljs-keyword">import</span> com.google.common.io.Files;<br><br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CharSinkAppendDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">File</span> <span class="hljs-variable">file</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;guava-io-demo/append.txt&quot;</span>);<br><br>        Files.createParentDirs(file);<br><br>        <span class="hljs-type">CharSink</span> <span class="hljs-variable">sink</span> <span class="hljs-operator">=</span> Files.asCharSink(file, StandardCharsets.UTF_8);<br><br>        sink.write(<span class="hljs-string">&quot;line1\n&quot;</span>);<br><br>        <span class="hljs-type">CharSink</span> <span class="hljs-variable">appendSink</span> <span class="hljs-operator">=</span> Files.asCharSink(<br>                file,<br>                StandardCharsets.UTF_8,<br>                FileWriteMode.APPEND<br>        );<br><br>        appendSink.write(<span class="hljs-string">&quot;line2\n&quot;</span>);<br><br>        System.out.println(<span class="hljs-string">&quot;追加写入完成&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><code>FileWriteMode.APPEND</code> 表示追加。</p>
+<p>如果不指定，默认会覆盖文件内容。</p>
+<h3 id="chapter-14：CharSink-的模板方法设计"><a href="#chapter-14：CharSink-的模板方法设计" class="headerlink" title="chapter 14：CharSink 的模板方法设计"></a>chapter 14：CharSink 的模板方法设计</h3><p><code>CharSink</code> 的源码结构也很典型。</p>
+<p>底层抽象方法类似：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">abstract</span> Writer <span class="hljs-title function_">openStream</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> IOException;<br></code></pre></td></tr></table></figure>
+
+<p>父类基于 <code>openStream()</code> 实现高级写入：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">write</span><span class="hljs-params">(CharSequence charSequence)</span> <span class="hljs-keyword">throws</span> IOException &#123;<br>    <span class="hljs-comment">// 打开 Writer</span><br>    <span class="hljs-comment">// 写入字符</span><br>    <span class="hljs-comment">// 关闭 Writer</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">writeLines</span><span class="hljs-params">(Iterable&lt;? extends CharSequence&gt; lines)</span> <span class="hljs-keyword">throws</span> IOException &#123;<br>    <span class="hljs-comment">// 打开 Writer</span><br>    <span class="hljs-comment">// 循环写入每一行</span><br>    <span class="hljs-comment">// 关闭 Writer</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这同样是模板方法思想：</p>
+<blockquote>
+<p>子类负责打开 Writer，父类负责统一写入流程。</p>
+</blockquote>
+<p>如果写入目标是文件，<code>openStream()</code> 打开文件 Writer。</p>
+<p>如果写入目标是内存，<code>openStream()</code> 可以打开内存 Writer。</p>
+<p>业务代码只依赖 <code>CharSink</code>，不依赖具体目标。</p>
+<h3 id="chapter-15：CharSource-CharSink-实战：文本转换器"><a href="#chapter-15：CharSource-CharSink-实战：文本转换器" class="headerlink" title="chapter 15：CharSource &#x2F; CharSink 实战：文本转换器"></a>chapter 15：CharSource &#x2F; CharSink 实战：文本转换器</h3><p>需求：</p>
+<ol>
+<li>从一个 <code>CharSource</code> 读取文本；</li>
+<li>转成大写；</li>
+<li>写入一个 <code>CharSink</code>。</li>
+</ol>
+<p>代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharSink;<br><span class="hljs-keyword">import</span> com.google.common.io.CharSource;<br><br><span class="hljs-keyword">import</span> java.io.IOException;<br><span class="hljs-keyword">import</span> java.util.Locale;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">TextUppercaseConverter</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">convert</span><span class="hljs-params">(CharSource source, CharSink sink)</span> <span class="hljs-keyword">throws</span> IOException &#123;<br>        <span class="hljs-type">String</span> <span class="hljs-variable">content</span> <span class="hljs-operator">=</span> source.read();<br><br>        <span class="hljs-type">String</span> <span class="hljs-variable">upper</span> <span class="hljs-operator">=</span> content.toUpperCase(Locale.ROOT);<br><br>        sink.write(upper);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用文件作为输入输出：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.Files;<br><br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">TextUppercaseConverterDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">File</span> <span class="hljs-variable">sourceFile</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;guava-io-demo/input.txt&quot;</span>);<br>        <span class="hljs-type">File</span> <span class="hljs-variable">targetFile</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;guava-io-demo/output.txt&quot;</span>);<br><br>        Files.createParentDirs(sourceFile);<br><br>        Files.asCharSink(sourceFile, StandardCharsets.UTF_8)<br>                .write(<span class="hljs-string">&quot;hello guava io&quot;</span>);<br><br>        <span class="hljs-type">TextUppercaseConverter</span> <span class="hljs-variable">converter</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">TextUppercaseConverter</span>();<br><br>        converter.convert(<br>                Files.asCharSource(sourceFile, StandardCharsets.UTF_8),<br>                Files.asCharSink(targetFile, StandardCharsets.UTF_8)<br>        );<br><br>        System.out.println(Files.asCharSource(targetFile, StandardCharsets.UTF_8).read());<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>测试时不一定要用真实文件：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">CharSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> CharSource.wrap(<span class="hljs-string">&quot;hello test&quot;</span>);<br></code></pre></td></tr></table></figure>
+
+<p>这就是 Source&#x2F;Sink 抽象带来的测试便利。</p>
+<h3 id="chapter-16：ByteSource-是什么"><a href="#chapter-16：ByteSource-是什么" class="headerlink" title="chapter 16：ByteSource 是什么"></a>chapter 16：ByteSource 是什么</h3><p><code>ByteSource</code> 表示字节输入来源。</p>
+<p>它的核心职责是：</p>
+<blockquote>
+<p>打开一个 InputStream，并基于这个 InputStream 提供高级读取方法。</p>
+</blockquote>
+<p>常见创建方式：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">ByteSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> Files.asByteSource(file);<br><span class="hljs-type">ByteSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> ByteSource.wrap(byteArray);<br></code></pre></td></tr></table></figure>
+
+<p>常见方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs java">openStream()<br>openBufferedStream()<br>read()<br>copyTo(...)<br>size()<br>isEmpty()<br>hash(...)<br>contentEquals(...)<br>slice(...)<br>asCharSource(charset)<br></code></pre></td></tr></table></figure>
+
+<p><code>ByteSource</code> 用于二进制数据。</p>
+<p>例如：</p>
+<ul>
+<li>图片；</li>
+<li>PDF；</li>
+<li>压缩包；</li>
+<li>上传文件；</li>
+<li>加密数据；</li>
+<li>任意 byte 数组。</li>
+</ul>
+<h3 id="chapter-17：ByteSource-基本用法"><a href="#chapter-17：ByteSource-基本用法" class="headerlink" title="chapter 17：ByteSource 基本用法"></a>chapter 17：ByteSource 基本用法</h3><p>从 byte 数组创建：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteSource;<br><br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ByteSourceWrapDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">byte</span>[] data = <span class="hljs-string">&quot;hello byte source&quot;</span>.getBytes(StandardCharsets.UTF_8);<br><br>        <span class="hljs-type">ByteSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> ByteSource.wrap(data);<br><br>        <span class="hljs-type">byte</span>[] read = source.read();<br><br>        System.out.println(<span class="hljs-keyword">new</span> <span class="hljs-title class_">String</span>(read, StandardCharsets.UTF_8));<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>从文件创建：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteSource;<br><span class="hljs-keyword">import</span> com.google.common.io.Files;<br><br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">FileByteSourceDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">File</span> <span class="hljs-variable">file</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;guava-io-demo/bytesource.txt&quot;</span>);<br><br>        Files.createParentDirs(file);<br>        Files.write(<span class="hljs-string">&quot;hello file byte source&quot;</span>.getBytes(StandardCharsets.UTF_8), file);<br><br>        <span class="hljs-type">ByteSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> Files.asByteSource(file);<br><br>        System.out.println(<span class="hljs-keyword">new</span> <span class="hljs-title class_">String</span>(source.read(), StandardCharsets.UTF_8));<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-18：ByteSource-转-CharSource"><a href="#chapter-18：ByteSource-转-CharSource" class="headerlink" title="chapter 18：ByteSource 转 CharSource"></a>chapter 18：ByteSource 转 CharSource</h3><p>字节数据加上字符集，就可以成为字符数据。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">CharSource</span> <span class="hljs-variable">charSource</span> <span class="hljs-operator">=</span> byteSource.asCharSource(StandardCharsets.UTF_8);<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteSource;<br><span class="hljs-keyword">import</span> com.google.common.io.CharSource;<br><br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ByteSourceAsCharSourceDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">ByteSource</span> <span class="hljs-variable">byteSource</span> <span class="hljs-operator">=</span> ByteSource.wrap(<span class="hljs-string">&quot;hello 中文&quot;</span>.getBytes(StandardCharsets.UTF_8));<br><br>        <span class="hljs-type">CharSource</span> <span class="hljs-variable">charSource</span> <span class="hljs-operator">=</span> byteSource.asCharSource(StandardCharsets.UTF_8);<br><br>        System.out.println(charSource.read());<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这体现了 ByteSource 和 CharSource 的关系：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ByteSource + Charset = CharSource<br></code></pre></td></tr></table></figure>
+
+<p>也就是说：</p>
+<ul>
+<li>ByteSource 是原始字节；</li>
+<li>CharSource 是按某种编码解释后的字符。</li>
+</ul>
+<h3 id="chapter-19：ByteSource-计算哈希"><a href="#chapter-19：ByteSource-计算哈希" class="headerlink" title="chapter 19：ByteSource 计算哈希"></a>chapter 19：ByteSource 计算哈希</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.hash.HashCode;<br><span class="hljs-keyword">import</span> com.google.common.hash.Hashing;<br><span class="hljs-keyword">import</span> com.google.common.io.ByteSource;<br><br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ByteSourceHashDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">ByteSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> ByteSource.wrap(<span class="hljs-string">&quot;hello hash&quot;</span>.getBytes(StandardCharsets.UTF_8));<br><br>        <span class="hljs-type">HashCode</span> <span class="hljs-variable">hashCode</span> <span class="hljs-operator">=</span> source.hash(Hashing.sha256());<br><br>        System.out.println(hashCode);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这比直接面对 InputStream 更清晰。</p>
+<p>业务上常用于：</p>
+<ul>
+<li>文件去重；</li>
+<li>上传文件校验；</li>
+<li>下载完整性校验；</li>
+<li>生成文件指纹。</li>
+</ul>
+<h3 id="chapter-20：ByteSource-内容比较"><a href="#chapter-20：ByteSource-内容比较" class="headerlink" title="chapter 20：ByteSource 内容比较"></a>chapter 20：ByteSource 内容比较</h3><p><code>ByteSource</code> 可以判断内容是否一致。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteSource;<br><br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ByteSourceContentEqualsDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">ByteSource</span> <span class="hljs-variable">source1</span> <span class="hljs-operator">=</span> ByteSource.wrap(<span class="hljs-string">&quot;hello&quot;</span>.getBytes(StandardCharsets.UTF_8));<br>        <span class="hljs-type">ByteSource</span> <span class="hljs-variable">source2</span> <span class="hljs-operator">=</span> ByteSource.wrap(<span class="hljs-string">&quot;hello&quot;</span>.getBytes(StandardCharsets.UTF_8));<br>        <span class="hljs-type">ByteSource</span> <span class="hljs-variable">source3</span> <span class="hljs-operator">=</span> ByteSource.wrap(<span class="hljs-string">&quot;world&quot;</span>.getBytes(StandardCharsets.UTF_8));<br><br>        System.out.println(source1.contentEquals(source2));<br>        System.out.println(source1.contentEquals(source3));<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">true<br>false<br></code></pre></td></tr></table></figure>
+
+<p>如果来源是文件，也可以比较文件内容。</p>
+<h3 id="chapter-21：ByteSource-切片-slice"><a href="#chapter-21：ByteSource-切片-slice" class="headerlink" title="chapter 21：ByteSource 切片 slice"></a>chapter 21：ByteSource 切片 slice</h3><p><code>ByteSource</code> 支持切片：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">ByteSource</span> <span class="hljs-variable">slice</span> <span class="hljs-operator">=</span> source.slice(offset, length);<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteSource;<br><br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ByteSourceSliceDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">ByteSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> ByteSource.wrap(<span class="hljs-string">&quot;hello guava&quot;</span>.getBytes(StandardCharsets.UTF_8));<br><br>        <span class="hljs-type">ByteSource</span> <span class="hljs-variable">slice</span> <span class="hljs-operator">=</span> source.slice(<span class="hljs-number">6</span>, <span class="hljs-number">5</span>);<br><br>        System.out.println(<span class="hljs-keyword">new</span> <span class="hljs-title class_">String</span>(slice.read(), StandardCharsets.UTF_8));<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">guava<br></code></pre></td></tr></table></figure>
+
+<p>切片适合：</p>
+<ul>
+<li>读取文件头；</li>
+<li>读取魔数；</li>
+<li>分段处理；</li>
+<li>大文件部分读取；</li>
+<li>简单协议解析。</li>
+</ul>
+<h3 id="chapter-22：ByteSink-是什么"><a href="#chapter-22：ByteSink-是什么" class="headerlink" title="chapter 22：ByteSink 是什么"></a>chapter 22：ByteSink 是什么</h3><p><code>ByteSink</code> 表示字节输出目标。</p>
+<p>它的核心职责是：</p>
+<blockquote>
+<p>打开一个 OutputStream，并基于这个 OutputStream 提供高级写入方法。</p>
+</blockquote>
+<p>常见创建方式：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">ByteSink</span> <span class="hljs-variable">sink</span> <span class="hljs-operator">=</span> Files.asByteSink(file);<br></code></pre></td></tr></table></figure>
+
+<p>常见方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java">openStream()<br>openBufferedStream()<br>write(<span class="hljs-type">byte</span>[])<br>writeFrom(InputStream)<br>asCharSink(charset)<br></code></pre></td></tr></table></figure>
+
+<p>适合写入二进制数据。</p>
+<h3 id="chapter-23：ByteSink-基本用法"><a href="#chapter-23：ByteSink-基本用法" class="headerlink" title="chapter 23：ByteSink 基本用法"></a>chapter 23：ByteSink 基本用法</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteSink;<br><span class="hljs-keyword">import</span> com.google.common.io.Files;<br><br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ByteSinkBasicDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">File</span> <span class="hljs-variable">file</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;guava-io-demo/bytesink.txt&quot;</span>);<br><br>        Files.createParentDirs(file);<br><br>        <span class="hljs-type">ByteSink</span> <span class="hljs-variable">sink</span> <span class="hljs-operator">=</span> Files.asByteSink(file);<br><br>        sink.write(<span class="hljs-string">&quot;hello byte sink&quot;</span>.getBytes(StandardCharsets.UTF_8));<br><br>        System.out.println(<span class="hljs-string">&quot;ByteSink 写入完成&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>从输入流写入：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteSink;<br><span class="hljs-keyword">import</span> com.google.common.io.Files;<br><br><span class="hljs-keyword">import</span> java.io.ByteArrayInputStream;<br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ByteSinkWriteFromDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">File</span> <span class="hljs-variable">file</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;guava-io-demo/write-from.txt&quot;</span>);<br><br>        Files.createParentDirs(file);<br><br>        <span class="hljs-type">ByteSink</span> <span class="hljs-variable">sink</span> <span class="hljs-operator">=</span> Files.asByteSink(file);<br><br>        <span class="hljs-type">ByteArrayInputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ByteArrayInputStream</span>(<br>                <span class="hljs-string">&quot;hello writeFrom&quot;</span>.getBytes(StandardCharsets.UTF_8)<br>        );<br><br>        sink.writeFrom(inputStream);<br><br>        System.out.println(<span class="hljs-string">&quot;writeFrom 完成&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-24：ByteSink-转-CharSink"><a href="#chapter-24：ByteSink-转-CharSink" class="headerlink" title="chapter 24：ByteSink 转 CharSink"></a>chapter 24：ByteSink 转 CharSink</h3><p>字节输出目标加上字符集，可以变成字符输出目标。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">CharSink</span> <span class="hljs-variable">charSink</span> <span class="hljs-operator">=</span> byteSink.asCharSink(StandardCharsets.UTF_8);<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteSink;<br><span class="hljs-keyword">import</span> com.google.common.io.CharSink;<br><span class="hljs-keyword">import</span> com.google.common.io.Files;<br><br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ByteSinkAsCharSinkDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">File</span> <span class="hljs-variable">file</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;guava-io-demo/byte-to-char-sink.txt&quot;</span>);<br><br>        Files.createParentDirs(file);<br><br>        <span class="hljs-type">ByteSink</span> <span class="hljs-variable">byteSink</span> <span class="hljs-operator">=</span> Files.asByteSink(file);<br><br>        <span class="hljs-type">CharSink</span> <span class="hljs-variable">charSink</span> <span class="hljs-operator">=</span> byteSink.asCharSink(StandardCharsets.UTF_8);<br><br>        charSink.write(<span class="hljs-string">&quot;hello from char sink&quot;</span>);<br><br>        System.out.println(<span class="hljs-string">&quot;写入完成&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这体现了 ByteSink 和 CharSink 的关系：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ByteSink + Charset = CharSink<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-25：ByteSource-ByteSink-统一文件、内存、URL-资源"><a href="#chapter-25：ByteSource-ByteSink-统一文件、内存、URL-资源" class="headerlink" title="chapter 25：ByteSource &#x2F; ByteSink 统一文件、内存、URL 资源"></a>chapter 25：ByteSource &#x2F; ByteSink 统一文件、内存、URL 资源</h3><p><code>ByteSource</code> 的价值在于统一输入来源。</p>
+<h4 id="1-文件来源"><a href="#1-文件来源" class="headerlink" title="1. 文件来源"></a>1. 文件来源</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">ByteSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> Files.asByteSource(file);<br></code></pre></td></tr></table></figure>
+
+<h4 id="2-内存来源"><a href="#2-内存来源" class="headerlink" title="2. 内存来源"></a>2. 内存来源</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">ByteSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> ByteSource.wrap(bytes);<br></code></pre></td></tr></table></figure>
+
+<h4 id="3-URL-或-classpath-资源"><a href="#3-URL-或-classpath-资源" class="headerlink" title="3. URL 或 classpath 资源"></a>3. URL 或 classpath 资源</h4><p>Guava 的 <code>Resources</code> 可以把资源抽象为 ByteSource：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteSource;<br><span class="hljs-keyword">import</span> com.google.common.io.Resources;<br><br><span class="hljs-keyword">import</span> java.net.URL;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ResourceByteSourceDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">URL</span> <span class="hljs-variable">url</span> <span class="hljs-operator">=</span> Resources.getResource(<span class="hljs-string">&quot;demo.txt&quot;</span>);<br><br>        <span class="hljs-type">ByteSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> Resources.asByteSource(url);<br><br>        System.out.println(source.size());<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这样业务逻辑可以统一接收：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">ByteSource source<br></code></pre></td></tr></table></figure>
+
+<p>而不用关心数据来自文件、内存还是资源路径。</p>
+<h3 id="chapter-26：ByteSource-ByteSink-实战：二进制复制器"><a href="#chapter-26：ByteSource-ByteSink-实战：二进制复制器" class="headerlink" title="chapter 26：ByteSource &#x2F; ByteSink 实战：二进制复制器"></a>chapter 26：ByteSource &#x2F; ByteSink 实战：二进制复制器</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteSink;<br><span class="hljs-keyword">import</span> com.google.common.io.ByteSource;<br><br><span class="hljs-keyword">import</span> java.io.IOException;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">BinaryCopyService</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">long</span> <span class="hljs-title function_">copy</span><span class="hljs-params">(ByteSource source, ByteSink sink)</span> <span class="hljs-keyword">throws</span> IOException &#123;<br>        <span class="hljs-keyword">return</span> source.copyTo(sink);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.Files;<br><br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">BinaryCopyServiceDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">File</span> <span class="hljs-variable">sourceFile</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;guava-io-demo/source.bin&quot;</span>);<br>        <span class="hljs-type">File</span> <span class="hljs-variable">targetFile</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;guava-io-demo/target.bin&quot;</span>);<br><br>        Files.createParentDirs(sourceFile);<br><br>        Files.asByteSink(sourceFile)<br>                .write(<span class="hljs-string">&quot;binary content&quot;</span>.getBytes(StandardCharsets.UTF_8));<br><br>        <span class="hljs-type">BinaryCopyService</span> <span class="hljs-variable">service</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">BinaryCopyService</span>();<br><br>        <span class="hljs-type">long</span> <span class="hljs-variable">copied</span> <span class="hljs-operator">=</span> service.copy(<br>                Files.asByteSource(sourceFile),<br>                Files.asByteSink(targetFile)<br>        );<br><br>        System.out.println(<span class="hljs-string">&quot;复制字节数：&quot;</span> + copied);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这个服务不依赖 File。</p>
+<p>它只依赖：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">ByteSource<br>ByteSink<br></code></pre></td></tr></table></figure>
+
+<p>因此更容易复用和测试。</p>
+<h3 id="chapter-27：CharSource-CharSink-与-ByteSource-ByteSink-的关系"><a href="#chapter-27：CharSource-CharSink-与-ByteSource-ByteSink-的关系" class="headerlink" title="chapter 27：CharSource &#x2F; CharSink 与 ByteSource &#x2F; ByteSink 的关系"></a>chapter 27：CharSource &#x2F; CharSink 与 ByteSource &#x2F; ByteSink 的关系</h3><p>可以这样理解：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">ByteSource：读原始字节<br>ByteSink：写原始字节<br><br>CharSource：按字符集读文本<br>CharSink：按字符集写文本<br></code></pre></td></tr></table></figure>
+
+<p>二者的桥梁是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Charset<br></code></pre></td></tr></table></figure>
+
+<p>关系如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">ByteSource + Charset -&gt; CharSource<br>ByteSink + Charset   -&gt; CharSink<br></code></pre></td></tr></table></figure>
+
+<p>所以：</p>
+<ul>
+<li>如果你处理的是文本，用 CharSource &#x2F; CharSink；</li>
+<li>如果你处理的是二进制，用 ByteSource &#x2F; ByteSink；</li>
+<li>如果你从字节转字符，必须明确 Charset；</li>
+<li>如果你从字符转字节，也必须明确 Charset。</li>
+</ul>
+<p>不要依赖默认字符集。</p>
+<h3 id="chapter-28：CharStreams-是什么"><a href="#chapter-28：CharStreams-是什么" class="headerlink" title="chapter 28：CharStreams 是什么"></a>chapter 28：CharStreams 是什么</h3><p><code>CharStreams</code> 是 Guava 提供的字符流工具类。</p>
+<p>包名：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">com.google.common.io.CharStreams<br></code></pre></td></tr></table></figure>
+
+<p>它主要围绕：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java">Reader<br>Writer<br>Readable<br>Appendable<br></code></pre></td></tr></table></figure>
+
+<p>提供工具方法。</p>
+<p>常见方法包括：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java">copy(Readable from, Appendable to)<br>toString(Readable readable)<br>readLines(Readable readable)<br>skipFully(Reader reader, <span class="hljs-type">long</span> n)<br>nullWriter()<br>asWriter(Appendable target)<br></code></pre></td></tr></table></figure>
+
+<p><code>CharSource</code> 和 <code>CharSink</code> 的很多高级方法，底层会用到 <code>CharStreams</code>。</p>
+<p>可以理解为：</p>
+<blockquote>
+<p>CharSource &#x2F; CharSink 是高层抽象，CharStreams 是底层字符流工具。</p>
+</blockquote>
+<h3 id="chapter-29：CharStreams-copy"><a href="#chapter-29：CharStreams-copy" class="headerlink" title="chapter 29：CharStreams.copy"></a>chapter 29：CharStreams.copy</h3><p>字符流复制：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharStreams;<br><br><span class="hljs-keyword">import</span> java.io.StringReader;<br><span class="hljs-keyword">import</span> java.io.StringWriter;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CharStreamsCopyDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">StringReader</span> <span class="hljs-variable">reader</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">StringReader</span>(<span class="hljs-string">&quot;hello char streams&quot;</span>);<br><br>        <span class="hljs-type">StringWriter</span> <span class="hljs-variable">writer</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">StringWriter</span>();<br><br>        <span class="hljs-type">long</span> <span class="hljs-variable">copied</span> <span class="hljs-operator">=</span> CharStreams.copy(reader, writer);<br><br>        System.out.println(<span class="hljs-string">&quot;复制字符数：&quot;</span> + copied);<br>        System.out.println(writer.toString());<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">复制字符数：18<br>hello char streams<br></code></pre></td></tr></table></figure>
+
+<p>底层本质是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">创建 char buffer<br>循环 reader.read(buffer)<br>writer.append/write(buffer)<br>直到读到 -1<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-30：CharStreams-toString"><a href="#chapter-30：CharStreams-toString" class="headerlink" title="chapter 30：CharStreams.toString"></a>chapter 30：CharStreams.toString</h3><p>把 <code>Readable</code> 读取成字符串：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharStreams;<br><br><span class="hljs-keyword">import</span> java.io.StringReader;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CharStreamsToStringDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">StringReader</span> <span class="hljs-variable">reader</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">StringReader</span>(<span class="hljs-string">&quot;hello toString&quot;</span>);<br><br>        <span class="hljs-type">String</span> <span class="hljs-variable">content</span> <span class="hljs-operator">=</span> CharStreams.toString(reader);<br><br>        System.out.println(content);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<blockquote>
+<p><code>toString</code> 会把全部内容读入内存。</p>
+</blockquote>
+<p>它适合小文本。</p>
+<p>不适合大文件。</p>
+<h3 id="chapter-31：CharStreams-readLines"><a href="#chapter-31：CharStreams-readLines" class="headerlink" title="chapter 31：CharStreams.readLines"></a>chapter 31：CharStreams.readLines</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharStreams;<br><br><span class="hljs-keyword">import</span> java.io.StringReader;<br><span class="hljs-keyword">import</span> java.util.List;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CharStreamsReadLinesDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">StringReader</span> <span class="hljs-variable">reader</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">StringReader</span>(<span class="hljs-string">&quot;a\nb\nc&quot;</span>);<br><br>        List&lt;String&gt; lines = CharStreams.readLines(reader);<br><br>        System.out.println(lines);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">[a, b, c]<br></code></pre></td></tr></table></figure>
+
+<p>如果要处理大文件，还是建议使用流式处理或 <code>LineProcessor</code>。</p>
+<h3 id="chapter-32：CharStreams-nullWriter"><a href="#chapter-32：CharStreams-nullWriter" class="headerlink" title="chapter 32：CharStreams.nullWriter"></a>chapter 32：CharStreams.nullWriter</h3><p><code>nullWriter()</code> 返回一个黑洞 Writer。</p>
+<p>写进去的数据会被丢弃。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharStreams;<br><br><span class="hljs-keyword">import</span> java.io.Writer;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">NullWriterDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">Writer</span> <span class="hljs-variable">writer</span> <span class="hljs-operator">=</span> CharStreams.nullWriter();<br><br>        writer.write(<span class="hljs-string">&quot;this content will be ignored&quot;</span>);<br><br>        writer.flush();<br><br>        System.out.println(<span class="hljs-string">&quot;写入 nullWriter 完成&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>常见用途：</p>
+<ul>
+<li>测试；</li>
+<li>统计写入流程耗时；</li>
+<li>丢弃不需要的输出；</li>
+<li>适配必须传 Writer 的接口。</li>
+</ul>
+<p>它类似 Linux 里的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/dev/null<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-33：ByteStreams-是什么"><a href="#chapter-33：ByteStreams-是什么" class="headerlink" title="chapter 33：ByteStreams 是什么"></a>chapter 33：ByteStreams 是什么</h3><p><code>ByteStreams</code> 是 Guava 提供的字节流工具类。</p>
+<p>包名：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">com.google.common.io.ByteStreams<br></code></pre></td></tr></table></figure>
+
+<p>它围绕：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java">InputStream<br>OutputStream<br>ReadableByteChannel<br>WritableByteChannel<br></code></pre></td></tr></table></figure>
+
+<p>提供常见工具方法。</p>
+<p>常见方法包括：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java">copy(InputStream from, OutputStream to)<br>toByteArray(InputStream in)<br>limit(InputStream in, <span class="hljs-type">long</span> limit)<br>skipFully(InputStream in, <span class="hljs-type">long</span> n)<br>readFully(InputStream in, <span class="hljs-type">byte</span>[] b)<br>exhaust(InputStream in)<br>nullOutputStream()<br></code></pre></td></tr></table></figure>
+
+<p><code>ByteSource</code> 和 <code>ByteSink</code> 的很多高级方法，底层会用到 <code>ByteStreams</code>。</p>
+<p>可以理解为：</p>
+<blockquote>
+<p>ByteSource &#x2F; ByteSink 是高层抽象，ByteStreams 是底层字节流工具。</p>
+</blockquote>
+<h3 id="chapter-34：ByteStreams-copy"><a href="#chapter-34：ByteStreams-copy" class="headerlink" title="chapter 34：ByteStreams.copy"></a>chapter 34：ByteStreams.copy</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteStreams;<br><br><span class="hljs-keyword">import</span> java.io.ByteArrayInputStream;<br><span class="hljs-keyword">import</span> java.io.ByteArrayOutputStream;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ByteStreamsCopyDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">ByteArrayInputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ByteArrayInputStream</span>(<br>                <span class="hljs-string">&quot;hello byte streams&quot;</span>.getBytes(StandardCharsets.UTF_8)<br>        );<br><br>        <span class="hljs-type">ByteArrayOutputStream</span> <span class="hljs-variable">outputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ByteArrayOutputStream</span>();<br><br>        <span class="hljs-type">long</span> <span class="hljs-variable">copied</span> <span class="hljs-operator">=</span> ByteStreams.copy(inputStream, outputStream);<br><br>        System.out.println(<span class="hljs-string">&quot;复制字节数：&quot;</span> + copied);<br>        System.out.println(outputStream.toString(StandardCharsets.UTF_8));<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">复制字节数：18<br>hello byte streams<br></code></pre></td></tr></table></figure>
+
+<p>底层本质是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">创建 byte buffer<br>循环 inputStream.read(buffer)<br>outputStream.write(buffer)<br>直到读到 -1<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-35：ByteStreams-toByteArray"><a href="#chapter-35：ByteStreams-toByteArray" class="headerlink" title="chapter 35：ByteStreams.toByteArray"></a>chapter 35：ByteStreams.toByteArray</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteStreams;<br><br><span class="hljs-keyword">import</span> java.io.ByteArrayInputStream;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ByteStreamsToByteArrayDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">ByteArrayInputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ByteArrayInputStream</span>(<br>                <span class="hljs-string">&quot;hello toByteArray&quot;</span>.getBytes(StandardCharsets.UTF_8)<br>        );<br><br>        <span class="hljs-type">byte</span>[] bytes = ByteStreams.toByteArray(inputStream);<br><br>        System.out.println(<span class="hljs-keyword">new</span> <span class="hljs-title class_">String</span>(bytes, StandardCharsets.UTF_8));<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<blockquote>
+<p><code>toByteArray</code> 会把全部字节读入内存。</p>
+</blockquote>
+<p>适合小文件、小响应体。</p>
+<p>不适合大文件。</p>
+<p>大文件应该使用流式复制：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">ByteStreams.copy(inputStream, outputStream)<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-36：ByteStreams-nullOutputStream"><a href="#chapter-36：ByteStreams-nullOutputStream" class="headerlink" title="chapter 36：ByteStreams.nullOutputStream"></a>chapter 36：ByteStreams.nullOutputStream</h3><p><code>nullOutputStream()</code> 返回一个黑洞 OutputStream。</p>
+<p>写进去的数据会被丢弃。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteStreams;<br><br><span class="hljs-keyword">import</span> java.io.OutputStream;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">NullOutputStreamDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">OutputStream</span> <span class="hljs-variable">outputStream</span> <span class="hljs-operator">=</span> ByteStreams.nullOutputStream();<br><br>        outputStream.write(<span class="hljs-string">&quot;ignored bytes&quot;</span>.getBytes(StandardCharsets.UTF_8));<br><br>        outputStream.flush();<br><br>        System.out.println(<span class="hljs-string">&quot;写入 nullOutputStream 完成&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>常见用途：</p>
+<ul>
+<li>丢弃输出；</li>
+<li>测试复制性能；</li>
+<li>只想消费输入流；</li>
+<li>适配必须传 OutputStream 的 API。</li>
+</ul>
+<h3 id="chapter-37：ByteStreams-limit"><a href="#chapter-37：ByteStreams-limit" class="headerlink" title="chapter 37：ByteStreams.limit"></a>chapter 37：ByteStreams.limit</h3><p><code>ByteStreams.limit</code> 可以限制最多读取多少字节。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteStreams;<br><br><span class="hljs-keyword">import</span> java.io.ByteArrayInputStream;<br><span class="hljs-keyword">import</span> java.io.InputStream;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ByteStreamsLimitDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">ByteArrayInputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ByteArrayInputStream</span>(<br>                <span class="hljs-string">&quot;hello guava limit&quot;</span>.getBytes(StandardCharsets.UTF_8)<br>        );<br><br>        <span class="hljs-type">InputStream</span> <span class="hljs-variable">limited</span> <span class="hljs-operator">=</span> ByteStreams.limit(inputStream, <span class="hljs-number">5</span>);<br><br>        <span class="hljs-type">byte</span>[] bytes = ByteStreams.toByteArray(limited);<br><br>        System.out.println(<span class="hljs-keyword">new</span> <span class="hljs-title class_">String</span>(bytes, StandardCharsets.UTF_8));<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">hello<br></code></pre></td></tr></table></figure>
+
+<p>这种能力适合：</p>
+<ul>
+<li>限制读取大小；</li>
+<li>防止超大输入；</li>
+<li>读取文件头；</li>
+<li>简单安全保护；</li>
+<li>协议解析。</li>
+</ul>
+<p>但不要把它当成完整的上传文件大小限制。</p>
+<p>上传限制应该在网关、Servlet 容器、应用层一起做。</p>
+<h3 id="chapter-38：ByteStreams-exhaust"><a href="#chapter-38：ByteStreams-exhaust" class="headerlink" title="chapter 38：ByteStreams.exhaust"></a>chapter 38：ByteStreams.exhaust</h3><p><code>exhaust</code> 用于把输入流读完并丢弃内容。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteStreams;<br><br><span class="hljs-keyword">import</span> java.io.ByteArrayInputStream;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ByteStreamsExhaustDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">ByteArrayInputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ByteArrayInputStream</span>(<br>                <span class="hljs-string">&quot;some content&quot;</span>.getBytes(StandardCharsets.UTF_8)<br>        );<br><br>        <span class="hljs-type">long</span> <span class="hljs-variable">count</span> <span class="hljs-operator">=</span> ByteStreams.exhaust(inputStream);<br><br>        System.out.println(<span class="hljs-string">&quot;消耗字节数：&quot;</span> + count);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>适合：</p>
+<ul>
+<li>只想消费流；</li>
+<li>丢弃响应体；</li>
+<li>测试读取速度；</li>
+<li>清空剩余输入。</li>
+</ul>
+<h3 id="chapter-39：流复制的底层实现思想"><a href="#chapter-39：流复制的底层实现思想" class="headerlink" title="chapter 39：流复制的底层实现思想"></a>chapter 39：流复制的底层实现思想</h3><p>无论是 <code>CharStreams.copy</code> 还是 <code>ByteStreams.copy</code>，底层思想都非常朴素：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 准备一个缓冲区<br>2. 从输入流读取一批数据<br>3. 写入输出流<br>4. 重复直到读取结束<br></code></pre></td></tr></table></figure>
+
+<p>伪代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">byte</span>[] buffer = <span class="hljs-keyword">new</span> <span class="hljs-title class_">byte</span>[BUFFER_SIZE];<br><br><span class="hljs-type">long</span> <span class="hljs-variable">total</span> <span class="hljs-operator">=</span> <span class="hljs-number">0</span>;<br><br><span class="hljs-keyword">while</span> (<span class="hljs-literal">true</span>) &#123;<br>    <span class="hljs-type">int</span> <span class="hljs-variable">read</span> <span class="hljs-operator">=</span> input.read(buffer);<br><br>    <span class="hljs-keyword">if</span> (read == -<span class="hljs-number">1</span>) &#123;<br>        <span class="hljs-keyword">break</span>;<br>    &#125;<br><br>    output.write(buffer, <span class="hljs-number">0</span>, read);<br><br>    total += read;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>字符流类似：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">char</span>[] buffer = <span class="hljs-keyword">new</span> <span class="hljs-title class_">char</span>[BUFFER_SIZE];<br><br><span class="hljs-keyword">while</span> ((read = reader.read(buffer)) != -<span class="hljs-number">1</span>) &#123;<br>    writer.write(buffer, <span class="hljs-number">0</span>, read);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里有几个关键点：</p>
+<h4 id="1-不要一个字节一个字节复制"><a href="#1-不要一个字节一个字节复制" class="headerlink" title="1. 不要一个字节一个字节复制"></a>1. 不要一个字节一个字节复制</h4><p>这样性能很差。</p>
+<h4 id="2-使用缓冲区批量读写"><a href="#2-使用缓冲区批量读写" class="headerlink" title="2. 使用缓冲区批量读写"></a>2. 使用缓冲区批量读写</h4><p>缓冲区可以显著减少系统调用次数。</p>
+<h4 id="3-注意返回值-read"><a href="#3-注意返回值-read" class="headerlink" title="3. 注意返回值 read"></a>3. 注意返回值 read</h4><p>最后一次读取可能不足 buffer 大小。</p>
+<p>所以写入时必须使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">output.write(buffer, <span class="hljs-number">0</span>, read);<br></code></pre></td></tr></table></figure>
+
+<p>不能写：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">output.write(buffer);<br></code></pre></td></tr></table></figure>
+
+<p>否则可能写入脏数据。</p>
+<h4 id="4-注意关闭资源"><a href="#4-注意关闭资源" class="headerlink" title="4. 注意关闭资源"></a>4. 注意关闭资源</h4><p>工具类通常不一定负责关闭你传入的流。</p>
+<p>谁打开，谁关闭。</p>
+<p>Source &#x2F; Sink 的高级方法通常会帮你打开并关闭内部流。</p>
+<h3 id="chapter-40：Streams-工具类和-Source-Sink-的关系"><a href="#chapter-40：Streams-工具类和-Source-Sink-的关系" class="headerlink" title="chapter 40：Streams 工具类和 Source &#x2F; Sink 的关系"></a>chapter 40：Streams 工具类和 Source &#x2F; Sink 的关系</h3><p>可以这样理解：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Source / Sink：更高层 IO 抽象<br>Streams：更底层流工具<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">ByteSource.copyTo(ByteSink)<br></code></pre></td></tr></table></figure>
+
+<p>内部大概会：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">打开 InputStream<br>打开 OutputStream<br>调用 ByteStreams.copy<br>关闭流<br></code></pre></td></tr></table></figure>
+
+<p>再例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">CharSource.read()<br></code></pre></td></tr></table></figure>
+
+<p>内部大概会：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">打开 Reader<br>调用 CharStreams.toString<br>关闭 Reader<br></code></pre></td></tr></table></figure>
+
+<p>所以：</p>
+<ul>
+<li>业务代码更推荐用 Source &#x2F; Sink；</li>
+<li>底层流操作可以用 CharStreams &#x2F; ByteStreams；</li>
+<li>如果你已经有 InputStream &#x2F; OutputStream，就用 ByteStreams；</li>
+<li>如果你已经有 Reader &#x2F; Writer，就用 CharStreams；</li>
+<li>如果你还没打开流，只是有文件、URL、字节数组，优先抽象成 Source &#x2F; Sink。</li>
+</ul>
+<h3 id="chapter-41：实战：统一文本导入服务"><a href="#chapter-41：实战：统一文本导入服务" class="headerlink" title="chapter 41：实战：统一文本导入服务"></a>chapter 41：实战：统一文本导入服务</h3><p>需求：</p>
+<ol>
+<li>输入可以来自文件，也可以来自内存字符串；</li>
+<li>统一使用 <code>CharSource</code>；</li>
+<li>按行读取；</li>
+<li>过滤空行；</li>
+<li>返回有效行列表。</li>
+</ol>
+<p>代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharSource;<br><br><span class="hljs-keyword">import</span> java.io.IOException;<br><span class="hljs-keyword">import</span> java.util.ArrayList;<br><span class="hljs-keyword">import</span> java.util.List;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">TextImportService</span> &#123;<br><br>    <span class="hljs-keyword">public</span> List&lt;String&gt; <span class="hljs-title function_">importLines</span><span class="hljs-params">(CharSource source)</span> <span class="hljs-keyword">throws</span> IOException &#123;<br>        List&lt;String&gt; lines = source.readLines();<br><br>        List&lt;String&gt; result = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ArrayList</span>&lt;&gt;();<br><br>        <span class="hljs-keyword">for</span> (String line : lines) &#123;<br>            <span class="hljs-keyword">if</span> (line != <span class="hljs-literal">null</span> &amp;&amp; !line.isBlank()) &#123;<br>                result.add(line.trim());<br>            &#125;<br>        &#125;<br><br>        <span class="hljs-keyword">return</span> result;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用内存字符串测试：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.CharSource;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">TextImportMemoryDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">CharSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> CharSource.wrap(<span class="hljs-string">&quot;Mario\n\n Luigi \nPeach&quot;</span>);<br><br>        <span class="hljs-type">TextImportService</span> <span class="hljs-variable">service</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">TextImportService</span>();<br><br>        System.out.println(service.importLines(source));<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用文件：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.Files;<br><br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">TextImportFileDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">File</span> <span class="hljs-variable">file</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;guava-io-demo/import-users.txt&quot;</span>);<br><br>        Files.createParentDirs(file);<br>        Files.asCharSink(file, StandardCharsets.UTF_8)<br>                .write(<span class="hljs-string">&quot;Mario\n\nLuigi\nPeach&quot;</span>);<br><br>        <span class="hljs-type">TextImportService</span> <span class="hljs-variable">service</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">TextImportService</span>();<br><br>        System.out.println(service.importLines(<br>                Files.asCharSource(file, StandardCharsets.UTF_8)<br>        ));<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>同一个业务服务可以支持不同数据来源。</p>
+<p>这就是 <code>CharSource</code> 的价值。</p>
+<h3 id="chapter-42：实战：统一二进制存储服务"><a href="#chapter-42：实战：统一二进制存储服务" class="headerlink" title="chapter 42：实战：统一二进制存储服务"></a>chapter 42：实战：统一二进制存储服务</h3><p>需求：</p>
+<ol>
+<li>输入是任意 <code>ByteSource</code>；</li>
+<li>保存到任意 <code>ByteSink</code>；</li>
+<li>计算 SHA-256；</li>
+<li>返回复制字节数和哈希。</li>
+</ol>
+<p>结果对象：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">BinaryStoreResult</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">long</span> copiedBytes;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> String sha256;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">BinaryStoreResult</span><span class="hljs-params">(<span class="hljs-type">long</span> copiedBytes, String sha256)</span> &#123;<br>        <span class="hljs-built_in">this</span>.copiedBytes = copiedBytes;<br>        <span class="hljs-built_in">this</span>.sha256 = sha256;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">long</span> <span class="hljs-title function_">getCopiedBytes</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> copiedBytes;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> String <span class="hljs-title function_">getSha256</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> sha256;<br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> String <span class="hljs-title function_">toString</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;BinaryStoreResult&#123;&quot;</span><br>                + <span class="hljs-string">&quot;copiedBytes=&quot;</span> + copiedBytes<br>                + <span class="hljs-string">&quot;, sha256=&#x27;&quot;</span> + sha256 + <span class="hljs-string">&#x27;\&#x27;&#x27;</span><br>                + <span class="hljs-string">&#x27;&#125;&#x27;</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>服务：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.hash.HashCode;<br><span class="hljs-keyword">import</span> com.google.common.hash.Hashing;<br><span class="hljs-keyword">import</span> com.google.common.io.ByteSink;<br><span class="hljs-keyword">import</span> com.google.common.io.ByteSource;<br><br><span class="hljs-keyword">import</span> java.io.IOException;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">BinaryStoreService</span> &#123;<br><br>    <span class="hljs-keyword">public</span> BinaryStoreResult <span class="hljs-title function_">store</span><span class="hljs-params">(ByteSource source, ByteSink sink)</span> <span class="hljs-keyword">throws</span> IOException &#123;<br>        <span class="hljs-type">HashCode</span> <span class="hljs-variable">hashCode</span> <span class="hljs-operator">=</span> source.hash(Hashing.sha256());<br><br>        <span class="hljs-type">long</span> <span class="hljs-variable">copiedBytes</span> <span class="hljs-operator">=</span> source.copyTo(sink);<br><br>        <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">BinaryStoreResult</span>(<br>                copiedBytes,<br>                hashCode.toString()<br>        );<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteSource;<br><span class="hljs-keyword">import</span> com.google.common.io.Files;<br><br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">BinaryStoreDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">ByteSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> ByteSource.wrap(<br>                <span class="hljs-string">&quot;hello binary store&quot;</span>.getBytes(StandardCharsets.UTF_8)<br>        );<br><br>        <span class="hljs-type">File</span> <span class="hljs-variable">targetFile</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;guava-io-demo/store.bin&quot;</span>);<br><br>        Files.createParentDirs(targetFile);<br><br>        <span class="hljs-type">BinaryStoreService</span> <span class="hljs-variable">service</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">BinaryStoreService</span>();<br><br>        <span class="hljs-type">BinaryStoreResult</span> <span class="hljs-variable">result</span> <span class="hljs-operator">=</span> service.store(<br>                source,<br>                Files.asByteSink(targetFile)<br>        );<br><br>        System.out.println(result);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这个服务不关心输入来自哪里，也不关心输出写到哪里。</p>
+<p>这就是 <code>ByteSource</code> &#x2F; <code>ByteSink</code> 的威力。</p>
+<h3 id="chapter-43：Source-Sink-的设计优势总结"><a href="#chapter-43：Source-Sink-的设计优势总结" class="headerlink" title="chapter 43：Source &#x2F; Sink 的设计优势总结"></a>chapter 43：Source &#x2F; Sink 的设计优势总结</h3><h4 id="1-把-IO-来源和目标抽象化"><a href="#1-把-IO-来源和目标抽象化" class="headerlink" title="1. 把 IO 来源和目标抽象化"></a>1. 把 IO 来源和目标抽象化</h4><p>业务方法不再写死 <code>File</code>。</p>
+<h4 id="2-测试更简单"><a href="#2-测试更简单" class="headerlink" title="2. 测试更简单"></a>2. 测试更简单</h4><p>测试可以用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">CharSource.wrap(...)<br>ByteSource.wrap(...)<br></code></pre></td></tr></table></figure>
+
+<p>不一定创建真实文件。</p>
+<h4 id="3-资源管理更清晰"><a href="#3-资源管理更清晰" class="headerlink" title="3. 资源管理更清晰"></a>3. 资源管理更清晰</h4><p>Source &#x2F; Sink 的高级方法会打开并关闭内部流。</p>
+<h4 id="4-代码表达更清楚"><a href="#4-代码表达更清楚" class="headerlink" title="4. 代码表达更清楚"></a>4. 代码表达更清楚</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">source.copyTo(sink)<br></code></pre></td></tr></table></figure>
+
+<p>比手写一堆流复制更表达意图。</p>
+<h4 id="5-统一文件、内存、资源等来源"><a href="#5-统一文件、内存、资源等来源" class="headerlink" title="5. 统一文件、内存、资源等来源"></a>5. 统一文件、内存、资源等来源</h4><p>文件只是来源之一。</p>
+<h4 id="6-和模板方法模式结合得很好"><a href="#6-和模板方法模式结合得很好" class="headerlink" title="6. 和模板方法模式结合得很好"></a>6. 和模板方法模式结合得很好</h4><p>子类只需要提供 <code>openStream()</code>。</p>
+<p>父类提供通用读取&#x2F;写入能力。</p>
+<h3 id="chapter-44：使用建议"><a href="#chapter-44：使用建议" class="headerlink" title="chapter 44：使用建议"></a>chapter 44：使用建议</h3><h4 id="1-处理文本优先-CharSource-CharSink"><a href="#1-处理文本优先-CharSource-CharSink" class="headerlink" title="1. 处理文本优先 CharSource &#x2F; CharSink"></a>1. 处理文本优先 CharSource &#x2F; CharSink</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">CharSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> Files.asCharSource(file, UTF_8);<br><span class="hljs-type">CharSink</span> <span class="hljs-variable">sink</span> <span class="hljs-operator">=</span> Files.asCharSink(file, UTF_8);<br></code></pre></td></tr></table></figure>
+
+<h4 id="2-处理二进制优先-ByteSource-ByteSink"><a href="#2-处理二进制优先-ByteSource-ByteSink" class="headerlink" title="2. 处理二进制优先 ByteSource &#x2F; ByteSink"></a>2. 处理二进制优先 ByteSource &#x2F; ByteSink</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">ByteSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> Files.asByteSource(file);<br><span class="hljs-type">ByteSink</span> <span class="hljs-variable">sink</span> <span class="hljs-operator">=</span> Files.asByteSink(file);<br></code></pre></td></tr></table></figure>
+
+<h4 id="3-已经有流时使用-Streams-工具类"><a href="#3-已经有流时使用-Streams-工具类" class="headerlink" title="3. 已经有流时使用 Streams 工具类"></a>3. 已经有流时使用 Streams 工具类</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">ByteStreams.copy(inputStream, outputStream);<br>CharStreams.copy(reader, writer);<br></code></pre></td></tr></table></figure>
+
+<h4 id="4-小文件可以-read-toByteArray"><a href="#4-小文件可以-read-toByteArray" class="headerlink" title="4. 小文件可以 read &#x2F; toByteArray"></a>4. 小文件可以 read &#x2F; toByteArray</h4><p>大文件不要一次性读入内存。</p>
+<h4 id="5-谁打开流，谁负责关闭"><a href="#5-谁打开流，谁负责关闭" class="headerlink" title="5. 谁打开流，谁负责关闭"></a>5. 谁打开流，谁负责关闭</h4><p>如果你自己传入 <code>InputStream</code>，就要自己管理关闭。</p>
+<h4 id="6-不要依赖默认字符集"><a href="#6-不要依赖默认字符集" class="headerlink" title="6. 不要依赖默认字符集"></a>6. 不要依赖默认字符集</h4><p>字符和字节转换必须指定：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">StandardCharsets.UTF_8<br></code></pre></td></tr></table></figure>
+
+<h4 id="7-Spring-Boot-上传下载中可以借鉴-Source-Sink-思想"><a href="#7-Spring-Boot-上传下载中可以借鉴-Source-Sink-思想" class="headerlink" title="7. Spring Boot 上传下载中可以借鉴 Source &#x2F; Sink 思想"></a>7. Spring Boot 上传下载中可以借鉴 Source &#x2F; Sink 思想</h4><p>即使不用 Guava，也可以把输入和输出抽象出来。</p>
+<h4 id="8-不要为了抽象而抽象"><a href="#8-不要为了抽象而抽象" class="headerlink" title="8. 不要为了抽象而抽象"></a>8. 不要为了抽象而抽象</h4><p>简单文件读写用 JDK <code>Files</code> 就可以。</p>
+<p>当你需要统一多种来源、多种目标时，Source &#x2F; Sink 的价值更明显。</p>
+<h3 id="chapter-45：一句话总结"><a href="#chapter-45：一句话总结" class="headerlink" title="chapter 45：一句话总结"></a>chapter 45：一句话总结</h3><p>这一章的核心是：</p>
+<blockquote>
+<p>Guava IO 的精髓不是 Files 工具方法，而是 Source &#x2F; Sink 抽象：用 Source 表示数据来源，用 Sink 表示数据目标，再通过 Streams 工具类完成底层流复制。</p>
+</blockquote>
+<p><code>CharSource</code> 表示字符输入来源。</p>
+<p><code>CharSink</code> 表示字符输出目标。</p>
+<p><code>ByteSource</code> 表示字节输入来源。</p>
+<p><code>ByteSink</code> 表示字节输出目标。</p>
+<p><code>CharStreams</code> 处理 Reader &#x2F; Writer &#x2F; Readable &#x2F; Appendable。</p>
+<p><code>ByteStreams</code> 处理 InputStream &#x2F; OutputStream。</p>
+<p>它们之间的关系可以总结为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">文件 / 内存 / URL / 资源<br>        ↓<br>Source<br>        ↓<br>Streams 底层读取复制<br>        ↓<br>Sink<br></code></pre></td></tr></table></figure>
+
+<p>好的 IO 设计不是到处传 <code>FileInputStream</code> 和 <code>FileOutputStream</code>。</p>
+<p>好的 IO 设计应该让业务代码表达：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">从这个来源读<br>写到那个目标<br>文本用这个编码<br>二进制按字节处理<br></code></pre></td></tr></table></figure>
+
+<p>Source &#x2F; Sink 这套思想非常值得学习。</p>
+<p>即使你在新项目中更多使用 JDK NIO，也可以把这种抽象思路带到自己的代码设计中。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>Google Guava API: CharSource.</li>
+<li>Google Guava API: CharSink.</li>
+<li>Google Guava API: ByteSource.</li>
+<li>Google Guava API: ByteSink.</li>
+<li>Google Guava API: CharStreams.</li>
+<li>Google Guava API: ByteStreams.</li>
+<li>Google Guava API: Files.</li>
+<li>Google Guava API: Resources.</li>
+<li>Java Documentation: Reader.</li>
+<li>Java Documentation: Writer.</li>
+<li>Java Documentation: InputStream.</li>
+<li>Java Documentation: OutputStream.</li>
+<li>Java Documentation: StandardCharsets.</li>
+</ul>
+<h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p><code>富贵岂由人，时会高志须酬。</code></p>
+<p><code>能成功于千载者，必以近察远。</code></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Java/" class="category-chain-item">Java</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Spring-Boot/" class="print-no-link">#Spring Boot</a>
+      
+        <a href="/tags/Spring/" class="print-no-link">#Spring</a>
+      
+        <a href="/tags/Java/" class="print-no-link">#Java</a>
+      
+        <a href="/tags/Guava/" class="print-no-link">#Guava</a>
+      
+        <a href="/tags/IO/" class="print-no-link">#IO</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Guava IO 进阶：Source、Sink 与 Streams</div>
+      <div>https://allendericdalexander.github.io/2026/04/01/java/utils/guava/05guava-source-sink-streams-blog/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年4月1日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/04/01/java/utils/guava/09guava-cache-reference-collections-blog/" title="Guava：缓存、引用类型与集合工具">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Guava：缓存、引用类型与集合工具</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2025/08/24/devops/linux/linux_help/" title="LinuxHelp">
+                        <span class="hidden-mobile">LinuxHelp</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

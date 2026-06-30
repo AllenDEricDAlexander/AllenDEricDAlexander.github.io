@@ -1,0 +1,1476 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="欢迎你来读这篇博客，这篇博客主要是关于Guava 资源关闭与异常处理。其中包括 Closer 的使用方式、多资源关闭、异常传播、suppressed exception、与 Java 7 try-with-resources 的对比、为什么 Java 7 之后 Closer 使用减少，以及资源关闭的最佳实践。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Guava：资源关闭与异常处理">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/04/01/java/utils/guava/06guava-closer-resource-exception-blog/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="欢迎你来读这篇博客，这篇博客主要是关于Guava 资源关闭与异常处理。其中包括 Closer 的使用方式、多资源关闭、异常传播、suppressed exception、与 Java 7 try-with-resources 的对比、为什么 Java 7 之后 Closer 使用减少，以及资源关闭的最佳实践。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-04-01T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-04-01T04:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Guava">
+<meta property="article:tag" content="IO">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="Spring">
+<meta property="article:tag" content="Spring Boot">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Guava：资源关闭与异常处理 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Guava：资源关闭与异常处理"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-04-01 12:00" pubdate>
+          2026年4月1日 中午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          6.3k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          53 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Guava：资源关闭与异常处理</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>欢迎你来读这篇博客，这篇博客主要是关于<code>Guava 资源关闭与异常处理</code>。<br>其中包括 Closer 的使用方式、多资源关闭、异常传播、suppressed exception、与 Java 7 try-with-resources 的对比、为什么 Java 7 之后 Closer 使用减少，以及资源关闭的最佳实践。</p>
+<span id="more"></span>
+
+<h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><p>在 Java 后端开发中，资源关闭是一个非常基础但非常容易出问题的主题。</p>
+<p>你可能每天都在使用这些资源：</p>
+<ul>
+<li><code>InputStream</code></li>
+<li><code>OutputStream</code></li>
+<li><code>Reader</code></li>
+<li><code>Writer</code></li>
+<li><code>Socket</code></li>
+<li><code>Channel</code></li>
+<li><code>Connection</code></li>
+<li><code>ResultSet</code></li>
+<li><code>PreparedStatement</code></li>
+<li><code>ZipInputStream</code></li>
+<li><code>BufferedReader</code></li>
+</ul>
+<p>这些对象大多都需要关闭。</p>
+<p>如果不关闭，可能会导致：</p>
+<ul>
+<li>文件句柄泄漏；</li>
+<li>连接泄漏；</li>
+<li>内存占用增加；</li>
+<li>临时文件无法删除；</li>
+<li>数据没有 flush；</li>
+<li>Socket 长时间占用；</li>
+<li>数据库连接池耗尽；</li>
+<li>线上服务慢慢变成“资源黑洞”。</li>
+</ul>
+<p>在 Java 7 之前，资源关闭通常依赖 <code>try-finally</code>。</p>
+<p>代码会非常啰嗦，尤其是多个资源一起使用时。</p>
+<p>Guava 提供了一个工具类：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">com.google.common.io.Closer<br></code></pre></td></tr></table></figure>
+
+<p>它的作用是：</p>
+<blockquote>
+<p>统一注册多个可关闭资源，在 finally 中按顺序关闭，并正确处理关闭过程中的异常。</p>
+</blockquote>
+<p>这一章对应原课程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">14 Guava 之 Closer 使用和原理剖析<br></code></pre></td></tr></table></figure>
+
+<p>本章重点包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">第 6 章：资源关闭与异常处理<br>  6.1 Closer 使用和原理剖析<br></code></pre></td></tr></table></figure>
+
+<p>核心内容：</p>
+<ul>
+<li>Closer 的使用方式；</li>
+<li>多资源关闭；</li>
+<li>异常传播；</li>
+<li>suppressed exception；</li>
+<li>try-with-resources 对比；</li>
+<li>为什么 Closer 在 Java 7 之后使用减少；</li>
+<li>资源关闭的最佳实践。</li>
+</ul>
+<p>这章看起来只是一个工具类，但背后其实是 Java 异常处理和资源管理的核心问题。</p>
+<p>如果你能真正理解 <code>Closer</code> 和 <code>try-with-resources</code>，你写 IO、数据库、网络、文件导入导出时会稳很多。</p>
+<h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h3 id="chapter-1：为什么资源关闭很重要"><a href="#chapter-1：为什么资源关闭很重要" class="headerlink" title="chapter 1：为什么资源关闭很重要"></a>chapter 1：为什么资源关闭很重要</h3><p>资源关闭不是“代码洁癖”，而是系统稳定性问题。</p>
+<p>例如读取文件：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">InputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(file);<br><br><span class="hljs-type">byte</span>[] bytes = inputStream.readAllBytes();<br></code></pre></td></tr></table></figure>
+
+<p>如果不关闭：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">inputStream.close();<br></code></pre></td></tr></table></figure>
+
+<p>文件句柄可能一直占用。</p>
+<p>在开发环境可能没感觉。</p>
+<p>但在线上服务中，如果每个请求都打开文件、网络连接或数据库连接而不关闭，服务会慢慢积累资源泄漏。</p>
+<p>最终可能出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Too many open files<br>Connection pool exhausted<br>No space left on device<br>File is locked<br></code></pre></td></tr></table></figure>
+
+<p>所以，谁打开资源，谁就应该负责关闭。</p>
+<h3 id="chapter-2：Java-7-之前的资源关闭写法"><a href="#chapter-2：Java-7-之前的资源关闭写法" class="headerlink" title="chapter 2：Java 7 之前的资源关闭写法"></a>chapter 2：Java 7 之前的资源关闭写法</h3><p>Java 7 之前，没有 <code>try-with-resources</code>。</p>
+<p>典型写法是：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">InputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> <span class="hljs-literal">null</span>;<br><br><span class="hljs-keyword">try</span> &#123;<br>    inputStream = <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(<span class="hljs-string">&quot;data.txt&quot;</span>);<br><br>    <span class="hljs-comment">// 使用 inputStream</span><br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    <span class="hljs-keyword">if</span> (inputStream != <span class="hljs-literal">null</span>) &#123;<br>        inputStream.close();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果只有一个资源，还能接受。</p>
+<p>如果有两个资源：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">InputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> <span class="hljs-literal">null</span>;<br><span class="hljs-type">OutputStream</span> <span class="hljs-variable">outputStream</span> <span class="hljs-operator">=</span> <span class="hljs-literal">null</span>;<br><br><span class="hljs-keyword">try</span> &#123;<br>    inputStream = <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(<span class="hljs-string">&quot;source.txt&quot;</span>);<br>    outputStream = <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileOutputStream</span>(<span class="hljs-string">&quot;target.txt&quot;</span>);<br><br>    <span class="hljs-comment">// copy</span><br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    <span class="hljs-keyword">if</span> (outputStream != <span class="hljs-literal">null</span>) &#123;<br>        outputStream.close();<br>    &#125;<br><br>    <span class="hljs-keyword">if</span> (inputStream != <span class="hljs-literal">null</span>) &#123;<br>        inputStream.close();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果关闭时也可能抛异常，就更麻烦。</p>
+<p>如果 <code>outputStream.close()</code> 抛异常，后面的 <code>inputStream.close()</code> 可能就不执行了。</p>
+<p>于是你还要写嵌套 try-catch。</p>
+<p>代码很快变得又长又丑。</p>
+<h3 id="chapter-3：多资源关闭的典型问题"><a href="#chapter-3：多资源关闭的典型问题" class="headerlink" title="chapter 3：多资源关闭的典型问题"></a>chapter 3：多资源关闭的典型问题</h3><p>多资源关闭有几个难点。</p>
+<h4 id="1-关闭顺序"><a href="#1-关闭顺序" class="headerlink" title="1. 关闭顺序"></a>1. 关闭顺序</h4><p>通常应该后打开的先关闭。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">InputStream -&gt; BufferedInputStream<br></code></pre></td></tr></table></figure>
+
+<p>使用时先打开底层流，再包装缓冲流。</p>
+<p>关闭时应该先关闭外层流。</p>
+<p>也就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">后注册，先关闭<br></code></pre></td></tr></table></figure>
+
+<h4 id="2-关闭异常不能阻止其他资源关闭"><a href="#2-关闭异常不能阻止其他资源关闭" class="headerlink" title="2. 关闭异常不能阻止其他资源关闭"></a>2. 关闭异常不能阻止其他资源关闭</h4><p>如果关闭第一个资源失败，也应该继续关闭其他资源。</p>
+<p>否则可能造成更多泄漏。</p>
+<h4 id="3-主异常不能被关闭异常覆盖"><a href="#3-主异常不能被关闭异常覆盖" class="headerlink" title="3. 主异常不能被关闭异常覆盖"></a>3. 主异常不能被关闭异常覆盖</h4><p>如果业务代码抛出异常：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">读取文件失败<br></code></pre></td></tr></table></figure>
+
+<p>同时关闭资源也抛异常：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">关闭流失败<br></code></pre></td></tr></table></figure>
+
+<p>我们更关心主异常。</p>
+<p>关闭异常应该作为 suppressed exception 附加到主异常上，而不是覆盖主异常。</p>
+<h4 id="4-代码不能太啰嗦"><a href="#4-代码不能太啰嗦" class="headerlink" title="4. 代码不能太啰嗦"></a>4. 代码不能太啰嗦</h4><p>手写多层 try-finally 很容易出错，也不易维护。</p>
+<p><code>Closer</code> 就是为了解决这些问题。</p>
+<h3 id="chapter-4：Closer-是什么"><a href="#chapter-4：Closer-是什么" class="headerlink" title="chapter 4：Closer 是什么"></a>chapter 4：Closer 是什么</h3><p><code>Closer</code> 是 Guava 提供的资源关闭工具类。</p>
+<p>包名：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">com.google.common.io.Closer<br></code></pre></td></tr></table></figure>
+
+<p>它的核心作用是：</p>
+<blockquote>
+<p>注册多个 Closeable 资源，在 finally 中统一关闭，并正确处理异常传播和 suppressed exception。</p>
+</blockquote>
+<p>典型用法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Closer</span> <span class="hljs-variable">closer</span> <span class="hljs-operator">=</span> Closer.create();<br><br><span class="hljs-keyword">try</span> &#123;<br>    <span class="hljs-type">InputStream</span> <span class="hljs-variable">in</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(<span class="hljs-string">&quot;source.txt&quot;</span>));<br>    <span class="hljs-type">OutputStream</span> <span class="hljs-variable">out</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">FileOutputStream</span>(<span class="hljs-string">&quot;target.txt&quot;</span>));<br><br>    <span class="hljs-comment">// 使用资源</span><br>&#125; <span class="hljs-keyword">catch</span> (Throwable e) &#123;<br>    <span class="hljs-keyword">throw</span> closer.rethrow(e);<br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    closer.close();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这段代码有几个关键点：</p>
+<ol>
+<li>创建 <code>Closer</code>；</li>
+<li>使用 <code>closer.register()</code> 注册资源；</li>
+<li>catch 中使用 <code>closer.rethrow(e)</code> 传播异常；</li>
+<li>finally 中调用 <code>closer.close()</code> 关闭所有资源。</li>
+</ol>
+<h3 id="chapter-5：Closer-的基础使用示例"><a href="#chapter-5：Closer-的基础使用示例" class="headerlink" title="chapter 5：Closer 的基础使用示例"></a>chapter 5：Closer 的基础使用示例</h3><p>下面写一个文件复制示例。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.Closer;<br><br><span class="hljs-keyword">import</span> java.io.FileInputStream;<br><span class="hljs-keyword">import</span> java.io.FileOutputStream;<br><span class="hljs-keyword">import</span> java.io.InputStream;<br><span class="hljs-keyword">import</span> java.io.OutputStream;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CloserCopyDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">copy</span><span class="hljs-params">(String sourcePath, String targetPath)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">Closer</span> <span class="hljs-variable">closer</span> <span class="hljs-operator">=</span> Closer.create();<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            <span class="hljs-type">InputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(sourcePath));<br>            <span class="hljs-type">OutputStream</span> <span class="hljs-variable">outputStream</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">FileOutputStream</span>(targetPath));<br><br>            <span class="hljs-type">byte</span>[] buffer = <span class="hljs-keyword">new</span> <span class="hljs-title class_">byte</span>[<span class="hljs-number">8192</span>];<br><br>            <span class="hljs-type">int</span> length;<br><br>            <span class="hljs-keyword">while</span> ((length = inputStream.read(buffer)) != -<span class="hljs-number">1</span>) &#123;<br>                outputStream.write(buffer, <span class="hljs-number">0</span>, length);<br>            &#125;<br>        &#125; <span class="hljs-keyword">catch</span> (Throwable e) &#123;<br>            <span class="hljs-keyword">throw</span> closer.rethrow(e);<br>        &#125; <span class="hljs-keyword">finally</span> &#123;<br>            closer.close();<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里的资源注册顺序是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">inputStream<br>outputStream<br></code></pre></td></tr></table></figure>
+
+<p>关闭顺序是反过来：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">outputStream<br>inputStream<br></code></pre></td></tr></table></figure>
+
+<p>这符合常见资源关闭习惯。</p>
+<h3 id="chapter-6：Closer-register-的作用"><a href="#chapter-6：Closer-register-的作用" class="headerlink" title="chapter 6：Closer.register 的作用"></a>chapter 6：Closer.register 的作用</h3><p><code>closer.register(resource)</code> 做两件事：</p>
+<ol>
+<li>把资源加入 Closer 内部维护的栈；</li>
+<li>返回这个资源本身。</li>
+</ol>
+<p>所以可以这样写：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">InputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(sourcePath));<br></code></pre></td></tr></table></figure>
+
+<p>不用写成：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">InputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(sourcePath);<br>closer.register(inputStream);<br></code></pre></td></tr></table></figure>
+
+<p>当然两种都可以。</p>
+<p><code>register</code> 返回资源本身，是为了让代码更紧凑。</p>
+<p>注册后的资源会在：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">closer.close()<br></code></pre></td></tr></table></figure>
+
+<p>中统一关闭。</p>
+<h3 id="chapter-7：Closer-支持什么资源"><a href="#chapter-7：Closer-支持什么资源" class="headerlink" title="chapter 7：Closer 支持什么资源"></a>chapter 7：Closer 支持什么资源</h3><p><code>Closer</code> 主要支持：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">java.io.Closeable<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<ul>
+<li><code>InputStream</code></li>
+<li><code>OutputStream</code></li>
+<li><code>Reader</code></li>
+<li><code>Writer</code></li>
+<li><code>RandomAccessFile</code></li>
+<li><code>ZipInputStream</code></li>
+<li><code>Socket</code></li>
+</ul>
+<p>Java 7 之后更通用的是：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">AutoCloseable<br></code></pre></td></tr></table></figure>
+
+<p><code>try-with-resources</code> 支持 <code>AutoCloseable</code>。</p>
+<p>而 Guava <code>Closer</code> 主要围绕 <code>Closeable</code> 设计。</p>
+<p>这也是 Java 7 之后 <code>Closer</code> 使用减少的原因之一。</p>
+<p>因为 JDK 原生 <code>try-with-resources</code> 更标准、更通用。</p>
+<h3 id="chapter-8：Closer-的关闭顺序"><a href="#chapter-8：Closer-的关闭顺序" class="headerlink" title="chapter 8：Closer 的关闭顺序"></a>chapter 8：Closer 的关闭顺序</h3><p><code>Closer</code> 内部通常会用类似栈的结构保存资源。</p>
+<p>注册顺序：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java">closer.register(resource1);<br>closer.register(resource2);<br>closer.register(resource3);<br></code></pre></td></tr></table></figure>
+
+<p>关闭顺序：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">resource3<br>resource2<br>resource1<br></code></pre></td></tr></table></figure>
+
+<p>也就是：</p>
+<blockquote>
+<p>后注册的资源先关闭。</p>
+</blockquote>
+<p>这和嵌套资源的关闭需求一致。</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">InputStream</span> <span class="hljs-variable">fileInputStream</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(file));<br><span class="hljs-type">BufferedInputStream</span> <span class="hljs-variable">bufferedInputStream</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">BufferedInputStream</span>(fileInputStream));<br></code></pre></td></tr></table></figure>
+
+<p>关闭时先关闭：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">BufferedInputStream<br></code></pre></td></tr></table></figure>
+
+<p>再关闭：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">FileInputStream<br></code></pre></td></tr></table></figure>
+
+<p>这符合包装流的关闭习惯。</p>
+<h3 id="chapter-9：为什么关闭顺序要反过来"><a href="#chapter-9：为什么关闭顺序要反过来" class="headerlink" title="chapter 9：为什么关闭顺序要反过来"></a>chapter 9：为什么关闭顺序要反过来</h3><p>资源经常存在依赖关系。</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">FileInputStream</span> <span class="hljs-variable">fileInputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(file);<br><span class="hljs-type">BufferedInputStream</span> <span class="hljs-variable">bufferedInputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">BufferedInputStream</span>(fileInputStream);<br></code></pre></td></tr></table></figure>
+
+<p><code>BufferedInputStream</code> 包装了 <code>FileInputStream</code>。</p>
+<p>使用时是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">底层资源 -&gt; 外层包装资源<br></code></pre></td></tr></table></figure>
+
+<p>关闭时应该：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">外层包装资源 -&gt; 底层资源<br></code></pre></td></tr></table></figure>
+
+<p>因为外层资源关闭时可能还需要 flush、读取或处理底层资源。</p>
+<p>如果先关闭底层资源，外层资源关闭可能失败。</p>
+<p>所以栈式关闭是合理的。</p>
+<h3 id="chapter-10：Closer-的异常传播"><a href="#chapter-10：Closer-的异常传播" class="headerlink" title="chapter 10：Closer 的异常传播"></a>chapter 10：Closer 的异常传播</h3><p><code>Closer</code> 的经典写法中，catch 部分是：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">catch</span> (Throwable e) &#123;<br>    <span class="hljs-keyword">throw</span> closer.rethrow(e);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这看起来有点奇怪。</p>
+<p>为什么不是：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">throw</span> e;<br></code></pre></td></tr></table></figure>
+
+<p>原因是：</p>
+<blockquote>
+<p>Closer 需要记录主异常，以便 close 阶段如果也发生异常，可以把关闭异常作为 suppressed exception 处理。</p>
+</blockquote>
+<p><code>closer.rethrow(e)</code> 会把当前异常记录到 Closer 内部。</p>
+<p>然后在 finally 中：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">closer.close();<br></code></pre></td></tr></table></figure>
+
+<p>如果关闭资源又发生异常，Closer 会知道已经有一个主异常存在。</p>
+<p>它就可以选择：</p>
+<ul>
+<li>保留主异常；</li>
+<li>把关闭异常附加为 suppressed exception；</li>
+<li>不让关闭异常覆盖主异常。</li>
+</ul>
+<p>这就是 <code>closer.rethrow(e)</code> 的核心意义。</p>
+<h3 id="chapter-11：如果不使用-closer-rethrow-会怎样"><a href="#chapter-11：如果不使用-closer-rethrow-会怎样" class="headerlink" title="chapter 11：如果不使用 closer.rethrow 会怎样"></a>chapter 11：如果不使用 closer.rethrow 会怎样</h3><p>如果写成：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> &#123;<br>    <span class="hljs-comment">// 使用资源</span><br>&#125; <span class="hljs-keyword">catch</span> (Throwable e) &#123;<br>    <span class="hljs-keyword">throw</span> e;<br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    closer.close();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>问题是：</p>
+<blockquote>
+<p>Closer 不知道 try 块中已经发生了主异常。</p>
+</blockquote>
+<p>当 <code>closer.close()</code> 中关闭资源也抛异常时，关闭异常可能覆盖主异常。</p>
+<p>最终你看到的异常可能是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">close failed<br></code></pre></td></tr></table></figure>
+
+<p>而真正业务失败原因：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">read failed<br></code></pre></td></tr></table></figure>
+
+<p>被隐藏了。</p>
+<p>这会导致排查问题非常痛苦。</p>
+<p>所以使用 Closer 时，要遵循它的标准写法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">catch</span> (Throwable e) &#123;<br>    <span class="hljs-keyword">throw</span> closer.rethrow(e);<br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    closer.close();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-12：suppressed-exception-是什么"><a href="#chapter-12：suppressed-exception-是什么" class="headerlink" title="chapter 12：suppressed exception 是什么"></a>chapter 12：suppressed exception 是什么</h3><p><code>suppressed exception</code> 是 Java 7 引入的异常机制。</p>
+<p>它用于表达：</p>
+<blockquote>
+<p>一个主异常发生后，在资源关闭过程中又发生了其他异常，这些关闭异常不应该覆盖主异常，而应该附加到主异常上。</p>
+</blockquote>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">主异常：业务处理失败<br>suppressed：关闭资源 A 失败<br>suppressed：关闭资源 B 失败<br></code></pre></td></tr></table></figure>
+
+<p>在 Java 中，Throwable 有方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">addSuppressed(Throwable exception)<br>getSuppressed()<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SuppressedExceptionDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> &#123;<br>        <span class="hljs-type">RuntimeException</span> <span class="hljs-variable">main</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">RuntimeException</span>(<span class="hljs-string">&quot;main exception&quot;</span>);<br><br>        main.addSuppressed(<span class="hljs-keyword">new</span> <span class="hljs-title class_">RuntimeException</span>(<span class="hljs-string">&quot;close resource 1 failed&quot;</span>));<br>        main.addSuppressed(<span class="hljs-keyword">new</span> <span class="hljs-title class_">RuntimeException</span>(<span class="hljs-string">&quot;close resource 2 failed&quot;</span>));<br><br>        main.printStackTrace();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>输出中会看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Suppressed: java.lang.RuntimeException: close resource 1 failed<br>Suppressed: java.lang.RuntimeException: close resource 2 failed<br></code></pre></td></tr></table></figure>
+
+<p>这就是 suppressed exception。</p>
+<h3 id="chapter-13：为什么-suppressed-exception-很重要"><a href="#chapter-13：为什么-suppressed-exception-很重要" class="headerlink" title="chapter 13：为什么 suppressed exception 很重要"></a>chapter 13：为什么 suppressed exception 很重要</h3><p>假设业务执行失败：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">文件复制过程中读取失败<br></code></pre></td></tr></table></figure>
+
+<p>然后关闭流也失败：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">关闭输出流失败<br></code></pre></td></tr></table></figure>
+
+<p>如果关闭异常覆盖主异常，你会看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">关闭输出流失败<br></code></pre></td></tr></table></figure>
+
+<p>但真正的问题是读取失败。</p>
+<p>这会误导排查方向。</p>
+<p>正确做法是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">主异常：文件读取失败<br>suppressed：关闭输出流失败<br></code></pre></td></tr></table></figure>
+
+<p>这样你既知道主错误，也没有丢失关闭错误。</p>
+<p><code>Closer</code> 和 <code>try-with-resources</code> 都是为了解决这个问题。</p>
+<h3 id="chapter-14：Closer-多资源异常示例"><a href="#chapter-14：Closer-多资源异常示例" class="headerlink" title="chapter 14：Closer 多资源异常示例"></a>chapter 14：Closer 多资源异常示例</h3><p>我们写一个会在关闭时抛异常的资源。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> java.io.Closeable;<br><span class="hljs-keyword">import</span> java.io.IOException;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">BrokenCloseable</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">Closeable</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> String name;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">BrokenCloseable</span><span class="hljs-params">(String name)</span> &#123;<br>        <span class="hljs-built_in">this</span>.name = name;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">work</span><span class="hljs-params">()</span> &#123;<br>        System.out.println(name + <span class="hljs-string">&quot; working&quot;</span>);<br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">close</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> IOException &#123;<br>        <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IOException</span>(name + <span class="hljs-string">&quot; close failed&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用 Closer：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.Closer;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CloserSuppressedDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">Closer</span> <span class="hljs-variable">closer</span> <span class="hljs-operator">=</span> Closer.create();<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            <span class="hljs-type">BrokenCloseable</span> <span class="hljs-variable">resource1</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">BrokenCloseable</span>(<span class="hljs-string">&quot;resource1&quot;</span>));<br>            <span class="hljs-type">BrokenCloseable</span> <span class="hljs-variable">resource2</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">BrokenCloseable</span>(<span class="hljs-string">&quot;resource2&quot;</span>));<br><br>            resource1.work();<br>            resource2.work();<br><br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">RuntimeException</span>(<span class="hljs-string">&quot;main work failed&quot;</span>);<br>        &#125; <span class="hljs-keyword">catch</span> (Throwable e) &#123;<br>            <span class="hljs-keyword">throw</span> closer.rethrow(e);<br>        &#125; <span class="hljs-keyword">finally</span> &#123;<br>            closer.close();<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>理想情况下，主异常是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">main work failed<br></code></pre></td></tr></table></figure>
+
+<p>关闭异常会作为 suppressed exception 附加上去。</p>
+<h3 id="chapter-15：Closer-与-try-with-resources-对比"><a href="#chapter-15：Closer-与-try-with-resources-对比" class="headerlink" title="chapter 15：Closer 与 try-with-resources 对比"></a>chapter 15：Closer 与 try-with-resources 对比</h3><p>Java 7 引入了 <code>try-with-resources</code>。</p>
+<p>写法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> (<span class="hljs-type">InputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(sourcePath);<br>     <span class="hljs-type">OutputStream</span> <span class="hljs-variable">outputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileOutputStream</span>(targetPath)) &#123;<br><br>    <span class="hljs-type">byte</span>[] buffer = <span class="hljs-keyword">new</span> <span class="hljs-title class_">byte</span>[<span class="hljs-number">8192</span>];<br><br>    <span class="hljs-type">int</span> length;<br><br>    <span class="hljs-keyword">while</span> ((length = inputStream.read(buffer)) != -<span class="hljs-number">1</span>) &#123;<br>        outputStream.write(buffer, <span class="hljs-number">0</span>, length);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这比 Closer 更简洁。</p>
+<p>它也会自动：</p>
+<ul>
+<li>关闭多个资源；</li>
+<li>按反向顺序关闭；</li>
+<li>保留主异常；</li>
+<li>把关闭异常加入 suppressed exception。</li>
+</ul>
+<p>所以 Java 7 之后，很多场景不再需要 Closer。</p>
+<h3 id="chapter-16：try-with-resources-的关闭顺序"><a href="#chapter-16：try-with-resources-的关闭顺序" class="headerlink" title="chapter 16：try-with-resources 的关闭顺序"></a>chapter 16：try-with-resources 的关闭顺序</h3><p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> (<span class="hljs-type">ResourceA</span> <span class="hljs-variable">a</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ResourceA</span>();<br>     <span class="hljs-type">ResourceB</span> <span class="hljs-variable">b</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ResourceB</span>();<br>     <span class="hljs-type">ResourceC</span> <span class="hljs-variable">c</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ResourceC</span>()) &#123;<br><br>    <span class="hljs-comment">// use resources</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>关闭顺序是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">c<br>b<br>a<br></code></pre></td></tr></table></figure>
+
+<p>也就是：</p>
+<blockquote>
+<p>后创建的资源先关闭。</p>
+</blockquote>
+<p>这和 Closer 的关闭顺序一致。</p>
+<h3 id="chapter-17：try-with-resources-的-suppressed-exception"><a href="#chapter-17：try-with-resources-的-suppressed-exception" class="headerlink" title="chapter 17：try-with-resources 的 suppressed exception"></a>chapter 17：try-with-resources 的 suppressed exception</h3><p>try-with-resources 内置支持 suppressed exception。</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">TryWithResourcesSuppressedDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> &#123;<br>        <span class="hljs-keyword">try</span> (<span class="hljs-type">BrokenAutoCloseable</span> <span class="hljs-variable">resource</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">BrokenAutoCloseable</span>()) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">RuntimeException</span>(<span class="hljs-string">&quot;main failed&quot;</span>);<br>        &#125; <span class="hljs-keyword">catch</span> (Exception e) &#123;<br>            e.printStackTrace();<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">static</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">BrokenAutoCloseable</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">AutoCloseable</span> &#123;<br><br>        <span class="hljs-meta">@Override</span><br>        <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">close</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Exception</span>(<span class="hljs-string">&quot;close failed&quot;</span>);<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>输出会包含：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">RuntimeException: main failed<br>Suppressed: Exception: close failed<br></code></pre></td></tr></table></figure>
+
+<p>这说明 try-with-resources 已经原生解决了 Closer 要解决的核心问题。</p>
+<h3 id="chapter-18：Closer-和-try-with-resources-对比表"><a href="#chapter-18：Closer-和-try-with-resources-对比表" class="headerlink" title="chapter 18：Closer 和 try-with-resources 对比表"></a>chapter 18：Closer 和 try-with-resources 对比表</h3><table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>Guava Closer</th>
+<th>try-with-resources</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>引入时间</td>
+<td>Java 7 之前很有价值</td>
+<td>Java 7 引入</td>
+</tr>
+<tr>
+<td>是否 JDK 原生</td>
+<td>否</td>
+<td>是</td>
+</tr>
+<tr>
+<td>支持资源类型</td>
+<td>主要是 <code>Closeable</code></td>
+<td><code>AutoCloseable</code></td>
+</tr>
+<tr>
+<td>多资源关闭</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>反向关闭顺序</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>suppressed exception</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>写法简洁性</td>
+<td>较啰嗦</td>
+<td>更简洁</td>
+</tr>
+<tr>
+<td>推荐程度</td>
+<td>老项目维护要会</td>
+<td>新项目优先推荐</td>
+</tr>
+</tbody></table>
+<p>一句话总结：</p>
+<blockquote>
+<p>Java 7 之前 Closer 很重要，Java 7 之后 try-with-resources 是首选。</p>
+</blockquote>
+<h3 id="chapter-19：为什么-Java-7-之后-Closer-使用减少"><a href="#chapter-19：为什么-Java-7-之后-Closer-使用减少" class="headerlink" title="chapter 19：为什么 Java 7 之后 Closer 使用减少"></a>chapter 19：为什么 Java 7 之后 Closer 使用减少</h3><p>原因主要有几个。</p>
+<h4 id="1-try-with-resources-成为标准语法"><a href="#1-try-with-resources-成为标准语法" class="headerlink" title="1. try-with-resources 成为标准语法"></a>1. try-with-resources 成为标准语法</h4><p>JDK 原生支持，不需要第三方库。</p>
+<h4 id="2-写法更简洁"><a href="#2-写法更简洁" class="headerlink" title="2. 写法更简洁"></a>2. 写法更简洁</h4><p>Closer 写法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Closer</span> <span class="hljs-variable">closer</span> <span class="hljs-operator">=</span> Closer.create();<br><br><span class="hljs-keyword">try</span> &#123;<br>    <span class="hljs-type">InputStream</span> <span class="hljs-variable">in</span> <span class="hljs-operator">=</span> closer.register(...);<br>&#125; <span class="hljs-keyword">catch</span> (Throwable e) &#123;<br>    <span class="hljs-keyword">throw</span> closer.rethrow(e);<br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    closer.close();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>try-with-resources 写法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> (<span class="hljs-type">InputStream</span> <span class="hljs-variable">in</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(file)) &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>明显后者更简洁。</p>
+<h4 id="3-支持-AutoCloseable"><a href="#3-支持-AutoCloseable" class="headerlink" title="3. 支持 AutoCloseable"></a>3. 支持 AutoCloseable</h4><p>try-with-resources 支持：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">AutoCloseable<br></code></pre></td></tr></table></figure>
+
+<p>比 <code>Closeable</code> 更通用。</p>
+<h4 id="4-suppressed-exception-原生支持"><a href="#4-suppressed-exception-原生支持" class="headerlink" title="4. suppressed exception 原生支持"></a>4. suppressed exception 原生支持</h4><p>Java 7 异常机制本身已经支持 suppressed exception。</p>
+<h4 id="5-IDE-和静态检查更友好"><a href="#5-IDE-和静态检查更友好" class="headerlink" title="5. IDE 和静态检查更友好"></a>5. IDE 和静态检查更友好</h4><p>现代 IDE 会自动提示资源可以用 try-with-resources。</p>
+<h3 id="chapter-20：Closer-现在还值得学吗"><a href="#chapter-20：Closer-现在还值得学吗" class="headerlink" title="chapter 20：Closer 现在还值得学吗"></a>chapter 20：Closer 现在还值得学吗</h3><p>值得。</p>
+<p>原因有三个。</p>
+<h4 id="1-老项目里可能还在用"><a href="#1-老项目里可能还在用" class="headerlink" title="1. 老项目里可能还在用"></a>1. 老项目里可能还在用</h4><p>很多 Java 6&#x2F;7 时代的项目仍然有 Guava Closer。</p>
+<p>你需要能看懂。</p>
+<h4 id="2-它帮助理解资源关闭原理"><a href="#2-它帮助理解资源关闭原理" class="headerlink" title="2. 它帮助理解资源关闭原理"></a>2. 它帮助理解资源关闭原理</h4><p>Closer 手动展示了：</p>
+<ul>
+<li>注册资源；</li>
+<li>反向关闭；</li>
+<li>主异常记录；</li>
+<li>关闭异常 suppress；</li>
+<li>异常重新抛出。</li>
+</ul>
+<p>这些都是 try-with-resources 背后的机制。</p>
+<h4 id="3-它体现了良好的工具类设计"><a href="#3-它体现了良好的工具类设计" class="headerlink" title="3. 它体现了良好的工具类设计"></a>3. 它体现了良好的工具类设计</h4><p>Closer 把多资源关闭的复杂逻辑封装到一个类里。</p>
+<p>这对设计自己的资源管理工具也有参考价值。</p>
+<p>所以：</p>
+<blockquote>
+<p>新代码不一定要用 Closer，但一定要理解 Closer。</p>
+</blockquote>
+<h3 id="chapter-21：Closer-源码设计思想"><a href="#chapter-21：Closer-源码设计思想" class="headerlink" title="chapter 21：Closer 源码设计思想"></a>chapter 21：Closer 源码设计思想</h3><p>Closer 的源码思想可以简化理解为几部分。</p>
+<h4 id="1-内部维护资源栈"><a href="#1-内部维护资源栈" class="headerlink" title="1. 内部维护资源栈"></a>1. 内部维护资源栈</h4><p>类似：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">Deque&lt;Closeable&gt; stack = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ArrayDeque</span>&lt;&gt;();<br></code></pre></td></tr></table></figure>
+
+<p>注册资源时：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">stack.addFirst(closeable);<br></code></pre></td></tr></table></figure>
+
+<p>关闭时从栈顶开始关闭。</p>
+<h4 id="2-保存主异常"><a href="#2-保存主异常" class="headerlink" title="2. 保存主异常"></a>2. 保存主异常</h4><p>当调用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">closer.rethrow(e)<br></code></pre></td></tr></table></figure>
+
+<p>时，Closer 会记录这个异常。</p>
+<p>类似：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-built_in">this</span>.thrown = e;<br></code></pre></td></tr></table></figure>
+
+<h4 id="3-close-时逐个关闭资源"><a href="#3-close-时逐个关闭资源" class="headerlink" title="3. close 时逐个关闭资源"></a>3. close 时逐个关闭资源</h4><p>类似：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">while</span> (!stack.isEmpty()) &#123;<br>    <span class="hljs-type">Closeable</span> <span class="hljs-variable">closeable</span> <span class="hljs-operator">=</span> stack.removeFirst();<br><br>    <span class="hljs-keyword">try</span> &#123;<br>        closeable.close();<br>    &#125; <span class="hljs-keyword">catch</span> (Throwable closeException) &#123;<br>        <span class="hljs-comment">// 处理关闭异常</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4 id="4-如果已有主异常，关闭异常作为-suppressed"><a href="#4-如果已有主异常，关闭异常作为-suppressed" class="headerlink" title="4. 如果已有主异常，关闭异常作为 suppressed"></a>4. 如果已有主异常，关闭异常作为 suppressed</h4><p>如果 try 块已经抛出异常，关闭异常不能覆盖它。</p>
+<p>于是关闭异常会被 suppress。</p>
+<h4 id="5-如果没有主异常，关闭异常会抛出"><a href="#5-如果没有主异常，关闭异常会抛出" class="headerlink" title="5. 如果没有主异常，关闭异常会抛出"></a>5. 如果没有主异常，关闭异常会抛出</h4><p>如果业务逻辑没有异常，但关闭失败了，那么关闭异常就是主异常。</p>
+<p>这就是资源关闭异常处理的核心逻辑。</p>
+<h3 id="chapter-22：Closer-简化版源码模拟"><a href="#chapter-22：Closer-简化版源码模拟" class="headerlink" title="chapter 22：Closer 简化版源码模拟"></a>chapter 22：Closer 简化版源码模拟</h3><p>下面写一个简化版 <code>SimpleCloser</code>，帮助理解原理。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> java.io.Closeable;<br><span class="hljs-keyword">import</span> java.io.IOException;<br><span class="hljs-keyword">import</span> java.util.ArrayDeque;<br><span class="hljs-keyword">import</span> java.util.Deque;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SimpleCloser</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">Closeable</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> Deque&lt;Closeable&gt; stack = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ArrayDeque</span>&lt;&gt;();<br><br>    <span class="hljs-keyword">private</span> Throwable thrown;<br><br>    <span class="hljs-keyword">public</span> &lt;T <span class="hljs-keyword">extends</span> <span class="hljs-title class_">Closeable</span>&gt; T <span class="hljs-title function_">register</span><span class="hljs-params">(T closeable)</span> &#123;<br>        <span class="hljs-keyword">if</span> (closeable != <span class="hljs-literal">null</span>) &#123;<br>            stack.addFirst(closeable);<br>        &#125;<br><br>        <span class="hljs-keyword">return</span> closeable;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> RuntimeException <span class="hljs-title function_">rethrow</span><span class="hljs-params">(Throwable throwable)</span> <span class="hljs-keyword">throws</span> IOException &#123;<br>        <span class="hljs-built_in">this</span>.thrown = throwable;<br><br>        <span class="hljs-keyword">if</span> (throwable <span class="hljs-keyword">instanceof</span> IOException ioException) &#123;<br>            <span class="hljs-keyword">throw</span> ioException;<br>        &#125;<br><br>        <span class="hljs-keyword">if</span> (throwable <span class="hljs-keyword">instanceof</span> RuntimeException runtimeException) &#123;<br>            <span class="hljs-keyword">throw</span> runtimeException;<br>        &#125;<br><br>        <span class="hljs-keyword">if</span> (throwable <span class="hljs-keyword">instanceof</span> Error error) &#123;<br>            <span class="hljs-keyword">throw</span> error;<br>        &#125;<br><br>        <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">RuntimeException</span>(throwable);<br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">close</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> IOException &#123;<br>        <span class="hljs-type">Throwable</span> <span class="hljs-variable">throwable</span> <span class="hljs-operator">=</span> thrown;<br><br>        <span class="hljs-keyword">while</span> (!stack.isEmpty()) &#123;<br>            <span class="hljs-type">Closeable</span> <span class="hljs-variable">closeable</span> <span class="hljs-operator">=</span> stack.removeFirst();<br><br>            <span class="hljs-keyword">try</span> &#123;<br>                closeable.close();<br>            &#125; <span class="hljs-keyword">catch</span> (Throwable closeException) &#123;<br>                <span class="hljs-keyword">if</span> (throwable == <span class="hljs-literal">null</span>) &#123;<br>                    throwable = closeException;<br>                &#125; <span class="hljs-keyword">else</span> &#123;<br>                    throwable.addSuppressed(closeException);<br>                &#125;<br>            &#125;<br>        &#125;<br><br>        <span class="hljs-keyword">if</span> (thrown == <span class="hljs-literal">null</span> &amp;&amp; throwable != <span class="hljs-literal">null</span>) &#123;<br>            <span class="hljs-keyword">if</span> (throwable <span class="hljs-keyword">instanceof</span> IOException ioException) &#123;<br>                <span class="hljs-keyword">throw</span> ioException;<br>            &#125;<br><br>            <span class="hljs-keyword">if</span> (throwable <span class="hljs-keyword">instanceof</span> RuntimeException runtimeException) &#123;<br>                <span class="hljs-keyword">throw</span> runtimeException;<br>            &#125;<br><br>            <span class="hljs-keyword">if</span> (throwable <span class="hljs-keyword">instanceof</span> Error error) &#123;<br>                <span class="hljs-keyword">throw</span> error;<br>            &#125;<br><br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">RuntimeException</span>(throwable);<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这不是 Guava 的真实源码，只是为了理解核心思想。</p>
+<p>真正的 Guava Closer 会有更细致的异常传播和 suppress 处理。</p>
+<h3 id="chapter-23：使用-SimpleCloser-的例子"><a href="#chapter-23：使用-SimpleCloser-的例子" class="headerlink" title="chapter 23：使用 SimpleCloser 的例子"></a>chapter 23：使用 SimpleCloser 的例子</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SimpleCloserDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">SimpleCloser</span> <span class="hljs-variable">closer</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">SimpleCloser</span>();<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            <span class="hljs-type">BrokenCloseable</span> <span class="hljs-variable">resource1</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">BrokenCloseable</span>(<span class="hljs-string">&quot;resource1&quot;</span>));<br>            <span class="hljs-type">BrokenCloseable</span> <span class="hljs-variable">resource2</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">BrokenCloseable</span>(<span class="hljs-string">&quot;resource2&quot;</span>));<br><br>            resource1.work();<br>            resource2.work();<br><br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">RuntimeException</span>(<span class="hljs-string">&quot;main failed&quot;</span>);<br>        &#125; <span class="hljs-keyword">catch</span> (Throwable e) &#123;<br>            <span class="hljs-keyword">throw</span> closer.rethrow(e);<br>        &#125; <span class="hljs-keyword">finally</span> &#123;<br>            closer.close();<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这个例子可以帮助你理解：</p>
+<ul>
+<li>为什么要 register；</li>
+<li>为什么要 rethrow；</li>
+<li>为什么 finally 要 close；</li>
+<li>为什么异常不能简单覆盖。</li>
+</ul>
+<h3 id="chapter-24：Closer-实战：安全复制文件"><a href="#chapter-24：Closer-实战：安全复制文件" class="headerlink" title="chapter 24：Closer 实战：安全复制文件"></a>chapter 24：Closer 实战：安全复制文件</h3><p>虽然新代码更推荐 try-with-resources，但我们先用 Closer 写一个完整文件复制工具。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.Closer;<br><br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.io.FileInputStream;<br><span class="hljs-keyword">import</span> java.io.FileOutputStream;<br><span class="hljs-keyword">import</span> java.io.InputStream;<br><span class="hljs-keyword">import</span> java.io.OutputStream;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CloserFileCopyService</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">copy</span><span class="hljs-params">(File source, File target)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-keyword">if</span> (source == <span class="hljs-literal">null</span> || !source.isFile()) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;source must be a file&quot;</span>);<br>        &#125;<br><br>        <span class="hljs-keyword">if</span> (target == <span class="hljs-literal">null</span>) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;target can not be null&quot;</span>);<br>        &#125;<br><br>        <span class="hljs-type">File</span> <span class="hljs-variable">parent</span> <span class="hljs-operator">=</span> target.getParentFile();<br><br>        <span class="hljs-keyword">if</span> (parent != <span class="hljs-literal">null</span> &amp;&amp; !parent.exists() &amp;&amp; !parent.mkdirs()) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>(<span class="hljs-string">&quot;create parent dir failed: &quot;</span> + parent.getAbsolutePath());<br>        &#125;<br><br>        <span class="hljs-type">Closer</span> <span class="hljs-variable">closer</span> <span class="hljs-operator">=</span> Closer.create();<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            <span class="hljs-type">InputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(source));<br>            <span class="hljs-type">OutputStream</span> <span class="hljs-variable">outputStream</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">FileOutputStream</span>(target));<br><br>            <span class="hljs-type">byte</span>[] buffer = <span class="hljs-keyword">new</span> <span class="hljs-title class_">byte</span>[<span class="hljs-number">8192</span>];<br><br>            <span class="hljs-type">int</span> length;<br><br>            <span class="hljs-keyword">while</span> ((length = inputStream.read(buffer)) != -<span class="hljs-number">1</span>) &#123;<br>                outputStream.write(buffer, <span class="hljs-number">0</span>, length);<br>            &#125;<br>        &#125; <span class="hljs-keyword">catch</span> (Throwable e) &#123;<br>            <span class="hljs-keyword">throw</span> closer.rethrow(e);<br>        &#125; <span class="hljs-keyword">finally</span> &#123;<br>            closer.close();<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这个示例适合理解 Closer，但如果是 Java 7+ 新代码，可以改成 try-with-resources。</p>
+<h3 id="chapter-25：try-with-resources-版本文件复制"><a href="#chapter-25：try-with-resources-版本文件复制" class="headerlink" title="chapter 25：try-with-resources 版本文件复制"></a>chapter 25：try-with-resources 版本文件复制</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.io.FileInputStream;<br><span class="hljs-keyword">import</span> java.io.FileOutputStream;<br><span class="hljs-keyword">import</span> java.io.InputStream;<br><span class="hljs-keyword">import</span> java.io.OutputStream;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">TryWithResourcesFileCopyService</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">copy</span><span class="hljs-params">(File source, File target)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-keyword">if</span> (source == <span class="hljs-literal">null</span> || !source.isFile()) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;source must be a file&quot;</span>);<br>        &#125;<br><br>        <span class="hljs-keyword">if</span> (target == <span class="hljs-literal">null</span>) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;target can not be null&quot;</span>);<br>        &#125;<br><br>        <span class="hljs-type">File</span> <span class="hljs-variable">parent</span> <span class="hljs-operator">=</span> target.getParentFile();<br><br>        <span class="hljs-keyword">if</span> (parent != <span class="hljs-literal">null</span> &amp;&amp; !parent.exists() &amp;&amp; !parent.mkdirs()) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>(<span class="hljs-string">&quot;create parent dir failed: &quot;</span> + parent.getAbsolutePath());<br>        &#125;<br><br>        <span class="hljs-keyword">try</span> (<span class="hljs-type">InputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(source);<br>             <span class="hljs-type">OutputStream</span> <span class="hljs-variable">outputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileOutputStream</span>(target)) &#123;<br><br>            <span class="hljs-type">byte</span>[] buffer = <span class="hljs-keyword">new</span> <span class="hljs-title class_">byte</span>[<span class="hljs-number">8192</span>];<br><br>            <span class="hljs-type">int</span> length;<br><br>            <span class="hljs-keyword">while</span> ((length = inputStream.read(buffer)) != -<span class="hljs-number">1</span>) &#123;<br>                outputStream.write(buffer, <span class="hljs-number">0</span>, length);<br>            &#125;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>对比之后可以看到：</p>
+<blockquote>
+<p>try-with-resources 更短、更清晰、更标准。</p>
+</blockquote>
+<p>所以新项目优先用它。</p>
+<h3 id="chapter-26：Closer-实战：文件导入场景"><a href="#chapter-26：Closer-实战：文件导入场景" class="headerlink" title="chapter 26：Closer 实战：文件导入场景"></a>chapter 26：Closer 实战：文件导入场景</h3><p>假设我们要导入 CSV 文件。</p>
+<p>流程：</p>
+<ol>
+<li>打开文件输入流；</li>
+<li>包装成 Reader；</li>
+<li>包装成 BufferedReader；</li>
+<li>按行读取；</li>
+<li>统计有效行数；</li>
+<li>关闭资源。</li>
+</ol>
+<p>Closer 写法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.Closer;<br><br><span class="hljs-keyword">import</span> java.io.BufferedReader;<br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.io.FileInputStream;<br><span class="hljs-keyword">import</span> java.io.InputStreamReader;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CsvImportWithCloser</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">int</span> <span class="hljs-title function_">importCsv</span><span class="hljs-params">(File file)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">Closer</span> <span class="hljs-variable">closer</span> <span class="hljs-operator">=</span> Closer.create();<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            <span class="hljs-type">FileInputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(file));<br><br>            <span class="hljs-type">InputStreamReader</span> <span class="hljs-variable">reader</span> <span class="hljs-operator">=</span> closer.register(<br>                    <span class="hljs-keyword">new</span> <span class="hljs-title class_">InputStreamReader</span>(inputStream, StandardCharsets.UTF_8)<br>            );<br><br>            <span class="hljs-type">BufferedReader</span> <span class="hljs-variable">bufferedReader</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">BufferedReader</span>(reader));<br><br>            <span class="hljs-type">int</span> <span class="hljs-variable">count</span> <span class="hljs-operator">=</span> <span class="hljs-number">0</span>;<br><br>            String line;<br><br>            <span class="hljs-keyword">while</span> ((line = bufferedReader.readLine()) != <span class="hljs-literal">null</span>) &#123;<br>                <span class="hljs-keyword">if</span> (!line.isBlank()) &#123;<br>                    count++;<br>                &#125;<br>            &#125;<br><br>            <span class="hljs-keyword">return</span> count;<br>        &#125; <span class="hljs-keyword">catch</span> (Throwable e) &#123;<br>            <span class="hljs-keyword">throw</span> closer.rethrow(e);<br>        &#125; <span class="hljs-keyword">finally</span> &#123;<br>            closer.close();<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>注意注册顺序：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">FileInputStream<br>InputStreamReader<br>BufferedReader<br></code></pre></td></tr></table></figure>
+
+<p>关闭顺序：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">BufferedReader<br>InputStreamReader<br>FileInputStream<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-27：try-with-resources-版本-CSV-导入"><a href="#chapter-27：try-with-resources-版本-CSV-导入" class="headerlink" title="chapter 27：try-with-resources 版本 CSV 导入"></a>chapter 27：try-with-resources 版本 CSV 导入</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> java.io.BufferedReader;<br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.io.FileInputStream;<br><span class="hljs-keyword">import</span> java.io.InputStreamReader;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CsvImportWithTryResources</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">int</span> <span class="hljs-title function_">importCsv</span><span class="hljs-params">(File file)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-keyword">try</span> (<span class="hljs-type">FileInputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(file);<br>             <span class="hljs-type">InputStreamReader</span> <span class="hljs-variable">reader</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">InputStreamReader</span>(inputStream, StandardCharsets.UTF_8);<br>             <span class="hljs-type">BufferedReader</span> <span class="hljs-variable">bufferedReader</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">BufferedReader</span>(reader)) &#123;<br><br>            <span class="hljs-type">int</span> <span class="hljs-variable">count</span> <span class="hljs-operator">=</span> <span class="hljs-number">0</span>;<br><br>            String line;<br><br>            <span class="hljs-keyword">while</span> ((line = bufferedReader.readLine()) != <span class="hljs-literal">null</span>) &#123;<br>                <span class="hljs-keyword">if</span> (!line.isBlank()) &#123;<br>                    count++;<br>                &#125;<br>            &#125;<br><br>            <span class="hljs-keyword">return</span> count;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这个版本更符合现代 Java 写法。</p>
+<p>如果资源都能在 try 头部创建，优先使用这种写法。</p>
+<h3 id="chapter-28：什么时候-Closer-仍然有参考价值"><a href="#chapter-28：什么时候-Closer-仍然有参考价值" class="headerlink" title="chapter 28：什么时候 Closer 仍然有参考价值"></a>chapter 28：什么时候 Closer 仍然有参考价值</h3><p>虽然新代码优先 try-with-resources，但 Closer 在某些场景仍有参考意义。</p>
+<h4 id="1-资源不是一次性在-try-头部创建"><a href="#1-资源不是一次性在-try-头部创建" class="headerlink" title="1. 资源不是一次性在 try 头部创建"></a>1. 资源不是一次性在 try 头部创建</h4><p>例如资源在多个分支里动态创建。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Closer</span> <span class="hljs-variable">closer</span> <span class="hljs-operator">=</span> Closer.create();<br><br><span class="hljs-keyword">try</span> &#123;<br>    <span class="hljs-keyword">if</span> (needFile) &#123;<br>        closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(file));<br>    &#125;<br><br>    <span class="hljs-keyword">if</span> (needSocket) &#123;<br>        closer.register(socket);<br>    &#125;<br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    closer.close();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>try-with-resources 更适合资源在开头就明确列出。</p>
+<h4 id="2-Java-6-老项目"><a href="#2-Java-6-老项目" class="headerlink" title="2. Java 6 老项目"></a>2. Java 6 老项目</h4><p>Java 6 没有 try-with-resources。</p>
+<p>Closer 是很好的替代方案。</p>
+<h4 id="3-想统一管理动态资源"><a href="#3-想统一管理动态资源" class="headerlink" title="3. 想统一管理动态资源"></a>3. 想统一管理动态资源</h4><p>比如根据配置动态打开多个文件、多个流、多个连接。</p>
+<h4 id="4-学习资源关闭机制"><a href="#4-学习资源关闭机制" class="headerlink" title="4. 学习资源关闭机制"></a>4. 学习资源关闭机制</h4><p>Closer 的设计能帮助你理解 suppressed exception 和反向关闭顺序。</p>
+<p>但在现代业务代码里，只要能用 try-with-resources，就优先用它。</p>
+<h3 id="chapter-29：资源关闭中的常见错误"><a href="#chapter-29：资源关闭中的常见错误" class="headerlink" title="chapter 29：资源关闭中的常见错误"></a>chapter 29：资源关闭中的常见错误</h3><h4 id="1-忘记关闭资源"><a href="#1-忘记关闭资源" class="headerlink" title="1. 忘记关闭资源"></a>1. 忘记关闭资源</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">InputStream</span> <span class="hljs-variable">in</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(file);<br></code></pre></td></tr></table></figure>
+
+<p>没有 close。</p>
+<p>这是最基础也最危险的错误。</p>
+<h4 id="2-close-写在-try-末尾"><a href="#2-close-写在-try-末尾" class="headerlink" title="2. close 写在 try 末尾"></a>2. close 写在 try 末尾</h4><p>错误：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">InputStream</span> <span class="hljs-variable">in</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(file);<br><br>doSomething(in);<br><br>in.close();<br></code></pre></td></tr></table></figure>
+
+<p>如果 <code>doSomething</code> 抛异常，close 不会执行。</p>
+<h4 id="3-finally-中-close-覆盖主异常"><a href="#3-finally-中-close-覆盖主异常" class="headerlink" title="3. finally 中 close 覆盖主异常"></a>3. finally 中 close 覆盖主异常</h4><p>手写 finally 时，如果 close 抛异常，可能覆盖 try 中异常。</p>
+<h4 id="4-多资源关闭不完整"><a href="#4-多资源关闭不完整" class="headerlink" title="4. 多资源关闭不完整"></a>4. 多资源关闭不完整</h4><p>关闭第一个资源失败后，后面的资源没有关闭。</p>
+<h4 id="5-捕获异常后吞掉"><a href="#5-捕获异常后吞掉" class="headerlink" title="5. 捕获异常后吞掉"></a>5. 捕获异常后吞掉</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">catch</span> (Exception e) &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这会让问题消失在日志之外。</p>
+<p>问题没消失，只是你看不见了。</p>
+<h4 id="6-依赖-finalize"><a href="#6-依赖-finalize" class="headerlink" title="6. 依赖 finalize"></a>6. 依赖 finalize</h4><p>不要依赖对象回收时关闭资源。</p>
+<p><code>finalize</code> 已经过时，也不可靠。</p>
+<h4 id="7-不-flush-就关闭不确定目标"><a href="#7-不-flush-就关闭不确定目标" class="headerlink" title="7. 不 flush 就关闭不确定目标"></a>7. 不 flush 就关闭不确定目标</h4><p>虽然很多 close 会自动 flush，但重要输出建议明确理解 flush&#x2F;close 语义。</p>
+<h3 id="chapter-30：资源关闭最佳实践"><a href="#chapter-30：资源关闭最佳实践" class="headerlink" title="chapter 30：资源关闭最佳实践"></a>chapter 30：资源关闭最佳实践</h3><h4 id="1-新代码优先-try-with-resources"><a href="#1-新代码优先-try-with-resources" class="headerlink" title="1. 新代码优先 try-with-resources"></a>1. 新代码优先 try-with-resources</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> (<span class="hljs-type">InputStream</span> <span class="hljs-variable">in</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(file)) &#123;<br>    <span class="hljs-comment">// use in</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4 id="2-多资源按依赖顺序声明"><a href="#2-多资源按依赖顺序声明" class="headerlink" title="2. 多资源按依赖顺序声明"></a>2. 多资源按依赖顺序声明</h4><p>声明顺序：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">底层资源 -&gt; 外层包装资源<br></code></pre></td></tr></table></figure>
+
+<p>关闭顺序会自动反过来。</p>
+<h4 id="3-字符流必须指定编码"><a href="#3-字符流必须指定编码" class="headerlink" title="3. 字符流必须指定编码"></a>3. 字符流必须指定编码</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">new</span> <span class="hljs-title class_">InputStreamReader</span>(inputStream, StandardCharsets.UTF_8)<br></code></pre></td></tr></table></figure>
+
+<p>不要使用默认编码。</p>
+<h4 id="4-谁打开，谁关闭"><a href="#4-谁打开，谁关闭" class="headerlink" title="4. 谁打开，谁关闭"></a>4. 谁打开，谁关闭</h4><p>方法如果接收外部传入的流，通常不要随便关闭，除非方法契约明确说明。</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">process</span><span class="hljs-params">(InputStream inputStream)</span><br></code></pre></td></tr></table></figure>
+
+<p>一般不应该关闭调用方传进来的流。</p>
+<p>但：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">processFile</span><span class="hljs-params">(File file)</span><br></code></pre></td></tr></table></figure>
+
+<p>方法内部打开的流，方法内部要关闭。</p>
+<h4 id="5-不要吞掉关闭异常"><a href="#5-不要吞掉关闭异常" class="headerlink" title="5. 不要吞掉关闭异常"></a>5. 不要吞掉关闭异常</h4><p>至少记录日志或作为 suppressed exception 保留。</p>
+<h4 id="6-使用工具类减少手写关闭逻辑"><a href="#6-使用工具类减少手写关闭逻辑" class="headerlink" title="6. 使用工具类减少手写关闭逻辑"></a>6. 使用工具类减少手写关闭逻辑</h4><p>现代 Java 用 try-with-resources。</p>
+<p>老项目可以用 Closer。</p>
+<h4 id="7-大文件使用流式处理"><a href="#7-大文件使用流式处理" class="headerlink" title="7. 大文件使用流式处理"></a>7. 大文件使用流式处理</h4><p>不要：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">readAllBytes()<br></code></pre></td></tr></table></figure>
+
+<p>直接读大文件。</p>
+<h4 id="8-finally-中清理临时文件"><a href="#8-finally-中清理临时文件" class="headerlink" title="8. finally 中清理临时文件"></a>8. finally 中清理临时文件</h4><p>除了关闭流，还要清理临时文件、临时目录。</p>
+<h4 id="9-关闭顺序要考虑包装关系"><a href="#9-关闭顺序要考虑包装关系" class="headerlink" title="9. 关闭顺序要考虑包装关系"></a>9. 关闭顺序要考虑包装关系</h4><p>外层先关闭，底层后关闭。</p>
+<h4 id="10-注意-Spring-管理的资源"><a href="#10-注意-Spring-管理的资源" class="headerlink" title="10. 注意 Spring 管理的资源"></a>10. 注意 Spring 管理的资源</h4><p>数据库连接、事务资源很多时候由 Spring 管理。</p>
+<p>不要手动关闭 Spring 管理的资源，除非你明确知道自己在做什么。</p>
+<h3 id="chapter-31：Spring-Boot-中的资源管理"><a href="#chapter-31：Spring-Boot-中的资源管理" class="headerlink" title="chapter 31：Spring Boot 中的资源管理"></a>chapter 31：Spring Boot 中的资源管理</h3><p>在 Spring Boot 项目中，很多资源由框架管理。</p>
+<p>例如：</p>
+<ul>
+<li>数据库连接由连接池管理；</li>
+<li>事务由 Spring 管理；</li>
+<li>HTTP 连接可能由客户端连接池管理；</li>
+<li>文件上传临时资源由容器管理；</li>
+<li>Bean 生命周期由 Spring 管理。</li>
+</ul>
+<p>但你自己打开的资源仍然要自己关闭。</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> (<span class="hljs-type">InputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> multipartFile.getInputStream()) &#123;<br>    <span class="hljs-comment">// 读取上传内容</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> (Stream&lt;Path&gt; stream = java.nio.file.Files.walk(root)) &#123;<br>    <span class="hljs-comment">// 遍历文件</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>注意 JDK 的 <code>Files.walk</code> 返回的是 <code>Stream&lt;Path&gt;</code>，它也需要关闭。</p>
+<h3 id="chapter-32：Files-walk-也要关闭"><a href="#chapter-32：Files-walk-也要关闭" class="headerlink" title="chapter 32：Files.walk 也要关闭"></a>chapter 32：Files.walk 也要关闭</h3><p>很多人会忽略这个。</p>
+<p>错误写法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java">java.nio.file.Files.walk(root)<br>        .filter(java.nio.file.Files::isRegularFile)<br>        .forEach(System.out::println);<br></code></pre></td></tr></table></figure>
+
+<p>推荐：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> (Stream&lt;Path&gt; stream = java.nio.file.Files.walk(root)) &#123;<br>    stream.filter(java.nio.file.Files::isRegularFile)<br>            .forEach(System.out::println);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>因为 <code>Files.walk</code> 底层可能持有目录句柄。</p>
+<p>它返回的 Stream 实现了 <code>AutoCloseable</code>。</p>
+<p>所以要用 try-with-resources。</p>
+<h3 id="chapter-33：资源关闭和异常日志"><a href="#chapter-33：资源关闭和异常日志" class="headerlink" title="chapter 33：资源关闭和异常日志"></a>chapter 33：资源关闭和异常日志</h3><p>资源关闭失败时，不要简单忽略。</p>
+<p>至少要在合适层级记录日志。</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> &#123;<br>    resource.close();<br>&#125; <span class="hljs-keyword">catch</span> (IOException e) &#123;<br>    log.warn(<span class="hljs-string">&quot;close resource failed&quot;</span>, e);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>但如果使用 try-with-resources，关闭异常会自动处理为 suppressed exception。</p>
+<p>你可以在统一异常日志中看到 suppressed 信息。</p>
+<p>日志系统通常会打印 suppressed exception。</p>
+<p>所以不要手写一堆会覆盖主异常的 close 逻辑。</p>
+<h3 id="chapter-34：资源关闭和事务边界"><a href="#chapter-34：资源关闭和事务边界" class="headerlink" title="chapter 34：资源关闭和事务边界"></a>chapter 34：资源关闭和事务边界</h3><p>文件 IO 和数据库事务混用时要特别小心。</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Transactional</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">importFile</span><span class="hljs-params">(File file)</span> &#123;<br>    <span class="hljs-comment">// 读取文件</span><br>    <span class="hljs-comment">// 写数据库</span><br>    <span class="hljs-comment">// 移动文件到归档目录</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果数据库回滚了，但文件已经移动了，会出现不一致。</p>
+<p>资源关闭只解决“资源释放”问题，不解决“业务一致性”问题。</p>
+<p>真实项目中要考虑：</p>
+<ul>
+<li>文件处理成功后再移动；</li>
+<li>数据库提交后再归档；</li>
+<li>失败文件移动到 error 目录；</li>
+<li>记录导入任务状态；</li>
+<li>支持重试；</li>
+<li>幂等处理；</li>
+<li>临时文件清理。</li>
+</ul>
+<p>Closer 和 try-with-resources 只是基础能力。</p>
+<p>业务一致性还要单独设计。</p>
+<h3 id="chapter-35：完整案例：安全文件复制工具"><a href="#chapter-35：完整案例：安全文件复制工具" class="headerlink" title="chapter 35：完整案例：安全文件复制工具"></a>chapter 35：完整案例：安全文件复制工具</h3><p>下面写一个现代推荐版本，使用 try-with-resources。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.io.FileInputStream;<br><span class="hljs-keyword">import</span> java.io.FileOutputStream;<br><span class="hljs-keyword">import</span> java.io.InputStream;<br><span class="hljs-keyword">import</span> java.io.OutputStream;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SafeFileCopyService</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">copy</span><span class="hljs-params">(File source, File target)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        validate(source, target);<br><br>        createParentDirs(target);<br><br>        <span class="hljs-keyword">try</span> (<span class="hljs-type">InputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(source);<br>             <span class="hljs-type">OutputStream</span> <span class="hljs-variable">outputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileOutputStream</span>(target)) &#123;<br><br>            copy(inputStream, outputStream);<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">validate</span><span class="hljs-params">(File source, File target)</span> &#123;<br>        <span class="hljs-keyword">if</span> (source == <span class="hljs-literal">null</span> || !source.isFile()) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;source must be a file&quot;</span>);<br>        &#125;<br><br>        <span class="hljs-keyword">if</span> (target == <span class="hljs-literal">null</span>) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;target can not be null&quot;</span>);<br>        &#125;<br><br>        <span class="hljs-keyword">if</span> (source.equals(target)) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;source and target can not be same&quot;</span>);<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">createParentDirs</span><span class="hljs-params">(File target)</span> &#123;<br>        <span class="hljs-type">File</span> <span class="hljs-variable">parent</span> <span class="hljs-operator">=</span> target.getParentFile();<br><br>        <span class="hljs-keyword">if</span> (parent != <span class="hljs-literal">null</span> &amp;&amp; !parent.exists() &amp;&amp; !parent.mkdirs()) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>(<span class="hljs-string">&quot;create parent dir failed: &quot;</span> + parent.getAbsolutePath());<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">copy</span><span class="hljs-params">(InputStream inputStream, OutputStream outputStream)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">byte</span>[] buffer = <span class="hljs-keyword">new</span> <span class="hljs-title class_">byte</span>[<span class="hljs-number">8192</span>];<br><br>        <span class="hljs-type">int</span> length;<br><br>        <span class="hljs-keyword">while</span> ((length = inputStream.read(buffer)) != -<span class="hljs-number">1</span>) &#123;<br>            outputStream.write(buffer, <span class="hljs-number">0</span>, length);<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这个版本表达很清晰：</p>
+<ul>
+<li>校验；</li>
+<li>创建父目录；</li>
+<li>打开资源；</li>
+<li>复制；</li>
+<li>自动关闭。</li>
+</ul>
+<h3 id="chapter-36：完整案例：使用-Guava-ByteStreams-简化复制"><a href="#chapter-36：完整案例：使用-Guava-ByteStreams-简化复制" class="headerlink" title="chapter 36：完整案例：使用 Guava ByteStreams 简化复制"></a>chapter 36：完整案例：使用 Guava ByteStreams 简化复制</h3><p>如果项目中使用 Guava，可以用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">ByteStreams.copy(inputStream, outputStream)<br></code></pre></td></tr></table></figure>
+
+<p>简化复制逻辑。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteStreams;<br><br><span class="hljs-keyword">import</span> java.io.File;<br><span class="hljs-keyword">import</span> java.io.FileInputStream;<br><span class="hljs-keyword">import</span> java.io.FileOutputStream;<br><span class="hljs-keyword">import</span> java.io.InputStream;<br><span class="hljs-keyword">import</span> java.io.OutputStream;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">GuavaByteStreamsCopyService</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">copy</span><span class="hljs-params">(File source, File target)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        validate(source, target);<br><br>        createParentDirs(target);<br><br>        <span class="hljs-keyword">try</span> (<span class="hljs-type">InputStream</span> <span class="hljs-variable">inputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(source);<br>             <span class="hljs-type">OutputStream</span> <span class="hljs-variable">outputStream</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileOutputStream</span>(target)) &#123;<br><br>            ByteStreams.copy(inputStream, outputStream);<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">validate</span><span class="hljs-params">(File source, File target)</span> &#123;<br>        <span class="hljs-keyword">if</span> (source == <span class="hljs-literal">null</span> || !source.isFile()) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;source must be a file&quot;</span>);<br>        &#125;<br><br>        <span class="hljs-keyword">if</span> (target == <span class="hljs-literal">null</span>) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;target can not be null&quot;</span>);<br>        &#125;<br><br>        <span class="hljs-keyword">if</span> (source.equals(target)) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;source and target can not be same&quot;</span>);<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">createParentDirs</span><span class="hljs-params">(File target)</span> &#123;<br>        <span class="hljs-type">File</span> <span class="hljs-variable">parent</span> <span class="hljs-operator">=</span> target.getParentFile();<br><br>        <span class="hljs-keyword">if</span> (parent != <span class="hljs-literal">null</span> &amp;&amp; !parent.exists() &amp;&amp; !parent.mkdirs()) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>(<span class="hljs-string">&quot;create parent dir failed: &quot;</span> + parent.getAbsolutePath());<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里我们没有使用 Closer。</p>
+<p>因为 Java 7+ try-with-resources 更推荐。</p>
+<p>但 Guava 的 <code>ByteStreams.copy</code> 仍然可以用于底层复制。</p>
+<h3 id="chapter-37：完整案例：使用-ByteSource-和-ByteSink"><a href="#chapter-37：完整案例：使用-ByteSource-和-ByteSink" class="headerlink" title="chapter 37：完整案例：使用 ByteSource 和 ByteSink"></a>chapter 37：完整案例：使用 ByteSource 和 ByteSink</h3><p>如果继续使用 Guava IO 抽象，可以写得更高层：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.ByteSink;<br><span class="hljs-keyword">import</span> com.google.common.io.ByteSource;<br><br><span class="hljs-keyword">import</span> java.io.IOException;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SourceSinkCopyService</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">long</span> <span class="hljs-title function_">copy</span><span class="hljs-params">(ByteSource source, ByteSink sink)</span> <span class="hljs-keyword">throws</span> IOException &#123;<br>        <span class="hljs-keyword">return</span> source.copyTo(sink);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.google.common.io.Files;<br><br><span class="hljs-keyword">import</span> java.io.File;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SourceSinkCopyDemo</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">File</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;data/source.txt&quot;</span>);<br>        <span class="hljs-type">File</span> <span class="hljs-variable">target</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">File</span>(<span class="hljs-string">&quot;data/target.txt&quot;</span>);<br><br>        <span class="hljs-type">SourceSinkCopyService</span> <span class="hljs-variable">service</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">SourceSinkCopyService</span>();<br><br>        <span class="hljs-type">long</span> <span class="hljs-variable">copied</span> <span class="hljs-operator">=</span> service.copy(<br>                Files.asByteSource(source),<br>                Files.asByteSink(target)<br>        );<br><br>        System.out.println(<span class="hljs-string">&quot;copied bytes = &quot;</span> + copied);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><code>ByteSource.copyTo(ByteSink)</code> 内部会管理打开和关闭流。</p>
+<p>这比直接操作流更抽象。</p>
+<h3 id="chapter-38：Closer、try-with-resources、Source-Sink-怎么选"><a href="#chapter-38：Closer、try-with-resources、Source-Sink-怎么选" class="headerlink" title="chapter 38：Closer、try-with-resources、Source&#x2F;Sink 怎么选"></a>chapter 38：Closer、try-with-resources、Source&#x2F;Sink 怎么选</h3><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>推荐</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Java 7+ 新代码管理资源</td>
+<td>try-with-resources</td>
+</tr>
+<tr>
+<td>Java 6 老项目</td>
+<td>Closer</td>
+</tr>
+<tr>
+<td>动态注册多个 Closeable</td>
+<td>Closer 可考虑</td>
+</tr>
+<tr>
+<td>已经有 InputStream &#x2F; OutputStream</td>
+<td>try-with-resources + ByteStreams</td>
+</tr>
+<tr>
+<td>希望抽象输入输出来源</td>
+<td>ByteSource &#x2F; ByteSink</td>
+</tr>
+<tr>
+<td>文本输入输出抽象</td>
+<td>CharSource &#x2F; CharSink</td>
+</tr>
+<tr>
+<td>简单文件复制</td>
+<td>JDK <code>Files.copy</code> 或 Guava <code>Files.copy</code></td>
+</tr>
+<tr>
+<td>Spring 管理资源</td>
+<td>不要手动关闭框架管理资源</td>
+</tr>
+</tbody></table>
+<p>一句话：</p>
+<blockquote>
+<p>能用 try-with-resources，就优先用 try-with-resources；需要更高层 IO 抽象，就用 Source&#x2F;Sink；维护老代码时理解 Closer。</p>
+</blockquote>
+<h3 id="chapter-39：资源关闭-API-速查"><a href="#chapter-39：资源关闭-API-速查" class="headerlink" title="chapter 39：资源关闭 API 速查"></a>chapter 39：资源关闭 API 速查</h3><h4 id="Closer-标准写法"><a href="#Closer-标准写法" class="headerlink" title="Closer 标准写法"></a>Closer 标准写法</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Closer</span> <span class="hljs-variable">closer</span> <span class="hljs-operator">=</span> Closer.create();<br><br><span class="hljs-keyword">try</span> &#123;<br>    <span class="hljs-type">InputStream</span> <span class="hljs-variable">in</span> <span class="hljs-operator">=</span> closer.register(<span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(file));<br><br>    <span class="hljs-comment">// use resource</span><br>&#125; <span class="hljs-keyword">catch</span> (Throwable e) &#123;<br>    <span class="hljs-keyword">throw</span> closer.rethrow(e);<br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    closer.close();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4 id="try-with-resources-标准写法"><a href="#try-with-resources-标准写法" class="headerlink" title="try-with-resources 标准写法"></a>try-with-resources 标准写法</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> (<span class="hljs-type">InputStream</span> <span class="hljs-variable">in</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(file)) &#123;<br>    <span class="hljs-comment">// use resource</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4 id="多资源-try-with-resources"><a href="#多资源-try-with-resources" class="headerlink" title="多资源 try-with-resources"></a>多资源 try-with-resources</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> (<span class="hljs-type">InputStream</span> <span class="hljs-variable">in</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileInputStream</span>(source);<br>     <span class="hljs-type">OutputStream</span> <span class="hljs-variable">out</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileOutputStream</span>(target)) &#123;<br>    <span class="hljs-comment">// copy</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h4 id="Guava-ByteStreams-copy"><a href="#Guava-ByteStreams-copy" class="headerlink" title="Guava ByteStreams copy"></a>Guava ByteStreams copy</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">ByteStreams.copy(inputStream, outputStream);<br></code></pre></td></tr></table></figure>
+
+<h4 id="Guava-Source-Sink-copy"><a href="#Guava-Source-Sink-copy" class="headerlink" title="Guava Source&#x2F;Sink copy"></a>Guava Source&#x2F;Sink copy</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">source.copyTo(sink);<br></code></pre></td></tr></table></figure>
+
+<h3 id="chapter-40：一句话总结"><a href="#chapter-40：一句话总结" class="headerlink" title="chapter 40：一句话总结"></a>chapter 40：一句话总结</h3><p>这一章的核心是：</p>
+<blockquote>
+<p>资源关闭的本质是确保资源在任何情况下都能被释放，同时不能让关闭异常覆盖真正的业务异常。</p>
+</blockquote>
+<p><code>Closer</code> 解决的是 Java 7 之前多资源关闭和异常传播困难的问题。</p>
+<p>它支持：</p>
+<ul>
+<li>多资源注册；</li>
+<li>反向关闭；</li>
+<li>异常传播；</li>
+<li>suppressed exception；</li>
+<li>避免关闭异常覆盖主异常。</li>
+</ul>
+<p>Java 7 之后，<code>try-with-resources</code> 成为更推荐的标准做法。</p>
+<p>它原生支持：</p>
+<ul>
+<li>自动关闭；</li>
+<li>多资源反向关闭；</li>
+<li>suppressed exception；</li>
+<li><code>AutoCloseable</code>。</li>
+</ul>
+<p>所以新项目中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">优先 try-with-resources。<br></code></pre></td></tr></table></figure>
+
+<p>老项目中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">看到 Closer 要能读懂，并知道它为什么这么写。<br></code></pre></td></tr></table></figure>
+
+<p>资源关闭不是小事。</p>
+<p>一个系统可能不是被复杂算法拖垮的，而是被一个没关闭的流、一个没释放的连接、一个没清理的临时文件慢慢拖垮的。</p>
+<p>好的资源管理代码应该做到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">谁打开，谁关闭。<br>资源必释放。<br>异常不丢失。<br>日志可追踪。<br>业务一致性单独设计。<br></code></pre></td></tr></table></figure>
+
+<p>这才是后端代码稳定性的基本功。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>Google Guava API: Closer.</li>
+<li>Google Guava API: ByteStreams.</li>
+<li>Google Guava API: ByteSource.</li>
+<li>Google Guava API: ByteSink.</li>
+<li>Java Documentation: try-with-resources.</li>
+<li>Java Documentation: AutoCloseable.</li>
+<li>Java Documentation: Closeable.</li>
+<li>Java Documentation: Throwable.addSuppressed.</li>
+<li>Java Documentation: Throwable.getSuppressed.</li>
+<li>Java Documentation: InputStream.</li>
+<li>Java Documentation: OutputStream.</li>
+<li>Joshua Bloch. <em>Effective Java</em>.</li>
+</ul>
+<h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p><code>富贵岂由人，时会高志须酬。</code></p>
+<p><code>能成功于千载者，必以近察远。</code></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Java/" class="category-chain-item">Java</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Spring-Boot/" class="print-no-link">#Spring Boot</a>
+      
+        <a href="/tags/Spring/" class="print-no-link">#Spring</a>
+      
+        <a href="/tags/Java/" class="print-no-link">#Java</a>
+      
+        <a href="/tags/Guava/" class="print-no-link">#Guava</a>
+      
+        <a href="/tags/IO/" class="print-no-link">#IO</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Guava：资源关闭与异常处理</div>
+      <div>https://allendericdalexander.github.io/2026/04/01/java/utils/guava/06guava-closer-resource-exception-blog/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年4月1日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/04/01/java/utils/guava/02guava-objects-preconditions-comparison-blog/" title="Guava：对象工具、断言与比较器">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Guava：对象工具、断言与比较器</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/04/01/java/utils/guava/07guava-eventbus-blog/" title="Guava：事件总线 EventBus">
+                        <span class="hidden-mobile">Guava：事件总线 EventBus</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
