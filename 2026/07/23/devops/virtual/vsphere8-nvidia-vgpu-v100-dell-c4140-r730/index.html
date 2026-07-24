@@ -1,0 +1,1843 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="本文记录在 VMware vSphere 8 环境中部署 NVIDIA vGPU 的完整过程，目标显卡为 NVIDIA Tesla V100，同时覆盖 SXM2 与 PCIe 两种形态，服务器主要为 Dell EMC PowerEdge C4140，并补充 Dell PowerEdge R730 的非官方实验性配置方案。 本文将从硬件兼容性、BIOS、ESXi 主机驱动、vCenter 图形模式、">
+<meta property="og:type" content="article">
+<meta property="og:title" content="VMware vSphere 8 配置 NVIDIA vGPU 教程：Tesla V100 SXM2&#x2F;PCIe 与 Dell C4140&#x2F;R730 实战">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/07/23/devops/virtual/vsphere8-nvidia-vgpu-v100-dell-c4140-r730/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="本文记录在 VMware vSphere 8 环境中部署 NVIDIA vGPU 的完整过程，目标显卡为 NVIDIA Tesla V100，同时覆盖 SXM2 与 PCIe 两种形态，服务器主要为 Dell EMC PowerEdge C4140，并补充 Dell PowerEdge R730 的非官方实验性配置方案。 本文将从硬件兼容性、BIOS、ESXi 主机驱动、vCenter 图形模式、">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-23T12:00:00.000Z">
+<meta property="article:modified_time" content="2026-07-23T12:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="CUDA">
+<meta property="article:tag" content="Dell PowerEdge C4140">
+<meta property="article:tag" content="Dell PowerEdge R730">
+<meta property="article:tag" content="NVIDIA vGPU">
+<meta property="article:tag" content="Tesla V100">
+<meta property="article:tag" content="VMware ESXi">
+<meta property="article:tag" content="VMware vSphere">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>VMware vSphere 8 配置 NVIDIA vGPU 教程：Tesla V100 SXM2/PCIe 与 Dell C4140/R730 实战 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="VMware vSphere 8 配置 NVIDIA vGPU 教程：Tesla V100 SXM2/PCIe 与 Dell C4140/R730 实战"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-07-23 20:00" pubdate>
+          2026年7月23日 晚上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          7.3k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          62 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">VMware vSphere 8 配置 NVIDIA vGPU 教程：Tesla V100 SXM2/PCIe 与 Dell C4140/R730 实战</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>本文记录在 <code>VMware vSphere 8</code> 环境中部署 <code>NVIDIA vGPU</code> 的完整过程，目标显卡为 <code>NVIDIA Tesla V100</code>，同时覆盖 <code>SXM2</code> 与 <code>PCIe</code> 两种形态，服务器主要为 <code>Dell EMC PowerEdge C4140</code>，并补充 <code>Dell PowerEdge R730</code> 的非官方实验性配置方案。</p>
+<p>本文将从硬件兼容性、BIOS、ESXi 主机驱动、vCenter 图形模式、vGPU Profile、Windows&#x2F;Linux 客户机驱动、NVIDIA 正版授权、CUDA 验证及常见故障排查等方面展开。</p>
+<span id="more"></span>
+
+<h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><p>NVIDIA vGPU 并不是简单地把一张显卡直接透传给虚拟机，而是在 ESXi 主机上安装 <code>NVIDIA Virtual GPU Manager</code>，由宿主机驱动把一张物理 GPU 划分为多个逻辑 vGPU，再通过不同的 vGPU Profile 分配给虚拟机。</p>
+<p>以一张 16GB 的 Tesla V100 为例，可以按照业务需要划分为：</p>
+<ul>
+<li>1 个 16GB vGPU；</li>
+<li>2 个 8GB vGPU；</li>
+<li>4 个 4GB vGPU；</li>
+<li>8 个 2GB vGPU；</li>
+<li>16 个 1GB vGPU。</li>
+</ul>
+<p>不过，vGPU 只是显存和调度资源的逻辑划分，并不是类似 A100&#x2F;H100 MIG 的硬件级隔离。Tesla V100 属于 Volta 架构，不支持 MIG，多台虚拟机之间仍然通过时间片共享 GPU 计算资源。</p>
+<p>本文参考了以下三篇中文资料，同时结合 NVIDIA、Dell 和 VMware&#x2F;Broadcom 的现行文档对版本和兼容性进行了修正：</p>
+<ul>
+<li>信诺智能：<code>http://www.xinuozhineng.com/ziliao/148.html</code></li>
+<li>GitHub：<code>https://github.com/fenghan0430/How-to-use-vGPU</code></li>
+<li>丁乾的博客：<code>https://www.dingqian.net/index.php/archives/9/</code></li>
+</ul>
+<blockquote>
+<p>旧教程中的界面、驱动版本和授权方式可能已经过时。本文不使用第三方破解授权服务器，仅介绍 NVIDIA Licensing Portal、CLS 或 DLS 正版授权流程。</p>
+</blockquote>
+<h2 id="一、先看结论：两台服务器应该怎么选"><a href="#一、先看结论：两台服务器应该怎么选" class="headerlink" title="一、先看结论：两台服务器应该怎么选"></a>一、先看结论：两台服务器应该怎么选</h2><h3 id="1-Dell-PowerEdge-C4140"><a href="#1-Dell-PowerEdge-C4140" class="headerlink" title="1. Dell PowerEdge C4140"></a>1. Dell PowerEdge C4140</h3><p>C4140 是本文推荐的服务器。</p>
+<p>Dell 官方规格显示，C4140 最多可以配置 4 张双宽、单卡最高 300W 的 GPU，并支持以下两种形态：</p>
+<ul>
+<li>Tesla V100 PCIe 16GB&#x2F;32GB；</li>
+<li>Tesla V100 SXM2 16GB&#x2F;32GB，配合 NVLink 背板。</li>
+</ul>
+<p>C4140 本身就是面向 GPU 计算设计的 1U 服务器，供电、散热、PCIe&#x2F;MMIO 地址空间和 GPU 拓扑均比通用型 R730 更适合部署 vGPU。</p>
+<p>目前 Dell 的 vSphere 8 认证服务器列表中包含 C4140，并且 Dell 曾发布 C4140 对应的 ESXi 8.0 Custom ISO 和 Dell Add-on。因此：</p>
+<blockquote>
+<p><strong>C4140 + V100 SXM2&#x2F;PCIe + ESXi 8 是本文的标准部署路径。</strong></p>
+</blockquote>
+<h3 id="2-Dell-PowerEdge-R730"><a href="#2-Dell-PowerEdge-R730" class="headerlink" title="2. Dell PowerEdge R730"></a>2. Dell PowerEdge R730</h3><p>R730 可以安装双宽 PCIe GPU，但存在两个必须提前接受的事实：</p>
+<ol>
+<li>R730 不能安装 SXM2 模块；</li>
+<li>R730 官方只支持到 ESXi 7.0，ESXi 8.0 不属于 Dell 认证配置；</li>
+<li>V100 PCIe 在部分 R730 上存在成功使用记录，但不属于稳定、统一的官方认证组合；</li>
+<li>R730 的 BIOS、PERC、网卡和 CPU 代际均较老，升级 ESXi 8 后可能出现驱动、MMIO、设备 HCL 或升级基线问题。</li>
+</ol>
+<p>因此：</p>
+<blockquote>
+<p><strong>R730 + V100 PCIe + ESXi 8 只能作为 Homelab 或测试环境，不建议用于需要厂商支持的生产环境。</strong></p>
+</blockquote>
+<p>R730 如果追求稳定，建议采用以下方案之一：</p>
+<ul>
+<li>保持 ESXi 7.0，使用该平台经过验证的 NVIDIA vGPU 版本；</li>
+<li>更换为 C4140、R740&#x2F;R740xd、R740xa 或更新一代 GPU 服务器；</li>
+<li>将 V100 PCIe 直接用于 Linux 裸机计算，而不是强行叠加 ESXi 8 与 vGPU。</li>
+</ul>
+<h3 id="3-SXM2-和-PCIe-不能混为一谈"><a href="#3-SXM2-和-PCIe-不能混为一谈" class="headerlink" title="3. SXM2 和 PCIe 不能混为一谈"></a>3. SXM2 和 PCIe 不能混为一谈</h3><table>
+<thead>
+<tr>
+<th>项目</th>
+<th>V100 SXM2</th>
+<th>V100 PCIe</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>物理接口</td>
+<td>SXM2 模块，安装在专用 GPU 底板</td>
+<td>标准 PCIe x16 双宽卡</td>
+</tr>
+<tr>
+<td>适用服务器</td>
+<td>C4140 对应 SXM2&#x2F;NVLink 配置</td>
+<td>C4140 PCIe 配置、部分通用 GPU 服务器</td>
+</tr>
+<tr>
+<td>R730 支持</td>
+<td>不支持</td>
+<td>可尝试，但不属于本文推荐的官方路径</td>
+</tr>
+<tr>
+<td>NVLink</td>
+<td>依赖服务器底板拓扑</td>
+<td>部分 PCIe 卡可桥接，但服务器必须提供空间与拓扑支持</td>
+</tr>
+<tr>
+<td>vGPU Profile 前缀</td>
+<td><code>V100X-*</code> 或 32GB 型号的 <code>V100DX-*</code></td>
+<td><code>V100-*</code> 或 32GB 型号的 <code>V100D-*</code></td>
+</tr>
+<tr>
+<td>更换方式</td>
+<td>不能直接插进 PCIe 槽</td>
+<td>不能安装到 SXM2 底板</td>
+</tr>
+</tbody></table>
+<p>C4140 的 PCIe 版和 SXM2 版不是“换一张卡”这么简单，两者涉及 GPU 底板、线缆、散热器、供电和系统配置差异。除非拥有完整的 Dell 原厂转换部件和服务文档，否则不建议自行转换。</p>
+<h2 id="二、vGPU、直通和-vSGA-的区别"><a href="#二、vGPU、直通和-vSGA-的区别" class="headerlink" title="二、vGPU、直通和 vSGA 的区别"></a>二、vGPU、直通和 vSGA 的区别</h2><p>在 vSphere 中，GPU 主要有三种使用方式。</p>
+<h3 id="1-NVIDIA-vGPU"><a href="#1-NVIDIA-vGPU" class="headerlink" title="1. NVIDIA vGPU"></a>1. NVIDIA vGPU</h3><p>一张物理 GPU 可以创建多个 vGPU Profile，由多台虚拟机共享。</p>
+<p>适合：</p>
+<ul>
+<li>多用户 CUDA 开发环境；</li>
+<li>轻量推理服务；</li>
+<li>虚拟工作站；</li>
+<li>远程桌面和图形应用；</li>
+<li>GPU 资源池化。</li>
+</ul>
+<h3 id="2-PCI-Passthrough-VMDirectPath-I-O"><a href="#2-PCI-Passthrough-VMDirectPath-I-O" class="headerlink" title="2. PCI Passthrough &#x2F; VMDirectPath I&#x2F;O"></a>2. PCI Passthrough &#x2F; VMDirectPath I&#x2F;O</h3><p>整张物理 GPU 独占分配给一台虚拟机。</p>
+<p>优点是性能路径更直接、配置相对简单，缺点是无法切分，一张卡只能给一台虚拟机使用。</p>
+<h3 id="3-vSGA"><a href="#3-vSGA" class="headerlink" title="3. vSGA"></a>3. vSGA</h3><p>由 ESXi 图形栈共享 GPU，主要用于传统图形加速，并不是本文目标。</p>
+<p>部署 NVIDIA vGPU 时，需要把主机图形模式切换为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Shared Direct / 直接共享<br></code></pre></td></tr></table></figure>
+
+<p>而不是默认的 Shared&#x2F;vSGA 模式。</p>
+<pre><code class=" mermaid">flowchart LR
+    A[物理 Tesla V100] --&gt; B[NVIDIA vGPU Manager]
+    B --&gt; C1[V100X-16Q&lt;br/&gt;16GB]
+    B --&gt; C2[V100X-8Q&lt;br/&gt;8GB]
+    B --&gt; C3[V100X-4Q&lt;br/&gt;4GB]
+    C1 --&gt; D1[虚拟机 1]
+    C2 --&gt; D2[虚拟机 2]
+    C2 --&gt; D3[虚拟机 3]
+    C3 --&gt; D4[虚拟机 4]
+</code></pre>
+
+<h2 id="三、版本选择"><a href="#三、版本选择" class="headerlink" title="三、版本选择"></a>三、版本选择</h2><h3 id="1-推荐版本"><a href="#1-推荐版本" class="headerlink" title="1. 推荐版本"></a>1. 推荐版本</h3><p>以 2026 年 7 月为时间点，Tesla V100 的最后一个 NVIDIA vGPU 大版本分支为 <code>19.x</code>。</p>
+<p>建议使用：</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>推荐版本</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ESXi</td>
+<td>ESXi 8.0 Update 3 P06 或更新的 8.0 U3 补丁</td>
+</tr>
+<tr>
+<td>vCenter Server</td>
+<td>与 ESXi 8.0 U3 匹配的 vCenter 8.0 U3</td>
+</tr>
+<tr>
+<td>NVIDIA vGPU</td>
+<td>19.5 或同一 19.x 分支中的最新维护版本</td>
+</tr>
+<tr>
+<td>Windows 客户机</td>
+<td>Windows Server 2022 64 位</td>
+</tr>
+<tr>
+<td>Linux 客户机</td>
+<td>Ubuntu Server 22.04 LTS 或 24.04 LTS 64 位</td>
+</tr>
+</tbody></table>
+<p>NVIDIA vGPU 19.5 对应的示例驱动版本如下：</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>19.5 示例版本</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ESXi Virtual GPU Manager</td>
+<td>580.159.01</td>
+</tr>
+<tr>
+<td>Windows Guest Driver</td>
+<td>582.53</td>
+</tr>
+<tr>
+<td>Linux Guest Driver</td>
+<td>580.159.03</td>
+</tr>
+</tbody></table>
+<p>驱动版本会随维护版本变化，实际安装时以 NVIDIA 下载包内的 <code>Release Notes</code> 为准，不要只凭文件名猜版本。</p>
+<h3 id="2-为什么不建议照抄旧教程中的-15-x-16-x"><a href="#2-为什么不建议照抄旧教程中的-15-x-16-x" class="headerlink" title="2. 为什么不建议照抄旧教程中的 15.x&#x2F;16.x"></a>2. 为什么不建议照抄旧教程中的 15.x&#x2F;16.x</h3><p>旧教程中常见以下文件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">NVD-VGPU-800_525.85.07-1OEM...<br>nvd-gpu-mgmt-daemon_525.85.07...<br></code></pre></td></tr></table></figure>
+
+<p>这些属于较早的 vGPU 15.x 驱动。它们曾经支持 ESXi 8，但不代表适配当前 ESXi 8.0 U3 补丁。</p>
+<p>正确做法是先确定：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">ESXi 具体 Build<br>    ↓<br>选择支持该 Build 的 vGPU 分支<br>    ↓<br>下载该分支的 ESXi Host Driver 和 Guest Driver<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-主机驱动和客户机驱动必须兼容"><a href="#3-主机驱动和客户机驱动必须兼容" class="headerlink" title="3. 主机驱动和客户机驱动必须兼容"></a>3. 主机驱动和客户机驱动必须兼容</h3><p>vGPU 的宿主机驱动叫：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">NVIDIA Virtual GPU Manager<br></code></pre></td></tr></table></figure>
+
+<p>虚拟机中的驱动叫：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">NVIDIA vGPU Guest Driver<br></code></pre></td></tr></table></figure>
+
+<p>二者不兼容时，虚拟机可能只能以标准 VGA 模式启动，并在日志中出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Incompatible Guest/Host drivers<br>Guest VGX version is older than the minimum version supported by the Host<br></code></pre></td></tr></table></figure>
+
+<p>最佳实践是：</p>
+<ul>
+<li>Host 和 Guest 使用同一个 vGPU 大版本；</li>
+<li>首次部署尽量使用同一个小版本；</li>
+<li>不要在客户机中安装普通 GeForce 驱动或任意 Data Center Driver 替代 vGPU Guest Driver。</li>
+</ul>
+<h2 id="四、部署前的硬件检查"><a href="#四、部署前的硬件检查" class="headerlink" title="四、部署前的硬件检查"></a>四、部署前的硬件检查</h2><h3 id="1-C4140-检查项"><a href="#1-C4140-检查项" class="headerlink" title="1. C4140 检查项"></a>1. C4140 检查项</h3><ul>
+<li>确认服务器是 PCIe GPU 配置还是 SXM2&#x2F;NVLink 配置；</li>
+<li>确认 4 张 GPU 型号、显存容量一致；</li>
+<li>确认原厂散热器、风扇、导风罩和 GPU 底板完整；</li>
+<li>更新 iDRAC、Lifecycle Controller、BIOS、CPLD、PERC、NIC 固件；</li>
+<li>检查电源是否为原厂 GPU 配置；</li>
+<li>通过 iDRAC Hardware Inventory 确认 GPU 被识别；</li>
+<li>检查 SEL&#x2F;Lifecycle Log 中是否有 GPU、PCIe、供电或温度告警。</li>
+</ul>
+<h3 id="2-R730-检查项"><a href="#2-R730-检查项" class="headerlink" title="2. R730 检查项"></a>2. R730 检查项</h3><p>R730 安装双宽 GPU 至少要满足：</p>
+<ul>
+<li>两颗 CPU 均已安装；</li>
+<li>CPU TDP 不高于 Dell GPU 配置要求，官方指南通常要求不超过 135W；</li>
+<li>安装 GPU Enablement Kit；</li>
+<li>使用低矮散热器和 GPU 专用导风罩；</li>
+<li>双 1100W 电源；</li>
+<li>双宽 GPU 最多两张；</li>
+<li>第二张双宽 GPU 需要 GPU Optional Riser 3；</li>
+<li>GPU 必须安装在提供完整 x16 通道的插槽；</li>
+<li>使用正确的 Dell GPU 电源线，不能照着普通 PC 的 8Pin 线序硬接；</li>
+<li>机房进风温度应控制在 Dell GPU 配置要求以内。</li>
+</ul>
+<blockquote>
+<p>Dell 服务器 GPU 电源线与普通 ATX 显卡线不能只看接口形状。接口能插进去，不代表线序相同，接错可能直接损坏 GPU 或主板。</p>
+</blockquote>
+<h3 id="3-在-iDRAC-中检查"><a href="#3-在-iDRAC-中检查" class="headerlink" title="3. 在 iDRAC 中检查"></a>3. 在 iDRAC 中检查</h3><p>进入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">iDRAC → System → Hardware Inventory → PCI Devices<br></code></pre></td></tr></table></figure>
+
+<p>应当看到 NVIDIA 设备。</p>
+<p>也可以在 Lifecycle Log 中检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">GPU power fault<br>PCIe training error<br>Unsupported PCIe device<br>Fatal bus error<br></code></pre></td></tr></table></figure>
+
+<p>如果 iDRAC 和 BIOS 阶段都识别不到 GPU，继续折腾 ESXi 驱动没有意义。此时应先处理硬件、供电、插槽、底板或固件问题。</p>
+<h2 id="五、配置服务器-BIOS"><a href="#五、配置服务器-BIOS" class="headerlink" title="五、配置服务器 BIOS"></a>五、配置服务器 BIOS</h2><p>重启服务器，按 <code>F2</code> 进入 System Setup。</p>
+<h3 id="1-推荐-BIOS-设置"><a href="#1-推荐-BIOS-设置" class="headerlink" title="1. 推荐 BIOS 设置"></a>1. 推荐 BIOS 设置</h3><table>
+<thead>
+<tr>
+<th>路径&#x2F;选项</th>
+<th>推荐值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Boot Mode</td>
+<td>UEFI</td>
+<td>ESXi 8 和大 MMIO 设备推荐使用 UEFI</td>
+</tr>
+<tr>
+<td>System Profile</td>
+<td>Performance</td>
+<td>避免节能策略影响 GPU&#x2F;CPU 延迟</td>
+</tr>
+<tr>
+<td>Intel Virtualization Technology</td>
+<td>Enabled</td>
+<td>开启 VT-x</td>
+</tr>
+<tr>
+<td>VT for Direct I&#x2F;O &#x2F; VT-d</td>
+<td>Enabled</td>
+<td>开启 IOMMU</td>
+</tr>
+<tr>
+<td>SR-IOV Global Enable</td>
+<td>Enabled</td>
+<td>NVIDIA vGPU 官方部署建议开启</td>
+</tr>
+<tr>
+<td>Memory Mapped I&#x2F;O above 4 GB</td>
+<td>Enabled</td>
+<td>V100 等大 BAR 设备必须重点检查</td>
+</tr>
+<tr>
+<td>Hyper-Threading</td>
+<td>Enabled</td>
+<td>NVIDIA 推荐配置</td>
+</tr>
+<tr>
+<td>CPU Power Management</td>
+<td>Maximum Performance</td>
+<td>计算节点建议</td>
+</tr>
+<tr>
+<td>Slot Disablement</td>
+<td>Enabled&#x2F;Auto</td>
+<td>确保 GPU 所在插槽没有被禁用</td>
+</tr>
+</tbody></table>
+<p>C4140 中还可能看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Memory Mapped I/O Base<br></code></pre></td></tr></table></figure>
+
+<p>通常保持 Dell 默认值。只有在明确遇到 4 GPU MMIO 地址分配问题，并且 Dell 文档或支持工程师要求时才修改。</p>
+<h3 id="2-不要随意关闭-Embedded-Video-Controller"><a href="#2-不要随意关闭-Embedded-Video-Controller" class="headerlink" title="2. 不要随意关闭 Embedded Video Controller"></a>2. 不要随意关闭 Embedded Video Controller</h3><p>服务器板载 Matrox&#x2F;集成显卡用于 iDRAC 虚拟控制台和本地管理。NVIDIA Tesla V100 是计算卡，不承担服务器启动画面输出。</p>
+<p>因此通常保留：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Embedded Video Controller = Enabled<br></code></pre></td></tr></table></figure>
+
+<p>关闭它不能让 Tesla V100 变成启动显示卡，反而可能导致远程管理体验变差。</p>
+<h3 id="3-保存并冷重启"><a href="#3-保存并冷重启" class="headerlink" title="3. 保存并冷重启"></a>3. 保存并冷重启</h3><p>修改 MMIO、SR-IOV 或 GPU 硬件后，建议执行一次完整断电重启：</p>
+<ol>
+<li>正常关闭服务器；</li>
+<li>断开两路电源；</li>
+<li>等待约 30 秒；</li>
+<li>重新接通电源并启动。</li>
+</ol>
+<p>这样可以清除部分 PCIe 枚举和 BMC 缓存状态。</p>
+<h2 id="六、安装-ESXi-8-与接入-vCenter"><a href="#六、安装-ESXi-8-与接入-vCenter" class="headerlink" title="六、安装 ESXi 8 与接入 vCenter"></a>六、安装 ESXi 8 与接入 vCenter</h2><p>本文假设已经完成：</p>
+<ul>
+<li>ESXi 8 安装；</li>
+<li>管理网络、DNS、NTP 配置；</li>
+<li>vCenter Server 8 部署；</li>
+<li>ESXi 主机加入 vCenter；</li>
+<li>创建共享或本地 datastore。</li>
+</ul>
+<h3 id="1-C4140"><a href="#1-C4140" class="headerlink" title="1. C4140"></a>1. C4140</h3><p>建议使用：</p>
+<ul>
+<li>Dell Customized ESXi 8 ISO；</li>
+<li>或 Broadcom ESXi Base Image 加 Dell Add-on。</li>
+</ul>
+<p>安装后检查：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs shell">vmware -vl<br>esxcli software profile get<br>esxcli hardware pci list | less<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-R730"><a href="#2-R730" class="headerlink" title="2. R730"></a>2. R730</h3><p>R730 没有 Dell 官方 ESXi 8 Custom ISO，安装属于非认证路线。</p>
+<p>安装前至少检查：</p>
+<ul>
+<li>PERC 型号是否仍被 ESXi 8 支持；</li>
+<li>网卡驱动是否存在；</li>
+<li>CPU 是否被当前 Build 接受；</li>
+<li>启动盘控制器是否在 HCL 中；</li>
+<li>是否存在被 ESXi 8 删除的旧版 VIB。</li>
+</ul>
+<p>对于 Homelab，可以安装 Broadcom 原版 ESXi 8 后再补充社区或厂商驱动，但必须接受升级后突然失效的风险。</p>
+<h2 id="七、下载-NVIDIA-vGPU-软件包"><a href="#七、下载-NVIDIA-vGPU-软件包" class="headerlink" title="七、下载 NVIDIA vGPU 软件包"></a>七、下载 NVIDIA vGPU 软件包</h2><p>登录 NVIDIA Enterprise Licensing Portal 或 NVIDIA Licensing Portal，下载与 ESXi 8 对应的 vGPU 软件包。</p>
+<p>解压后通常可以看到类似目录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Guest_Drivers/<br>Host_Drivers/<br>Documentation/<br>Signing_Keys/<br></code></pre></td></tr></table></figure>
+
+<p><code>Host_Drivers</code> 中常见：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">NVD-VGPU-800_*.zip<br>nvd-gpu-mgmt-daemon_*.zip<br></code></pre></td></tr></table></figure>
+
+<p><code>Guest_Drivers</code> 中包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Windows *.exe<br>Linux *.run / *.deb / *.rpm<br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<ol>
+<li><code>NVD-VGPU</code> 的 ZIP 通常直接交给 <code>esxcli</code>，不要再解压；</li>
+<li>部分版本的 management daemon 外面还有一层 <code>-package.zip</code>，真正安装的是内层、不带 <code>package</code> 的 ZIP；</li>
+<li>Host Driver 和 Guest Driver 必须来自兼容的软件包；</li>
+<li>不要从不明网盘下载被修改过的 VIB、离线包或驱动。</li>
+</ol>
+<h2 id="八、在-ESXi-8-安装-NVIDIA-Virtual-GPU-Manager"><a href="#八、在-ESXi-8-安装-NVIDIA-Virtual-GPU-Manager" class="headerlink" title="八、在 ESXi 8 安装 NVIDIA Virtual GPU Manager"></a>八、在 ESXi 8 安装 NVIDIA Virtual GPU Manager</h2><h3 id="1-将主机进入维护模式"><a href="#1-将主机进入维护模式" class="headerlink" title="1. 将主机进入维护模式"></a>1. 将主机进入维护模式</h3><p>在 vCenter 中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">主机 → 操作 → 进入维护模式<br></code></pre></td></tr></table></figure>
+
+<p>也可以使用 SSH：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">esxcli system maintenanceMode set --enable true<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-开启-SSH"><a href="#2-开启-SSH" class="headerlink" title="2. 开启 SSH"></a>2. 开启 SSH</h3><p>进入 ESXi Host Client：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">主机 → 管理 → 服务 → TSM-SSH → 启动<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-安装前检查-GPU"><a href="#3-安装前检查-GPU" class="headerlink" title="3. 安装前检查 GPU"></a>3. 安装前检查 GPU</h3><p>通过 SSH 登录 ESXi：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">lspci | grep -i nvidia<br></code></pre></td></tr></table></figure>
+
+<p>也可以使用：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">esxcli hardware pci list | grep -B 5 -A 15 -i nvidia<br></code></pre></td></tr></table></figure>
+
+<p>正常情况下应能看到 NVIDIA Corporation 和 Tesla V100 相关设备。</p>
+<p>如果 <code>lspci</code> 没有任何输出，应先返回检查：</p>
+<ul>
+<li>BIOS 的 SR-IOV；</li>
+<li>VT-d；</li>
+<li>Above 4G MMIO；</li>
+<li>GPU 供电；</li>
+<li>C4140 GPU 底板；</li>
+<li>R730 GPU Riser；</li>
+<li>PCIe 插槽是否被禁用。</li>
+</ul>
+<h3 id="4-上传驱动包"><a href="#4-上传驱动包" class="headerlink" title="4. 上传驱动包"></a>4. 上传驱动包</h3><p>建议上传到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/tmp<br></code></pre></td></tr></table></figure>
+
+<p>或者上传到持久化 datastore：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/vmfs/volumes/datastore1/nvidia-vgpu/<br></code></pre></td></tr></table></figure>
+
+<p>示例：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">ls -lh /tmp/*NVD* /tmp/*gpu-mgmt* 2&gt;/dev/null<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-使用-component-apply-安装"><a href="#5-使用-component-apply-安装" class="headerlink" title="5. 使用 component apply 安装"></a>5. 使用 component apply 安装</h3><p>ESXi 8 推荐使用：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">esxcli software component apply \<br>  -d /tmp/NVD-VGPU-800_&lt;实际版本&gt;.zip<br></code></pre></td></tr></table></figure>
+
+<p>如果软件包中包含 GPU Management Daemon，再安装：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">esxcli software component apply \<br>  -d /tmp/nvd-gpu-mgmt-daemon_&lt;实际版本&gt;.zip<br></code></pre></td></tr></table></figure>
+
+<p>不要直接复制本文中的占位文件名，必须替换成实际文件名和绝对路径。</p>
+<p>旧教程中也常见：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">esxcli software vib install -d /tmp/NVD-VGPU-800_&lt;实际版本&gt;.zip<br>esxcli software vib install -d /tmp/nvd-gpu-mgmt-daemon_&lt;实际版本&gt;.zip<br></code></pre></td></tr></table></figure>
+
+<p>在 ESXi 8 中优先使用 <code>software component apply</code>。只有在对应 NVIDIA Release Notes 明确要求时才使用其他安装方式。</p>
+<h3 id="6-检查安装结果"><a href="#6-检查安装结果" class="headerlink" title="6. 检查安装结果"></a>6. 检查安装结果</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">esxcli software component list | grep -i -E &#x27;nvidia|nvd&#x27;<br>esxcli software vib list | grep -i -E &#x27;nvidia|nvd&#x27;<br></code></pre></td></tr></table></figure>
+
+<p>检查 GPU 管理服务：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">/etc/init.d/nvdGpuMgmtDaemon status<br></code></pre></td></tr></table></figure>
+
+<p>不同版本的服务名可能不同，应以驱动包文档和 <code>ls /etc/init.d/ | grep -i nvd</code> 的结果为准。</p>
+<h3 id="7-重启-ESXi"><a href="#7-重启-ESXi" class="headerlink" title="7. 重启 ESXi"></a>7. 重启 ESXi</h3><p>即使安装器提示不需要重启，也建议首次安装后重启：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">reboot<br></code></pre></td></tr></table></figure>
+
+<p>重启后重新 SSH 登录，执行：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi<br></code></pre></td></tr></table></figure>
+
+<p>正常情况下可以看到：</p>
+<ul>
+<li>GPU 型号；</li>
+<li>显存容量；</li>
+<li>驱动版本；</li>
+<li>温度和功耗；</li>
+<li>ECC 状态；</li>
+<li>GPU UUID；</li>
+<li>当前进程。</li>
+</ul>
+<p>再执行：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi -q<br></code></pre></td></tr></table></figure>
+
+<h3 id="8-ECC-是否需要关闭"><a href="#8-ECC-是否需要关闭" class="headerlink" title="8. ECC 是否需要关闭"></a>8. ECC 是否需要关闭</h3><p>很多旧教程要求执行：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi -e 0<br></code></pre></td></tr></table></figure>
+
+<p>但不应把“关闭 ECC”当作所有 V100 vGPU 环境的固定步骤。</p>
+<p>正确策略是：</p>
+<ol>
+<li>先保留当前 ECC 状态；</li>
+<li>查看该 vGPU 分支对 V100 和目标 Profile 的要求；</li>
+<li>只有在 Profile 无法创建、Release Notes 明确要求，或业务确定不需要 ECC 时才关闭；</li>
+<li>修改 ECC 后必须重启主机。</li>
+</ol>
+<p>查看 ECC：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi -q | grep -A 12 -i ecc<br></code></pre></td></tr></table></figure>
+
+<p>关闭 ECC：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi -e 0<br>reboot<br></code></pre></td></tr></table></figure>
+
+<p>重新开启 ECC：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi -e 1<br>reboot<br></code></pre></td></tr></table></figure>
+
+<p>对于科研计算、训练任务和长期运行的推理任务，ECC 有实际价值，不建议为了“教程步骤整齐”而无脑关闭。</p>
+<h2 id="九、在-vCenter-中切换为直接共享模式"><a href="#九、在-vCenter-中切换为直接共享模式" class="headerlink" title="九、在 vCenter 中切换为直接共享模式"></a>九、在 vCenter 中切换为直接共享模式</h2><p>安装驱动并重启后，登录 vCenter。</p>
+<p>进入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">主机<br>  → 配置<br>  → 硬件<br>  → 图形<br>  → 主机图形<br>  → 编辑<br></code></pre></td></tr></table></figure>
+
+<p>将默认图形类型设置为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Shared Direct / 直接共享<br></code></pre></td></tr></table></figure>
+
+<p>不要选择：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Shared / 共享（vSGA）<br></code></pre></td></tr></table></figure>
+
+<h3 id="1-GPU-分配策略"><a href="#1-GPU-分配策略" class="headerlink" title="1. GPU 分配策略"></a>1. GPU 分配策略</h3><p>多 GPU 主机通常有两类策略。</p>
+<h4 id="Spread-最佳性能"><a href="#Spread-最佳性能" class="headerlink" title="Spread &#x2F; 最佳性能"></a>Spread &#x2F; 最佳性能</h4><p>优先把虚拟机分散到不同物理 GPU，降低同一 GPU 上的资源竞争。</p>
+<p>适合：</p>
+<ul>
+<li>AI 推理；</li>
+<li>CUDA 开发环境；</li>
+<li>希望单虚拟机获得更稳定性能。</li>
+</ul>
+<h4 id="Consolidation-GPU-整合"><a href="#Consolidation-GPU-整合" class="headerlink" title="Consolidation &#x2F; GPU 整合"></a>Consolidation &#x2F; GPU 整合</h4><p>优先填满一张 GPU，再使用下一张 GPU。</p>
+<p>适合：</p>
+<ul>
+<li>希望保留完整空闲 GPU；</li>
+<li>后续可能给大显存虚拟机分配整张卡；</li>
+<li>混合不同工作负载。</li>
+</ul>
+<h3 id="2-编辑单张图形设备"><a href="#2-编辑单张图形设备" class="headerlink" title="2. 编辑单张图形设备"></a>2. 编辑单张图形设备</h3><p>进入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">主机 → 配置 → 图形 → 图形设备<br></code></pre></td></tr></table></figure>
+
+<p>逐张检查 GPU，确认其工作模式允许 vGPU&#x2F;Shared Direct。</p>
+<p>部分版本需要勾选：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Restart X Server / 重启 X 服务器<br></code></pre></td></tr></table></figure>
+
+<p>完成后建议再重启一次 ESXi 主机。</p>
+<h3 id="3-验证图形模式"><a href="#3-验证图形模式" class="headerlink" title="3. 验证图形模式"></a>3. 验证图形模式</h3><p>重新执行：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi<br></code></pre></td></tr></table></figure>
+
+<p>在旧版默认 vSGA 模式中，进程列表可能看到 <code>Xorg</code> 占用 GPU。切换 Shared Direct 后，不应再由 ESXi Xorg 以 vSGA 方式占用显卡。</p>
+<h2 id="十、选择-Tesla-V100-的-vGPU-Profile"><a href="#十、选择-Tesla-V100-的-vGPU-Profile" class="headerlink" title="十、选择 Tesla V100 的 vGPU Profile"></a>十、选择 Tesla V100 的 vGPU Profile</h2><h3 id="1-V100-SXM2-16GB"><a href="#1-V100-SXM2-16GB" class="headerlink" title="1. V100 SXM2 16GB"></a>1. V100 SXM2 16GB</h3><p>常见 Q 系列 Profile：</p>
+<table>
+<thead>
+<tr>
+<th>Profile</th>
+<th align="right">显存</th>
+<th align="right">单卡最大 vGPU 数量</th>
+<th>建议用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>V100X-16Q</td>
+<td align="right">16GB</td>
+<td align="right">1</td>
+<td>模型训练、重推理、独占计算</td>
+</tr>
+<tr>
+<td>V100X-8Q</td>
+<td align="right">8GB</td>
+<td align="right">2</td>
+<td>中型推理、CUDA 开发</td>
+</tr>
+<tr>
+<td>V100X-4Q</td>
+<td align="right">4GB</td>
+<td align="right">4</td>
+<td>轻量推理、开发测试</td>
+</tr>
+<tr>
+<td>V100X-2Q</td>
+<td align="right">2GB</td>
+<td align="right">8</td>
+<td>图形桌面、轻量任务</td>
+</tr>
+<tr>
+<td>V100X-1Q</td>
+<td align="right">1GB</td>
+<td align="right">16</td>
+<td>轻量虚拟桌面，不适合现代大模型</td>
+</tr>
+</tbody></table>
+<h3 id="2-V100-PCIe-16GB"><a href="#2-V100-PCIe-16GB" class="headerlink" title="2. V100 PCIe 16GB"></a>2. V100 PCIe 16GB</h3><table>
+<thead>
+<tr>
+<th>Profile</th>
+<th align="right">显存</th>
+<th align="right">单卡最大 vGPU 数量</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>V100-16Q</td>
+<td align="right">16GB</td>
+<td align="right">1</td>
+</tr>
+<tr>
+<td>V100-8Q</td>
+<td align="right">8GB</td>
+<td align="right">2</td>
+</tr>
+<tr>
+<td>V100-4Q</td>
+<td align="right">4GB</td>
+<td align="right">4</td>
+</tr>
+<tr>
+<td>V100-2Q</td>
+<td align="right">2GB</td>
+<td align="right">8</td>
+</tr>
+<tr>
+<td>V100-1Q</td>
+<td align="right">1GB</td>
+<td align="right">16</td>
+</tr>
+</tbody></table>
+<h3 id="3-V100-SXM2-32GB"><a href="#3-V100-SXM2-32GB" class="headerlink" title="3. V100 SXM2 32GB"></a>3. V100 SXM2 32GB</h3><p>常见前缀为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">V100DX-32Q<br>V100DX-16Q<br>V100DX-8Q<br>V100DX-4Q<br>V100DX-2Q<br>V100DX-1Q<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-V100-PCIe-32GB"><a href="#4-V100-PCIe-32GB" class="headerlink" title="4. V100 PCIe 32GB"></a>4. V100 PCIe 32GB</h3><p>常见前缀为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">V100D-32Q<br>V100D-16Q<br>V100D-8Q<br>V100D-4Q<br>V100D-2Q<br>V100D-1Q<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-AI-CUDA-工作负载怎么选"><a href="#5-AI-CUDA-工作负载怎么选" class="headerlink" title="5. AI&#x2F;CUDA 工作负载怎么选"></a>5. AI&#x2F;CUDA 工作负载怎么选</h3><p>对于当前 NVIDIA vGPU 19.x 和 VMware vSphere，建议 AI&#x2F;CUDA 场景使用 Q 系列 Profile，并配置 NVIDIA vWS 许可。</p>
+<p>推荐：</p>
+<table>
+<thead>
+<tr>
+<th>工作负载</th>
+<th>建议 Profile</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>单卡训练、PyTorch、TensorFlow</td>
+<td>16Q&#x2F;32Q，尽量整卡显存</td>
+</tr>
+<tr>
+<td>中型推理</td>
+<td>8Q 或 16Q</td>
+</tr>
+<tr>
+<td>轻量推理、Jupyter 开发</td>
+<td>4Q 或 8Q</td>
+</tr>
+<tr>
+<td>虚拟桌面</td>
+<td>1Q&#x2F;2Q&#x2F;4Q，按分辨率和应用评估</td>
+</tr>
+</tbody></table>
+<p>V100 没有 MIG。即使显存被分成多个 Profile，多个虚拟机仍然可能争用 SM、显存带宽和编码器资源。</p>
+<h3 id="6-同一物理-GPU-上的-Profile-混用"><a href="#6-同一物理-GPU-上的-Profile-混用" class="headerlink" title="6. 同一物理 GPU 上的 Profile 混用"></a>6. 同一物理 GPU 上的 Profile 混用</h3><p>不同 ESXi&#x2F;vGPU 版本对 mixed-size Profile 的支持不同。</p>
+<p>首次部署建议遵循最保守规则：</p>
+<blockquote>
+<p>同一张物理 GPU 上使用相同显存大小、相同系列的 Profile。</p>
+</blockquote>
+<p>例如一张 V100X 16GB 上统一运行两个 <code>V100X-8Q</code>，不要一开始就混合 <code>8Q + 4Q + 2Q</code>。</p>
+<p>等基础环境稳定后，再根据当前 ESXi 8.0 U3 和 vGPU 19.x Release Notes 验证 mixed-size 模式。</p>
+<h2 id="十一、创建并配置-vGPU-虚拟机"><a href="#十一、创建并配置-vGPU-虚拟机" class="headerlink" title="十一、创建并配置 vGPU 虚拟机"></a>十一、创建并配置 vGPU 虚拟机</h2><h3 id="1-创建虚拟机"><a href="#1-创建虚拟机" class="headerlink" title="1. 创建虚拟机"></a>1. 创建虚拟机</h3><p>建议配置：</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>建议值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Compatibility</td>
+<td>ESXi 8.0 and later</td>
+</tr>
+<tr>
+<td>Firmware</td>
+<td>EFI</td>
+</tr>
+<tr>
+<td>Secure Boot</td>
+<td>首次安装建议关闭</td>
+</tr>
+<tr>
+<td>Guest OS</td>
+<td>Windows Server 2022 &#x2F; Ubuntu 22.04 &#x2F; Ubuntu 24.04</td>
+</tr>
+<tr>
+<td>CPU</td>
+<td>根据业务分配，避免严重超分</td>
+</tr>
+<tr>
+<td>内存</td>
+<td>根据 GPU Profile 和任务分配</td>
+</tr>
+<tr>
+<td>VMware Tools</td>
+<td>安装</td>
+</tr>
+</tbody></table>
+<h3 id="2-先安装操作系统"><a href="#2-先安装操作系统" class="headerlink" title="2. 先安装操作系统"></a>2. 先安装操作系统</h3><p>首次部署建议先不挂载 vGPU：</p>
+<ol>
+<li>创建普通虚拟机；</li>
+<li>安装操作系统；</li>
+<li>安装 VMware Tools；</li>
+<li>配置网络和 SSH&#x2F;RDP；</li>
+<li>正常关机；</li>
+<li>再添加 vGPU 设备。</li>
+</ol>
+<p>这样可以避免在系统安装阶段遇到黑屏时无法判断是 OS、EFI 还是 vGPU 问题。</p>
+<h3 id="3-锁定全部客户机内存"><a href="#3-锁定全部客户机内存" class="headerlink" title="3. 锁定全部客户机内存"></a>3. 锁定全部客户机内存</h3><p>编辑虚拟机：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">VM Options / Virtual Hardware<br>  → Memory<br>  → Reserve all guest memory<br></code></pre></td></tr></table></figure>
+
+<p>中文界面通常显示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">预留所有客户机内存（全部锁定）<br></code></pre></td></tr></table></figure>
+
+<p>这是 vGPU 虚拟机无法开机时最常见的遗漏项。</p>
+<h3 id="4-添加-vGPU-设备"><a href="#4-添加-vGPU-设备" class="headerlink" title="4. 添加 vGPU 设备"></a>4. 添加 vGPU 设备</h3><p>虚拟机关机后：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">编辑设置<br>  → 添加新设备<br>  → PCI Device / Shared PCI Device<br>  → NVIDIA GRID vGPU<br></code></pre></td></tr></table></figure>
+
+<p>选择对应 Profile，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">V100X-16Q<br>V100X-8Q<br>V100-16Q<br>V100-8Q<br></code></pre></td></tr></table></figure>
+
+<p>如果列表中没有任何 vGPU Profile，请不要继续创建虚拟机，先排查宿主机驱动和 Shared Direct 模式。</p>
+<h3 id="5-不要把整卡直通和-vGPU-混淆"><a href="#5-不要把整卡直通和-vGPU-混淆" class="headerlink" title="5. 不要把整卡直通和 vGPU 混淆"></a>5. 不要把整卡直通和 vGPU 混淆</h3><p>如果在 ESXi 中把 GPU 标记为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Passthrough / DirectPath I/O<br></code></pre></td></tr></table></figure>
+
+<p>这张卡会被整卡直通使用，不能同时作为 vGPU 资源池。</p>
+<p>部署 vGPU 时，应让 GPU 由 NVIDIA vGPU Manager 管理，而不是先在 PCI Devices 页面切为 Passthrough。</p>
+<h3 id="6-多-vGPU-分配"><a href="#6-多-vGPU-分配" class="headerlink" title="6. 多 vGPU 分配"></a>6. 多 vGPU 分配</h3><p>vSphere 8.0 Update 2 以后，每台虚拟机理论上可分配更多 vGPU 设备，但 V100 是否能进行多 vGPU、是否能使用 NVLink P2P、是否要求整卡 Q Profile，取决于：</p>
+<ul>
+<li>V100 具体型号；</li>
+<li>C4140 GPU 拓扑；</li>
+<li>vGPU Profile；</li>
+<li>vGPU 版本；</li>
+<li>ESXi 版本；</li>
+<li>Linux&#x2F;Windows 客户机；</li>
+<li>NVIDIA Release Notes 中的 P2P 限制。</li>
+</ul>
+<p>因此，第一阶段先按“一台虚拟机一个 vGPU”完成部署。多卡和 NVLink 放到基础验证完成后单独测试。</p>
+<h2 id="十二、Linux-客户机安装-vGPU-Guest-Driver"><a href="#十二、Linux-客户机安装-vGPU-Guest-Driver" class="headerlink" title="十二、Linux 客户机安装 vGPU Guest Driver"></a>十二、Linux 客户机安装 vGPU Guest Driver</h2><p>以下以 Ubuntu Server 为例。</p>
+<h3 id="1-安装依赖"><a href="#1-安装依赖" class="headerlink" title="1. 安装依赖"></a>1. 安装依赖</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs shell">sudo apt update<br>sudo apt upgrade -y<br>sudo apt install -y build-essential gcc g++ make dkms \<br><span class="hljs-meta prompt_">  linux-headers-$</span><span class="language-bash">(<span class="hljs-built_in">uname</span> -r)</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="2-禁用-Nouveau"><a href="#2-禁用-Nouveau" class="headerlink" title="2. 禁用 Nouveau"></a>2. 禁用 Nouveau</h3><p>创建文件：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs shell">sudo tee /etc/modprobe.d/blacklist-nouveau.conf &gt;/dev/null &lt;&lt;&#x27;CONF&#x27;<br>blacklist nouveau<br>options nouveau modeset=0<br>CONF<br></code></pre></td></tr></table></figure>
+
+<p>更新 initramfs：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">sudo update-initramfs -u<br>sudo reboot<br></code></pre></td></tr></table></figure>
+
+<p>重启后检查：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">lsmod | grep nouveau<br></code></pre></td></tr></table></figure>
+
+<p>没有输出表示 Nouveau 未加载。</p>
+<h3 id="3-安装-NVIDIA-vGPU-Guest-Driver"><a href="#3-安装-NVIDIA-vGPU-Guest-Driver" class="headerlink" title="3. 安装 NVIDIA vGPU Guest Driver"></a>3. 安装 NVIDIA vGPU Guest Driver</h3><p>将 NVIDIA 软件包中的 Linux Guest Driver 上传到虚拟机。</p>
+<p>例如：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">chmod +x NVIDIA-Linux-x86_64-&lt;实际版本&gt;-grid.run<br>sudo ./NVIDIA-Linux-x86_64-&lt;实际版本&gt;-grid.run<br></code></pre></td></tr></table></figure>
+
+<p>安装过程中注意：</p>
+<ul>
+<li>安装的是带 <code>grid</code>&#x2F;vGPU 标识的 Guest Driver；</li>
+<li>不要安装普通 GeForce 驱动；</li>
+<li>不要让后续 CUDA 安装程序覆盖该驱动；</li>
+<li>内核升级后应确认 DKMS 模块是否重建成功。</li>
+</ul>
+<p>安装完成后：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">sudo reboot<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-验证"><a href="#4-验证" class="headerlink" title="4. 验证"></a>4. 验证</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi<br></code></pre></td></tr></table></figure>
+
+<p>应看到：</p>
+<ul>
+<li>Tesla V100 对应的虚拟 Profile；</li>
+<li>分配给虚拟机的显存容量；</li>
+<li>NVIDIA vGPU Guest Driver 版本；</li>
+<li>虚拟 GPU UUID。</li>
+</ul>
+<p>查看详细信息：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi -q<br></code></pre></td></tr></table></figure>
+
+<p>查看 GRID 服务：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">systemctl status nvidia-gridd<br></code></pre></td></tr></table></figure>
+
+<h2 id="十三、Windows-Server-2022-安装-vGPU-Guest-Driver"><a href="#十三、Windows-Server-2022-安装-vGPU-Guest-Driver" class="headerlink" title="十三、Windows Server 2022 安装 vGPU Guest Driver"></a>十三、Windows Server 2022 安装 vGPU Guest Driver</h2><h3 id="1-将驱动复制到虚拟机"><a href="#1-将驱动复制到虚拟机" class="headerlink" title="1. 将驱动复制到虚拟机"></a>1. 将驱动复制到虚拟机</h3><p>使用 RDP、共享目录或 ISO，把软件包中的 Windows vGPU Guest Driver 复制到 Windows Server 2022。</p>
+<h3 id="2-安装驱动"><a href="#2-安装驱动" class="headerlink" title="2. 安装驱动"></a>2. 安装驱动</h3><p>以管理员身份运行：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">NVIDIA-vGPU-Windows-Guest-Driver-&lt;版本&gt;.exe<br></code></pre></td></tr></table></figure>
+
+<p>安装完成后重启 Windows。</p>
+<h3 id="3-验证"><a href="#3-验证" class="headerlink" title="3. 验证"></a>3. 验证</h3><p>打开管理员 CMD 或 PowerShell：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs powershell">nvidia<span class="hljs-literal">-smi</span><br></code></pre></td></tr></table></figure>
+
+<p>设备管理器中应看到 NVIDIA vGPU 设备，且不能出现黄色感叹号。</p>
+<p>查看详细信息：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs powershell">nvidia<span class="hljs-literal">-smi</span> <span class="hljs-literal">-q</span><br></code></pre></td></tr></table></figure>
+
+<p>若设备管理器报 Code 43 或 vGPU 无法初始化，优先检查 Host&#x2F;Guest Driver 是否兼容。</p>
+<h2 id="十四、配置-NVIDIA-正版授权"><a href="#十四、配置-NVIDIA-正版授权" class="headerlink" title="十四、配置 NVIDIA 正版授权"></a>十四、配置 NVIDIA 正版授权</h2><p>NVIDIA vGPU 是商业软件。未取得许可证时，虚拟 GPU 可能在启动后短时间内正常工作，随后进入性能降级状态。</p>
+<p>推荐使用：</p>
+<ul>
+<li>NVIDIA Cloud License Service，简称 CLS；</li>
+<li>NVIDIA Delegated License Service，简称 DLS；</li>
+<li>NVIDIA Licensing Portal 生成的 Client Configuration Token。</li>
+</ul>
+<p>网络上部分教程使用第三方 Docker 镜像模拟授权服务器。此类方案可能违反许可证协议，也可能存在供应链和安全风险，本文不提供该配置。</p>
+<h3 id="1-Windows-客户机"><a href="#1-Windows-客户机" class="headerlink" title="1. Windows 客户机"></a>1. Windows 客户机</h3><p>从 NVIDIA Licensing Portal 或 DLS 下载 Client Configuration Token，将 <code>.tok</code> 文件复制到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">C:\Program Files\NVIDIA Corporation\vGPU Licensing\ClientConfigToken\<br></code></pre></td></tr></table></figure>
+
+<p>管理员 PowerShell 执行：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs powershell"><span class="hljs-built_in">Restart-Service</span> NVDisplay.ContainerLocalSystem<br></code></pre></td></tr></table></figure>
+
+<p>检查授权：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs powershell">nvidia<span class="hljs-literal">-smi</span> <span class="hljs-literal">-q</span> | <span class="hljs-built_in">Select-String</span> <span class="hljs-literal">-Pattern</span> <span class="hljs-string">&quot;License&quot;</span> <span class="hljs-literal">-Context</span> <span class="hljs-number">0</span>,<span class="hljs-number">3</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="2-Linux-客户机"><a href="#2-Linux-客户机" class="headerlink" title="2. Linux 客户机"></a>2. Linux 客户机</h3><p>确认配置文件：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">sudo cp /etc/nvidia/gridd.conf.template /etc/nvidia/gridd.conf<br></code></pre></td></tr></table></figure>
+
+<p>编辑：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">sudo vi /etc/nvidia/gridd.conf<br></code></pre></td></tr></table></figure>
+
+<p>vGPU 客户机通常配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">FeatureType=1<br></code></pre></td></tr></table></figure>
+
+<p>把 Token 放入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/nvidia/ClientConfigToken/<br></code></pre></td></tr></table></figure>
+
+<p>设置权限：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">sudo chmod 744 /etc/nvidia/ClientConfigToken/client_configuration_token_*.tok<br></code></pre></td></tr></table></figure>
+
+<p>重启服务：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">sudo systemctl restart nvidia-gridd<br>sudo systemctl status nvidia-gridd<br></code></pre></td></tr></table></figure>
+
+<p>查看授权：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi -q | grep -A 5 -i license<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-网络要求"><a href="#3-网络要求" class="headerlink" title="3. 网络要求"></a>3. 网络要求</h3><p>客户机需要能够访问 CLS&#x2F;DLS，一般需要放通：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">TCP 443<br>TCP 80<br></code></pre></td></tr></table></figure>
+
+<p>如果经过代理，需要按照 NVIDIA Client Licensing User Guide 配置代理地址和端口。</p>
+<h2 id="十五、安装-CUDA-Toolkit"><a href="#十五、安装-CUDA-Toolkit" class="headerlink" title="十五、安装 CUDA Toolkit"></a>十五、安装 CUDA Toolkit</h2><p><code>nvidia-smi</code> 顶部显示的 CUDA Version 是当前驱动支持的最高 CUDA 运行时版本，不代表系统已经安装 CUDA Toolkit。</p>
+<p>检查：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi<br>nvcc --version<br></code></pre></td></tr></table></figure>
+
+<p>如果 <code>nvidia-smi</code> 正常、<code>nvcc</code> 不存在，说明驱动已安装但 CUDA Toolkit 尚未安装。</p>
+<h3 id="1-避免覆盖-vGPU-驱动"><a href="#1-避免覆盖-vGPU-驱动" class="headerlink" title="1. 避免覆盖 vGPU 驱动"></a>1. 避免覆盖 vGPU 驱动</h3><p>安装 CUDA 时只安装 Toolkit，不要安装或升级普通 NVIDIA Driver。</p>
+<p>Ubuntu 上建议选择类似：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">sudo apt install cuda-toolkit-12-x<br></code></pre></td></tr></table></figure>
+
+<p>而不是直接安装可能带驱动依赖的元包：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">sudo apt install cuda<br></code></pre></td></tr></table></figure>
+
+<p>具体版本应根据 vGPU Guest Driver 支持的 CUDA 版本选择。</p>
+<h3 id="2-PyTorch-验证"><a href="#2-PyTorch-验证" class="headerlink" title="2. PyTorch 验证"></a>2. PyTorch 验证</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs shell">python3 - &lt;&lt;&#x27;PY&#x27;<br>import torch<br>print(&quot;torch:&quot;, torch.__version__)<br>print(&quot;cuda available:&quot;, torch.cuda.is_available())<br>print(&quot;cuda version:&quot;, torch.version.cuda)<br>if torch.cuda.is_available():<br>    print(&quot;gpu:&quot;, torch.cuda.get_device_name(0))<br>    print(&quot;memory GB:&quot;, torch.cuda.get_device_properties(0).total_memory / 1024**3)<br>PY<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-简单压力测试"><a href="#3-简单压力测试" class="headerlink" title="3. 简单压力测试"></a>3. 简单压力测试</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs shell">python3 - &lt;&lt;&#x27;PY&#x27;<br>import torch<br>assert torch.cuda.is_available()<br>a = torch.randn((8192, 8192), device=&quot;cuda&quot;)<br>b = torch.randn((8192, 8192), device=&quot;cuda&quot;)<br>c = a @ b<br>torch.cuda.synchronize()<br>print(c.shape, c.mean().item())<br>PY<br></code></pre></td></tr></table></figure>
+
+<p>同时在客户机执行：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">watch -n 1 nvidia-smi<br></code></pre></td></tr></table></figure>
+
+<p>在 ESXi 主机执行：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi<br></code></pre></td></tr></table></figure>
+
+<p>可以同时观察物理 GPU 与虚拟 GPU 的运行情况。</p>
+<h2 id="十六、完整部署流程图"><a href="#十六、完整部署流程图" class="headerlink" title="十六、完整部署流程图"></a>十六、完整部署流程图</h2><pre><code class=" mermaid">flowchart TD
+    A[确认服务器和 GPU 形态] --&gt; B&#123;服务器型号&#125;
+    B --&gt;|C4140| C[确认 PCIe 或 SXM2/NVLink 配置]
+    B --&gt;|R730| D[仅 PCIe&lt;br/&gt;接受非官方支持风险]
+    C --&gt; E[升级 iDRAC/BIOS/固件]
+    D --&gt; E
+    E --&gt; F[配置 UEFI/VT-d/SR-IOV/Above 4G]
+    F --&gt; G[安装 ESXi 8 并加入 vCenter]
+    G --&gt; H[lspci 检查 GPU]
+    H --&gt; I[进入维护模式]
+    I --&gt; J[安装 NVD-VGPU 与 mgmt daemon]
+    J --&gt; K[重启并运行 nvidia-smi]
+    K --&gt; L[vCenter 切换 Shared Direct]
+    L --&gt; M[创建 EFI 虚拟机并锁定全部内存]
+    M --&gt; N[添加 V100 vGPU Profile]
+    N --&gt; O[安装 Guest Driver]
+    O --&gt; P[配置 CLS/DLS 正版授权]
+    P --&gt; Q[安装 CUDA Toolkit]
+    Q --&gt; R[PyTorch/CUDA 验证]
+</code></pre>
+
+<h2 id="十七、宿主机验证清单"><a href="#十七、宿主机验证清单" class="headerlink" title="十七、宿主机验证清单"></a>十七、宿主机验证清单</h2><h3 id="1-检查-ESXi-版本"><a href="#1-检查-ESXi-版本" class="headerlink" title="1. 检查 ESXi 版本"></a>1. 检查 ESXi 版本</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">vmware -vl<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-检查-PCIe-设备"><a href="#2-检查-PCIe-设备" class="headerlink" title="2. 检查 PCIe 设备"></a>2. 检查 PCIe 设备</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">lspci | grep -i nvidia<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-检查-NVIDIA-驱动"><a href="#3-检查-NVIDIA-驱动" class="headerlink" title="3. 检查 NVIDIA 驱动"></a>3. 检查 NVIDIA 驱动</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">esxcli software component list | grep -i -E &#x27;nvidia|nvd&#x27;<br>esxcli software vib list | grep -i -E &#x27;nvidia|nvd&#x27;<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-检查-GPU"><a href="#4-检查-GPU" class="headerlink" title="4. 检查 GPU"></a>4. 检查 GPU</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi<br>nvidia-smi -q<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-检查-GPU-拓扑"><a href="#5-检查-GPU-拓扑" class="headerlink" title="5. 检查 GPU 拓扑"></a>5. 检查 GPU 拓扑</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi topo -m<br></code></pre></td></tr></table></figure>
+
+<p>C4140 SXM2&#x2F;NVLink 配置中，拓扑结果应与服务器 GPU 底板设计一致。</p>
+<h3 id="6-检查管理服务"><a href="#6-检查管理服务" class="headerlink" title="6. 检查管理服务"></a>6. 检查管理服务</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">/etc/init.d/nvdGpuMgmtDaemon status<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-检查日志"><a href="#7-检查日志" class="headerlink" title="7. 检查日志"></a>7. 检查日志</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">tail -n 200 /var/log/vmkernel.log<br>tail -n 200 /var/log/hostd.log<br></code></pre></td></tr></table></figure>
+
+<p>搜索 NVIDIA：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">grep -i -E &#x27;nvidia|nvd|vmiop|vgpu&#x27; /var/log/vmkernel.log | tail -n 100<br></code></pre></td></tr></table></figure>
+
+<p>虚拟机无法启动时还应检查对应 VM 目录中的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">vmware.log<br></code></pre></td></tr></table></figure>
+
+<h2 id="十八、常见故障排查"><a href="#十八、常见故障排查" class="headerlink" title="十八、常见故障排查"></a>十八、常见故障排查</h2><h3 id="1-lspci-看不到-NVIDIA-GPU"><a href="#1-lspci-看不到-NVIDIA-GPU" class="headerlink" title="1. lspci 看不到 NVIDIA GPU"></a>1. <code>lspci</code> 看不到 NVIDIA GPU</h3><p>可能原因：</p>
+<ul>
+<li>GPU 没有正确安装；</li>
+<li>SXM2 底板或 NVLink 板故障；</li>
+<li>R730 使用了错误 Riser；</li>
+<li>GPU 电源线错误；</li>
+<li>PSU 功率不足；</li>
+<li>BIOS 禁用了插槽；</li>
+<li>SR-IOV&#x2F;Above 4G&#x2F;VT-d 未开启；</li>
+<li>GPU 硬件故障。</li>
+</ul>
+<p>处理顺序：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">iDRAC Inventory<br>  → BIOS PCIe Inventory<br>  → lspci<br>  → ESXi 驱动<br></code></pre></td></tr></table></figure>
+
+<p>前三层没识别到，驱动层不会凭空变出一张卡。</p>
+<h3 id="2-安装驱动时报-NoMatchError"><a href="#2-安装驱动时报-NoMatchError" class="headerlink" title="2. 安装驱动时报 NoMatchError"></a>2. 安装驱动时报 <code>NoMatchError</code></h3><p>常见原因：</p>
+<ul>
+<li>vGPU 驱动不支持当前 ESXi Build；</li>
+<li>下载了 ESXi 7 的 Host Driver；</li>
+<li>下载了错误的 vGPU 分支；</li>
+<li>使用了外层 <code>-package.zip</code>；</li>
+<li>文件损坏；</li>
+<li>路径不是绝对路径。</li>
+</ul>
+<p>检查：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">vmware -vl<br>unzip -l /tmp/NVD-VGPU-800_&lt;版本&gt;.zip | head<br></code></pre></td></tr></table></figure>
+
+<p>重新对照 NVIDIA vGPU Release Notes 的 Hypervisor Software Releases。</p>
+<h3 id="3-nvidia-smi-not-found"><a href="#3-nvidia-smi-not-found" class="headerlink" title="3. nvidia-smi: not found"></a>3. <code>nvidia-smi: not found</code></h3><p>说明 Virtual GPU Manager 没有正确安装或模块未加载。</p>
+<p>检查：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">esxcli software vib list | grep -i nvd<br>esxcli software component list | grep -i nvd<br></code></pre></td></tr></table></figure>
+
+<p>并重启 ESXi。</p>
+<h3 id="4-nvidia-smi-显示-No-devices-were-found"><a href="#4-nvidia-smi-显示-No-devices-were-found" class="headerlink" title="4. nvidia-smi 显示 No devices were found"></a>4. <code>nvidia-smi</code> 显示 No devices were found</h3><p>可能原因：</p>
+<ul>
+<li>BIOS 没有分配足够 MMIO；</li>
+<li>GPU 已被设置为 Passthrough；</li>
+<li>驱动与 GPU 不兼容；</li>
+<li>GPU Management Daemon 未运行；</li>
+<li>C4140 GPU 底板或 PCIe 枚举异常；</li>
+<li>R730 平台不兼容。</li>
+</ul>
+<h3 id="5-vCenter-中看不到-vGPU-Profile"><a href="#5-vCenter-中看不到-vGPU-Profile" class="headerlink" title="5. vCenter 中看不到 vGPU Profile"></a>5. vCenter 中看不到 vGPU Profile</h3><p>依次检查：</p>
+<ol>
+<li>ESXi 是否加入 vCenter；</li>
+<li>Host Driver 是否正确安装；</li>
+<li><code>nvidia-smi</code> 是否正常；</li>
+<li>主机图形类型是否为 Shared Direct；</li>
+<li>GPU 是否被设置为 Passthrough；</li>
+<li>是否重启过 ESXi；</li>
+<li>ECC&#x2F;Profile 是否满足当前版本要求；</li>
+<li>该 GPU 是否被当前 vGPU 分支支持。</li>
+</ol>
+<h3 id="6-虚拟机无法开机，提示内存未预留"><a href="#6-虚拟机无法开机，提示内存未预留" class="headerlink" title="6. 虚拟机无法开机，提示内存未预留"></a>6. 虚拟机无法开机，提示内存未预留</h3><p>编辑虚拟机并启用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Reserve all guest memory<br></code></pre></td></tr></table></figure>
+
+<p>vGPU VM 必须锁定其配置内存。</p>
+<h3 id="7-虚拟机无法开机，提示没有可用图形资源"><a href="#7-虚拟机无法开机，提示没有可用图形资源" class="headerlink" title="7. 虚拟机无法开机，提示没有可用图形资源"></a>7. 虚拟机无法开机，提示没有可用图形资源</h3><p>可能原因：</p>
+<ul>
+<li>物理 GPU 显存不足；</li>
+<li>同一 GPU 上已经存在不兼容 Profile；</li>
+<li>分配策略导致目标 GPU 没有容量；</li>
+<li>VM 使用了错误的 SXM2&#x2F;PCIe Profile；</li>
+<li>Host Driver 未正确加载；</li>
+<li>多张 GPU 型号或容量不一致。</li>
+</ul>
+<p>可以先关闭其他 vGPU VM，再只启动一台使用整卡 Profile 的测试 VM。</p>
+<h3 id="8-Windows-设备管理器-Code-43"><a href="#8-Windows-设备管理器-Code-43" class="headerlink" title="8. Windows 设备管理器 Code 43"></a>8. Windows 设备管理器 Code 43</h3><p>优先排查：</p>
+<ul>
+<li>Host&#x2F;Guest Driver 版本不兼容；</li>
+<li>安装了普通 NVIDIA 驱动；</li>
+<li>Windows Update 自动替换驱动；</li>
+<li>vGPU Profile 与 Guest Driver 不匹配；</li>
+<li>NVIDIA 授权未正常获取；</li>
+<li>Secure Boot 和驱动签名问题。</li>
+</ul>
+<h3 id="9-Linux-nvidia-smi-提示驱动无法通信"><a href="#9-Linux-nvidia-smi-提示驱动无法通信" class="headerlink" title="9. Linux nvidia-smi 提示驱动无法通信"></a>9. Linux <code>nvidia-smi</code> 提示驱动无法通信</h3><p>检查：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs shell">lsmod | grep nvidia<br>dmesg | grep -i nvidia<br>systemctl status nvidia-gridd<br></code></pre></td></tr></table></figure>
+
+<p>检查 Nouveau：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">lsmod | grep nouveau<br></code></pre></td></tr></table></figure>
+
+<p>检查内核模块是否因内核升级失效：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs shell">dkms status<br>uname -r<br></code></pre></td></tr></table></figure>
+
+<h3 id="10-CUDA-可以识别，但性能明显偏低"><a href="#10-CUDA-可以识别，但性能明显偏低" class="headerlink" title="10. CUDA 可以识别，但性能明显偏低"></a>10. CUDA 可以识别，但性能明显偏低</h3><p>检查：</p>
+<ul>
+<li>授权是否为 Licensed；</li>
+<li>是否使用 1Q&#x2F;2Q 等小 Profile；</li>
+<li>同一物理 GPU 是否存在其他高负载 VM；</li>
+<li>ESXi 电源策略是否为 High Performance；</li>
+<li>BIOS System Profile 是否为 Performance；</li>
+<li>CPU 是否严重超分；</li>
+<li>NUMA 和 GPU 所在 CPU Socket 是否匹配；</li>
+<li>C4140 GPU 拓扑是否符合预期；</li>
+<li>温度或功耗是否触发降频。</li>
+</ul>
+<p>客户机：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi -q -d PERFORMANCE,CLOCK,POWER,TEMPERATURE<br></code></pre></td></tr></table></figure>
+
+<p>宿主机：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi dmon -s pucvmet<br></code></pre></td></tr></table></figure>
+
+<h3 id="11-PCI-Passthrough-虚拟机报大-MMIO-错误"><a href="#11-PCI-Passthrough-虚拟机报大-MMIO-错误" class="headerlink" title="11. PCI Passthrough 虚拟机报大 MMIO 错误"></a>11. PCI Passthrough 虚拟机报大 MMIO 错误</h3><p>这一项主要针对整卡直通，不是标准 vGPU Profile。</p>
+<p>V100 16GB&#x2F;32GB 需要较大的 MMIO 地址空间，虚拟机应使用 EFI，并可能需要高级参数：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">pciPassthru.use64bitMMIO = TRUE<br>pciPassthru.64bitMMIOSizeGB = &lt;按 BAR 和 GPU 数量计算的值&gt;<br></code></pre></td></tr></table></figure>
+
+<p>不要随便填一个极大的数值。应根据 GPU BAR1、设备数量和 VMware KB 计算。</p>
+<p>查询 BAR1：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">nvidia-smi -q | grep -A 5 -i BAR1<br></code></pre></td></tr></table></figure>
+
+<h3 id="12-R730-安装后能识别，但重启或升级后失效"><a href="#12-R730-安装后能识别，但重启或升级后失效" class="headerlink" title="12. R730 安装后能识别，但重启或升级后失效"></a>12. R730 安装后能识别，但重启或升级后失效</h3><p>这是非认证平台的典型风险。</p>
+<p>可能涉及：</p>
+<ul>
+<li>ESXi Patch 更新后驱动不再加载；</li>
+<li>PERC&#x2F;NIC VIB 冲突；</li>
+<li>BIOS MMIO 分配变化；</li>
+<li>旧 CPU&#x2F;芯片组组合未经过 ESXi 8 回归测试；</li>
+<li>V100 电源线或 Riser 接触不稳定；</li>
+<li>Dell 无法提供该组合的正式支持。</li>
+</ul>
+<p>如果系统用于重要业务，应停止继续“打补丁碰运气”，迁移到 C4140、R740xa 或更新平台。</p>
+<h2 id="十九、驱动升级方法"><a href="#十九、驱动升级方法" class="headerlink" title="十九、驱动升级方法"></a>十九、驱动升级方法</h2><p>升级前：</p>
+<ol>
+<li>关闭所有 vGPU 虚拟机；</li>
+<li>将主机进入维护模式；</li>
+<li>记录当前 ESXi Build；</li>
+<li>记录当前 Host&#x2F;Guest Driver；</li>
+<li>备份 vCenter；</li>
+<li>确保新版本仍支持 V100。</li>
+</ol>
+<p>查看当前版本：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs shell">vmware -vl<br>nvidia-smi<br>esxcli software component list | grep -i -E &#x27;nvidia|nvd&#x27;<br></code></pre></td></tr></table></figure>
+
+<p>停止管理服务：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">/etc/init.d/nvdGpuMgmtDaemon stop<br></code></pre></td></tr></table></figure>
+
+<p>应用新组件：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs shell">esxcli software component apply \<br>  -d /tmp/NVD-VGPU-800_&lt;新版本&gt;.zip<br><br>esxcli software component apply \<br>  -d /tmp/nvd-gpu-mgmt-daemon_&lt;新版本&gt;.zip<br></code></pre></td></tr></table></figure>
+
+<p>重启：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs shell">reboot<br></code></pre></td></tr></table></figure>
+
+<p>宿主机升级完成并验证正常后，再逐台升级虚拟机中的 Guest Driver。</p>
+<p>不要在同一个维护窗口中同时升级：</p>
+<ul>
+<li>BIOS；</li>
+<li>ESXi 大版本；</li>
+<li>vCenter；</li>
+<li>vGPU Host Driver；</li>
+<li>Guest Driver；</li>
+<li>CUDA；</li>
+<li>深度学习框架。</li>
+</ul>
+<p>一次改六层，出问题后就只剩下“量子排障”。正确做法是分层升级、每层验证。</p>
+<h2 id="二十、性能和容量规划建议"><a href="#二十、性能和容量规划建议" class="headerlink" title="二十、性能和容量规划建议"></a>二十、性能和容量规划建议</h2><h3 id="1-训练任务优先整卡-Profile"><a href="#1-训练任务优先整卡-Profile" class="headerlink" title="1. 训练任务优先整卡 Profile"></a>1. 训练任务优先整卡 Profile</h3><p>V100 16GB 进行训练时，优先使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">V100X-16Q<br>V100-16Q<br></code></pre></td></tr></table></figure>
+
+<p>V100 32GB 则优先：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">V100DX-32Q<br>V100D-32Q<br></code></pre></td></tr></table></figure>
+
+<p>训练任务通常不仅消耗显存，还会长期占满 SM 和显存带宽。把一张 V100 切成多个小 Profile 并不一定提高总体吞吐量。</p>
+<h3 id="2-推理任务可按显存切分"><a href="#2-推理任务可按显存切分" class="headerlink" title="2. 推理任务可按显存切分"></a>2. 推理任务可按显存切分</h3><p>如果模型较小，可以使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">8Q<br>4Q<br></code></pre></td></tr></table></figure>
+
+<p>但应做压测，而不是只看模型权重文件大小。推理还会消耗：</p>
+<ul>
+<li>KV Cache；</li>
+<li>CUDA Context；</li>
+<li>cuBLAS&#x2F;cuDNN Workspace；</li>
+<li>框架缓存；</li>
+<li>输入 Batch；</li>
+<li>张量并行通信缓冲区。</li>
+</ul>
+<h3 id="3-不要过度超分-CPU-和内存"><a href="#3-不要过度超分-CPU-和内存" class="headerlink" title="3. 不要过度超分 CPU 和内存"></a>3. 不要过度超分 CPU 和内存</h3><p>GPU 虚拟机如果 CPU 长期 Ready、内存发生 Balloon&#x2F;Swap，GPU 会因为数据喂不满而空转。</p>
+<p>建议：</p>
+<ul>
+<li>GPU 训练 VM 的 vCPU 数不要盲目开太多；</li>
+<li>关注 <code>%RDY</code>、NUMA locality 和内存延迟；</li>
+<li>大型训练任务尽量让 vCPU、内存和 GPU 靠近同一 NUMA 节点；</li>
+<li>所有 vGPU VM 的内存都需要锁定，要提前计算宿主机可用内存。</li>
+</ul>
+<h3 id="4-C4140-多卡规划"><a href="#4-C4140-多卡规划" class="headerlink" title="4. C4140 多卡规划"></a>4. C4140 多卡规划</h3><p>4 张 V100 的 C4140 可以按照以下方式规划：</p>
+<h4 id="方案-A：4-台训练虚拟机"><a href="#方案-A：4-台训练虚拟机" class="headerlink" title="方案 A：4 台训练虚拟机"></a>方案 A：4 台训练虚拟机</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">GPU0 → VM1 → 16Q/32Q<br>GPU1 → VM2 → 16Q/32Q<br>GPU2 → VM3 → 16Q/32Q<br>GPU3 → VM4 → 16Q/32Q<br></code></pre></td></tr></table></figure>
+
+<h4 id="方案-B：8-台中型推理虚拟机"><a href="#方案-B：8-台中型推理虚拟机" class="headerlink" title="方案 B：8 台中型推理虚拟机"></a>方案 B：8 台中型推理虚拟机</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">每张 GPU 划分 2 个 8Q<br>4 张 GPU 共 8 个 vGPU<br></code></pre></td></tr></table></figure>
+
+<h4 id="方案-C：开发资源池"><a href="#方案-C：开发资源池" class="headerlink" title="方案 C：开发资源池"></a>方案 C：开发资源池</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">每张 GPU 划分 4 个 4Q<br>4 张 GPU 共 16 个 vGPU<br></code></pre></td></tr></table></figure>
+
+<p>方案 C 的用户密度最高，但计算性能波动也最明显。</p>
+<h2 id="二十一、最终验收清单"><a href="#二十一、最终验收清单" class="headerlink" title="二十一、最终验收清单"></a>二十一、最终验收清单</h2><h3 id="宿主机"><a href="#宿主机" class="headerlink" title="宿主机"></a>宿主机</h3><ul>
+<li><input disabled="" type="checkbox"> BIOS 使用 UEFI；</li>
+<li><input disabled="" type="checkbox"> VT-x、VT-d、SR-IOV 已开启；</li>
+<li><input disabled="" type="checkbox"> Memory Mapped I&#x2F;O above 4GB 已开启；</li>
+<li><input disabled="" type="checkbox"> <code>lspci</code> 可以看到全部 V100；</li>
+<li><input disabled="" type="checkbox"> NVIDIA Virtual GPU Manager 安装成功；</li>
+<li><input disabled="" type="checkbox"> GPU Management Daemon 正常；</li>
+<li><input disabled="" type="checkbox"> <code>nvidia-smi</code> 显示全部 GPU；</li>
+<li><input disabled="" type="checkbox"> vCenter 图形模式为 Shared Direct；</li>
+<li><input disabled="" type="checkbox"> GPU 没有被误设置为 Passthrough；</li>
+<li><input disabled="" type="checkbox"> 主机已退出维护模式。</li>
+</ul>
+<h3 id="虚拟机"><a href="#虚拟机" class="headerlink" title="虚拟机"></a>虚拟机</h3><ul>
+<li><input disabled="" type="checkbox"> 使用 EFI；</li>
+<li><input disabled="" type="checkbox"> 首次安装关闭 Secure Boot；</li>
+<li><input disabled="" type="checkbox"> 已预留全部客户机内存；</li>
+<li><input disabled="" type="checkbox"> 已添加正确的 V100X&#x2F;V100&#x2F;V100DX&#x2F;V100D Profile；</li>
+<li><input disabled="" type="checkbox"> Guest Driver 与 Host Driver 兼容；</li>
+<li><input disabled="" type="checkbox"> <code>nvidia-smi</code> 正常；</li>
+<li><input disabled="" type="checkbox"> NVIDIA License 状态为 Licensed；</li>
+<li><input disabled="" type="checkbox"> CUDA Toolkit 没有覆盖 vGPU Guest Driver；</li>
+<li><input disabled="" type="checkbox"> PyTorch&#x2F;TensorFlow 可以识别 CUDA；</li>
+<li><input disabled="" type="checkbox"> 压力测试中没有 XID、掉卡或温度告警。</li>
+</ul>
+<h2 id="二十二、C4140-与-R730-的最终建议"><a href="#二十二、C4140-与-R730-的最终建议" class="headerlink" title="二十二、C4140 与 R730 的最终建议"></a>二十二、C4140 与 R730 的最终建议</h2><h3 id="C4140"><a href="#C4140" class="headerlink" title="C4140"></a>C4140</h3><p>推荐程度：<code>★★★★★</code></p>
+<p>适合：</p>
+<ul>
+<li>4×V100 SXM2&#x2F;NVLink；</li>
+<li>4×V100 PCIe；</li>
+<li>vSphere 8 + vGPU；</li>
+<li>GPU 资源池；</li>
+<li>多租户 CUDA 开发；</li>
+<li>虚拟工作站；</li>
+<li>推理与中小规模训练。</li>
+</ul>
+<h3 id="R730"><a href="#R730" class="headerlink" title="R730"></a>R730</h3><p>推荐程度：<code>★★</code></p>
+<p>适合：</p>
+<ul>
+<li>Homelab；</li>
+<li>已有设备的低成本实验；</li>
+<li>单张 V100 PCIe 的兼容性验证；</li>
+<li>能接受无官方支持、无法稳定升级的环境。</li>
+</ul>
+<p>不适合：</p>
+<ul>
+<li>V100 SXM2；</li>
+<li>要求 Dell&#x2F;VMware&#x2F;NVIDIA 联合支持的生产环境；</li>
+<li>需要长期稳定补丁升级的 vSphere 8 集群；</li>
+<li>高密度双卡 300W GPU 且散热条件不足的机房。</li>
+</ul>
+<p>一句话总结：</p>
+<blockquote>
+<p><strong>C4140 是正经 GPU 服务器，R730 是能折腾 GPU 的通用服务器；两者都能点亮，不等于两者都适合长期运行。</strong></p>
+</blockquote>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ol>
+<li>信诺智能：<code>http://www.xinuozhineng.com/ziliao/148.html</code></li>
+<li>GitHub - How-to-use-vGPU：<code>https://github.com/fenghan0430/How-to-use-vGPU</code></li>
+<li>VMware vSphere 下 NVIDIA vGPU 驱动的安装和配置：<code>https://www.dingqian.net/index.php/archives/9/</code></li>
+<li>NVIDIA vGPU 19.x Documentation：<code>https://docs.nvidia.com/vgpu/19.0/</code></li>
+<li>NVIDIA VMware vSphere Release Notes：<code>https://docs.nvidia.com/vgpu/19.0/grid-vgpu-release-notes-vmware-vsphere/index.html</code></li>
+<li>NVIDIA Supported GPUs：<code>https://docs.nvidia.com/vgpu/gpus-supported-by-vgpu.html</code></li>
+<li>NVIDIA Client Licensing User Guide：<code>https://docs.nvidia.com/vgpu/19.0/grid-licensing-user-guide/index.html</code></li>
+<li>Dell PowerEdge C4140 Technical Specifications：<code>https://www.dell.com/support/manuals/en-sg/poweredge-c4140/c4140_ts_pub/gpu-specifications</code></li>
+<li>Dell PowerEdge R730 GPU Installation Guidelines：<code>https://www.dell.com/support/manuals/en-lt/poweredge-r730/r730_ompublication/gpu-card-installation-guidelines</code></li>
+<li>Dell PowerEdge Servers Certified for VMware vSphere 8.0：<code>https://www.dell.com/support/kbdoc/en-us/000217592/dell-poweredge-servers-certified-for-vmware-vsphere-8-0</code></li>
+</ol>
+<h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p><code>虚拟化解决的是资源分配问题，硬件兼容性解决的是系统能不能活着的问题。</code></p>
+<p><code>能成功于千载者，必以近察远。</code></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Virtualization/" class="category-chain-item">Virtualization</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/VMware-ESXi/" class="print-no-link">#VMware ESXi</a>
+      
+        <a href="/tags/VMware-vSphere/" class="print-no-link">#VMware vSphere</a>
+      
+        <a href="/tags/NVIDIA-vGPU/" class="print-no-link">#NVIDIA vGPU</a>
+      
+        <a href="/tags/Tesla-V100/" class="print-no-link">#Tesla V100</a>
+      
+        <a href="/tags/Dell-PowerEdge-C4140/" class="print-no-link">#Dell PowerEdge C4140</a>
+      
+        <a href="/tags/Dell-PowerEdge-R730/" class="print-no-link">#Dell PowerEdge R730</a>
+      
+        <a href="/tags/CUDA/" class="print-no-link">#CUDA</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>VMware vSphere 8 配置 NVIDIA vGPU 教程：Tesla V100 SXM2/PCIe 与 Dell C4140/R730 实战</div>
+      <div>https://allendericdalexander.github.io/2026/07/23/devops/virtual/vsphere8-nvidia-vgpu-v100-dell-c4140-r730/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年7月23日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/07/23/devops/virtual/dell-r730-idrac8-esxi8-guide/" title="Dell PowerEdge R730 完整使用指南：BIOS、iDRAC8、RAID 与 VMware ESXi 8 安装">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Dell PowerEdge R730 完整使用指南：BIOS、iDRAC8、RAID 与 VMware ESXi 8 安装</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/07/23/macos-l2tp-clash-verge-routing-troubleshooting/" title="macOS 同时使用 L2TP 与 Clash Verge Rev：内网路由与系统代理冲突排查实录">
+                        <span class="hidden-mobile">macOS 同时使用 L2TP 与 Clash Verge Rev：内网路由与系统代理冲突排查实录</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
