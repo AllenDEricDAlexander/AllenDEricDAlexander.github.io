@@ -21,12 +21,12 @@
     <meta name="description" content="欢迎你来读这篇博客，这篇博客主要是关于 Spring Boot 3.5 整合 Apache ShardingSphere 5.5.3 的工程化实践。 这篇文章不会只停留在“配置两个库、插一条数据”的入门层面，而是尽量把 ShardingSphere 的定位、架构、功能边界、Spring Boot 3.5接入方式、分库分表、读写分离、分布式事务、加密、脱敏、影子库、Proxy、DistSQL、数据迁">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Spring Boot 3.5 整合 Apache ShardingSphere 5.5.3 深度实践">
-<meta property="og:url" content="https://allendericdalexander.github.io/2026/06/11/java/spring/springboot-shardingsphere-deep-guide/index.html">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/06/11/java/spring/Spring-Boot-3.5-ShardingSphere-5.5-deep-guide/index.html">
 <meta property="og:site_name" content="德刑君">
 <meta property="og:description" content="欢迎你来读这篇博客，这篇博客主要是关于 Spring Boot 3.5 整合 Apache ShardingSphere 5.5.3 的工程化实践。 这篇文章不会只停留在“配置两个库、插一条数据”的入门层面，而是尽量把 ShardingSphere 的定位、架构、功能边界、Spring Boot 3.5接入方式、分库分表、读写分离、分布式事务、加密、脱敏、影子库、Proxy、DistSQL、数据迁">
 <meta property="og:locale" content="zh_CN">
 <meta property="article:published_time" content="2026-06-11T11:00:00.000Z">
-<meta property="article:modified_time" content="2026-06-11T11:00:00.000Z">
+<meta property="article:modified_time" content="2026-07-26T08:30:00.000Z">
 <meta property="article:author" content="AtLuoFu">
 <meta property="article:tag" content="ShardingSphere">
 <meta property="article:tag" content="Spring">
@@ -268,7 +268,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          10k 字
+          27k 字
         
       </span>
     
@@ -279,7 +279,7 @@
         
         
         
-          84 分钟
+          226 分钟
         
       </span>
     
@@ -330,6 +330,41 @@
 <p>Apache ShardingSphere 官方把它定位为 <code>Database Plus</code>，也就是构建在异构数据库之上的增强层。它不重新发明一个数据库，而是尽量复用<br>MySQL、PostgreSQL、openGauss、SQL Server 等已有数据库的存储能力，然后在其上提供统一访问、分布式<br>SQL、分片、读写分离、数据加密、数据脱敏、影子库、数据迁移、可观察性等能力。</p>
 <p>在 Spring Boot 项目里，ShardingSphere 最常用的是 <code>ShardingSphere-JDBC</code>。它本质上是一个增强版 JDBC Driver，应用依旧拿到的是一个<br><code>DataSource</code>，MyBatis、JPA、JdbcTemplate 都可以接在这个数据源上。你写的是逻辑 SQL，ShardingSphere<br>根据规则解析、路由、改写、执行、归并，最后把结果返回给应用。</p>
 <p>有一点先说清楚：ShardingSphere<br>很强，但它不是万能胶。分库分表会让系统复杂度明显上升，一旦用了，就要认真面对数据建模、分片键选择、跨库查询、全路由、分布式事务、扩容迁移、监控排查这些问题。它不是“加个依赖解决数据库性能问题”，更像是你给数据库系统加了一层交通枢纽。交通枢纽能提效，也会带来新的规则。</p>
+<h3 id="本文解决什么问题"><a href="#本文解决什么问题" class="headerlink" title="本文解决什么问题"></a>本文解决什么问题</h3><p>很多 ShardingSphere 教程的问题并不是配置不能启动，而是只展示了“最顺利的一条路径”：建两个库、按 ID 取模、插入两条记录，然后宣布分库分表完成。真正进入生产后，问题才会集中出现：</p>
+<ul>
+<li>为什么同一条逻辑 SQL 会展开成几十条真实 SQL？</li>
+<li>为什么加了分片后，<code>COUNT</code>、<code>ORDER BY</code>、<code>GROUP BY</code> 和深分页突然变慢？</li>
+<li>为什么明明用了 <code>@Transactional</code>，跨库写入仍然可能出现部分成功？</li>
+<li>为什么应用只有 20 个连接，最终却把数据库打出了上千个连接？</li>
+<li>为什么扩容不是把 <code>${0..1}</code> 改成 <code>${0..3}</code> 就结束？</li>
+<li>为什么同样的 YAML 在 5.3、5.4、5.5 中可能出现属性名或行为差异？</li>
+<li>如何验证一条 SQL 的真实路由、归并方式和连接消耗，而不是靠猜？</li>
+</ul>
+<p>因此，本文以“<strong>设计—接入—验证—上线—扩容—排障</strong>”为主线。你不仅会得到一份 Spring Boot 3.5 + ShardingSphere 5.5.3 的完整配置，还会理解配置背后的代价。</p>
+<h3 id="阅读路线"><a href="#阅读路线" class="headerlink" title="阅读路线"></a>阅读路线</h3><pre><code class=" mermaid">flowchart TD
+    A[先判断是否真的需要分库分表] --&gt; B[理解逻辑表与真实节点]
+    B --&gt; C[选择分片键与分片算法]
+    C --&gt; D[完成 Spring Boot 3.5 接入]
+    D --&gt; E[验证精确路由与全路由]
+    E --&gt; F[处理事务与读一致性]
+    F --&gt; G[建立监控和压测基线]
+    G --&gt; H[设计迁移、扩容和回滚]
+
+    A -.不需要.-&gt; I[优先索引、归档、缓存、读写分离]
+</code></pre>
+
+<p>建议第一次阅读按顺序看；已经接入过 ShardingSphere 的读者，可以重点阅读第 6、13、16、17、20、26～32 节。</p>
+<h3 id="版本与资料使用说明"><a href="#版本与资料使用说明" class="headerlink" title="版本与资料使用说明"></a>版本与资料使用说明</h3><p>本文的配置语法以 <code>Apache ShardingSphere 5.5.3</code> 为准，不混用 4.x 的 <code>spring.shardingsphere.*</code> Starter 配置，也不把 <code>current</code> 文档中未来版本的变化直接套回 5.5.3。尤其是数据源 URL 属性、单表规则、事务支持、Proxy 配置与 DistSQL 语法，必须以项目实际锁定版本为准。</p>
+<p>本文在原有博客内容上做增量扩写，保留已有章节与示例，并新增：</p>
+<ol>
+<li>SQL 解析、绑定、路由、改写、执行、归并的完整内核链路；</li>
+<li>可直接启动的 Docker Compose、初始化 SQL 与工程目录；</li>
+<li>MyBatis、JdbcTemplate、集成测试和路由断言；</li>
+<li>分片容量规划、虚拟槽位与扩容策略；</li>
+<li>读写一致性、分布式事务边界和 Outbox 最终一致性；</li>
+<li>Proxy 高可用、DistSQL 变更流程和数据迁移 Runbook；</li>
+<li>监控指标、日志规范、压测方法与生产验收清单。</li>
+</ol>
 <h2 id="正文"><a href="#正文" class="headerlink" title="正文"></a>正文</h2><h3 id="1-版本选择与-Spring-Boot-3-5-适配结论"><a href="#1-版本选择与-Spring-Boot-3-5-适配结论" class="headerlink" title="1. 版本选择与 Spring Boot 3.5 适配结论"></a>1. 版本选择与 Spring Boot 3.5 适配结论</h3><p>截至本文撰写时，Apache ShardingSphere 官方下载页显示当前版本为 <code>5.5.3</code>，发布日期为 <code>2026-03-01</code>。本文以：</p>
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">Spring Boot: 3.5.x<br>JDK: 17 / 21<br>Apache ShardingSphere: 5.5.3<br>Database: MySQL 8.x<br>Connection Pool: HikariCP<br>Access Mode: ShardingSphere-JDBC Driver<br></code></pre></td></tr></table></figure>
 
@@ -355,6 +390,73 @@
 <li>订单、结算、库存这类场景可以考虑最终一致性、消息表、补偿任务、对账任务。</li>
 </ul>
 <p>分库分表之后还想继续像单库事务一样随便写，这是很多事故的开始。数据库不会因为我们加了中间件就突然变温柔。</p>
+<h4 id="1-3-5-5-3-为什么值得单独说明"><a href="#1-3-5-5-3-为什么值得单独说明" class="headerlink" title="1.3 5.5.3 为什么值得单独说明"></a>1.3 5.5.3 为什么值得单独说明</h4><p><code>5.5.3</code> 不是简单的修订号升级。它包含大量安全修复、SQL 兼容性改进、JDBC&#x2F;Proxy&#x2F;DistSQL 稳定性修复，并继续推进可插拔打包。对生产项目而言，升级价值主要体现在三个方面：</p>
+<ul>
+<li><strong>安全基线更完整</strong>：发布说明列出了多项 CVE 修复。生产环境不应长期停留在已知漏洞版本。</li>
+<li><strong>连接与资源管理修复</strong>：包括特定分布式事务和 JDBC 连接释放问题，直接关系到长时间运行后的连接泄漏风险。</li>
+<li><strong>兼容性和并发稳定性改进</strong>：涉及 PreparedStatement、DistSQL 并发执行、不同数据库协议等问题。</li>
+</ul>
+<p>但升级不能只改 Maven 版本。至少需要回归：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">启动与元数据加载<br>核心 CRUD<br>批量 INSERT / UPDATE<br>分页、排序、聚合<br>绑定表 JOIN<br>Hint 路由<br>事务回滚<br>主从路由<br>DistSQL（如使用 Proxy）<br>迁移任务（如使用 Pipeline）<br>Agent 指标与链路追踪<br></code></pre></td></tr></table></figure>
+
+<h4 id="1-4-版本锁定与依赖收敛"><a href="#1-4-版本锁定与依赖收敛" class="headerlink" title="1.4 版本锁定与依赖收敛"></a>1.4 版本锁定与依赖收敛</h4><p>建议在父 POM 中锁定 ShardingSphere 版本，并检查依赖树中是否混入旧模块：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">properties</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">java.version</span>&gt;</span>21<span class="hljs-tag">&lt;/<span class="hljs-name">java.version</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">shardingsphere.version</span>&gt;</span>5.5.3<span class="hljs-tag">&lt;/<span class="hljs-name">shardingsphere.version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">properties</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependencyManagement</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">dependencies</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.apache.shardingsphere<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>shardingsphere-bom<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>$&#123;shardingsphere.version&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">type</span>&gt;</span>pom<span class="hljs-tag">&lt;/<span class="hljs-name">type</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">scope</span>&gt;</span>import<span class="hljs-tag">&lt;/<span class="hljs-name">scope</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">dependencies</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependencyManagement</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果项目只使用统一聚合依赖，也可以直接指定：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.apache.shardingsphere<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>shardingsphere-jdbc<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>$&#123;shardingsphere.version&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>检查依赖：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">./mvnw dependency:tree \<br>  -Dincludes=org.apache.shardingsphere,org.yaml:snakeyaml,com.zaxxer:HikariCP<br></code></pre></td></tr></table></figure>
+
+<p>重点排查：</p>
+<ul>
+<li>同时存在 4.x 与 5.x ShardingSphere 包；</li>
+<li>业务组件偷偷引入旧 Starter；</li>
+<li>SnakeYAML 被强制降级；</li>
+<li>HikariCP 版本被第三方 BOM 覆盖；</li>
+<li>MySQL Connector&#x2F;J 同时出现 <code>mysql:mysql-connector-java</code> 和 <code>com.mysql:mysql-connector-j</code>。</li>
+</ul>
+<h4 id="1-5-不同配置方式如何选择"><a href="#1-5-不同配置方式如何选择" class="headerlink" title="1.5 不同配置方式如何选择"></a>1.5 不同配置方式如何选择</h4><table>
+<thead>
+<tr>
+<th>配置方式</th>
+<th>优点</th>
+<th>缺点</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>JDBC Driver + YAML</td>
+<td>配置直观，Spring Boot 3 接入简单</td>
+<td>静态配置变更通常需要重启</td>
+<td>大多数 Java 服务</td>
+</tr>
+<tr>
+<td>Java API</td>
+<td>可编程、可动态组装</td>
+<td>代码量大，配置治理成本高</td>
+<td>框架封装、动态租户</td>
+</tr>
+<tr>
+<td>Proxy + YAML</td>
+<td>多语言透明接入</td>
+<td>独立部署，增加网络跳转</td>
+<td>中小规模 Proxy 集群</td>
+</tr>
+<tr>
+<td>Proxy + DistSQL</td>
+<td>在线管理、集中治理</td>
+<td>变更权限与审计要求高</td>
+<td>平台化数据库网关</td>
+</tr>
+<tr>
+<td>JDBC&#x2F;Proxy + Cluster Mode</td>
+<td>元数据共享、支持治理</td>
+<td>引入注册中心和一致性问题</td>
+<td>多实例统一规则</td>
+</tr>
+</tbody></table>
+<p>对普通 Spring Boot 业务服务，优先使用 JDBC Driver + YAML。不要因为“动态”听起来高级，就把规则修改权限直接暴露给应用。</p>
 <h3 id="2-ShardingSphere-是什么"><a href="#2-ShardingSphere-是什么" class="headerlink" title="2. ShardingSphere 是什么"></a>2. ShardingSphere 是什么</h3><p>Apache ShardingSphere 是一个分布式 SQL 事务和查询引擎生态，它主要包含两个常用接入端：</p>
 <ul>
 <li><code>ShardingSphere-JDBC</code></li>
@@ -404,6 +506,46 @@
 <li>变更规则时只更新了一侧。</li>
 <li>不同入口对同一张逻辑表的路由结果不同。</li>
 </ul>
+<h4 id="2-4-JDBC-与-Proxy-的请求链路差异"><a href="#2-4-JDBC-与-Proxy-的请求链路差异" class="headerlink" title="2.4 JDBC 与 Proxy 的请求链路差异"></a>2.4 JDBC 与 Proxy 的请求链路差异</h4><pre><code class=" mermaid">flowchart LR
+    subgraph JDBC模式
+        A1[Spring Boot 应用] --&gt; A2[ShardingSphere-JDBC]
+        A2 --&gt; A3[(MySQL ds_0)]
+        A2 --&gt; A4[(MySQL ds_1)]
+    end
+
+    subgraph Proxy模式
+        B1[Java / Go / Python / BI] --&gt; B2[ShardingSphere-Proxy 集群]
+        B2 --&gt; B3[(MySQL ds_0)]
+        B2 --&gt; B4[(MySQL ds_1)]
+        B2 &lt;--&gt; B5[(ZooKeeper / Etcd)]
+    end
+</code></pre>
+
+<p>JDBC 模式的“网络跳数”更少，但规则和依赖进入每个应用实例；Proxy 模式把计算和规则集中到了独立服务，却需要承担 Proxy 的容量、高可用、连接复用和协议兼容问题。</p>
+<h4 id="2-5-选型决策树"><a href="#2-5-选型决策树" class="headerlink" title="2.5 选型决策树"></a>2.5 选型决策树</h4><pre><code class=" mermaid">flowchart TD
+    A&#123;是否多语言统一访问&#125; --&gt;|是| P[优先 Proxy]
+    A --&gt;|否| B&#123;Java 服务是否允许内嵌依赖&#125;
+    B --&gt;|否| P
+    B --&gt;|是| C&#123;是否要求规则集中在线变更&#125;
+    C --&gt;|强要求| P
+    C --&gt;|弱要求| J[优先 JDBC]
+    P --&gt; D&#123;是否有独立 DBA/平台团队&#125;
+    D --&gt;|没有| E[谨慎：Proxy 运维成本可能更高]
+    D --&gt;|有| F[建设 Proxy 高可用与 DistSQL 审计]
+</code></pre>
+
+<h4 id="2-6-ShardingSphere-不负责什么"><a href="#2-6-ShardingSphere-不负责什么" class="headerlink" title="2.6 ShardingSphere 不负责什么"></a>2.6 ShardingSphere 不负责什么</h4><p>为了避免错误预期，需要明确它不等于：</p>
+<ul>
+<li>自动把任意慢 SQL 变快；</li>
+<li>自动选择正确分片键；</li>
+<li>自动消除跨库事务；</li>
+<li>自动把 OLTP 查询变成 OLAP 引擎；</li>
+<li>自动解决数据库主从复制延迟；</li>
+<li>自动完成无风险扩容；</li>
+<li>自动保障业务幂等和数据对账；</li>
+<li>自动替代数据库索引、备份、审计与权限系统。</li>
+</ul>
+<p>ShardingSphere 提供的是数据库增强和统一 SQL 入口。业务模型错了，中间件通常只会让错误跑得更分布式。</p>
 <h3 id="3-核心功能总览"><a href="#3-核心功能总览" class="headerlink" title="3. 核心功能总览"></a>3. 核心功能总览</h3><p>ShardingSphere 5.5.3 常见能力可以按下面几类理解。</p>
 <pre><code class=" mermaid">mindmap
   root((Apache ShardingSphere))
@@ -502,6 +644,91 @@
 <li>调整分片规则后的数据搬迁。</li>
 </ul>
 <p>CDC 则用于捕获数据变更，适合数据同步、数据订阅、异构系统集成。</p>
+<h4 id="3-9-一条-SQL-在-ShardingSphere-内部经历什么"><a href="#3-9-一条-SQL-在-ShardingSphere-内部经历什么" class="headerlink" title="3.9 一条 SQL 在 ShardingSphere 内部经历什么"></a>3.9 一条 SQL 在 ShardingSphere 内部经历什么</h4><p>从应用视角看，只是一次 <code>PreparedStatement.executeQuery()</code>；从内核视角看，至少包含以下阶段：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[逻辑 SQL] --&gt; B[解析 Parse]
+    B --&gt; C[绑定 Bind]
+    C --&gt; D[路由 Route]
+    D --&gt; E[改写 Rewrite]
+    E --&gt; F[执行 Execute]
+    F --&gt; G[归并 Merge]
+    G --&gt; H[逻辑 ResultSet]
+
+    C -.依赖.-&gt; M[(逻辑表/列/规则元数据)]
+    D -.输出.-&gt; R[路由上下文]
+    E -.输出.-&gt; U[真实执行单元]
+</code></pre>
+
+<p>各阶段职责：</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>输入</th>
+<th>核心工作</th>
+<th>常见风险</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>解析</td>
+<td>SQL 文本、参数</td>
+<td>生成语法树和 SQLStatement</td>
+<td>方言、不支持语法、解析成本</td>
+</tr>
+<tr>
+<td>绑定</td>
+<td>语法树、元数据</td>
+<td>解析表、列、别名和上下文</td>
+<td>元数据不一致、列歧义</td>
+</tr>
+<tr>
+<td>路由</td>
+<td>SQL 上下文、规则</td>
+<td>计算目标库表</td>
+<td>缺分片键、笛卡尔路由</td>
+</tr>
+<tr>
+<td>改写</td>
+<td>逻辑 SQL、路由结果</td>
+<td>替换表名、补列、修正分页</td>
+<td>SQL 膨胀、参数重排</td>
+</tr>
+<tr>
+<td>执行</td>
+<td>真实 SQL 集合</td>
+<td>获取连接、并发&#x2F;串行执行</td>
+<td>连接风暴、线程和内存压力</td>
+</tr>
+<tr>
+<td>归并</td>
+<td>多个 ResultSet</td>
+<td>排序、聚合、分页、去装饰</td>
+<td>深分页、内存归并、慢消费</td>
+</tr>
+</tbody></table>
+<h4 id="3-10-规则叠加顺序"><a href="#3-10-规则叠加顺序" class="headerlink" title="3.10 规则叠加顺序"></a>3.10 规则叠加顺序</h4><p>一个逻辑数据库里可能同时启用分片、读写分离、加密、脱敏、影子库等规则。不要把它们理解成互相独立的“开关”，因为同一条 SQL 会经历规则链。</p>
+<p>例如“分片 + 读写分离 + 影子库”的请求：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant App as 应用
+    participant SS as ShardingSphere
+    participant Shard as 分片规则
+    participant RW as 读写分离规则
+    participant Shadow as 影子规则
+    participant DB as 真实数据库
+
+    App-&gt;&gt;SS: 逻辑 SQL + 参数 + 压测标记
+    SS-&gt;&gt;Shard: 根据 user_id/order_id 计算分片
+    Shard--&gt;&gt;SS: ds_1.t_order_0
+    SS-&gt;&gt;RW: 根据 SQL 类型和事务状态选主/从
+    RW--&gt;&gt;SS: ds_1_primary
+    SS-&gt;&gt;Shadow: 判断是否命中影子算法
+    Shadow--&gt;&gt;SS: shadow_ds_1_primary
+    SS-&gt;&gt;DB: 改写后的真实 SQL
+    DB--&gt;&gt;SS: ResultSet / update count
+    SS--&gt;&gt;App: 逻辑结果
+</code></pre>
+
+<p>规则越多，测试矩阵呈乘法增长。生产接入时应逐个启用并分别验收，不要一次把所有能力全开。</p>
 <h3 id="4-核心概念"><a href="#4-核心概念" class="headerlink" title="4. 核心概念"></a>4. 核心概念</h3><p>想把 ShardingSphere 用稳，先把这些概念吃透。</p>
 <h4 id="4-1-逻辑库"><a href="#4-1-逻辑库" class="headerlink" title="4.1 逻辑库"></a>4.1 逻辑库</h4><p>应用看到的是逻辑库，例如：</p>
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">logic_db<br></code></pre></td></tr></table></figure>
@@ -571,6 +798,92 @@
 <li>业务自定义 ID</li>
 </ul>
 <p>ShardingSphere 内置 <code>SNOWFLAKE</code> 和 <code>UUID</code>，也可以自定义。</p>
+<h4 id="4-13-数据节点、分片策略和算法的关系"><a href="#4-13-数据节点、分片策略和算法的关系" class="headerlink" title="4.13 数据节点、分片策略和算法的关系"></a>4.13 数据节点、分片策略和算法的关系</h4><p>这三个概念最容易混淆：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">actualDataNodes：允许路由到哪里<br>strategy：从 SQL 中取什么值、按什么策略调用算法<br>algorithm：拿到分片值后如何计算具体目标<br></code></pre></td></tr></table></figure>
+
+<pre><code class=" mermaid">flowchart LR
+    A[SQL 条件 user_id=10] --&gt; B[databaseStrategy.standard]
+    B --&gt; C[提取 shardingColumn=user_id]
+    C --&gt; D[调用 database_inline]
+    D --&gt; E[计算 ds_0]
+    E --&gt; F&#123;是否属于 actualDataNodes&#125;
+    F --&gt;|是| G[生成真实执行单元]
+    F --&gt;|否| H[路由异常]
+</code></pre>
+
+<p><code>actualDataNodes</code> 是边界，算法不能返回边界之外的名字。自定义算法必须对返回值做存在性校验，避免悄悄路由到错误节点。</p>
+<h4 id="4-14-分片值条件对路由数量的影响"><a href="#4-14-分片值条件对路由数量的影响" class="headerlink" title="4.14 分片值条件对路由数量的影响"></a>4.14 分片值条件对路由数量的影响</h4><p>假设有 2 个库、每库 4 张表：</p>
+<table>
+<thead>
+<tr>
+<th>SQL 条件</th>
+<th align="right">可能路由数</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>user_id = ? AND order_id = ?</code></td>
+<td align="right">1</td>
+<td>精确库 + 精确表</td>
+</tr>
+<tr>
+<td><code>user_id IN (?, ?)</code> + 精确 <code>order_id</code></td>
+<td align="right">1～2</td>
+<td>命中一个或两个库</td>
+</tr>
+<tr>
+<td>精确 <code>user_id</code>，无 <code>order_id</code></td>
+<td align="right">4</td>
+<td>单库全表</td>
+</tr>
+<tr>
+<td>无 <code>user_id</code>，精确 <code>order_id</code></td>
+<td align="right">2</td>
+<td>所有库中的同尾号表</td>
+</tr>
+<tr>
+<td>两个分片键都没有</td>
+<td align="right">8</td>
+<td>全库全表</td>
+</tr>
+<tr>
+<td>分片键范围查询</td>
+<td align="right">取决于算法</td>
+<td>INLINE 通常无法精确裁剪</td>
+</tr>
+</tbody></table>
+<p>所以“SQL 能执行”不等于“路由合理”。代码评审时应把路由数量当作 SQL 的一部分。</p>
+<h4 id="4-15-绑定表为什么能避免笛卡尔路由"><a href="#4-15-绑定表为什么能避免笛卡尔路由" class="headerlink" title="4.15 绑定表为什么能避免笛卡尔路由"></a>4.15 绑定表为什么能避免笛卡尔路由</h4><p>如果 <code>t_order</code> 与 <code>t_order_item</code> 都按照相同的 <code>order_id</code> 规则分表，配置绑定表后：</p>
+<pre><code class=" mermaid">flowchart TD
+    A[t_order_0] --- B[t_order_item_0]
+    C[t_order_1] --- D[t_order_item_1]
+    E[逻辑 JOIN] --&gt; A
+    E --&gt; C
+</code></pre>
+
+<p>ShardingSphere 只生成同后缀表之间的 JOIN。未配置绑定关系时，中间件无法证明两张表的分片拓扑一致，可能尝试更多组合。</p>
+<p>绑定表的必要条件不是“字段名相同”，而是：</p>
+<ul>
+<li>分片键语义一致；</li>
+<li>分片算法一致；</li>
+<li>真实节点拓扑一致；</li>
+<li>业务数据确实满足同键同片；</li>
+<li>JOIN 条件包含绑定关系所需字段。</li>
+</ul>
+<h4 id="4-16-广播表不是“大表复制术”"><a href="#4-16-广播表不是“大表复制术”" class="headerlink" title="4.16 广播表不是“大表复制术”"></a>4.16 广播表不是“大表复制术”</h4><p>广播表适合低频写、小数据量、各库都需要本地 JOIN 的表。常见候选：地区字典、业务枚举、少量配置。</p>
+<p>不适合广播：</p>
+<ul>
+<li>高频更新库存；</li>
+<li>百万级商品主数据；</li>
+<li>大量历史地址；</li>
+<li>需要严格单点自增的表；</li>
+<li>变更依赖复杂触发器的表。</li>
+</ul>
+<p>每次广播表写操作会扩散到多个数据源，规模越大，写放大和失败处理越复杂。</p>
+<h4 id="4-17-单表与默认数据源的工程边界"><a href="#4-17-单表与默认数据源的工程边界" class="headerlink" title="4.17 单表与默认数据源的工程边界"></a>4.17 单表与默认数据源的工程边界</h4><p>未分片表不代表可以随意散落。建议按以下规则管理：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">业务核心表：明确配置 SHARDING / SINGLE / BROADCAST<br>框架表：单独数据源或明确 SINGLE<br>Flyway 历史表：固定到管理数据源<br>Quartz / XXL-JOB 表：不要随机落库<br>临时表：确认 ShardingSphere 与数据库方言支持<br></code></pre></td></tr></table></figure>
+
+<p>如果单表未明确配置，某些 DDL 或元数据查询可能采用单播路由，导致“开发库能跑、生产库偶发找错表”的问题。</p>
 <h3 id="5-Spring-Boot-3-5-整合-ShardingSphere-JDBC"><a href="#5-Spring-Boot-3-5-整合-ShardingSphere-JDBC" class="headerlink" title="5. Spring Boot 3.5 整合 ShardingSphere-JDBC"></a>5. Spring Boot 3.5 整合 ShardingSphere-JDBC</h3><p>这一节给出完整示例：两个库，每个库两张订单表和两张明细表。</p>
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">demo_ds_0<br>  ├── t_order_0<br>  ├── t_order_1<br>  ├── t_order_item_0<br>  ├── t_order_item_1<br>  └── t_address<br><br>demo_ds_1<br>  ├── t_order_0<br>  ├── t_order_1<br>  ├── t_order_item_0<br>  ├── t_order_item_1<br>  └── t_address<br></code></pre></td></tr></table></figure>
 
@@ -614,6 +927,56 @@
 <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">props:</span><br>  <span class="hljs-attr">sql-show:</span> <span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
 
 <p>日志里会看到逻辑 SQL 和真实 SQL。</p>
+<h4 id="5-10-推荐工程目录"><a href="#5-10-推荐工程目录" class="headerlink" title="5.10 推荐工程目录"></a>5.10 推荐工程目录</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs text">shardingsphere-demo/<br>├── compose.yaml<br>├── docker/<br>│   ├── ds0/init.sql<br>│   └── ds1/init.sql<br>├── pom.xml<br>└── src/<br>    ├── main/<br>    │   ├── java/com/example/sharding/<br>    │   │   ├── ShardingSphereDemoApplication.java<br>    │   │   ├── order/OrderController.java<br>    │   │   ├── order/OrderService.java<br>    │   │   ├── order/OrderRepository.java<br>    │   │   └── algorithm/OrderStandardShardingAlgorithm.java<br>    │   └── resources/<br>    │       ├── application.yml<br>    │       └── shardingsphere.yaml<br>    └── test/<br>        └── java/com/example/sharding/<br>            ├── OrderRoutingIT.java<br>            └── TransactionBoundaryIT.java<br></code></pre></td></tr></table></figure>
+
+<h4 id="5-11-使用-Docker-Compose-准备两个-MySQL-实例"><a href="#5-11-使用-Docker-Compose-准备两个-MySQL-实例" class="headerlink" title="5.11 使用 Docker Compose 准备两个 MySQL 实例"></a>5.11 使用 Docker Compose 准备两个 MySQL 实例</h4><p>为了让示例可复现，建议使用两个独立 MySQL 容器，而不是在同一个实例里只建两个 Schema。独立实例更容易观察连接数、故障隔离与跨库事务行为。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">services:</span><br>  <span class="hljs-attr">mysql-ds0:</span><br>    <span class="hljs-attr">image:</span> <span class="hljs-string">mysql:8.4</span><br>    <span class="hljs-attr">container_name:</span> <span class="hljs-string">shardingsphere-mysql-ds0</span><br>    <span class="hljs-attr">environment:</span><br>      <span class="hljs-attr">MYSQL_ROOT_PASSWORD:</span> <span class="hljs-string">root</span><br>      <span class="hljs-attr">MYSQL_DATABASE:</span> <span class="hljs-string">demo_ds_0</span><br>      <span class="hljs-attr">TZ:</span> <span class="hljs-string">Asia/Shanghai</span><br>    <span class="hljs-attr">ports:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">&quot;33061:3306&quot;</span><br>    <span class="hljs-attr">command:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">--character-set-server=utf8mb4</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">--collation-server=utf8mb4_0900_ai_ci</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">--default-time-zone=+08:00</span><br>    <span class="hljs-attr">volumes:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">ds0-data:/var/lib/mysql</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">./docker/ds0/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro</span><br>    <span class="hljs-attr">healthcheck:</span><br>      <span class="hljs-attr">test:</span> [<span class="hljs-string">&quot;CMD&quot;</span>, <span class="hljs-string">&quot;mysqladmin&quot;</span>, <span class="hljs-string">&quot;ping&quot;</span>, <span class="hljs-string">&quot;-h&quot;</span>, <span class="hljs-string">&quot;127.0.0.1&quot;</span>, <span class="hljs-string">&quot;-proot&quot;</span>]<br>      <span class="hljs-attr">interval:</span> <span class="hljs-string">5s</span><br>      <span class="hljs-attr">timeout:</span> <span class="hljs-string">3s</span><br>      <span class="hljs-attr">retries:</span> <span class="hljs-number">30</span><br><br>  <span class="hljs-attr">mysql-ds1:</span><br>    <span class="hljs-attr">image:</span> <span class="hljs-string">mysql:8.4</span><br>    <span class="hljs-attr">container_name:</span> <span class="hljs-string">shardingsphere-mysql-ds1</span><br>    <span class="hljs-attr">environment:</span><br>      <span class="hljs-attr">MYSQL_ROOT_PASSWORD:</span> <span class="hljs-string">root</span><br>      <span class="hljs-attr">MYSQL_DATABASE:</span> <span class="hljs-string">demo_ds_1</span><br>      <span class="hljs-attr">TZ:</span> <span class="hljs-string">Asia/Shanghai</span><br>    <span class="hljs-attr">ports:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">&quot;33062:3306&quot;</span><br>    <span class="hljs-attr">command:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">--character-set-server=utf8mb4</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">--collation-server=utf8mb4_0900_ai_ci</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">--default-time-zone=+08:00</span><br>    <span class="hljs-attr">volumes:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">ds1-data:/var/lib/mysql</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">./docker/ds1/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro</span><br>    <span class="hljs-attr">healthcheck:</span><br>      <span class="hljs-attr">test:</span> [<span class="hljs-string">&quot;CMD&quot;</span>, <span class="hljs-string">&quot;mysqladmin&quot;</span>, <span class="hljs-string">&quot;ping&quot;</span>, <span class="hljs-string">&quot;-h&quot;</span>, <span class="hljs-string">&quot;127.0.0.1&quot;</span>, <span class="hljs-string">&quot;-proot&quot;</span>]<br>      <span class="hljs-attr">interval:</span> <span class="hljs-string">5s</span><br>      <span class="hljs-attr">timeout:</span> <span class="hljs-string">3s</span><br>      <span class="hljs-attr">retries:</span> <span class="hljs-number">30</span><br><br><span class="hljs-attr">volumes:</span><br>  <span class="hljs-attr">ds0-data:</span><br>  <span class="hljs-attr">ds1-data:</span><br></code></pre></td></tr></table></figure>
+
+<p>启动：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker compose up -d<br>docker compose ps<br></code></pre></td></tr></table></figure>
+
+<p>对应的 <code>shardingsphere.yaml</code> 需要使用：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">standardJdbcUrl:</span> <span class="hljs-string">jdbc:mysql://127.0.0.1:33061/demo_ds_0?serverTimezone=Asia/Shanghai&amp;useSSL=false&amp;allowPublicKeyRetrieval=true</span><br></code></pre></td></tr></table></figure>
+
+<p>和：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">standardJdbcUrl:</span> <span class="hljs-string">jdbc:mysql://127.0.0.1:33062/demo_ds_1?serverTimezone=Asia/Shanghai&amp;useSSL=false&amp;allowPublicKeyRetrieval=true</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="5-12-一份格式完整的初始化-SQL"><a href="#5-12-一份格式完整的初始化-SQL" class="headerlink" title="5.12 一份格式完整的初始化 SQL"></a>5.12 一份格式完整的初始化 SQL</h4><p>将下面 SQL 分别放入 <code>docker/ds0/init.sql</code> 和 <code>docker/ds1/init.sql</code>：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> IF <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">EXISTS</span> t_order_0 (<br>    order_id <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    user_id <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    order_no <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    amount <span class="hljs-type">DECIMAL</span>(<span class="hljs-number">18</span>, <span class="hljs-number">2</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    status <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">32</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    create_time DATETIME(<span class="hljs-number">6</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    update_time DATETIME(<span class="hljs-number">6</span>) <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-built_in">CURRENT_TIMESTAMP</span>(<span class="hljs-number">6</span>)<br>        <span class="hljs-keyword">ON</span> <span class="hljs-keyword">UPDATE</span> <span class="hljs-built_in">CURRENT_TIMESTAMP</span>(<span class="hljs-number">6</span>),<br>    <span class="hljs-keyword">PRIMARY KEY</span> (order_id),<br>    <span class="hljs-keyword">UNIQUE</span> KEY uk_order_no (order_no),<br>    KEY idx_user_create_time (user_id, create_time <span class="hljs-keyword">DESC</span>),<br>    KEY idx_status_create_time (status, create_time)<br>) ENGINE<span class="hljs-operator">=</span>InnoDB <span class="hljs-keyword">DEFAULT</span> CHARSET<span class="hljs-operator">=</span>utf8mb4;<br><br><span class="hljs-keyword">CREATE TABLE</span> IF <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">EXISTS</span> t_order_1 <span class="hljs-keyword">LIKE</span> t_order_0;<br><br><span class="hljs-keyword">CREATE TABLE</span> IF <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">EXISTS</span> t_order_item_0 (<br>    order_item_id <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    order_id <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    user_id <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    sku_code <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    quantity <span class="hljs-type">INT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    price <span class="hljs-type">DECIMAL</span>(<span class="hljs-number">18</span>, <span class="hljs-number">2</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    create_time DATETIME(<span class="hljs-number">6</span>) <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-built_in">CURRENT_TIMESTAMP</span>(<span class="hljs-number">6</span>),<br>    <span class="hljs-keyword">PRIMARY KEY</span> (order_item_id),<br>    KEY idx_order_id (order_id),<br>    KEY idx_user_order (user_id, order_id),<br>    KEY idx_sku_code (sku_code)<br>) ENGINE<span class="hljs-operator">=</span>InnoDB <span class="hljs-keyword">DEFAULT</span> CHARSET<span class="hljs-operator">=</span>utf8mb4;<br><br><span class="hljs-keyword">CREATE TABLE</span> IF <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">EXISTS</span> t_order_item_1 <span class="hljs-keyword">LIKE</span> t_order_item_0;<br><br><span class="hljs-keyword">CREATE TABLE</span> IF <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">EXISTS</span> t_address (<br>    id <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    region_code <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">32</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    region_name <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">128</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    <span class="hljs-keyword">PRIMARY KEY</span> (id),<br>    <span class="hljs-keyword">UNIQUE</span> KEY uk_region_code (region_code)<br>) ENGINE<span class="hljs-operator">=</span>InnoDB <span class="hljs-keyword">DEFAULT</span> CHARSET<span class="hljs-operator">=</span>utf8mb4;<br></code></pre></td></tr></table></figure>
+
+<p>所有真实分片表必须保持：</p>
+<ul>
+<li>列名和列顺序一致；</li>
+<li>数据类型一致；</li>
+<li>主键和唯一约束一致；</li>
+<li>索引定义一致；</li>
+<li>字符集、排序规则一致；</li>
+<li>默认值和精度一致。</li>
+</ul>
+<p>否则会出现某些分片正常、某些分片报错，或者归并时类型不一致。</p>
+<h4 id="5-13-使用-KeyHolder-获取-ShardingSphere-生成的主键"><a href="#5-13-使用-KeyHolder-获取-ShardingSphere-生成的主键" class="headerlink" title="5.13 使用 KeyHolder 获取 ShardingSphere 生成的主键"></a>5.13 使用 KeyHolder 获取 ShardingSphere 生成的主键</h4><p>原示例插入后通过 <code>order_no</code> 回查主键，能工作，但多一次数据库往返，并依赖 <code>order_no</code> 唯一。更推荐使用 JDBC generated keys：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Repository</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">OrderRepository</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> JdbcTemplate jdbcTemplate;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">OrderRepository</span><span class="hljs-params">(JdbcTemplate jdbcTemplate)</span> &#123;<br>        <span class="hljs-built_in">this</span>.jdbcTemplate = jdbcTemplate;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">long</span> <span class="hljs-title function_">createOrder</span><span class="hljs-params">(Long userId, String orderNo, BigDecimal amount)</span> &#123;<br>        <span class="hljs-type">String</span> <span class="hljs-variable">sql</span> <span class="hljs-operator">=</span> <span class="hljs-string">&quot;&quot;&quot;</span><br><span class="hljs-string">            INSERT INTO t_order(user_id, order_no, amount, status, create_time)</span><br><span class="hljs-string">            VALUES (?, ?, ?, ?, ?)</span><br><span class="hljs-string">            &quot;&quot;&quot;</span>;<br><br>        <span class="hljs-type">GeneratedKeyHolder</span> <span class="hljs-variable">keyHolder</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">GeneratedKeyHolder</span>();<br>        <span class="hljs-type">int</span> <span class="hljs-variable">affected</span> <span class="hljs-operator">=</span> jdbcTemplate.update(connection -&gt; &#123;<br>            <span class="hljs-type">PreparedStatement</span> <span class="hljs-variable">statement</span> <span class="hljs-operator">=</span> connection.prepareStatement(<br>                sql,<br>                Statement.RETURN_GENERATED_KEYS<br>            );<br>            statement.setLong(<span class="hljs-number">1</span>, userId);<br>            statement.setString(<span class="hljs-number">2</span>, orderNo);<br>            statement.setBigDecimal(<span class="hljs-number">3</span>, amount);<br>            statement.setString(<span class="hljs-number">4</span>, <span class="hljs-string">&quot;CREATED&quot;</span>);<br>            statement.setTimestamp(<span class="hljs-number">5</span>, Timestamp.valueOf(LocalDateTime.now()));<br>            <span class="hljs-keyword">return</span> statement;<br>        &#125;, keyHolder);<br><br>        <span class="hljs-keyword">if</span> (affected != <span class="hljs-number">1</span>) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>(<span class="hljs-string">&quot;Unexpected affected rows: &quot;</span> + affected);<br>        &#125;<br><br>        <span class="hljs-type">Number</span> <span class="hljs-variable">key</span> <span class="hljs-operator">=</span> keyHolder.getKey();<br>        <span class="hljs-keyword">if</span> (key == <span class="hljs-literal">null</span>) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>(<span class="hljs-string">&quot;Sharding key generator returned no key.&quot;</span>);<br>        &#125;<br>        <span class="hljs-keyword">return</span> key.longValue();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>需要导入：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> java.sql.PreparedStatement;<br><span class="hljs-keyword">import</span> java.sql.Statement;<br><span class="hljs-keyword">import</span> java.sql.Timestamp;<br><span class="hljs-keyword">import</span> org.springframework.jdbc.support.GeneratedKeyHolder;<br></code></pre></td></tr></table></figure>
+
+<h4 id="5-14-使用-MyBatis-时的-Mapper-示例"><a href="#5-14-使用-MyBatis-时的-Mapper-示例" class="headerlink" title="5.14 使用 MyBatis 时的 Mapper 示例"></a>5.14 使用 MyBatis 时的 Mapper 示例</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Mapper</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">interface</span> <span class="hljs-title class_">OrderMapper</span> &#123;<br><br>    <span class="hljs-meta">@Insert(&quot;&quot;&quot;</span><br><span class="hljs-meta">        INSERT INTO t_order(user_id, order_no, amount, status, create_time)</span><br><span class="hljs-meta">        VALUES (#&#123;userId&#125;, #&#123;orderNo&#125;, #&#123;amount&#125;, #&#123;status&#125;, #&#123;createTime&#125;)</span><br><span class="hljs-meta">        &quot;&quot;&quot;)</span><br>    <span class="hljs-meta">@Options(useGeneratedKeys = true, keyProperty = &quot;orderId&quot;, keyColumn = &quot;order_id&quot;)</span><br>    <span class="hljs-type">int</span> <span class="hljs-title function_">insert</span><span class="hljs-params">(OrderDO order)</span>;<br><br>    <span class="hljs-meta">@Select(&quot;&quot;&quot;</span><br><span class="hljs-meta">        SELECT order_id, user_id, order_no, amount, status, create_time</span><br><span class="hljs-meta">        FROM t_order</span><br><span class="hljs-meta">        WHERE user_id = #&#123;userId&#125;</span><br><span class="hljs-meta">          AND order_id = #&#123;orderId&#125;</span><br><span class="hljs-meta">        &quot;&quot;&quot;)</span><br>    OrderDO <span class="hljs-title function_">findById</span><span class="hljs-params">(<span class="hljs-meta">@Param(&quot;userId&quot;)</span> Long userId,</span><br><span class="hljs-params">                     <span class="hljs-meta">@Param(&quot;orderId&quot;)</span> Long orderId)</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>实体仍使用逻辑表语义，不要在 Mapper 中拼接 <code>t_order_0</code>、<code>t_order_1</code>。</p>
+<h4 id="5-15-路由验证不能只看查询结果"><a href="#5-15-路由验证不能只看查询结果" class="headerlink" title="5.15 路由验证不能只看查询结果"></a>5.15 路由验证不能只看查询结果</h4><p>至少验证三个层面：</p>
+<ol>
+<li><strong>逻辑正确性</strong>：接口返回结果正确；</li>
+<li><strong>物理落点正确性</strong>：数据进入预期库表；</li>
+<li><strong>路由数量正确性</strong>：没有多余全路由。</li>
+</ol>
+<p>人工验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">mysql -h127.0.0.1 -P33061 -uroot -proot demo_ds_0 \<br>  -e <span class="hljs-string">&quot;SELECT order_id,user_id,order_no FROM t_order_0 UNION ALL SELECT order_id,user_id,order_no FROM t_order_1;&quot;</span><br><br>mysql -h127.0.0.1 -P33062 -uroot -proot demo_ds_1 \<br>  -e <span class="hljs-string">&quot;SELECT order_id,user_id,order_no FROM t_order_0 UNION ALL SELECT order_id,user_id,order_no FROM t_order_1;&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>自动化测试可以抓取 <code>sql-show</code> 日志，或者在 Proxy 中使用 <code>PREVIEW SQL</code> 验证路由。</p>
+<h4 id="5-16-启动阶段的健康检查"><a href="#5-16-启动阶段的健康检查" class="headerlink" title="5.16 启动阶段的健康检查"></a>5.16 启动阶段的健康检查</h4><p>应用成功启动不代表所有真实数据源都可用。建议增加启动自检：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ShardingDataSourceVerifier</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">ApplicationRunner</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> JdbcTemplate jdbcTemplate;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">ShardingDataSourceVerifier</span><span class="hljs-params">(JdbcTemplate jdbcTemplate)</span> &#123;<br>        <span class="hljs-built_in">this</span>.jdbcTemplate = jdbcTemplate;<br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">run</span><span class="hljs-params">(ApplicationArguments args)</span> &#123;<br>        <span class="hljs-type">Integer</span> <span class="hljs-variable">value</span> <span class="hljs-operator">=</span> jdbcTemplate.queryForObject(<span class="hljs-string">&quot;SELECT 1&quot;</span>, Integer.class);<br>        <span class="hljs-keyword">if</span> (!Integer.valueOf(<span class="hljs-number">1</span>).equals(value)) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>(<span class="hljs-string">&quot;ShardingSphere datasource verification failed&quot;</span>);<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>更严格的生产自检应覆盖每个真实数据源。可以在部署流水线中直接连接真实库执行 <code>SELECT 1</code>、检查表结构摘要和索引摘要，不建议让在线应用启动时做高成本全量扫描。</p>
 <h3 id="6-数据分片深度讲解"><a href="#6-数据分片深度讲解" class="headerlink" title="6. 数据分片深度讲解"></a>6. 数据分片深度讲解</h3><h4 id="6-1-路由过程"><a href="#6-1-路由过程" class="headerlink" title="6.1 路由过程"></a>6.1 路由过程</h4><p>一次查询大致经历：</p>
 <pre><code class=" mermaid">flowchart LR
     A[逻辑 SQL] --&gt; B[SQL 解析]
@@ -719,6 +1082,154 @@
 <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> java.sql.Connection;<br><span class="hljs-keyword">import</span> java.sql.PreparedStatement;<br><span class="hljs-keyword">import</span> java.sql.ResultSet;<br><span class="hljs-keyword">import</span> javax.sql.DataSource;<br><span class="hljs-keyword">import</span> org.apache.shardingsphere.infra.hint.HintManager;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">HintQueryExample</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> DataSource dataSource;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">HintQueryExample</span><span class="hljs-params">(DataSource dataSource)</span> &#123;<br>        <span class="hljs-built_in">this</span>.dataSource = dataSource;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">queryWithHint</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">String</span> <span class="hljs-variable">sql</span> <span class="hljs-operator">=</span> <span class="hljs-string">&quot;select * from t_order&quot;</span>;<br><br>        <span class="hljs-keyword">try</span> (<span class="hljs-type">HintManager</span> <span class="hljs-variable">hintManager</span> <span class="hljs-operator">=</span> HintManager.getInstance();<br>             <span class="hljs-type">Connection</span> <span class="hljs-variable">connection</span> <span class="hljs-operator">=</span> dataSource.getConnection();<br>             <span class="hljs-type">PreparedStatement</span> <span class="hljs-variable">statement</span> <span class="hljs-operator">=</span> connection.prepareStatement(sql)) &#123;<br><br>            hintManager.addDatabaseShardingValue(<span class="hljs-string">&quot;t_order&quot;</span>, <span class="hljs-number">1L</span>);<br>            hintManager.addTableShardingValue(<span class="hljs-string">&quot;t_order&quot;</span>, <span class="hljs-number">2L</span>);<br><br>            <span class="hljs-keyword">try</span> (<span class="hljs-type">ResultSet</span> <span class="hljs-variable">resultSet</span> <span class="hljs-operator">=</span> statement.executeQuery()) &#123;<br>                <span class="hljs-keyword">while</span> (resultSet.next()) &#123;<br>                    <span class="hljs-comment">// handle row</span><br>                &#125;<br>            &#125;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
 
 <p>Hint 使用 ThreadLocal，务必使用 try-with-resources 自动关闭。不关闭会污染当前线程后续请求，这种问题很阴，排查起来让人想喝三杯冰水冷静一下。</p>
+<h4 id="6-9-SQL-解析与绑定：不只是把字符串切开"><a href="#6-9-SQL-解析与绑定：不只是把字符串切开" class="headerlink" title="6.9 SQL 解析与绑定：不只是把字符串切开"></a>6.9 SQL 解析与绑定：不只是把字符串切开</h4><p>SQL 解析需要识别数据库方言、表、列、条件、占位符、子查询、聚合、排序、分页等信息。随后绑定阶段结合元数据确定：</p>
+<ul>
+<li><code>user_id</code> 属于哪张表；</li>
+<li>别名 <code>o</code> 指向哪个逻辑表；</li>
+<li><code>*</code> 具体包含哪些列；</li>
+<li>JOIN 条件中的列是否歧义；</li>
+<li>ORDER BY 引用的是列名、别名还是序号；</li>
+<li>参数索引与分片条件如何对应。</li>
+</ul>
+<p>这也是为什么分片环境中元数据一致性非常重要。一个真实表少一列，可能不是立即在启动时报错，而是在特定 SQL 路由到该表时才暴露。</p>
+<h4 id="6-10-路由引擎的几种典型路径"><a href="#6-10-路由引擎的几种典型路径" class="headerlink" title="6.10 路由引擎的几种典型路径"></a>6.10 路由引擎的几种典型路径</h4><p>ShardingSphere 路由可以从工程角度理解为：</p>
+<table>
+<thead>
+<tr>
+<th>路由类型</th>
+<th>典型触发条件</th>
+<th>代价</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Direct Route</td>
+<td>Hint 明确指定，场景满足直接路由条件</td>
+<td>最低，但依赖业务正确提供 Hint</td>
+</tr>
+<tr>
+<td>Standard Route</td>
+<td>单表或绑定表，带可计算分片条件</td>
+<td>推荐路径</td>
+</tr>
+<tr>
+<td>Cartesian Route</td>
+<td>非绑定表 JOIN、分片拓扑不一致</td>
+<td>路由组合可能快速膨胀</td>
+</tr>
+<tr>
+<td>Full DB&#x2F;Table Route</td>
+<td>缺少分片键的 DQL&#x2F;DML</td>
+<td>扫描所有相关真实表</td>
+</tr>
+<tr>
+<td>Unicast Route</td>
+<td><code>DESCRIBE</code> 等只需任一真实表</td>
+<td>单节点执行</td>
+</tr>
+<tr>
+<td>Block Route</td>
+<td>不应下发到真实库的逻辑操作</td>
+<td>被阻断或在逻辑层处理</td>
+</tr>
+</tbody></table>
+<p>路由数量近似可以表达为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">route_count = matched_databases × matched_tables_per_database × join_combinations<br></code></pre></td></tr></table></figure>
+
+<p>当 JOIN 涉及多张非绑定分片表时，<code>join_combinations</code> 可能成为最危险的一项。</p>
+<h4 id="6-11-SQL-改写具体改了什么"><a href="#6-11-SQL-改写具体改了什么" class="headerlink" title="6.11 SQL 改写具体改了什么"></a>6.11 SQL 改写具体改了什么</h4><p>改写不只是把 <code>t_order</code> 替换成 <code>t_order_0</code>。常见改写包括：</p>
+<ol>
+<li><strong>标识符改写</strong>：逻辑表、Schema、索引名替换为真实名称；</li>
+<li><strong>主键补全</strong>：INSERT 未传分布式主键时生成并补入；</li>
+<li><strong>派生列补全</strong>：ORDER BY&#x2F;GROUP BY 所需列未在 SELECT 中时补列；</li>
+<li><strong>AVG 拆分</strong>：跨分片 <code>AVG</code> 改写为 <code>SUM + COUNT</code> 后归并；</li>
+<li><strong>分页修正</strong>：深分页扩大每个分片的拉取范围；</li>
+<li><strong>批量语句拆分</strong>：一条批量 INSERT 按路由目标拆成多条真实 SQL；</li>
+<li><strong>单节点优化</strong>：只命中一个节点时尽量减少不必要归并。</li>
+</ol>
+<p>AVG 不能简单平均每个分片的平均值。例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">分片 A：1 条，平均值 100<br>分片 B：99 条，平均值 1<br>错误：(100 + 1) / 2 = 50.5<br>正确：(100 + 99) / (1 + 99) = 1.99<br></code></pre></td></tr></table></figure>
+
+<p>所以 SQL 会在各分片计算 <code>SUM</code> 和 <code>COUNT</code>，最后统一计算。</p>
+<h4 id="6-12-执行引擎：连接和内存之间的取舍"><a href="#6-12-执行引擎：连接和内存之间的取舍" class="headerlink" title="6.12 执行引擎：连接和内存之间的取舍"></a>6.12 执行引擎：连接和内存之间的取舍</h4><p>假设一条 SQL 路由到同一数据库实例中的 200 张表：</p>
+<ul>
+<li>每张表一个连接，并行快，但可能瞬间占用 200 个连接；</li>
+<li>一个连接串行跑 200 条 SQL，连接省，但延迟高，而且结果可能需要先加载到内存。</li>
+</ul>
+<p>ShardingSphere 执行引擎要在连接资源、并发度和归并内存之间平衡。<code>max-connections-size-per-query</code> 是重要的保护参数，不应盲目调大。</p>
+<pre><code class=" mermaid">flowchart TD
+    A[路由得到 N 个执行单元] --&gt; B&#123;每查询允许的最大连接数&#125;
+    B --&gt;|连接充足| C[更多并行执行]
+    B --&gt;|严格受限| D[同数据源内串行复用]
+    C --&gt; E[优先流式归并]
+    D --&gt; F[可能增加内存归并需求]
+    E --&gt; G[低延迟但连接消耗高]
+    F --&gt; H[连接稳定但延迟/内存上升]
+</code></pre>
+
+<h4 id="6-13-归并引擎详解"><a href="#6-13-归并引擎详解" class="headerlink" title="6.13 归并引擎详解"></a>6.13 归并引擎详解</h4><p>归并能力可分为：</p>
+<ul>
+<li>遍历归并；</li>
+<li>ORDER BY 归并；</li>
+<li>GROUP BY 归并；</li>
+<li>聚合归并；</li>
+<li>分页归并。</li>
+</ul>
+<p>结构上又可分为：</p>
+<ul>
+<li><strong>流式归并</strong>：ResultSet 逐行读取，通常更省内存；</li>
+<li><strong>内存归并</strong>：先加载结果再统一计算；</li>
+<li><strong>装饰器归并</strong>：在基础归并上叠加分页、聚合等能力。</li>
+</ul>
+<p>跨分片 ORDER BY 可以把每个分片看成一个已排序列表，ShardingSphere 用类似优先队列的方式取出全局最小&#x2F;最大值：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[分片0有序结果] --&gt; Q[优先队列]
+    B[分片1有序结果] --&gt; Q
+    C[分片2有序结果] --&gt; Q
+    Q --&gt; R[每次弹出全局下一行]
+    R --&gt; M[移动对应 ResultSet 游标]
+    M --&gt; Q
+</code></pre>
+
+<h4 id="6-14-深分页为什么昂贵"><a href="#6-14-深分页为什么昂贵" class="headerlink" title="6.14 深分页为什么昂贵"></a>6.14 深分页为什么昂贵</h4><p>逻辑 SQL：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> t_order<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> create_time <span class="hljs-keyword">DESC</span><br>LIMIT <span class="hljs-number">100000</span>, <span class="hljs-number">20</span>;<br></code></pre></td></tr></table></figure>
+
+<p>为了保证全局正确性，每个分片通常都要提供足够多的候选记录，近似改写为：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql">LIMIT <span class="hljs-number">0</span>, <span class="hljs-number">100020</span><br></code></pre></td></tr></table></figure>
+
+<p>如果有 16 个分片，潜在读取量接近：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">16 × 100020 = 1,600,320 行候选数据<br></code></pre></td></tr></table></figure>
+
+<p>更推荐游标分页：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> order_id, user_id, order_no, create_time<br><span class="hljs-keyword">FROM</span> t_order<br><span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> :userId<br>  <span class="hljs-keyword">AND</span> (create_time <span class="hljs-operator">&lt;</span> :lastCreateTime<br>       <span class="hljs-keyword">OR</span> (create_time <span class="hljs-operator">=</span> :lastCreateTime <span class="hljs-keyword">AND</span> order_id <span class="hljs-operator">&lt;</span> :lastOrderId))<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> create_time <span class="hljs-keyword">DESC</span>, order_id <span class="hljs-keyword">DESC</span><br>LIMIT <span class="hljs-number">20</span>;<br></code></pre></td></tr></table></figure>
+
+<p>游标分页必须使用稳定、唯一的排序组合，避免同一时间戳导致重复或漏数据。</p>
+<h4 id="6-15-全路由审计"><a href="#6-15-全路由审计" class="headerlink" title="6.15 全路由审计"></a>6.15 全路由审计</h4><p>当前示例配置了：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">auditStrategy:</span><br>  <span class="hljs-attr">auditorNames:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">sharding_key_required_auditor</span><br>  <span class="hljs-attr">allowHintDisable:</span> <span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>审计器的价值是把“可能很慢”提前变成“明确拒绝”。但使用前需要划分接口：</p>
+<ul>
+<li>在线核心接口：建议强制带分片键；</li>
+<li>后台低频管理查询：可以走独立查询服务；</li>
+<li>离线任务：可通过批次扫描各分片；</li>
+<li>数据修复：使用受控 Hint 或直连真实库工具；</li>
+<li>报表：进入 ClickHouse、Doris、Elasticsearch 或数仓。</li>
+</ul>
+<p>不要为了让后台一个搜索框方便，就把整个在线库的分片审计关掉。</p>
+<h4 id="6-16-分片算法的边界测试"><a href="#6-16-分片算法的边界测试" class="headerlink" title="6.16 分片算法的边界测试"></a>6.16 分片算法的边界测试</h4><p>自定义算法至少测试：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs text">0<br>1<br>-1<br>Long.MAX_VALUE<br>Long.MIN_VALUE<br>null<br>字符串数字<br>非法字符串<br>IN 空集合<br>IN 大集合<br>范围上下界相等<br>跨全部分片的范围<br></code></pre></td></tr></table></figure>
+
+<p>取模算法若可能接收负数，应使用 <code>Math.floorMod(value, shardCount)</code>，而不是直接 <code>value % shardCount</code>。</p>
+<h4 id="6-17-批量-INSERT-的路由与拆分"><a href="#6-17-批量-INSERT-的路由与拆分" class="headerlink" title="6.17 批量 INSERT 的路由与拆分"></a>6.17 批量 INSERT 的路由与拆分</h4><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">INSERT INTO</span> t_order(user_id, order_no, amount, status, create_time)<br><span class="hljs-keyword">VALUES</span><br>  (<span class="hljs-number">10</span>, <span class="hljs-string">&#x27;A&#x27;</span>, <span class="hljs-number">10</span>, <span class="hljs-string">&#x27;CREATED&#x27;</span>, NOW()),<br>  (<span class="hljs-number">11</span>, <span class="hljs-string">&#x27;B&#x27;</span>, <span class="hljs-number">20</span>, <span class="hljs-string">&#x27;CREATED&#x27;</span>, NOW()),<br>  (<span class="hljs-number">12</span>, <span class="hljs-string">&#x27;C&#x27;</span>, <span class="hljs-number">30</span>, <span class="hljs-string">&#x27;CREATED&#x27;</span>, NOW());<br></code></pre></td></tr></table></figure>
+
+<p>三行可能路由到不同库表，ShardingSphere 需要按目标拆分。批量越大，单次解析、改写和参数复制越重。</p>
+<p>生产建议：</p>
+<ul>
+<li>批次控制在可压测的范围内，例如 100～1000 条，而不是无限堆积；</li>
+<li>同一批尽量按分片键预分组；</li>
+<li>关注单包大小、数据库 <code>max_allowed_packet</code>；</li>
+<li>失败时明确整批重试还是分组重试；</li>
+<li>幂等键必须能跨重试生效。</li>
+</ul>
 <h3 id="7-读写分离"><a href="#7-读写分离" class="headerlink" title="7. 读写分离"></a>7. 读写分离</h3><h4 id="7-1-YAML-示例"><a href="#7-1-YAML-示例" class="headerlink" title="7.1 YAML 示例"></a>7.1 YAML 示例</h4><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">databaseName:</span> <span class="hljs-string">readwrite_db</span><br><br><span class="hljs-attr">mode:</span><br>  <span class="hljs-attr">type:</span> <span class="hljs-string">Standalone</span><br><br><span class="hljs-attr">dataSources:</span><br>  <span class="hljs-attr">write_ds:</span><br>    <span class="hljs-attr">dataSourceClassName:</span> <span class="hljs-string">com.zaxxer.hikari.HikariDataSource</span><br>    <span class="hljs-attr">driverClassName:</span> <span class="hljs-string">com.mysql.cj.jdbc.Driver</span><br>    <span class="hljs-attr">standardJdbcUrl:</span> <span class="hljs-string">jdbc:mysql://127.0.0.1:3306/order_master?serverTimezone=Asia/Shanghai&amp;useSSL=false&amp;allowPublicKeyRetrieval=true</span><br>    <span class="hljs-attr">username:</span> <span class="hljs-string">root</span><br>    <span class="hljs-attr">password:</span> <span class="hljs-string">root</span><br>  <span class="hljs-attr">read_ds_0:</span><br>    <span class="hljs-attr">dataSourceClassName:</span> <span class="hljs-string">com.zaxxer.hikari.HikariDataSource</span><br>    <span class="hljs-attr">driverClassName:</span> <span class="hljs-string">com.mysql.cj.jdbc.Driver</span><br>    <span class="hljs-attr">standardJdbcUrl:</span> <span class="hljs-string">jdbc:mysql://127.0.0.1:3306/order_slave_0?serverTimezone=Asia/Shanghai&amp;useSSL=false&amp;allowPublicKeyRetrieval=true</span><br>    <span class="hljs-attr">username:</span> <span class="hljs-string">root</span><br>    <span class="hljs-attr">password:</span> <span class="hljs-string">root</span><br>  <span class="hljs-attr">read_ds_1:</span><br>    <span class="hljs-attr">dataSourceClassName:</span> <span class="hljs-string">com.zaxxer.hikari.HikariDataSource</span><br>    <span class="hljs-attr">driverClassName:</span> <span class="hljs-string">com.mysql.cj.jdbc.Driver</span><br>    <span class="hljs-attr">standardJdbcUrl:</span> <span class="hljs-string">jdbc:mysql://127.0.0.1:3306/order_slave_1?serverTimezone=Asia/Shanghai&amp;useSSL=false&amp;allowPublicKeyRetrieval=true</span><br>    <span class="hljs-attr">username:</span> <span class="hljs-string">root</span><br>    <span class="hljs-attr">password:</span> <span class="hljs-string">root</span><br><br><span class="hljs-attr">rules:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-type">!READWRITE_SPLITTING</span><br>    <span class="hljs-attr">dataSourceGroups:</span><br>      <span class="hljs-attr">readwrite_ds:</span><br>        <span class="hljs-attr">writeDataSourceName:</span> <span class="hljs-string">write_ds</span><br>        <span class="hljs-attr">readDataSourceNames:</span><br>          <span class="hljs-bullet">-</span> <span class="hljs-string">read_ds_0</span><br>          <span class="hljs-bullet">-</span> <span class="hljs-string">read_ds_1</span><br>        <span class="hljs-attr">transactionalReadQueryStrategy:</span> <span class="hljs-string">PRIMARY</span><br>        <span class="hljs-attr">loadBalancerName:</span> <span class="hljs-string">random</span><br>    <span class="hljs-attr">loadBalancers:</span><br>      <span class="hljs-attr">random:</span><br>        <span class="hljs-attr">type:</span> <span class="hljs-string">RANDOM</span><br><br><span class="hljs-attr">props:</span><br>  <span class="hljs-attr">sql-show:</span> <span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
 
 <p>应用连接的是逻辑数据源 <code>readwrite_ds</code>，不是直接连 <code>write_ds</code> 或 <code>read_ds_0</code>。</p>
@@ -750,6 +1261,87 @@
 <li>库存扣减确认。</li>
 <li>后台人工审核刚提交的数据。</li>
 </ul>
+<h4 id="7-5-读写分离解决的是吞吐，不是数据一致性"><a href="#7-5-读写分离解决的是吞吐，不是数据一致性" class="headerlink" title="7.5 读写分离解决的是吞吐，不是数据一致性"></a>7.5 读写分离解决的是吞吐，不是数据一致性</h4><p>主从复制通常是异步或半同步。写入主库后，数据需要经过 binlog、网络传输、relay log 和从库回放，延迟可能从毫秒波动到秒级甚至更高。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant App as 应用
+    participant Master as 主库
+    participant Binlog as Binlog复制
+    participant Slave as 从库
+
+    App-&gt;&gt;Master: INSERT order
+    Master--&gt;&gt;App: COMMIT 成功
+    Master-&gt;&gt;Binlog: 生成并发送日志
+    App-&gt;&gt;Slave: 立即 SELECT
+    Slave--&gt;&gt;App: 可能查不到
+    Binlog-&gt;&gt;Slave: 回放完成
+    App-&gt;&gt;Slave: 再次 SELECT
+    Slave--&gt;&gt;App: 查到数据
+</code></pre>
+
+<h4 id="7-6-一致性等级按业务分类"><a href="#7-6-一致性等级按业务分类" class="headerlink" title="7.6 一致性等级按业务分类"></a>7.6 一致性等级按业务分类</h4><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>推荐读路径</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>创建订单后返回详情</td>
+<td>主库</td>
+<td>必须读己之写</td>
+</tr>
+<tr>
+<td>支付结果确认</td>
+<td>主库</td>
+<td>状态错误代价高</td>
+</tr>
+<tr>
+<td>库存扣减后确认</td>
+<td>主库</td>
+<td>防止超卖判断错误</td>
+</tr>
+<tr>
+<td>用户浏览历史订单</td>
+<td>从库可接受</td>
+<td>通常允许轻微延迟</td>
+</tr>
+<tr>
+<td>运营报表</td>
+<td>从库&#x2F;OLAP</td>
+<td>吞吐优先</td>
+</tr>
+<tr>
+<td>配置发布后校验</td>
+<td>主库或版本确认</td>
+<td>需要确认最新版本</td>
+</tr>
+</tbody></table>
+<p>不要全局强制所有 SELECT 走主库，否则读写分离形同虚设；也不要全局所有 SELECT 走从库，否则一致性事故只是时间问题。</p>
+<h4 id="7-7-会话级“读己之写”设计"><a href="#7-7-会话级“读己之写”设计" class="headerlink" title="7.7 会话级“读己之写”设计"></a>7.7 会话级“读己之写”设计</h4><p>除了事务内读主库，可以使用短期主库粘滞：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">写入成功 -&gt; 在请求上下文/Redis 记录 user_id 最近写时间<br>读取请求 -&gt; 若距写入小于 3 秒，则强制主库<br>超过窗口 -&gt; 恢复从库<br></code></pre></td></tr></table></figure>
+
+<p>伪代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> &lt;T&gt; T <span class="hljs-title function_">readOrder</span><span class="hljs-params">(Long userId, Supplier&lt;T&gt; query)</span> &#123;<br>    <span class="hljs-type">boolean</span> <span class="hljs-variable">recentlyWritten</span> <span class="hljs-operator">=</span> writeMarkerService.isRecentlyWritten(userId);<br>    <span class="hljs-keyword">if</span> (!recentlyWritten) &#123;<br>        <span class="hljs-keyword">return</span> query.get();<br>    &#125;<br><br>    <span class="hljs-keyword">try</span> (<span class="hljs-type">HintManager</span> <span class="hljs-variable">hintManager</span> <span class="hljs-operator">=</span> HintManager.getInstance()) &#123;<br>        hintManager.setWriteRouteOnly();<br>        <span class="hljs-keyword">return</span> query.get();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>窗口值不能拍脑袋，应根据 P99 主从延迟确定，并设置最大保护值。</p>
+<h4 id="7-8-从库故障与负载均衡"><a href="#7-8-从库故障与负载均衡" class="headerlink" title="7.8 从库故障与负载均衡"></a>7.8 从库故障与负载均衡</h4><p>读库并不是越多越好。每增加一个从库，都增加：</p>
+<ul>
+<li>复制延迟差异；</li>
+<li>数据不一致窗口；</li>
+<li>连接池数量；</li>
+<li>监控和故障摘除复杂度；</li>
+<li>权重配置错误风险。</li>
+</ul>
+<p>需要监控每个副本：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">replication_lag_seconds<br>read_only / super_read_only<br>last_io_error<br>last_sql_error<br>connection_usage<br>query_latency_p95/p99<br></code></pre></td></tr></table></figure>
+
+<p>ShardingSphere 负责选择配置中的读数据源，但数据库复制拓扑、故障转移和复制修复仍需数据库层或云数据库承担。</p>
+<h4 id="7-9-Transactional-readOnly-true-不等于一定走从库"><a href="#7-9-Transactional-readOnly-true-不等于一定走从库" class="headerlink" title="7.9 @Transactional(readOnly = true) 不等于一定走从库"></a>7.9 <code>@Transactional(readOnly = true)</code> 不等于一定走从库</h4><p>Spring 的 <code>readOnly</code> 主要是事务提示；ShardingSphere 的读写路由还会结合 SQL 类型、事务状态和 <code>transactionalReadQueryStrategy</code>。在配置 <code>PRIMARY</code> 时，即使事务只执行 SELECT，也可能走主库。</p>
+<p>因此不要用下面这种直觉做架构保证：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">readOnly=true -&gt; 一定从库<br>readOnly=false -&gt; 一定主库<br></code></pre></td></tr></table></figure>
+
+<p>真正路由结果必须通过日志或 PREVIEW 验证。</p>
 <h3 id="8-分片-读写分离混合规则"><a href="#8-分片-读写分离混合规则" class="headerlink" title="8. 分片 + 读写分离混合规则"></a>8. 分片 + 读写分离混合规则</h3><p>典型架构：</p>
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">ds_0:<br>  master_0<br>  slave_0_0<br>  slave_0_1<br><br>ds_1:<br>  master_1<br>  slave_1_0<br>  slave_1_1<br></code></pre></td></tr></table></figure>
 
@@ -758,6 +1350,45 @@
 <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">dataSources:</span><br>  <span class="hljs-attr">master_0:</span><br>    <span class="hljs-attr">dataSourceClassName:</span> <span class="hljs-string">com.zaxxer.hikari.HikariDataSource</span><br>    <span class="hljs-attr">driverClassName:</span> <span class="hljs-string">com.mysql.cj.jdbc.Driver</span><br>    <span class="hljs-attr">standardJdbcUrl:</span> <span class="hljs-string">jdbc:mysql://127.0.0.1:3306/order_master_0</span><br>    <span class="hljs-attr">username:</span> <span class="hljs-string">root</span><br>    <span class="hljs-attr">password:</span> <span class="hljs-string">root</span><br>  <span class="hljs-attr">slave_0_0:</span><br>    <span class="hljs-attr">dataSourceClassName:</span> <span class="hljs-string">com.zaxxer.hikari.HikariDataSource</span><br>    <span class="hljs-attr">driverClassName:</span> <span class="hljs-string">com.mysql.cj.jdbc.Driver</span><br>    <span class="hljs-attr">standardJdbcUrl:</span> <span class="hljs-string">jdbc:mysql://127.0.0.1:3306/order_slave_0_0</span><br>    <span class="hljs-attr">username:</span> <span class="hljs-string">root</span><br>    <span class="hljs-attr">password:</span> <span class="hljs-string">root</span><br>  <span class="hljs-attr">master_1:</span><br>    <span class="hljs-attr">dataSourceClassName:</span> <span class="hljs-string">com.zaxxer.hikari.HikariDataSource</span><br>    <span class="hljs-attr">driverClassName:</span> <span class="hljs-string">com.mysql.cj.jdbc.Driver</span><br>    <span class="hljs-attr">standardJdbcUrl:</span> <span class="hljs-string">jdbc:mysql://127.0.0.1:3306/order_master_1</span><br>    <span class="hljs-attr">username:</span> <span class="hljs-string">root</span><br>    <span class="hljs-attr">password:</span> <span class="hljs-string">root</span><br>  <span class="hljs-attr">slave_1_0:</span><br>    <span class="hljs-attr">dataSourceClassName:</span> <span class="hljs-string">com.zaxxer.hikari.HikariDataSource</span><br>    <span class="hljs-attr">driverClassName:</span> <span class="hljs-string">com.mysql.cj.jdbc.Driver</span><br>    <span class="hljs-attr">standardJdbcUrl:</span> <span class="hljs-string">jdbc:mysql://127.0.0.1:3306/order_slave_1_0</span><br>    <span class="hljs-attr">username:</span> <span class="hljs-string">root</span><br>    <span class="hljs-attr">password:</span> <span class="hljs-string">root</span><br><br><span class="hljs-attr">rules:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-type">!READWRITE_SPLITTING</span><br>    <span class="hljs-attr">dataSourceGroups:</span><br>      <span class="hljs-attr">ds_0:</span><br>        <span class="hljs-attr">writeDataSourceName:</span> <span class="hljs-string">master_0</span><br>        <span class="hljs-attr">readDataSourceNames:</span><br>          <span class="hljs-bullet">-</span> <span class="hljs-string">slave_0_0</span><br>        <span class="hljs-attr">transactionalReadQueryStrategy:</span> <span class="hljs-string">PRIMARY</span><br>        <span class="hljs-attr">loadBalancerName:</span> <span class="hljs-string">random</span><br>      <span class="hljs-attr">ds_1:</span><br>        <span class="hljs-attr">writeDataSourceName:</span> <span class="hljs-string">master_1</span><br>        <span class="hljs-attr">readDataSourceNames:</span><br>          <span class="hljs-bullet">-</span> <span class="hljs-string">slave_1_0</span><br>        <span class="hljs-attr">transactionalReadQueryStrategy:</span> <span class="hljs-string">PRIMARY</span><br>        <span class="hljs-attr">loadBalancerName:</span> <span class="hljs-string">random</span><br>    <span class="hljs-attr">loadBalancers:</span><br>      <span class="hljs-attr">random:</span><br>        <span class="hljs-attr">type:</span> <span class="hljs-string">RANDOM</span><br><br>  <span class="hljs-bullet">-</span> <span class="hljs-type">!SHARDING</span><br>    <span class="hljs-attr">tables:</span><br>      <span class="hljs-attr">t_order:</span><br>        <span class="hljs-attr">actualDataNodes:</span> <span class="hljs-string">ds_$&#123;0..1&#125;.t_order_$&#123;0..1&#125;</span><br>        <span class="hljs-attr">databaseStrategy:</span><br>          <span class="hljs-attr">standard:</span><br>            <span class="hljs-attr">shardingColumn:</span> <span class="hljs-string">user_id</span><br>            <span class="hljs-attr">shardingAlgorithmName:</span> <span class="hljs-string">database_inline</span><br>        <span class="hljs-attr">tableStrategy:</span><br>          <span class="hljs-attr">standard:</span><br>            <span class="hljs-attr">shardingColumn:</span> <span class="hljs-string">order_id</span><br>            <span class="hljs-attr">shardingAlgorithmName:</span> <span class="hljs-string">order_table_inline</span><br>    <span class="hljs-attr">shardingAlgorithms:</span><br>      <span class="hljs-attr">database_inline:</span><br>        <span class="hljs-attr">type:</span> <span class="hljs-string">INLINE</span><br>        <span class="hljs-attr">props:</span><br>          <span class="hljs-attr">algorithm-expression:</span> <span class="hljs-string">ds_$&#123;user_id</span> <span class="hljs-string">%</span> <span class="hljs-number">2</span><span class="hljs-string">&#125;</span><br>      <span class="hljs-attr">order_table_inline:</span><br>        <span class="hljs-attr">type:</span> <span class="hljs-string">INLINE</span><br>        <span class="hljs-attr">props:</span><br>          <span class="hljs-attr">algorithm-expression:</span> <span class="hljs-string">t_order_$&#123;order_id</span> <span class="hljs-string">%</span> <span class="hljs-number">2</span><span class="hljs-string">&#125;</span><br></code></pre></td></tr></table></figure>
 
 <p>这里 <code>actualDataNodes</code> 里的 <code>ds_0</code>、<code>ds_1</code> 是读写分离逻辑数据源名称，不是物理库名称。</p>
+<h4 id="8-1-混合规则的完整拓扑"><a href="#8-1-混合规则的完整拓扑" class="headerlink" title="8.1 混合规则的完整拓扑"></a>8.1 混合规则的完整拓扑</h4><pre><code class=" mermaid">flowchart TD
+    App[Spring Boot 应用] --&gt; SS[ShardingSphere-JDBC]
+    SS --&gt; Shard&#123;按 user_id 分库&#125;
+    Shard --&gt; G0[逻辑组 ds_0]
+    Shard --&gt; G1[逻辑组 ds_1]
+
+    G0 --&gt; RW0&#123;读写路由&#125;
+    RW0 --&gt; M0[(master_0)]
+    RW0 --&gt; S00[(slave_0_0)]
+    RW0 --&gt; S01[(slave_0_1)]
+
+    G1 --&gt; RW1&#123;读写路由&#125;
+    RW1 --&gt; M1[(master_1)]
+    RW1 --&gt; S10[(slave_1_0)]
+    RW1 --&gt; S11[(slave_1_1)]
+
+    M0 --&gt; T00[t_order_0]
+    M0 --&gt; T01[t_order_1]
+    M1 --&gt; T10[t_order_0]
+    M1 --&gt; T11[t_order_1]
+</code></pre>
+
+<p>逻辑路由顺序可以理解为：先确定分库逻辑组，再在组内选择写库&#x2F;读库，最后执行表路由。配置中 <code>actualDataNodes</code> 使用的是读写分离逻辑数据源名称。</p>
+<h4 id="8-2-配置组合时最容易犯的错误"><a href="#8-2-配置组合时最容易犯的错误" class="headerlink" title="8.2 配置组合时最容易犯的错误"></a>8.2 配置组合时最容易犯的错误</h4><ul>
+<li><code>actualDataNodes</code> 写成物理主库名，绕过读写分离逻辑组；</li>
+<li>两个读写组复用了同名底层数据源；</li>
+<li>主从库表结构不一致；</li>
+<li>从库没有对应分片表；</li>
+<li>事务读策略设置为从库，但业务要求读己之写；</li>
+<li>连接池按物理数据源数倍增后超过数据库上限；</li>
+<li>故障切换后，ShardingSphere 配置仍指向旧主库。</li>
+</ul>
+<h4 id="8-3-连接池总量计算"><a href="#8-3-连接池总量计算" class="headerlink" title="8.3 连接池总量计算"></a>8.3 连接池总量计算</h4><p>假设：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">应用副本数：12<br>分库数：4<br>每个分库：1 主 2 从<br>每个物理数据源 maximumPoolSize：15<br></code></pre></td></tr></table></figure>
+
+<p>理论连接上限：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">12 × 4 × 3 × 15 = 2160<br></code></pre></td></tr></table></figure>
+
+<p>还没有计算迁移任务、管理工具、监控、其他服务和数据库保留连接。组合规则上线前必须做全局连接预算。</p>
 <h3 id="9-分布式主键设计"><a href="#9-分布式主键设计" class="headerlink" title="9. 分布式主键设计"></a>9. 分布式主键设计</h3><h4 id="9-1-SNOWFLAKE"><a href="#9-1-SNOWFLAKE" class="headerlink" title="9.1 SNOWFLAKE"></a>9.1 SNOWFLAKE</h4><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">keyGenerators:</span><br>  <span class="hljs-attr">snowflake:</span><br>    <span class="hljs-attr">type:</span> <span class="hljs-string">SNOWFLAKE</span><br>    <span class="hljs-attr">props:</span><br>      <span class="hljs-attr">worker-id:</span> <span class="hljs-number">1</span><br>      <span class="hljs-attr">max-vibration-offset:</span> <span class="hljs-number">1</span><br>      <span class="hljs-attr">max-tolerate-time-difference-milliseconds:</span> <span class="hljs-number">10</span><br></code></pre></td></tr></table></figure>
 
 <p>字段配置：</p>
@@ -790,6 +1421,59 @@
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">order_id: 内部主键，BIGINT<br>order_no: 外部单号，VARCHAR<br></code></pre></td></tr></table></figure>
 
 <p>不要把数据库主键、业务单号、幂等号、支付流水号全部混成一个字段。字段少了不代表架构干净，有时候只是以后的人要替你擦桌子。</p>
+<h4 id="9-4-Snowflake-ID-的结构与分片关系"><a href="#9-4-Snowflake-ID-的结构与分片关系" class="headerlink" title="9.4 Snowflake ID 的结构与分片关系"></a>9.4 Snowflake ID 的结构与分片关系</h4><p>Snowflake ID 通常由时间、机器标识和序列组成。不同实现位数可能有差异，但核心目标相同：在分布式节点上生成大致有序、全局唯一的长整型 ID。</p>
+<pre><code class=" mermaid">flowchart LR
+    A[1 bit&lt;br/&gt;符号位] --&gt; B[41 bits&lt;br/&gt;时间戳差值]
+    B --&gt; C[10 bits&lt;br/&gt;Worker 标识]
+    C --&gt; D[12 bits&lt;br/&gt;序列号]
+</code></pre>
+
+<p>需要注意：如果直接用 Snowflake ID 末位取模分表，短时间内低位分布可能受序列生成方式影响。<code>max-vibration-offset</code> 用于改善分片值的离散程度，但不能替代真实压测。</p>
+<h4 id="9-5-Worker-ID-管理"><a href="#9-5-Worker-ID-管理" class="headerlink" title="9.5 Worker ID 管理"></a>9.5 Worker ID 管理</h4><p>多实例部署时，worker ID 冲突会导致主键重复。可选方案：</p>
+<ol>
+<li>Cluster 模式由治理能力分配；</li>
+<li>Kubernetes StatefulSet 序号映射；</li>
+<li>配置中心分配并加租约；</li>
+<li>数据库表抢占；</li>
+<li>直接使用独立 ID 服务。</li>
+</ol>
+<p>不推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">所有实例都写 worker-id: 1<br>随机生成 worker-id 且不检查冲突<br>使用 Pod IP 最后一段但网络可能重复<br></code></pre></td></tr></table></figure>
+
+<h4 id="9-6-时钟回拨"><a href="#9-6-时钟回拨" class="headerlink" title="9.6 时钟回拨"></a>9.6 时钟回拨</h4><p>必须部署 NTP&#x2F;chrony 并监控时钟偏移。发生回拨时，根据实现可能等待、拒绝生成或在容忍窗口内处理。</p>
+<p>建议监控：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">node_clock_offset_milliseconds<br>id_generation_errors_total<br>duplicate_key_errors_total<br></code></pre></td></tr></table></figure>
+
+<h4 id="9-7-ID-是否应该承载路由信息"><a href="#9-7-ID-是否应该承载路由信息" class="headerlink" title="9.7 ID 是否应该承载路由信息"></a>9.7 ID 是否应该承载路由信息</h4><p>三种常见模式：</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>查询便利性</th>
+<th>扩容灵活性</th>
+<th>复杂度</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>user_id</code> 分库，<code>order_id</code> 分表</td>
+<td>用户查询好</td>
+<td>中</td>
+<td>中</td>
+</tr>
+<tr>
+<td><code>order_id</code> 同时分库分表</td>
+<td>订单详情好</td>
+<td>中</td>
+<td>低</td>
+</tr>
+<tr>
+<td>ID 中编码逻辑槽位</td>
+<td>详情可直达</td>
+<td>高</td>
+<td>高</td>
+</tr>
+</tbody></table>
+<p>在 ID 中编码“物理库编号”会让扩容困难；更合理的是编码稳定的逻辑槽位，再通过槽位映射到物理节点。</p>
 <h3 id="10-数据加密"><a href="#10-数据加密" class="headerlink" title="10. 数据加密"></a>10. 数据加密</h3><h4 id="10-1-加密解决什么问题"><a href="#10-1-加密解决什么问题" class="headerlink" title="10.1 加密解决什么问题"></a>10.1 加密解决什么问题</h4><p>数据加密解决的是“数据库中不直接保存明文敏感数据”。</p>
 <p>适合字段：</p>
 <ul>
@@ -825,6 +1509,55 @@
 <li>模糊查询加密成本高，能不用就不用。</li>
 <li>旧数据加密迁移要设计双写、回填、校验、切换步骤。</li>
 </ul>
+<h4 id="10-6-加密查询的真实代价"><a href="#10-6-加密查询的真实代价" class="headerlink" title="10.6 加密查询的真实代价"></a>10.6 加密查询的真实代价</h4><p>加密后的字段通常失去数据库原生索引能力。等值查询可通过确定性加密或辅助查询列实现，但要理解安全权衡：</p>
+<ul>
+<li>确定性密文会暴露“相同明文产生相同密文”的频率特征；</li>
+<li>Hash 辅助列适合等值查询，不能解密；</li>
+<li>范围查询很难保持原语义；</li>
+<li>LIKE 查询通常需要专用模糊索引或应用层重构；</li>
+<li>排序、聚合在密文上通常没有业务意义。</li>
+</ul>
+<h4 id="10-7-密钥管理架构"><a href="#10-7-密钥管理架构" class="headerlink" title="10.7 密钥管理架构"></a>10.7 密钥管理架构</h4><pre><code class=" mermaid">flowchart LR
+    App[Spring Boot] --&gt; SS[ShardingSphere Encrypt Rule]
+    SS --&gt; KMS[KMS / Vault]
+    KMS --&gt; SS
+    SS --&gt; DB[(密文列 + 辅助查询列)]
+    CI[CI/CD] -.不保存明文密钥.-&gt; App
+</code></pre>
+
+<p>建议：</p>
+<ul>
+<li>Git 仓库只保存密钥引用，不保存真实密钥；</li>
+<li>不同环境使用不同密钥；</li>
+<li>密钥读取权限与数据库权限分离；</li>
+<li>建立密钥轮换版本；</li>
+<li>审计谁在何时读取过密钥；</li>
+<li>备份恢复时同步验证密钥可用性。</li>
+</ul>
+<h4 id="10-8-老数据加密迁移步骤"><a href="#10-8-老数据加密迁移步骤" class="headerlink" title="10.8 老数据加密迁移步骤"></a>10.8 老数据加密迁移步骤</h4><pre><code class=" mermaid">flowchart TD
+    A[新增 cipher/hash 列] --&gt; B[上线兼容读写逻辑]
+    B --&gt; C[新数据写入密文]
+    C --&gt; D[批量回填历史数据]
+    D --&gt; E[按主键/摘要校验]
+    E --&gt; F[灰度切换逻辑列]
+    F --&gt; G[观察错误和查询命中率]
+    G --&gt; H[清理明文列或收紧权限]
+</code></pre>
+
+<p>回填任务必须：</p>
+<ul>
+<li>按主键分批；</li>
+<li>可暂停、可续跑；</li>
+<li>幂等；</li>
+<li>限速；</li>
+<li>记录失败主键；</li>
+<li>校验密文可解密、Hash 可命中；</li>
+<li>在切换前完成备份。</li>
+</ul>
+<h4 id="10-9-密钥轮换"><a href="#10-9-密钥轮换" class="headerlink" title="10.9 密钥轮换"></a>10.9 密钥轮换</h4><p>密钥轮换不能直接把配置中的 key 改掉，否则旧密文无法解密。常见做法是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">phone_cipher_v1<br>phone_cipher_v2<br>phone_key_version<br></code></pre></td></tr></table></figure>
+
+<p>先支持双版本解密，新写入使用 v2，再后台重加密旧数据，校验完成后停止 v1 写入，最后下线旧密钥。</p>
 <h3 id="11-数据脱敏"><a href="#11-数据脱敏" class="headerlink" title="11. 数据脱敏"></a>11. 数据脱敏</h3><h4 id="11-1-脱敏和加密的区别"><a href="#11-1-脱敏和加密的区别" class="headerlink" title="11.1 脱敏和加密的区别"></a>11.1 脱敏和加密的区别</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">加密：保护数据库存储，不让库里出现明文。<br>脱敏：保护查询展示，不让返回结果暴露完整敏感信息。<br></code></pre></td></tr></table></figure>
 
 <h4 id="11-2-YAML-示例"><a href="#11-2-YAML-示例" class="headerlink" title="11.2 YAML 示例"></a>11.2 YAML 示例</h4><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">rules:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-type">!MASK</span><br>    <span class="hljs-attr">tables:</span><br>      <span class="hljs-attr">t_user:</span><br>        <span class="hljs-attr">columns:</span><br>          <span class="hljs-attr">password:</span><br>            <span class="hljs-attr">maskAlgorithm:</span> <span class="hljs-string">md5_mask</span><br>          <span class="hljs-attr">email:</span><br>            <span class="hljs-attr">maskAlgorithm:</span> <span class="hljs-string">mask_before_special_chars_mask</span><br>          <span class="hljs-attr">telephone:</span><br>            <span class="hljs-attr">maskAlgorithm:</span> <span class="hljs-string">keep_first_n_last_m_mask</span><br>    <span class="hljs-attr">maskAlgorithms:</span><br>      <span class="hljs-attr">md5_mask:</span><br>        <span class="hljs-attr">type:</span> <span class="hljs-string">MD5</span><br>      <span class="hljs-attr">mask_before_special_chars_mask:</span><br>        <span class="hljs-attr">type:</span> <span class="hljs-string">MASK_BEFORE_SPECIAL_CHARS</span><br>        <span class="hljs-attr">props:</span><br>          <span class="hljs-attr">special-chars:</span> <span class="hljs-string">&#x27;@&#x27;</span><br>          <span class="hljs-attr">replace-char:</span> <span class="hljs-string">&#x27;*&#x27;</span><br>      <span class="hljs-attr">keep_first_n_last_m_mask:</span><br>        <span class="hljs-attr">type:</span> <span class="hljs-string">KEEP_FIRST_N_LAST_M</span><br>        <span class="hljs-attr">props:</span><br>          <span class="hljs-attr">first-n:</span> <span class="hljs-number">3</span><br>          <span class="hljs-attr">last-m:</span> <span class="hljs-number">4</span><br>          <span class="hljs-attr">replace-char:</span> <span class="hljs-string">&#x27;*&#x27;</span><br></code></pre></td></tr></table></figure>
@@ -835,6 +1568,48 @@
 <li>脱敏不是权限系统，不要用脱敏替代鉴权。</li>
 <li>审计日志里也要注意敏感字段，不然数据库脱敏了，日志又把数据泄露出去。</li>
 </ul>
+<h4 id="11-4-脱敏应放在哪一层"><a href="#11-4-脱敏应放在哪一层" class="headerlink" title="11.4 脱敏应放在哪一层"></a>11.4 脱敏应放在哪一层</h4><table>
+<thead>
+<tr>
+<th>层级</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ShardingSphere MASK</td>
+<td>对 SQL 透明、规则统一</td>
+<td>难表达复杂角色权限</td>
+</tr>
+<tr>
+<td>应用 DTO</td>
+<td>可按角色、场景精细控制</td>
+<td>容易漏接口</td>
+</tr>
+<tr>
+<td>API Gateway</td>
+<td>可统一出口</td>
+<td>不理解所有业务语义</td>
+</tr>
+<tr>
+<td>前端</td>
+<td>展示灵活</td>
+<td>不能作为安全边界</td>
+</tr>
+</tbody></table>
+<p>推荐组合：数据库存储加密 + ShardingSphere&#x2F;应用层脱敏 + 权限控制 + 日志脱敏。前端脱敏只能改善展示，不能阻止接口泄漏。</p>
+<h4 id="11-5-日志和异常中的敏感数据"><a href="#11-5-日志和异常中的敏感数据" class="headerlink" title="11.5 日志和异常中的敏感数据"></a>11.5 日志和异常中的敏感数据</h4><p>重点检查：</p>
+<ul>
+<li><code>sql-show</code> 是否打印手机号、身份证；</li>
+<li>MyBatis 参数日志；</li>
+<li>异常堆栈中的 SQL 参数；</li>
+<li>Controller 请求体日志；</li>
+<li>MQ 消息体；</li>
+<li>链路追踪 Span Attribute；</li>
+<li>数据修复脚本输出；</li>
+<li>APM 慢 SQL 样本。</li>
+</ul>
+<p>生产环境建议关闭完整 SQL 参数打印，改为 SQL 指纹 + 参数类型 + 路由数。</p>
 <h3 id="12-影子库"><a href="#12-影子库" class="headerlink" title="12. 影子库"></a>12. 影子库</h3><h4 id="12-1-适用场景"><a href="#12-1-适用场景" class="headerlink" title="12.1 适用场景"></a>12.1 适用场景</h4><p>影子库适合全链路压测：</p>
 <ul>
 <li>生产流量和压测流量共用应用链路。</li>
@@ -851,6 +1626,28 @@
 <li>压测标记要贯穿 HTTP、MQ、RPC、SQL。</li>
 <li>不要让影子规则误伤正常生产流量。</li>
 </ul>
+<h4 id="12-5-影子标记必须贯穿全链路"><a href="#12-5-影子标记必须贯穿全链路" class="headerlink" title="12.5 影子标记必须贯穿全链路"></a>12.5 影子标记必须贯穿全链路</h4><p>只有数据库层识别压测标记是不够的。一个完整压测请求可能经过：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[HTTP Header] --&gt; B[Gateway]
+    B --&gt; C[RPC Metadata]
+    C --&gt; D[业务服务]
+    D --&gt; E[MQ Header]
+    E --&gt; F[消费者]
+    F --&gt; G[SQL Hint / 影子字段]
+    G --&gt; H[(影子数据库)]
+</code></pre>
+
+<p>任意一环丢标，压测流量都可能进入生产数据。</p>
+<h4 id="12-6-影子库上线前验证"><a href="#12-6-影子库上线前验证" class="headerlink" title="12.6 影子库上线前验证"></a>12.6 影子库上线前验证</h4><ul>
+<li>正常流量 100% 进入生产库；</li>
+<li>带标流量 100% 进入影子库；</li>
+<li>UPDATE&#x2F;DELETE 不误伤生产数据；</li>
+<li>DDL 变更同步到影子库；</li>
+<li>影子库容量和索引接近生产；</li>
+<li>影子数据有独立账号、清理和备份策略；</li>
+<li>压测结束后标记不会残留在线程池、消息或缓存中。</li>
+</ul>
+<p>Hint 基于线程上下文时，必须使用 try-with-resources，虚拟线程、异步任务和 Reactor 场景还要验证上下文传播，不能默认 ThreadLocal 会自动跨边界。</p>
 <h3 id="13-分布式事务"><a href="#13-分布式事务" class="headerlink" title="13. 分布式事务"></a>13. 分布式事务</h3><h4 id="13-1-三种模式"><a href="#13-1-三种模式" class="headerlink" title="13.1 三种模式"></a>13.1 三种模式</h4><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">transaction:</span><br>  <span class="hljs-attr">defaultType:</span> <span class="hljs-string">LOCAL</span><br></code></pre></td></tr></table></figure>
 
 <p>ShardingSphere 支持：</p>
@@ -906,6 +1703,91 @@
 <li>跨库动作通过消息、任务、补偿、对账完成。</li>
 <li>关键状态机可重入、可恢复、可幂等。</li>
 </ul>
+<h4 id="13-6-为什么-LOCAL-跨库不是强一致"><a href="#13-6-为什么-LOCAL-跨库不是强一致" class="headerlink" title="13.6 为什么 LOCAL 跨库不是强一致"></a>13.6 为什么 LOCAL 跨库不是强一致</h4><p>一次 Spring 事务命中两个物理库：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant App as 应用事务
+    participant DB0 as ds_0
+    participant DB1 as ds_1
+
+    App-&gt;&gt;DB0: UPDATE A
+    App-&gt;&gt;DB1: UPDATE B
+    App-&gt;&gt;DB0: COMMIT
+    DB0--&gt;&gt;App: 成功
+    App-&gt;&gt;DB1: COMMIT
+    DB1--xApp: 网络故障
+</code></pre>
+
+<p>此时 DB0 已提交，DB1 未提交。普通本地事务无法让已经提交的 DB0 自动回滚。</p>
+<h4 id="13-7-事务方案决策表"><a href="#13-7-事务方案决策表" class="headerlink" title="13.7 事务方案决策表"></a>13.7 事务方案决策表</h4><table>
+<thead>
+<tr>
+<th>业务要求</th>
+<th>推荐方案</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>单聚合、同分片写入</td>
+<td>LOCAL</td>
+<td>最简单、性能最好</td>
+</tr>
+<tr>
+<td>跨库但允许秒级一致</td>
+<td>Outbox + MQ + 补偿</td>
+<td>常见推荐</td>
+</tr>
+<tr>
+<td>跨库且要求强一致</td>
+<td>XA，严格验证</td>
+<td>Boot 3 场景有明确限制</td>
+</tr>
+<tr>
+<td>长事务、外部服务参与</td>
+<td>Saga&#x2F;TCC&#x2F;状态机</td>
+<td>业务复杂度高</td>
+</tr>
+<tr>
+<td>批量离线同步</td>
+<td>可重入任务 + 对账</td>
+<td>不要包超大事务</td>
+</tr>
+</tbody></table>
+<h4 id="13-8-Outbox-最终一致性示例"><a href="#13-8-Outbox-最终一致性示例" class="headerlink" title="13.8 Outbox 最终一致性示例"></a>13.8 Outbox 最终一致性示例</h4><p>同一个本地事务写业务表和消息表：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> local_event (<br>    event_id <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    aggregate_type <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    aggregate_id <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    event_type <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">128</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    payload JSON <span class="hljs-keyword">NOT NULL</span>,<br>    status <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">16</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    retry_count <span class="hljs-type">INT</span> <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-number">0</span>,<br>    next_retry_time DATETIME(<span class="hljs-number">6</span>) <span class="hljs-keyword">NULL</span>,<br>    create_time DATETIME(<span class="hljs-number">6</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    update_time DATETIME(<span class="hljs-number">6</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    <span class="hljs-keyword">PRIMARY KEY</span> (event_id),<br>    KEY idx_status_retry (status, next_retry_time)<br>);<br></code></pre></td></tr></table></figure>
+
+<pre><code class=" mermaid">flowchart LR
+    A[本地事务] --&gt; B[(业务表)]
+    A --&gt; C[(local_event)]
+    C --&gt; D[发布任务]
+    D --&gt; E[MQ]
+    E --&gt; F[下游消费者]
+    F --&gt; G[(下游分片库)]
+    D -.失败重试.-&gt; C
+    G --&gt; H[对账/补偿]
+</code></pre>
+
+<p>关键要求：</p>
+<ul>
+<li>事件 ID 全局唯一；</li>
+<li>发布端至少一次投递；</li>
+<li>消费端幂等；</li>
+<li>失败指数退避；</li>
+<li>死信和人工处理；</li>
+<li>业务状态与事件状态可对账。</li>
+</ul>
+<h4 id="13-9-Transactional-的常见误区"><a href="#13-9-Transactional-的常见误区" class="headerlink" title="13.9 @Transactional 的常见误区"></a>13.9 <code>@Transactional</code> 的常见误区</h4><ul>
+<li>同类方法内部调用导致事务代理失效；</li>
+<li>异步线程不继承原事务；</li>
+<li>捕获异常后不重新抛出，事务不会回滚；</li>
+<li><code>rollbackFor</code> 未覆盖检查异常；</li>
+<li>一个事务里先查从库再写主库，读到旧值；</li>
+<li>事务跨多个物理库却误以为 LOCAL 强一致；</li>
+<li>远程 RPC 不属于本地数据库事务。</li>
+</ul>
+<h4 id="13-10-事务故障演练"><a href="#13-10-事务故障演练" class="headerlink" title="13.10 事务故障演练"></a>13.10 事务故障演练</h4><p>至少模拟：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">第一个库写成功、第二个库写失败<br>提交前应用进程被 kill -9<br>提交过程中网络断开<br>数据库主库切换<br>连接池获取超时<br>事务超时<br>死锁回滚<br>消息发布失败<br>补偿重复执行<br></code></pre></td></tr></table></figure>
+
+<p>没有故障演练的分布式事务设计，通常只验证了“世界和平时能工作”。</p>
 <h3 id="14-ShardingSphere-Proxy"><a href="#14-ShardingSphere-Proxy" class="headerlink" title="14. ShardingSphere-Proxy"></a>14. ShardingSphere-Proxy</h3><h4 id="14-1-为什么需要-Proxy"><a href="#14-1-为什么需要-Proxy" class="headerlink" title="14.1 为什么需要 Proxy"></a>14.1 为什么需要 Proxy</h4><p>JDBC 适合 Java 应用内嵌，Proxy 适合平台化。</p>
 <p>Proxy 价值：</p>
 <ul>
@@ -982,6 +1864,69 @@
 <td>平台化数据库网关</td>
 </tr>
 </tbody></table>
+<h4 id="14-5-Proxy-的完整部署拓扑"><a href="#14-5-Proxy-的完整部署拓扑" class="headerlink" title="14.5 Proxy 的完整部署拓扑"></a>14.5 Proxy 的完整部署拓扑</h4><pre><code class=" mermaid">flowchart TD
+    Client1[Java 服务] --&gt; LB[四层负载均衡]
+    Client2[Go 服务] --&gt; LB
+    Client3[BI / MySQL Client] --&gt; LB
+
+    LB --&gt; P1[Proxy-1]
+    LB --&gt; P2[Proxy-2]
+    LB --&gt; P3[Proxy-3]
+
+    P1 &lt;--&gt; Registry[(ZooKeeper / Etcd)]
+    P2 &lt;--&gt; Registry
+    P3 &lt;--&gt; Registry
+
+    P1 --&gt; DB0[(ds_0)]
+    P1 --&gt; DB1[(ds_1)]
+    P2 --&gt; DB0
+    P2 --&gt; DB1
+    P3 --&gt; DB0
+    P3 --&gt; DB1
+</code></pre>
+
+<p>生产至少考虑：</p>
+<ul>
+<li>Proxy 无状态计算节点横向扩容；</li>
+<li>注册中心高可用；</li>
+<li>负载均衡健康检查；</li>
+<li>长连接摘除和优雅下线；</li>
+<li>Proxy 到每个真实库的连接池预算；</li>
+<li>配置变更审计；</li>
+<li>管理端口与业务端口隔离；</li>
+<li>TLS、账号权限和网络 ACL。</li>
+</ul>
+<h4 id="14-6-Docker-启动-Proxy-的示例思路"><a href="#14-6-Docker-启动-Proxy-的示例思路" class="headerlink" title="14.6 Docker 启动 Proxy 的示例思路"></a>14.6 Docker 启动 Proxy 的示例思路</h4><p>镜像标签和目录结构应以 5.5.3 发布包为准。通常流程是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 1. 下载并校验 5.5.3 Proxy 发布包</span><br><span class="hljs-comment"># 2. 放置数据库驱动到 ext-lib</span><br><span class="hljs-comment"># 3. 准备 global.yaml 和 database-*.yaml</span><br><span class="hljs-comment"># 4. 启动 Proxy</span><br>./bin/start.sh<br></code></pre></td></tr></table></figure>
+
+<p>生产不要省略发布包校验：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sha512sum</span> -c apache-shardingsphere-5.5.3-shardingsphere-proxy-bin.tar.gz.sha512<br><span class="hljs-comment"># 或使用 GPG 校验 .asc 签名</span><br></code></pre></td></tr></table></figure>
+
+<h4 id="14-7-Proxy-的连接模型"><a href="#14-7-Proxy-的连接模型" class="headerlink" title="14.7 Proxy 的连接模型"></a>14.7 Proxy 的连接模型</h4><p>客户端连接数和 Proxy 到后端库的连接数不是一一固定相等，但两侧都需要预算：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">客户端连接 -&gt; Proxy 会话与协议状态<br>Proxy SQL 执行 -&gt; 后端真实数据源连接池<br></code></pre></td></tr></table></figure>
+
+<p>重点指标：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">proxy_frontend_connections<br>backend_pool_active<br>backend_pool_pending<br>sql_parse_latency<br>route_units_per_sql<br>execute_latency<br>merge_latency<br></code></pre></td></tr></table></figure>
+
+<h4 id="14-8-Proxy-高可用不是只起两个实例"><a href="#14-8-Proxy-高可用不是只起两个实例" class="headerlink" title="14.8 Proxy 高可用不是只起两个实例"></a>14.8 Proxy 高可用不是只起两个实例</h4><p>还需要验证：</p>
+<ul>
+<li>某实例停止后客户端是否自动重连；</li>
+<li>事务中的连接断开如何呈现；</li>
+<li>PreparedStatement 是否能在重连后正确重建；</li>
+<li>DistSQL 变更是否被所有实例感知；</li>
+<li>注册中心短暂不可用时，现有流量是否继续；</li>
+<li>节点恢复后元数据是否一致；</li>
+<li>LB 是否能优雅摘除正在执行长 SQL 的节点。</li>
+</ul>
+<h4 id="14-9-JDBC-与-Proxy-混用的治理原则"><a href="#14-9-JDBC-与-Proxy-混用的治理原则" class="headerlink" title="14.9 JDBC 与 Proxy 混用的治理原则"></a>14.9 JDBC 与 Proxy 混用的治理原则</h4><p>如果同一逻辑库既被 JDBC 又被 Proxy 访问：</p>
+<ul>
+<li>规则必须有唯一事实源；</li>
+<li>禁止一边静态 YAML、一边 DistSQL 随意修改；</li>
+<li>发布前生成规则指纹并比对；</li>
+<li>使用相同的逻辑表、算法和数据节点命名；</li>
+<li>建立统一迁移窗口；</li>
+<li>任何扩容先验证两种入口路由一致。</li>
+</ul>
 <h3 id="15-DistSQL"><a href="#15-DistSQL" class="headerlink" title="15. DistSQL"></a>15. DistSQL</h3><p>DistSQL 是 Proxy 的灵魂之一。它让你用 SQL 管理分布式数据库规则。</p>
 <h4 id="15-1-注册存储单元"><a href="#15-1-注册存储单元" class="headerlink" title="15.1 注册存储单元"></a>15.1 注册存储单元</h4><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs sql">REGISTER<br>STORAGE UNIT ds_0 (<br>    HOST<span class="hljs-operator">=</span>&quot;127.0.0.1&quot;,<br>    PORT<span class="hljs-operator">=</span><span class="hljs-number">3306</span>,<br>    DB<span class="hljs-operator">=</span>&quot;demo_ds_0&quot;,<br>    <span class="hljs-keyword">USER</span><span class="hljs-operator">=</span>&quot;root&quot;,<br>    PASSWORD<span class="hljs-operator">=</span>&quot;root&quot;,<br>    PROPERTIES(&quot;maximumPoolSize&quot;<span class="hljs-operator">=</span><span class="hljs-number">10</span>)<br>);<br><br>REGISTER<br>STORAGE UNIT ds_1 (<br>    URL<span class="hljs-operator">=</span>&quot;jdbc:mysql://127.0.0.1:3306/demo_ds_1?serverTimezone=UTC&amp;useSSL=false&amp;allowPublicKeyRetrieval=true&quot;,<br>    <span class="hljs-keyword">USER</span><span class="hljs-operator">=</span>&quot;root&quot;,<br>    PASSWORD<span class="hljs-operator">=</span>&quot;root&quot;,<br>    PROPERTIES(&quot;maximumPoolSize&quot;<span class="hljs-operator">=</span><span class="hljs-number">10</span>,&quot;idleTimeout&quot;<span class="hljs-operator">=</span><span class="hljs-number">30000</span>)<br>);<br></code></pre></td></tr></table></figure>
 
@@ -992,6 +1937,45 @@
 <h4 id="15-4-预览-SQL-路由"><a href="#15-4-预览-SQL-路由" class="headerlink" title="15.4 预览 SQL 路由"></a>15.4 预览 SQL 路由</h4><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs sql">PREVIEW<br><span class="hljs-keyword">SQL</span><br><span class="hljs-keyword">select</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">from</span> t_order<br><span class="hljs-keyword">where</span> user_id <span class="hljs-operator">=</span> <span class="hljs-number">10</span><br>  <span class="hljs-keyword">and</span> order_id <span class="hljs-operator">=</span> <span class="hljs-number">10086</span>;<br></code></pre></td></tr></table></figure>
 
 <p>这个命令非常适合排查路由问题。路由问题不要靠猜，猜数据库路由跟猜对象心思差不多，都容易误伤自己。</p>
+<h4 id="15-5-DistSQL-变更必须像数据库-DDL-一样管理"><a href="#15-5-DistSQL-变更必须像数据库-DDL-一样管理" class="headerlink" title="15.5 DistSQL 变更必须像数据库 DDL 一样管理"></a>15.5 DistSQL 变更必须像数据库 DDL 一样管理</h4><p>推荐流程：</p>
+<pre><code class=" mermaid">flowchart TD
+    A[提交 DistSQL 变更脚本] --&gt; B[代码评审]
+    B --&gt; C[测试环境 PREVIEW/回归]
+    C --&gt; D[备份当前规则]
+    D --&gt; E[生产变更审批]
+    E --&gt; F[执行 DistSQL]
+    F --&gt; G[SHOW RULE 验证]
+    G --&gt; H[路由冒烟测试]
+    H --&gt; I&#123;是否正常&#125;
+    I --&gt;|是| J[记录审计与规则指纹]
+    I --&gt;|否| K[执行回滚脚本]
+</code></pre>
+
+<h4 id="15-6-规则导出与漂移检测"><a href="#15-6-规则导出与漂移检测" class="headerlink" title="15.6 规则导出与漂移检测"></a>15.6 规则导出与漂移检测</h4><p>每天或每次变更后导出：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SHOW</span> STORAGE UNITS;<br><span class="hljs-keyword">SHOW</span> SHARDING <span class="hljs-keyword">TABLE</span> RULE;<br><span class="hljs-keyword">SHOW</span> SHARDING ALGORITHMS;<br><span class="hljs-keyword">SHOW</span> READWRITE_SPLITTING RULE;<br><span class="hljs-keyword">SHOW</span> ENCRYPT RULES;<br><span class="hljs-keyword">SHOW</span> MASK RULES;<br><span class="hljs-keyword">SHOW</span> SHADOW RULE;<br></code></pre></td></tr></table></figure>
+
+<p>对输出做规范化后计算 SHA-256：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">logic_db + rule_type + normalized_rule -&gt; rule_fingerprint<br></code></pre></td></tr></table></figure>
+
+<p>多环境、多 Proxy 节点出现不同指纹时立即告警。</p>
+<h4 id="15-7-DistSQL-权限隔离"><a href="#15-7-DistSQL-权限隔离" class="headerlink" title="15.7 DistSQL 权限隔离"></a>15.7 DistSQL 权限隔离</h4><p>建议划分账号：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">app_readwrite：业务 DML/DQL<br>migration_operator：迁移任务<br>rule_admin：DistSQL 规则变更<br>observer：SHOW/PREVIEW 只读<br></code></pre></td></tr></table></figure>
+
+<p>业务应用账号不应拥有规则修改权限。否则一次 SQL 注入或误操作可能改变整个逻辑库路由。</p>
+<h4 id="15-8-PREVIEW-SQL-的使用场景"><a href="#15-8-PREVIEW-SQL-的使用场景" class="headerlink" title="15.8 PREVIEW SQL 的使用场景"></a>15.8 PREVIEW SQL 的使用场景</h4><p>上线前至少对以下 SQL 建路由快照：</p>
+<ul>
+<li>主键点查；</li>
+<li>分片键 IN 查询；</li>
+<li>范围查询；</li>
+<li>绑定表 JOIN；</li>
+<li>非绑定 JOIN；</li>
+<li>分页；</li>
+<li>聚合；</li>
+<li>广播表写入；</li>
+<li>单表查询；</li>
+<li>Hint 查询。</li>
+</ul>
+<p>每次规则变更后对比快照，可以快速发现路由数量变化。</p>
 <h3 id="16-数据迁移"><a href="#16-数据迁移" class="headerlink" title="16. 数据迁移"></a>16. 数据迁移</h3><h4 id="16-1-什么时候需要迁移"><a href="#16-1-什么时候需要迁移" class="headerlink" title="16.1 什么时候需要迁移"></a>16.1 什么时候需要迁移</h4><p>典型场景：</p>
 <ul>
 <li>单库单表迁移到分库分表。</li>
@@ -1029,6 +2013,69 @@
 <li>抽样比对。</li>
 </ul>
 <p>订单、财务、结算系统只校验行数是不够的，金额合计一定要校验。</p>
+<h4 id="16-5-扩容不是修改取模数"><a href="#16-5-扩容不是修改取模数" class="headerlink" title="16.5 扩容不是修改取模数"></a>16.5 扩容不是修改取模数</h4><p>原规则：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">user_id % 2 -&gt; ds_0 / ds_1<br></code></pre></td></tr></table></figure>
+
+<p>直接改成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">user_id % 4 -&gt; ds_0 / ds_1 / ds_2 / ds_3<br></code></pre></td></tr></table></figure>
+
+<p>会让大量旧数据的计算落点改变。如果数据未同步迁移，新规则会去新位置查旧数据，结果就是“数据消失”。</p>
+<h4 id="16-6-扩容的四个阶段"><a href="#16-6-扩容的四个阶段" class="headerlink" title="16.6 扩容的四个阶段"></a>16.6 扩容的四个阶段</h4><pre><code class=" mermaid">flowchart LR
+    A[双节点旧拓扑] --&gt; B[准备四节点新拓扑]
+    B --&gt; C[全量复制旧数据]
+    C --&gt; D[增量同步]
+    D --&gt; E[一致性校验]
+    E --&gt; F[灰度切读]
+    F --&gt; G[灰度切写]
+    G --&gt; H[停止旧链路]
+</code></pre>
+
+<h4 id="16-7-虚拟槽位降低扩容重映射"><a href="#16-7-虚拟槽位降低扩容重映射" class="headerlink" title="16.7 虚拟槽位降低扩容重映射"></a>16.7 虚拟槽位降低扩容重映射</h4><p>可以先把分片键映射到较稳定的逻辑槽位，再把槽位映射到物理库：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">slot = hash(user_id) % 1024<br>physical_db = slot_mapping[slot]<br></code></pre></td></tr></table></figure>
+
+<pre><code class=" mermaid">flowchart LR
+    U[user_id] --&gt; S[1024 个逻辑槽位]
+    S --&gt; D0[ds_0: slot 0-511]
+    S --&gt; D1[ds_1: slot 512-1023]
+    D0 -.扩容迁移部分槽位.-&gt; D2[ds_2]
+    D1 -.扩容迁移部分槽位.-&gt; D3[ds_3]
+</code></pre>
+
+<p>扩容时只迁移部分槽位，不改变所有数据的逻辑槽位。ShardingSphere 可通过自定义 <code>CLASS_BASED</code> 算法实现槽位映射，但映射表本身要高可用、版本化和可审计。</p>
+<h4 id="16-8-迁移-Runbook"><a href="#16-8-迁移-Runbook" class="headerlink" title="16.8 迁移 Runbook"></a>16.8 迁移 Runbook</h4><p><strong>迁移前：</strong></p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">冻结表结构大变更<br>确认源/目标版本和字符集<br>确认主键、分片键与增量日志条件<br>评估磁盘、网络、连接数和复制延迟<br>准备只读窗口与回滚策略<br></code></pre></td></tr></table></figure>
+
+<p><strong>全量阶段：</strong></p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">按主键范围切片<br>限制并发和带宽<br>记录每批起止主键、行数、校验值<br>失败批次可重跑<br></code></pre></td></tr></table></figure>
+
+<p><strong>增量阶段：</strong></p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">记录位点<br>监控 backlog<br>处理 DDL 兼容性<br>保证事件顺序或按业务键串行<br></code></pre></td></tr></table></figure>
+
+<p><strong>校验阶段：</strong></p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">总行数<br>分片行数<br>主键缺失/重复<br>金额 SUM<br>状态 COUNT GROUP BY<br>时间最大值<br>随机抽样字段摘要<br></code></pre></td></tr></table></figure>
+
+<p><strong>切流阶段：</strong></p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">1% -&gt; 5% -&gt; 20% -&gt; 50% -&gt; 100%<br>每阶段观察错误率、延迟、数据差异<br></code></pre></td></tr></table></figure>
+
+<h4 id="16-9-财务数据校验示例"><a href="#16-9-财务数据校验示例" class="headerlink" title="16.9 财务数据校验示例"></a>16.9 财务数据校验示例</h4><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span><br>    <span class="hljs-built_in">COUNT</span>(<span class="hljs-operator">*</span>) <span class="hljs-keyword">AS</span> row_count,<br>    <span class="hljs-built_in">COUNT</span>(<span class="hljs-keyword">DISTINCT</span> order_id) <span class="hljs-keyword">AS</span> distinct_order_count,<br>    <span class="hljs-built_in">SUM</span>(amount) <span class="hljs-keyword">AS</span> total_amount,<br>    <span class="hljs-built_in">MIN</span>(order_id) <span class="hljs-keyword">AS</span> min_id,<br>    <span class="hljs-built_in">MAX</span>(order_id) <span class="hljs-keyword">AS</span> max_id,<br>    <span class="hljs-built_in">MAX</span>(update_time) <span class="hljs-keyword">AS</span> max_update_time<br><span class="hljs-keyword">FROM</span> t_order<br><span class="hljs-keyword">WHERE</span> create_time <span class="hljs-operator">&gt;=</span> :startTime<br>  <span class="hljs-keyword">AND</span> create_time <span class="hljs-operator">&lt;</span> :endTime;<br></code></pre></td></tr></table></figure>
+
+<p>按状态校验：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> status, <span class="hljs-built_in">COUNT</span>(<span class="hljs-operator">*</span>) <span class="hljs-keyword">AS</span> cnt, <span class="hljs-built_in">SUM</span>(amount) <span class="hljs-keyword">AS</span> amount_sum<br><span class="hljs-keyword">FROM</span> t_order<br><span class="hljs-keyword">WHERE</span> create_time <span class="hljs-operator">&gt;=</span> :startTime<br>  <span class="hljs-keyword">AND</span> create_time <span class="hljs-operator">&lt;</span> :endTime<br><span class="hljs-keyword">GROUP</span> <span class="hljs-keyword">BY</span> status<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> status;<br></code></pre></td></tr></table></figure>
+
+<p>金额校验要使用相同精度和舍入规则，不能一边 DECIMAL、一边转 double。</p>
+<h4 id="16-10-回滚不是“把开关切回去”"><a href="#16-10-回滚不是“把开关切回去”" class="headerlink" title="16.10 回滚不是“把开关切回去”"></a>16.10 回滚不是“把开关切回去”</h4><p>切写后新库已经产生新数据，回滚到旧库需要反向同步或短暂双写。回滚方案必须提前回答：</p>
+<ul>
+<li>新拓扑产生的数据如何回旧拓扑；</li>
+<li>新旧主键是否冲突；</li>
+<li>消息是否重复消费；</li>
+<li>规则回退后读写落点是否一致；</li>
+<li>回滚窗口多久；</li>
+<li>超过窗口后是否改为向前修复。</li>
+</ul>
+<h4 id="16-11-迁移限流"><a href="#16-11-迁移限流" class="headerlink" title="16.11 迁移限流"></a>16.11 迁移限流</h4><p>迁移任务与在线流量争抢：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">数据库连接<br>磁盘 IOPS<br>Buffer Pool<br>网络带宽<br>CPU<br>redo/binlog 写入<br></code></pre></td></tr></table></figure>
+
+<p>限流应根据在线 P99 延迟和数据库资源动态调整，而不是固定线程数跑到底。</p>
 <h3 id="17-可观察性"><a href="#17-可观察性" class="headerlink" title="17. 可观察性"></a>17. 可观察性</h3><h4 id="17-1-SQL-日志"><a href="#17-1-SQL-日志" class="headerlink" title="17.1 SQL 日志"></a>17.1 SQL 日志</h4><p>开发环境开启：</p>
 <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">props:</span><br>  <span class="hljs-attr">sql-show:</span> <span class="hljs-literal">true</span><br>  <span class="hljs-attr">sql-simple:</span> <span class="hljs-literal">false</span><br></code></pre></td></tr></table></figure>
 
@@ -1072,6 +2119,95 @@
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">全路由比例<br>慢 SQL<br>主从延迟<br>连接池等待<br>跨库事务异常<br></code></pre></td></tr></table></figure>
 
 <p>分库分表系统里，全路由是性能事故的温柔前奏。它一开始只是慢一点，后来就会很有存在感。</p>
+<h4 id="17-5-推荐日志字段"><a href="#17-5-推荐日志字段" class="headerlink" title="17.5 推荐日志字段"></a>17.5 推荐日志字段</h4><p>不要只打印一条“Actual SQL”。建议结构化记录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs text">trace_id<br>request_id<br>logic_database<br>logic_sql_fingerprint<br>route_database_count<br>route_table_count<br>execution_unit_count<br>is_full_route<br>rewrite_cost_ms<br>execute_cost_ms<br>merge_cost_ms<br>total_cost_ms<br>transaction_type<br>readwrite_target<br>error_code<br></code></pre></td></tr></table></figure>
+
+<p>示例 JSON：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;trace_id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;9a51...&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;logic_database&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;logic_db&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;sql_fingerprint&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;select_t_order_by_user_order&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;route_database_count&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;route_table_count&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;execution_unit_count&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;is_full_route&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">false</span></span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;execute_cost_ms&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">8</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;merge_cost_ms&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;total_cost_ms&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">11</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>注意不要记录完整敏感参数。</p>
+<h4 id="17-6-监控面板分层"><a href="#17-6-监控面板分层" class="headerlink" title="17.6 监控面板分层"></a>17.6 监控面板分层</h4><pre><code class=" mermaid">flowchart TD
+    A[业务 SLO] --&gt; B[应用层]
+    B --&gt; C[ShardingSphere 层]
+    C --&gt; D[连接池层]
+    D --&gt; E[数据库层]
+    E --&gt; F[复制与存储层]
+</code></pre>
+
+<p>**业务层：**成功率、P95&#x2F;P99、超时率、核心交易量。</p>
+<p>**应用层：**线程、虚拟线程 pin、GC、堆、CPU、请求队列。</p>
+<p>**ShardingSphere 层：**解析、路由、改写、执行、归并耗时，路由单元数，全路由比例。</p>
+<p>**连接池层：**active、idle、pending、timeout、创建连接耗时。</p>
+<p>**数据库层：**QPS&#x2F;TPS、锁等待、慢 SQL、Buffer Pool、IO、连接数。</p>
+<p>**复制层：**主从延迟、复制错误、位点差距。</p>
+<h4 id="17-7-ShardingSphere-Agent-示例"><a href="#17-7-ShardingSphere-Agent-示例" class="headerlink" title="17.7 ShardingSphere-Agent 示例"></a>17.7 ShardingSphere-Agent 示例</h4><p>Agent 支持 Metrics、Tracing 和 Logging 插件。示意配置：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">plugins:</span><br>  <span class="hljs-attr">metrics:</span><br>    <span class="hljs-attr">Prometheus:</span><br>      <span class="hljs-attr">host:</span> <span class="hljs-string">&quot;0.0.0.0&quot;</span><br>      <span class="hljs-attr">port:</span> <span class="hljs-number">9090</span><br>      <span class="hljs-attr">props:</span><br>        <span class="hljs-attr">jvm-information-collector-enabled:</span> <span class="hljs-string">&quot;true&quot;</span><br>  <span class="hljs-attr">tracing:</span><br>    <span class="hljs-attr">OpenTelemetry:</span><br>      <span class="hljs-attr">props:</span><br>        <span class="hljs-attr">otel.service.name:</span> <span class="hljs-string">&quot;shardingsphere-proxy&quot;</span><br>        <span class="hljs-attr">otel.traces.exporter:</span> <span class="hljs-string">&quot;otlp&quot;</span><br>        <span class="hljs-attr">otel.exporter.otlp.endpoint:</span> <span class="hljs-string">&quot;http://otel-collector:4317&quot;</span><br>        <span class="hljs-attr">otel.traces.sampler:</span> <span class="hljs-string">&quot;parentbased_traceidratio&quot;</span><br>        <span class="hljs-attr">otel.traces.sampler.arg:</span> <span class="hljs-string">&quot;0.1&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>具体插件名称和属性以 5.5.3 发布包中的 <code>agent.yaml</code> 为准。</p>
+<h4 id="17-8-告警建议"><a href="#17-8-告警建议" class="headerlink" title="17.8 告警建议"></a>17.8 告警建议</h4><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>告警示例</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>全路由比例</td>
+<td>5 分钟 &gt; 1%</td>
+<td>在线接口通常应接近 0</td>
+</tr>
+<tr>
+<td>单 SQL 路由单元</td>
+<td>P99 &gt; 16</td>
+<td>可能出现路由放大</td>
+</tr>
+<tr>
+<td>连接池 pending</td>
+<td>持续 &gt; 0</td>
+<td>连接不足或 SQL 过慢</td>
+</tr>
+<tr>
+<td>获取连接超时</td>
+<td>任意增长</td>
+<td>高优先级</td>
+</tr>
+<tr>
+<td>主从延迟</td>
+<td>超过业务一致性窗口</td>
+<td>读旧数据风险</td>
+</tr>
+<tr>
+<td>merge P99</td>
+<td>持续升高</td>
+<td>深分页&#x2F;聚合问题</td>
+</tr>
+<tr>
+<td>duplicate key</td>
+<td>异常增长</td>
+<td>ID&#x2F;幂等&#x2F;迁移冲突</td>
+</tr>
+<tr>
+<td>元数据加载失败</td>
+<td>任意出现</td>
+<td>规则或真实表不一致</td>
+</tr>
+</tbody></table>
+<h4 id="17-9-SQL-指纹与-TopN"><a href="#17-9-SQL-指纹与-TopN" class="headerlink" title="17.9 SQL 指纹与 TopN"></a>17.9 SQL 指纹与 TopN</h4><p>将常量参数归一化：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span> <span class="hljs-keyword">FROM</span> t_order <span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> ? <span class="hljs-keyword">AND</span> order_id <span class="hljs-operator">=</span> ?<br></code></pre></td></tr></table></figure>
+
+<p>按 SQL 指纹统计：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">调用次数<br>平均/P95/P99 延迟<br>平均路由数<br>最大路由数<br>错误率<br>读取行数<br>返回行数<br></code></pre></td></tr></table></figure>
+
+<p>同一 SQL 指纹的路由数量突然变化，往往意味着代码条件丢失、规则变更或参数类型异常。</p>
+<h4 id="17-10-可观测性本身的成本"><a href="#17-10-可观测性本身的成本" class="headerlink" title="17.10 可观测性本身的成本"></a>17.10 可观测性本身的成本</h4><ul>
+<li>全量 SQL 日志会增加 IO；</li>
+<li>全量 Trace 会增加网络和存储；</li>
+<li>高基数标签会拖垮 Prometheus；</li>
+<li>参数日志可能泄露数据；</li>
+<li>慢 SQL采样过低会漏问题。</li>
+</ul>
+<p>推荐：Metrics 全量、Trace 采样、错误 Trace 全量、SQL 参数默认不记录。</p>
 <h3 id="18-SQL-支持与限制"><a href="#18-SQL-支持与限制" class="headerlink" title="18. SQL 支持与限制"></a>18. SQL 支持与限制</h3><p>分库分表不是完整分布式数据库，SQL 能力一定有边界。</p>
 <h4 id="18-1-友好的-SQL"><a href="#18-1-友好的-SQL" class="headerlink" title="18.1 友好的 SQL"></a>18.1 友好的 SQL</h4><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">select</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">from</span> t_order<br><span class="hljs-keyword">where</span> user_id <span class="hljs-operator">=</span> ?<br>  <span class="hljs-keyword">and</span> order_id <span class="hljs-operator">=</span> ?;<br><br><span class="hljs-keyword">select</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">from</span> t_order<br><span class="hljs-keyword">where</span> user_id <span class="hljs-operator">=</span> ?<br><span class="hljs-keyword">order</span> <span class="hljs-keyword">by</span> create_time <span class="hljs-keyword">desc</span> limit <span class="hljs-number">20</span>;<br><br><span class="hljs-keyword">insert into</span> t_order(user_id, order_no, amount, status, create_time)<br><span class="hljs-keyword">values</span> (?, ?, ?, ?, ?);<br></code></pre></td></tr></table></figure>
 
@@ -1104,6 +2240,106 @@
 <figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">select</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">from</span> t_order o<br>         <span class="hljs-keyword">join</span> t_user u <span class="hljs-keyword">on</span> o.user_id <span class="hljs-operator">=</span> u.user_id<br><span class="hljs-keyword">where</span> u.level <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;VIP&#x27;</span>;<br></code></pre></td></tr></table></figure>
 
 <p>如果 <code>t_user</code> 没有相同分片策略，可能出现跨库关联或全路由。</p>
+<h4 id="18-4-SQL-兼容性要用业务-SQL-集验证"><a href="#18-4-SQL-兼容性要用业务-SQL-集验证" class="headerlink" title="18.4 SQL 兼容性要用业务 SQL 集验证"></a>18.4 SQL 兼容性要用业务 SQL 集验证</h4><p>不要只看官方“支持 SELECT&#x2F;INSERT&#x2F;UPDATE&#x2F;DELETE”。真实 SQL 复杂度来自：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">数据库方言<br>函数<br>子查询<br>CTE<br>窗口函数<br>JSON<br>锁语句<br>批量语句<br>驱动 PreparedStatement 行为<br>ORM 自动生成 SQL<br></code></pre></td></tr></table></figure>
+
+<p>建立 SQL 兼容性测试集，将生产 Top SQL、核心 Mapper 和报表 SQL全部纳入升级回归。</p>
+<h4 id="18-5-聚合查询的风险矩阵"><a href="#18-5-聚合查询的风险矩阵" class="headerlink" title="18.5 聚合查询的风险矩阵"></a>18.5 聚合查询的风险矩阵</h4><table>
+<thead>
+<tr>
+<th>SQL</th>
+<th>是否可归并</th>
+<th>性能风险</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>COUNT(*)</code></td>
+<td>通常可以</td>
+<td>全路由 + 多分片求和</td>
+</tr>
+<tr>
+<td><code>SUM(amount)</code></td>
+<td>通常可以</td>
+<td>扫描量大</td>
+</tr>
+<tr>
+<td><code>AVG(amount)</code></td>
+<td>改写为 SUM&#x2F;COUNT</td>
+<td>多字段归并</td>
+</tr>
+<tr>
+<td><code>MIN/MAX</code></td>
+<td>通常可以</td>
+<td>仍需查询各分片</td>
+</tr>
+<tr>
+<td><code>GROUP BY key</code></td>
+<td>可以但可能内存归并</td>
+<td>高基数风险</td>
+</tr>
+<tr>
+<td><code>COUNT(DISTINCT x)</code></td>
+<td>需重点验证</td>
+<td>去重成本高</td>
+</tr>
+<tr>
+<td>多维 GROUP BY + ORDER BY</td>
+<td>需重点压测</td>
+<td>内存与排序风险</td>
+</tr>
+</tbody></table>
+<h4 id="18-6-管理端搜索如何处理"><a href="#18-6-管理端搜索如何处理" class="headerlink" title="18.6 管理端搜索如何处理"></a>18.6 管理端搜索如何处理</h4><p>管理端常见条件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">手机号<br>订单号<br>状态<br>时间范围<br>商品名<br>支付流水号<br>模糊关键字<br></code></pre></td></tr></table></figure>
+
+<p>它们不一定包含主分片键。可选架构：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[业务写入] --&gt; B[(分片 OLTP)]
+    A --&gt; C[CDC / MQ]
+    C --&gt; D[(Elasticsearch)]
+    C --&gt; E[(ClickHouse / Doris)]
+    F[管理端点查] --&gt; B
+    G[复杂搜索] --&gt; D
+    H[报表聚合] --&gt; E
+</code></pre>
+
+<p>不要强迫 ShardingSphere 承担所有查询类型。</p>
+<h4 id="18-7-分布式分页的正确接口设计"><a href="#18-7-分布式分页的正确接口设计" class="headerlink" title="18.7 分布式分页的正确接口设计"></a>18.7 分布式分页的正确接口设计</h4><p>不推荐：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs http">GET /orders?page=5000&amp;size=20<br></code></pre></td></tr></table></figure>
+
+<p>推荐：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs http">GET /orders?userId=10&amp;cursor=eyJ0aW1lIjoi...&amp;size=20<br></code></pre></td></tr></table></figure>
+
+<p>Cursor 中包含：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;lastCreateTime&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;2026-07-26T12:00:00.123456&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;lastOrderId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">19876543210001</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>Cursor 应签名或加密，防止客户端随意篡改。</p>
+<h4 id="18-8-UPDATE-DELETE-必须带分片键"><a href="#18-8-UPDATE-DELETE-必须带分片键" class="headerlink" title="18.8 UPDATE&#x2F;DELETE 必须带分片键"></a>18.8 UPDATE&#x2F;DELETE 必须带分片键</h4><p>危险：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> t_order <span class="hljs-keyword">SET</span> status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;CLOSED&#x27;</span> <span class="hljs-keyword">WHERE</span> order_no <span class="hljs-operator">=</span> ?;<br></code></pre></td></tr></table></figure>
+
+<p>如果 <code>order_no</code> 不是分片键，会向多个分片发送 UPDATE。即使最终只命中一行，也产生写放大和锁竞争。</p>
+<p>推荐：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> t_order<br><span class="hljs-keyword">SET</span> status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;CLOSED&#x27;</span><br><span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> ?<br>  <span class="hljs-keyword">AND</span> order_id <span class="hljs-operator">=</span> ?<br>  <span class="hljs-keyword">AND</span> status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;CREATED&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<p>同时利用状态条件保证幂等状态转换。</p>
+<h4 id="18-9-DDL-管理"><a href="#18-9-DDL-管理" class="headerlink" title="18.9 DDL 管理"></a>18.9 DDL 管理</h4><p>分片表 DDL 必须同步所有真实表：</p>
+<pre><code class=" mermaid">flowchart TD
+    A[Flyway 逻辑迁移定义] --&gt; B[生成真实库表脚本]
+    B --&gt; C[预检查所有分片]
+    C --&gt; D[分批执行]
+    D --&gt; E[Schema 摘要校验]
+    E --&gt; F[应用发布]
+</code></pre>
+
+<p>高风险变更：</p>
+<ul>
+<li>大表加非空默认值列；</li>
+<li>重建大索引；</li>
+<li>修改主键；</li>
+<li>修改分片键；</li>
+<li>改字符集；</li>
+<li>同时变更所有分片导致 IO 峰值。</li>
+</ul>
+<p>推荐使用 Online DDL 工具或云数据库在线变更能力，并控制并发分片数。</p>
 <h3 id="19-分片建模最佳实践"><a href="#19-分片建模最佳实践" class="headerlink" title="19. 分片建模最佳实践"></a>19. 分片建模最佳实践</h3><h4 id="19-1-按业务聚合设计"><a href="#19-1-按业务聚合设计" class="headerlink" title="19.1 按业务聚合设计"></a>19.1 按业务聚合设计</h4><p>分片不要只看表大小，要看业务聚合。</p>
 <p>例如订单系统：</p>
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">用户 -&gt; 订单 -&gt; 订单明细 -&gt; 支付记录 -&gt; 售后单<br></code></pre></td></tr></table></figure>
@@ -1142,6 +2378,76 @@
 <li>运维成本。</li>
 </ul>
 <p>不要一上来就 1024 张表。表多不是架构先进，有时候只是把复杂度提前透支。</p>
+<h4 id="19-5-什么时候需要分库分表"><a href="#19-5-什么时候需要分库分表" class="headerlink" title="19.5 什么时候需要分库分表"></a>19.5 什么时候需要分库分表</h4><p>不要只用“单表超过 500 万&#x2F;2000 万”作为标准。真正判断维度：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>容量</td>
+<td>三年后数据和索引能否放下</td>
+</tr>
+<tr>
+<td>写入</td>
+<td>单实例 TPS 是否达到瓶颈</td>
+</tr>
+<tr>
+<td>查询</td>
+<td>核心 SQL 是否因数据规模退化</td>
+</tr>
+<tr>
+<td>连接</td>
+<td>单实例能否承载应用连接总量</td>
+</tr>
+<tr>
+<td>运维</td>
+<td>DDL、备份、恢复窗口是否不可接受</td>
+</tr>
+<tr>
+<td>隔离</td>
+<td>大租户是否影响其他租户</td>
+</tr>
+<tr>
+<td>成本</td>
+<td>分片复杂度是否低于扩容硬件成本</td>
+</tr>
+</tbody></table>
+<h4 id="19-6-分片数量估算"><a href="#19-6-分片数量估算" class="headerlink" title="19.6 分片数量估算"></a>19.6 分片数量估算</h4><p>可以使用三个约束分别计算，取最大值：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">按数据量：ceil(未来总行数 × 安全系数 / 单表目标行数)<br>按写吞吐：ceil(峰值写 TPS / 单库安全写 TPS)<br>按容量：ceil(未来总数据容量 / 单库安全容量)<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">三年订单：24 亿行<br>安全系数：1.5<br>单表目标：5000 万行<br>需要表数：ceil(24亿 × 1.5 / 5000万) = 72<br></code></pre></td></tr></table></figure>
+
+<p>可以选择 96 或 128 个逻辑槽位，但不意味着立即创建同等数量物理库。表数、槽位数和库数可以分层设计。</p>
+<h4 id="19-7-容量规划表"><a href="#19-7-容量规划表" class="headerlink" title="19.7 容量规划表"></a>19.7 容量规划表</h4><p>上线前至少记录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">日新增行数<br>平均/峰值行大小<br>索引放大系数<br>三年数据量<br>冷热比例<br>峰值读写 QPS/TPS<br>单 SQL 平均读取行数<br>备份窗口<br>恢复时间目标 RTO<br>恢复点目标 RPO<br></code></pre></td></tr></table></figure>
+
+<h4 id="19-8-租户分片策略"><a href="#19-8-租户分片策略" class="headerlink" title="19.8 租户分片策略"></a>19.8 租户分片策略</h4><p>SaaS 常见三类：</p>
+<ol>
+<li><code>tenant_id % N</code>：简单，但大租户可能形成热点；</li>
+<li>大租户独占库，小租户共享库：隔离好，但路由表复杂；</li>
+<li>逻辑槽位 + 租户映射：扩容灵活，治理成本高。</li>
+</ol>
+<p>大租户不能只按租户 ID 取模。一个超级租户可能独占整个分片的绝大多数流量。</p>
+<h4 id="19-9-热点与数据倾斜"><a href="#19-9-热点与数据倾斜" class="headerlink" title="19.9 热点与数据倾斜"></a>19.9 热点与数据倾斜</h4><p>平均分布不代表请求均匀。需要分别评估：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">行数分布<br>数据字节分布<br>读 QPS 分布<br>写 TPS 分布<br>热点 Key 分布<br>锁等待分布<br></code></pre></td></tr></table></figure>
+
+<p>一个分片只有 10% 数据，也可能承载 80% 热点请求。</p>
+<h4 id="19-10-分片键变更为什么困难"><a href="#19-10-分片键变更为什么困难" class="headerlink" title="19.10 分片键变更为什么困难"></a>19.10 分片键变更为什么困难</h4><p>分片键决定物理位置。修改它相当于全量重新分布数据，还会影响：</p>
+<ul>
+<li>查询接口参数；</li>
+<li>唯一约束；</li>
+<li>绑定表；</li>
+<li>事务边界；</li>
+<li>下游事件；</li>
+<li>数据归档；</li>
+<li>缓存 Key；</li>
+<li>路由索引。</li>
+</ul>
+<p>因此分片前应收集真实 SQL 和访问模式，而不是只开架构会拍脑袋。</p>
 <h3 id="20-生产配置建议"><a href="#20-生产配置建议" class="headerlink" title="20. 生产配置建议"></a>20. 生产配置建议</h3><h4 id="20-1-props-建议"><a href="#20-1-props-建议" class="headerlink" title="20.1 props 建议"></a>20.1 props 建议</h4><p>开发环境：</p>
 <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">props:</span><br>  <span class="hljs-attr">sql-show:</span> <span class="hljs-literal">true</span><br>  <span class="hljs-attr">sql-simple:</span> <span class="hljs-literal">false</span><br>  <span class="hljs-attr">kernel-executor-size:</span> <span class="hljs-number">16</span><br>  <span class="hljs-attr">max-connections-size-per-query:</span> <span class="hljs-number">1</span><br>  <span class="hljs-attr">check-table-metadata-enabled:</span> <span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
 
@@ -1168,6 +2474,98 @@
 <li>慢查询。</li>
 </ul>
 <p>再逐步调整。</p>
+<h4 id="20-4-HikariCP-与-ShardingSphere-双层理解"><a href="#20-4-HikariCP-与-ShardingSphere-双层理解" class="headerlink" title="20.4 HikariCP 与 ShardingSphere 双层理解"></a>20.4 HikariCP 与 ShardingSphere 双层理解</h4><p>Spring Boot 创建的是 ShardingSphere 逻辑 DataSource，ShardingSphere 内部又为每个真实数据源创建连接池。配置中的：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">dataSources:</span><br>  <span class="hljs-attr">ds_0:</span><br>    <span class="hljs-attr">maximumPoolSize:</span> <span class="hljs-number">20</span><br></code></pre></td></tr></table></figure>
+
+<p>是 <code>ds_0</code> 这个真实数据源池的上限，不是整个应用的总上限。</p>
+<h4 id="20-5-连接池预算公式"><a href="#20-5-连接池预算公式" class="headerlink" title="20.5 连接池预算公式"></a>20.5 连接池预算公式</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">总潜在连接 = 应用副本数 × 真实数据源数 × 单池上限<br></code></pre></td></tr></table></figure>
+
+<p>数据库允许连接还需扣除：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">管理连接<br>监控连接<br>迁移连接<br>其他应用<br>故障切换保留<br></code></pre></td></tr></table></figure>
+
+<p>建议数据库目标使用率不要长期超过连接上限的 70%～80%。</p>
+<h4 id="20-6-连接池参数建议"><a href="#20-6-连接池参数建议" class="headerlink" title="20.6 连接池参数建议"></a>20.6 连接池参数建议</h4><table>
+<thead>
+<tr>
+<th>参数</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>maximumPoolSize</code></td>
+<td>从 10～20 起步，结合压测调</td>
+</tr>
+<tr>
+<td><code>minimumIdle</code></td>
+<td>不要等于过大的 maximum，防止启动连接风暴</td>
+</tr>
+<tr>
+<td><code>connectionTimeout</code></td>
+<td>通常 1～5 秒比 30 秒更利于快速失败，需结合业务</td>
+</tr>
+<tr>
+<td><code>idleTimeout</code></td>
+<td>结合数据库 wait_timeout</td>
+</tr>
+<tr>
+<td><code>maxLifetime</code></td>
+<td>略小于数据库&#x2F;网络设备连接生命周期</td>
+</tr>
+<tr>
+<td><code>validationTimeout</code></td>
+<td>保持较短</td>
+</tr>
+<tr>
+<td><code>keepaliveTime</code></td>
+<td>仅在网络空闲连接易被切断时启用</td>
+</tr>
+</tbody></table>
+<h4 id="20-7-JDK-21-虚拟线程不会增加数据库连接"><a href="#20-7-JDK-21-虚拟线程不会增加数据库连接" class="headerlink" title="20.7 JDK 21 虚拟线程不会增加数据库连接"></a>20.7 JDK 21 虚拟线程不会增加数据库连接</h4><p>虚拟线程可以降低阻塞线程成本，但数据库连接仍是稀缺资源：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[10000 个虚拟线程请求] --&gt; B[Hikari 连接池 20]
+    B --&gt; C[(MySQL)]
+    A -.其余请求等待连接.-&gt; B
+</code></pre>
+
+<p>因此，不能因为启用虚拟线程就把连接池调到几百。正确做法是控制并发、优化 SQL、缩短持有连接时间。</p>
+<h4 id="20-8-kernel-executor-size-调优"><a href="#20-8-kernel-executor-size-调优" class="headerlink" title="20.8 kernel-executor-size 调优"></a>20.8 <code>kernel-executor-size</code> 调优</h4><p>该参数影响 ShardingSphere 内核执行并发。过小会限制多路由执行速度，过大会：</p>
+<ul>
+<li>增加线程竞争；</li>
+<li>放大后端连接请求；</li>
+<li>增加数据库瞬时 QPS；</li>
+<li>让慢 SQL 并行压垮所有分片。</li>
+</ul>
+<p>调优步骤：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 固定连接池和数据库资源<br>2. 使用真实路由分布压测<br>3. 从 CPU 核数附近的值开始<br>4. 观察吞吐、P99、连接 pending、DB CPU<br>5. 每次只调整一个参数<br></code></pre></td></tr></table></figure>
+
+<h4 id="20-9-生产-YAML-安全化"><a href="#20-9-生产-YAML-安全化" class="headerlink" title="20.9 生产 YAML 安全化"></a>20.9 生产 YAML 安全化</h4><p>不要在 Git 中写：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">username:</span> <span class="hljs-string">root</span><br><span class="hljs-attr">password:</span> <span class="hljs-string">root</span><br></code></pre></td></tr></table></figure>
+
+<p>可选方式：</p>
+<ul>
+<li>容器环境变量渲染配置；</li>
+<li>Kubernetes Secret + CSI；</li>
+<li>Vault Agent 模板；</li>
+<li>配置中心密文；</li>
+<li>云数据库 IAM 临时凭证（若支持）。</li>
+</ul>
+<p>配置文件权限至少限制为应用用户可读。</p>
+<h4 id="20-10-启动连接风暴"><a href="#20-10-启动连接风暴" class="headerlink" title="20.10 启动连接风暴"></a>20.10 启动连接风暴</h4><p>Kubernetes 一次滚动启动 50 个实例，每实例 8 个数据源、<code>minimumIdle=10</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">50 × 8 × 10 = 4000 个初始连接<br></code></pre></td></tr></table></figure>
+
+<p>解决：</p>
+<ul>
+<li>控制 <code>maxSurge</code>；</li>
+<li>降低 <code>minimumIdle</code>；</li>
+<li>启动随机抖动；</li>
+<li>数据库代理&#x2F;连接复用；</li>
+<li>分批发布；</li>
+<li>监控数据库登录和握手耗时。</li>
+</ul>
+<h4 id="20-11-推荐的生产属性基线"><a href="#20-11-推荐的生产属性基线" class="headerlink" title="20.11 推荐的生产属性基线"></a>20.11 推荐的生产属性基线</h4><p>下面只是起点，不是通用答案：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">props:</span><br>  <span class="hljs-attr">sql-show:</span> <span class="hljs-literal">false</span><br>  <span class="hljs-attr">sql-simple:</span> <span class="hljs-literal">true</span><br>  <span class="hljs-attr">kernel-executor-size:</span> <span class="hljs-number">16</span><br>  <span class="hljs-attr">max-connections-size-per-query:</span> <span class="hljs-number">1</span><br>  <span class="hljs-attr">check-table-metadata-enabled:</span> <span class="hljs-literal">true</span><br>  <span class="hljs-attr">load-table-metadata-batch-size:</span> <span class="hljs-number">1000</span><br></code></pre></td></tr></table></figure>
+
+<p>上线前应通过压测决定 <code>kernel-executor-size</code> 和 <code>max-connections-size-per-query</code>。</p>
 <h3 id="21-常见问题与排查"><a href="#21-常见问题与排查" class="headerlink" title="21. 常见问题与排查"></a>21. 常见问题与排查</h3><h4 id="21-1-启动报错找不到-ShardingSphereDriver"><a href="#21-1-启动报错找不到-ShardingSphereDriver" class="headerlink" title="21.1 启动报错找不到 ShardingSphereDriver"></a>21.1 启动报错找不到 ShardingSphereDriver</h4><p>检查依赖：</p>
 <figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs xml"><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.apache.shardingsphere<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>shardingsphere-jdbc<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>5.5.3<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br></code></pre></td></tr></table></figure>
 
@@ -1221,6 +2619,82 @@
 <li>对管理端查询单独建搜索索引或报表库。</li>
 <li>调整分片键。</li>
 </ul>
+<h4 id="21-8-系统化排障流程"><a href="#21-8-系统化排障流程" class="headerlink" title="21.8 系统化排障流程"></a>21.8 系统化排障流程</h4><pre><code class=" mermaid">flowchart TD
+    A[发现慢/错/数据缺失] --&gt; B[确认逻辑 SQL 与参数]
+    B --&gt; C[检查规则版本和指纹]
+    C --&gt; D[查看路由目标数量]
+    D --&gt; E[查看真实 SQL]
+    E --&gt; F[直连真实库 EXPLAIN]
+    F --&gt; G[检查连接池与数据库资源]
+    G --&gt; H[检查归并、主从延迟、事务]
+    H --&gt; I[复现并补充自动化测试]
+</code></pre>
+
+<h4 id="21-9-案例：同一查询偶尔查不到数据"><a href="#21-9-案例：同一查询偶尔查不到数据" class="headerlink" title="21.9 案例：同一查询偶尔查不到数据"></a>21.9 案例：同一查询偶尔查不到数据</h4><p>排查顺序：</p>
+<ol>
+<li>是否刚写完读从库；</li>
+<li>是否查询条件缺分库键；</li>
+<li><code>order_id</code> 和 <code>user_id</code> 是否属于同一条数据；</li>
+<li>是否迁移期间新旧规则不一致；</li>
+<li>是否某个分片表结构或数据缺失；</li>
+<li>Hint 是否在线程中残留；</li>
+<li>数据是否写到了错误 worker&#x2F;算法计算的节点。</li>
+</ol>
+<h4 id="21-10-案例：CPU-不高但接口大量超时"><a href="#21-10-案例：CPU-不高但接口大量超时" class="headerlink" title="21.10 案例：CPU 不高但接口大量超时"></a>21.10 案例：CPU 不高但接口大量超时</h4><p>可能是：</p>
+<ul>
+<li>Hikari pending；</li>
+<li>数据库连接上限；</li>
+<li>网络连接建立慢；</li>
+<li>锁等待；</li>
+<li>全路由串行执行；</li>
+<li>主从切换；</li>
+<li>结果集消费慢；</li>
+<li>应用下游阻塞但事务一直持有连接。</li>
+</ul>
+<p>先看连接池等待和事务持有时间，不要只盯 CPU。</p>
+<h4 id="21-11-案例：增加索引后仍然很慢"><a href="#21-11-案例：增加索引后仍然很慢" class="headerlink" title="21.11 案例：增加索引后仍然很慢"></a>21.11 案例：增加索引后仍然很慢</h4><p>单个真实 SQL 使用索引，不代表整体快：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">单分片 5ms × 64 分片<br>+ 连接获取<br>+ 网络<br>+ 线程调度<br>+ 归并排序<br>= 可能数百毫秒或更高<br></code></pre></td></tr></table></figure>
+
+<p>需要减少路由数，而不是只优化每个分片。</p>
+<h4 id="21-12-案例：线上走全路由，测试环境精确路由"><a href="#21-12-案例：线上走全路由，测试环境精确路由" class="headerlink" title="21.12 案例：线上走全路由，测试环境精确路由"></a>21.12 案例：线上走全路由，测试环境精确路由</h4><p>检查：</p>
+<ul>
+<li>两环境 YAML 是否一致；</li>
+<li>分片键参数类型是否一致；</li>
+<li>线上 SQL 是否被动态条件删除；</li>
+<li>MyBatis 是否传 null；</li>
+<li>数据库字段类型和 Java 类型；</li>
+<li>ShardingSphere 版本；</li>
+<li>自定义算法配置；</li>
+<li>规则中心是否存在旧配置；</li>
+<li>Hint 是否仅在测试代码中设置。</li>
+</ul>
+<h4 id="21-13-案例：应用启动很慢"><a href="#21-13-案例：应用启动很慢" class="headerlink" title="21.13 案例：应用启动很慢"></a>21.13 案例：应用启动很慢</h4><p>可能原因：</p>
+<ul>
+<li>数据源数量多；</li>
+<li>元数据检查；</li>
+<li>单表 <code>*.*</code> 扫描；</li>
+<li>网络 DNS 慢；</li>
+<li>数据库握手慢；</li>
+<li>连接池预热过大；</li>
+<li>真实表数量巨大。</li>
+</ul>
+<p>可以分别记录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Spring DataSource 创建耗时<br>每个真实池初始化耗时<br>元数据加载耗时<br>规则构建耗时<br></code></pre></td></tr></table></figure>
+
+<h4 id="21-14-案例：内存突然上涨"><a href="#21-14-案例：内存突然上涨" class="headerlink" title="21.14 案例：内存突然上涨"></a>21.14 案例：内存突然上涨</h4><p>重点看：</p>
+<ul>
+<li>跨分片 GROUP BY；</li>
+<li>深分页；</li>
+<li>大结果集未设置合理 fetch size；</li>
+<li>连接受限导致流式归并退化；</li>
+<li>SQL 日志大量字符串；</li>
+<li>一次批量写过大；</li>
+<li>客户端读取结果过慢。</li>
+</ul>
+<h4 id="21-15-路由问题最小复现模板"><a href="#21-15-路由问题最小复现模板" class="headerlink" title="21.15 路由问题最小复现模板"></a>21.15 路由问题最小复现模板</h4><p>提交问题或内部排查时，至少准备：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">ShardingSphere 精确版本<br>JDK / Spring Boot / JDBC Driver 版本<br>最小 YAML<br>建表 SQL<br>逻辑 SQL 与参数类型<br>预期路由<br>实际路由<br>完整异常堆栈<br>是否事务内<br>是否使用 Hint<br></code></pre></td></tr></table></figure>
+
+<p>没有参数类型的 SQL 日志经常不够，因为字符串 <code>&quot;10&quot;</code> 与 Long <code>10L</code> 可能走不同类型处理路径。</p>
 <h3 id="22-和-MyBatis-JPA-的整合建议"><a href="#22-和-MyBatis-JPA-的整合建议" class="headerlink" title="22. 和 MyBatis &#x2F; JPA 的整合建议"></a>22. 和 MyBatis &#x2F; JPA 的整合建议</h3><h4 id="22-1-MyBatis"><a href="#22-1-MyBatis" class="headerlink" title="22.1 MyBatis"></a>22.1 MyBatis</h4><p>MyBatis 不需要特别感知 ShardingSphere，只要使用 Spring Boot 的 DataSource 即可。</p>
 <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">spring:</span><br>  <span class="hljs-attr">datasource:</span><br>    <span class="hljs-attr">driver-class-name:</span> <span class="hljs-string">org.apache.shardingsphere.driver.ShardingSphereDriver</span><br>    <span class="hljs-attr">url:</span> <span class="hljs-string">jdbc:shardingsphere:classpath:shardingsphere.yaml</span><br></code></pre></td></tr></table></figure>
 
@@ -1243,6 +2717,56 @@
 <figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Entity</span><br><span class="hljs-meta">@Table(name = &quot;t_order&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">OrderEntity</span> &#123;<br>    <span class="hljs-meta">@Id</span><br>    <span class="hljs-keyword">private</span> Long orderId;<br>    <span class="hljs-keyword">private</span> Long userId;<br>&#125;<br></code></pre></td></tr></table></figure>
 
 <p>JPA 的自动 DDL 不建议用于分片表创建，生产环境应该由 Flyway、Liquibase 或 DBA 脚本管理真实表。</p>
+<h4 id="22-3-MyBatis-动态-SQL-的分片键丢失"><a href="#22-3-MyBatis-动态-SQL-的分片键丢失" class="headerlink" title="22.3 MyBatis 动态 SQL 的分片键丢失"></a>22.3 MyBatis 动态 SQL 的分片键丢失</h4><figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">select</span> <span class="hljs-attr">id</span>=<span class="hljs-string">&quot;queryOrders&quot;</span> <span class="hljs-attr">resultType</span>=<span class="hljs-string">&quot;OrderDO&quot;</span>&gt;</span><br>    SELECT * FROM t_order<br>    <span class="hljs-tag">&lt;<span class="hljs-name">where</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">if</span> <span class="hljs-attr">test</span>=<span class="hljs-string">&quot;userId != null&quot;</span>&gt;</span><br>            user_id = #&#123;userId&#125;<br>        <span class="hljs-tag">&lt;/<span class="hljs-name">if</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">if</span> <span class="hljs-attr">test</span>=<span class="hljs-string">&quot;status != null&quot;</span>&gt;</span><br>            AND status = #&#123;status&#125;<br>        <span class="hljs-tag">&lt;/<span class="hljs-name">if</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">where</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">select</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>当 <code>userId=null</code> 时，SQL 仍合法，却可能全路由。建议：</p>
+<ul>
+<li>在线接口对分片键使用 Bean Validation；</li>
+<li>Mapper 方法区分“按分片查询”和“管理查询”；</li>
+<li>分片键不能为空时直接抛错；</li>
+<li>使用 DML_SHARDING_CONDITIONS 审计器；</li>
+<li>单元测试覆盖动态条件缺失。</li>
+</ul>
+<h4 id="22-4-MyBatis-Plus-注意事项"><a href="#22-4-MyBatis-Plus-注意事项" class="headerlink" title="22.4 MyBatis-Plus 注意事项"></a>22.4 MyBatis-Plus 注意事项</h4><ul>
+<li><code>selectById(orderId)</code> 只有主键，若分库键是 <code>user_id</code>，可能跨库；</li>
+<li>Wrapper 条件需要显式加入分片键；</li>
+<li>分页插件与 ShardingSphere 分页会叠加，必须验证生成 SQL；</li>
+<li>批量方法可能被拆分到多个分片；</li>
+<li>逻辑删除字段不会自动成为分片键；</li>
+<li>自动填充主键与 ShardingSphere key generator 不要重复生成。</li>
+</ul>
+<p>推荐方法签名：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">OrderDO <span class="hljs-title function_">selectByUserIdAndOrderId</span><span class="hljs-params">(Long userId, Long orderId)</span>;<br></code></pre></td></tr></table></figure>
+
+<p>而不是在分库规则需要 userId 时只提供 <code>selectById</code>。</p>
+<h4 id="22-5-JPA-的-N-1-在分片环境更危险"><a href="#22-5-JPA-的-N-1-在分片环境更危险" class="headerlink" title="22.5 JPA 的 N+1 在分片环境更危险"></a>22.5 JPA 的 N+1 在分片环境更危险</h4><p>普通单库的 N+1 已经很慢；分片环境中每次子查询还可能全路由：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">1 次订单列表查询<br>+ 100 次订单明细查询<br>× 每次 8 个路由<br>= 801 个真实执行单元<br></code></pre></td></tr></table></figure>
+
+<p>建议：</p>
+<ul>
+<li>禁用无意识懒加载；</li>
+<li>使用显式 DTO 查询；</li>
+<li>绑定表 JOIN；</li>
+<li>批量按分片键分组查询；</li>
+<li>在测试中统计 SQL 数和路由单元数。</li>
+</ul>
+<h4 id="22-6-Flyway-与分片表"><a href="#22-6-Flyway-与分片表" class="headerlink" title="22.6 Flyway 与分片表"></a>22.6 Flyway 与分片表</h4><p>Flyway 默认针对一个 DataSource 维护一张历史表。分片环境有三种做法：</p>
+<ol>
+<li>独立管理数据源维护迁移历史，脚本显式更新所有真实库；</li>
+<li>每个真实库独立 Flyway 实例；</li>
+<li>在 CI&#x2F;CD 中生成并执行物理 DDL，不由业务应用启动时迁移。</li>
+</ol>
+<p>生产更推荐第三种或受控的第二种。不要让几十个应用副本同时执行同一批分片 DDL。</p>
+<h4 id="22-7-Repository-层接口应体现路由约束"><a href="#22-7-Repository-层接口应体现路由约束" class="headerlink" title="22.7 Repository 层接口应体现路由约束"></a>22.7 Repository 层接口应体现路由约束</h4><p>不推荐：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">OrderDO <span class="hljs-title function_">findByOrderId</span><span class="hljs-params">(Long orderId)</span>;<br></code></pre></td></tr></table></figure>
+
+<p>当分库键是 <code>userId</code> 时，推荐：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">OrderDO <span class="hljs-title function_">findByUserIdAndOrderId</span><span class="hljs-params">(Long userId, Long orderId)</span>;<br></code></pre></td></tr></table></figure>
+
+<p>如果业务只有 orderId，需要设计：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">orderId -&gt; shard/tenant/user 路由索引<br></code></pre></td></tr></table></figure>
+
+<p>而不是默认广播查询。</p>
 <h3 id="23-工程落地清单"><a href="#23-工程落地清单" class="headerlink" title="23. 工程落地清单"></a>23. 工程落地清单</h3><h4 id="23-1-接入前必须回答的问题"><a href="#23-1-接入前必须回答的问题" class="headerlink" title="23.1 接入前必须回答的问题"></a>23.1 接入前必须回答的问题</h4><ul>
 <li>数据量为什么需要分库分表？</li>
 <li>当前瓶颈是存储、查询、写入、连接数，还是索引设计？</li>
@@ -1278,12 +2802,90 @@
 <li>准备路由排查手册。</li>
 <li>接入监控指标。</li>
 </ul>
+<h4 id="23-4-自动化测试矩阵"><a href="#23-4-自动化测试矩阵" class="headerlink" title="23.4 自动化测试矩阵"></a>23.4 自动化测试矩阵</h4><table>
+<thead>
+<tr>
+<th>测试类型</th>
+<th>目标</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>算法单元测试</td>
+<td>边界值、负数、IN、范围、非法值</td>
+</tr>
+<tr>
+<td>Mapper 测试</td>
+<td>逻辑 SQL 正确、分片键不丢</td>
+</tr>
+<tr>
+<td>路由测试</td>
+<td>真实执行单元数量符合预期</td>
+</tr>
+<tr>
+<td>集成测试</td>
+<td>两库多表真实 CRUD</td>
+</tr>
+<tr>
+<td>事务测试</td>
+<td>单库回滚、跨库失败边界</td>
+</tr>
+<tr>
+<td>一致性测试</td>
+<td>主从延迟、强制主库</td>
+</tr>
+<tr>
+<td>升级回归</td>
+<td>SQL 兼容性和规则行为</td>
+</tr>
+<tr>
+<td>故障测试</td>
+<td>宕库、断网、连接池耗尽</td>
+</tr>
+<tr>
+<td>性能测试</td>
+<td>精确路由、IN、多分片、全路由</td>
+</tr>
+<tr>
+<td>迁移测试</td>
+<td>全量、增量、校验、回滚</td>
+</tr>
+</tbody></table>
+<h4 id="23-5-路由断言示例"><a href="#23-5-路由断言示例" class="headerlink" title="23.5 路由断言示例"></a>23.5 路由断言示例</h4><p>可以在测试环境采集 ShardingSphere SQL 日志，对一次请求断言：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">expected database count = 1<br>expected table count = 1<br>expected actual SQL count = 1<br>must not contain t_order_1（当预期 t_order_0）<br></code></pre></td></tr></table></figure>
+
+<p>如果使用 Proxy，则使用 <code>PREVIEW SQL</code> 构建黄金路由快照。</p>
+<h4 id="23-6-性能基线必须分场景"><a href="#23-6-性能基线必须分场景" class="headerlink" title="23.6 性能基线必须分场景"></a>23.6 性能基线必须分场景</h4><p>不要只跑一个 QPS。至少包含：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">S1：单库单表点查<br>S2：单库多表 IN<br>S3：跨库点查<br>S4：全路由 COUNT<br>S5：跨分片 ORDER BY LIMIT<br>S6：绑定表 JOIN<br>S7：批量 INSERT<br>S8：事务写订单 + 明细<br></code></pre></td></tr></table></figure>
+
+<p>记录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">TPS/QPS<br>P50/P95/P99<br>route units<br>数据库 CPU/IO<br>连接池 active/pending<br>应用 CPU/Heap/GC<br>错误率<br></code></pre></td></tr></table></figure>
+
+<h4 id="23-7-上线验收门槛示例"><a href="#23-7-上线验收门槛示例" class="headerlink" title="23.7 上线验收门槛示例"></a>23.7 上线验收门槛示例</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">核心点查路由单元 = 1<br>在线接口全路由比例 = 0<br>P99 不高于单库基线的约定阈值<br>连接池 pending = 0（稳定负载）<br>数据库连接峰值低于预算<br>跨库失败场景有补偿和告警<br>迁移校验无金额差异<br>规则变更有回滚脚本<br></code></pre></td></tr></table></figure>
+
 <h3 id="24-一份推荐的生产组合"><a href="#24-一份推荐的生产组合" class="headerlink" title="24. 一份推荐的生产组合"></a>24. 一份推荐的生产组合</h3><p>如果是 Spring Boot 3.5 的 Java 业务系统，我推荐优先：</p>
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">ShardingSphere-JDBC 5.5.3<br>+ YAML 配置<br>+ Standalone 本地模式起步<br>+ MyBatis / JdbcTemplate<br>+ SNOWFLAKE 主键<br>+ INLINE / HASH_MOD 分片<br>+ bindingTables<br>+ BROADCAST 小字典表<br>+ LOCAL 事务<br>+ sql-show 开发开、生产关<br>+ Prometheus/Grafana 监控<br></code></pre></td></tr></table></figure>
 
 <p>如果是多语言、多系统统一接入：</p>
 <figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">ShardingSphere-Proxy 5.5.3<br>+ Cluster 模式<br>+ ZooKeeper / Etcd 元数据持久化<br>+ DistSQL 管理规则<br>+ 数据迁移能力<br>+ Agent 可观察性<br>+ Proxy 高可用<br></code></pre></td></tr></table></figure>
 
+
+<h4 id="24-1-不同规模下的推荐演进"><a href="#24-1-不同规模下的推荐演进" class="headerlink" title="24.1 不同规模下的推荐演进"></a>24.1 不同规模下的推荐演进</h4><pre><code class=" mermaid">flowchart LR
+    A[单库单表] --&gt; B[索引与 SQL 优化]
+    B --&gt; C[缓存/归档/读写分离]
+    C --&gt; D[垂直拆库]
+    D --&gt; E[ShardingSphere-JDBC 分片]
+    E --&gt; F[Proxy/Cluster 集中治理]
+    F --&gt; G[迁移、弹性与统一数据平台]
+</code></pre>
+
+<p>**早期：**优先单库、索引、缓存、归档。</p>
+<p>**增长期：**读写分离、按业务垂直拆库，降低单库负担。</p>
+<p>**大规模：**核心大表水平分片，建立分片键约束、迁移和监控。</p>
+<p>**平台期：**多语言统一接入、Proxy 高可用、DistSQL 审计、规则中心。</p>
+<h4 id="24-2-一份更保守的默认选择"><a href="#24-2-一份更保守的默认选择" class="headerlink" title="24.2 一份更保守的默认选择"></a>24.2 一份更保守的默认选择</h4><p>对于多数 Spring Boot 3.5 服务：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs text">JDK 21<br>Spring Boot 3.5.x<br>ShardingSphere-JDBC 5.5.3<br>MyBatis / JdbcTemplate<br>MySQL 8.x<br>HikariCP 小连接池起步<br>单分片键 Standard Strategy<br>SNOWFLAKE 或业务 ID 服务<br>LOCAL 事务<br>Outbox 最终一致性<br>Prometheus + OpenTelemetry<br>Flyway 由部署流水线管理真实表<br></code></pre></td></tr></table></figure>
+
+<p>先把主路径做窄、做准，再增加复杂能力。</p>
 <h3 id="25-一个更现实的架构建议"><a href="#25-一个更现实的架构建议" class="headerlink" title="25. 一个更现实的架构建议"></a>25. 一个更现实的架构建议</h3><p>分库分表不是第一步，而是系统演进到一定阶段后的手术。</p>
 <p>在决定使用 ShardingSphere 之前，先确认是否已经做过：</p>
 <ul>
@@ -1297,7 +2899,354 @@
 <li>报表查询隔离。</li>
 </ul>
 <p>如果这些都没做，直接上分库分表，可能只是把一个慢系统升级成一个复杂的慢系统。</p>
+<h3 id="26-完整生产架构示例"><a href="#26-完整生产架构示例" class="headerlink" title="26. 完整生产架构示例"></a>26. 完整生产架构示例</h3><p>下面是一套相对完整但仍可渐进落地的架构：</p>
+<pre><code class=" mermaid">flowchart TB
+    U[客户端] --&gt; GW[API Gateway]
+    GW --&gt; APP[Spring Boot 3.5 集群]
+
+    APP --&gt; SS[ShardingSphere-JDBC 5.5.3]
+    SS --&gt; G0[读写组 ds_0]
+    SS --&gt; G1[读写组 ds_1]
+
+    G0 --&gt; M0[(MySQL Master 0)]
+    G0 --&gt; R00[(Replica 0-0)]
+    G0 --&gt; R01[(Replica 0-1)]
+    G1 --&gt; M1[(MySQL Master 1)]
+    G1 --&gt; R10[(Replica 1-0)]
+    G1 --&gt; R11[(Replica 1-1)]
+
+    APP --&gt; REDIS[(Redis)]
+    APP --&gt; OUTBOX[(Local Event)]
+    OUTBOX --&gt; MQ[MQ]
+    MQ --&gt; SEARCH[(Elasticsearch)]
+    MQ --&gt; OLAP[(Doris / ClickHouse)]
+
+    SS --&gt; OTEL[OpenTelemetry]
+    APP --&gt; OTEL
+    OTEL --&gt; OBS[Prometheus / Grafana / Trace]
+
+    CICD[CI/CD] --&gt; DDL[分片 DDL 管理]
+    DDL --&gt; M0
+    DDL --&gt; M1
+</code></pre>
+
+<p>这套架构中：</p>
+<ul>
+<li>ShardingSphere 负责 OLTP 透明路由；</li>
+<li>Redis 只承担适合缓存的数据；</li>
+<li>MQ + Outbox 解决跨聚合最终一致性；</li>
+<li>Elasticsearch 解决多条件检索；</li>
+<li>Doris&#x2F;ClickHouse 解决报表聚合；</li>
+<li>CI&#x2F;CD 统一管理真实 DDL；</li>
+<li>可观察平台关联业务请求与真实 SQL。</li>
+</ul>
+<h3 id="27-从单库迁移到分库分表的实施计划"><a href="#27-从单库迁移到分库分表的实施计划" class="headerlink" title="27. 从单库迁移到分库分表的实施计划"></a>27. 从单库迁移到分库分表的实施计划</h3><h4 id="阶段-0：证明问题存在"><a href="#阶段-0：证明问题存在" class="headerlink" title="阶段 0：证明问题存在"></a>阶段 0：证明问题存在</h4><p>产出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Top SQL<br>数据增长模型<br>单库资源瓶颈<br>三年容量预测<br>核心查询路径<br></code></pre></td></tr></table></figure>
+
+<h4 id="阶段-1：分片建模"><a href="#阶段-1：分片建模" class="headerlink" title="阶段 1：分片建模"></a>阶段 1：分片建模</h4><p>产出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">分片键决策记录 ADR<br>数据节点拓扑<br>绑定表/广播表/单表清单<br>事务边界<br>不支持查询清单<br></code></pre></td></tr></table></figure>
+
+<h4 id="阶段-2：双环境验证"><a href="#阶段-2：双环境验证" class="headerlink" title="阶段 2：双环境验证"></a>阶段 2：双环境验证</h4><ul>
+<li>本地 Docker 双库；</li>
+<li>测试环境接近生产规模；</li>
+<li>兼容性回归；</li>
+<li>路由快照；</li>
+<li>故障演练。</li>
+</ul>
+<h4 id="阶段-3：迁移与灰度"><a href="#阶段-3：迁移与灰度" class="headerlink" title="阶段 3：迁移与灰度"></a>阶段 3：迁移与灰度</h4><ul>
+<li>全量；</li>
+<li>增量；</li>
+<li>校验；</li>
+<li>灰度读；</li>
+<li>灰度写；</li>
+<li>全量切换。</li>
+</ul>
+<h4 id="阶段-4：稳定性建设"><a href="#阶段-4：稳定性建设" class="headerlink" title="阶段 4：稳定性建设"></a>阶段 4：稳定性建设</h4><ul>
+<li>全路由审计；</li>
+<li>慢 SQL TopN；</li>
+<li>规则漂移检测；</li>
+<li>定期故障演练；</li>
+<li>容量复盘；</li>
+<li>扩容预案。</li>
+</ul>
+<h3 id="28-安全与合规清单"><a href="#28-安全与合规清单" class="headerlink" title="28. 安全与合规清单"></a>28. 安全与合规清单</h3><h4 id="数据安全"><a href="#数据安全" class="headerlink" title="数据安全"></a>数据安全</h4><ul>
+<li>敏感字段存储加密；</li>
+<li>查询结果脱敏；</li>
+<li>日志不打印敏感参数；</li>
+<li>密钥进入 KMS&#x2F;Vault；</li>
+<li>备份同样加密；</li>
+<li>测试环境不使用生产明文数据。</li>
+</ul>
+<h4 id="访问安全"><a href="#访问安全" class="headerlink" title="访问安全"></a>访问安全</h4><ul>
+<li>应用账号最小权限；</li>
+<li>DistSQL 管理账号隔离；</li>
+<li>Proxy 业务与管理网络隔离；</li>
+<li>数据库只允许指定网段；</li>
+<li>定期轮换密码和证书；</li>
+<li>审计规则和账号变更。</li>
+</ul>
+<h4 id="供应链安全"><a href="#供应链安全" class="headerlink" title="供应链安全"></a>供应链安全</h4><ul>
+<li>固定依赖版本；</li>
+<li>校验 Apache 发布包签名；</li>
+<li>扫描 Maven 依赖漏洞；</li>
+<li>关注 ShardingSphere Release Notes；</li>
+<li>镜像使用摘要锁定；</li>
+<li>SBOM 归档。</li>
+</ul>
+<h3 id="29-性能压测方案"><a href="#29-性能压测方案" class="headerlink" title="29. 性能压测方案"></a>29. 性能压测方案</h3><h4 id="29-1-数据准备"><a href="#29-1-数据准备" class="headerlink" title="29.1 数据准备"></a>29.1 数据准备</h4><p>压测数据必须模拟：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">分片均匀数据<br>热点用户<br>大租户<br>近期热数据<br>历史冷数据<br>不同状态分布<br></code></pre></td></tr></table></figure>
+
+<p>只生成完全均匀数据会掩盖热点。</p>
+<h4 id="29-2-压测阶梯"><a href="#29-2-压测阶梯" class="headerlink" title="29.2 压测阶梯"></a>29.2 压测阶梯</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">10% 目标流量：验证功能<br>30%：观察连接和数据库资源<br>60%：确认延迟拐点<br>100%：目标容量<br>120%～150%：验证保护和降级<br></code></pre></td></tr></table></figure>
+
+<h4 id="29-3-对照组"><a href="#29-3-对照组" class="headerlink" title="29.3 对照组"></a>29.3 对照组</h4><p>至少对比：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">直连单真实库<br>ShardingSphere 单路由<br>ShardingSphere 多路由<br>全路由<br></code></pre></td></tr></table></figure>
+
+<p>这样才能区分数据库耗时与中间件解析、执行、归并开销。</p>
+<h4 id="29-4-性能报告模板"><a href="#29-4-性能报告模板" class="headerlink" title="29.4 性能报告模板"></a>29.4 性能报告模板</h4><table>
+<thead>
+<tr>
+<th>场景</th>
+<th align="right">QPS</th>
+<th align="right">P50</th>
+<th align="right">P95</th>
+<th align="right">P99</th>
+<th align="right">路由数</th>
+<th align="right">DB CPU</th>
+<th align="right">连接峰值</th>
+<th align="right">错误率</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>点查</td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right">1</td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+</tr>
+<tr>
+<td>IN 查询</td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+</tr>
+<tr>
+<td>深分页</td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+</tr>
+<tr>
+<td>聚合</td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+</tr>
+<tr>
+<td>批量写</td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+<td align="right"></td>
+</tr>
+</tbody></table>
+<h3 id="30-故障演练清单"><a href="#30-故障演练清单" class="headerlink" title="30. 故障演练清单"></a>30. 故障演练清单</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs text">关闭一个从库<br>关闭一个主库<br>主从延迟 10 秒<br>注册中心短暂不可用<br>Proxy 实例 kill -9<br>应用实例滚动重启<br>数据库连接池耗尽<br>执行 30 秒慢 SQL<br>迁移增量积压<br>错误分片规则发布<br>Snowflake 时钟回拨<br>MQ 重复投递<br></code></pre></td></tr></table></figure>
+
+<p>每个演练都记录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">影响范围<br>用户表现<br>告警触发时间<br>自动恢复时间<br>人工操作<br>数据一致性结果<br>改进项<br></code></pre></td></tr></table></figure>
+
+<h3 id="31-代码评审检查表"><a href="#31-代码评审检查表" class="headerlink" title="31. 代码评审检查表"></a>31. 代码评审检查表</h3><p>看到访问分片表的代码时，逐项问：</p>
+<ul>
+<li>SQL 是否包含分库键和分表键？</li>
+<li>参数可能为 null 吗？</li>
+<li>IN 条件最大多少？</li>
+<li>是否可能范围跨所有分片？</li>
+<li>是否深分页？</li>
+<li>是否跨分片排序&#x2F;聚合？</li>
+<li>JOIN 是否绑定表？</li>
+<li>UPDATE&#x2F;DELETE 是否精准路由？</li>
+<li>事务是否跨库？</li>
+<li>重试是否幂等？</li>
+<li>读请求是否允许从库延迟？</li>
+<li>日志是否泄露参数？</li>
+<li>是否有路由单元断言？</li>
+</ul>
+<h3 id="32-常见问答"><a href="#32-常见问答" class="headerlink" title="32. 常见问答"></a>32. 常见问答</h3><h4 id="Q1：分库分表后还能使用数据库唯一索引吗？"><a href="#Q1：分库分表后还能使用数据库唯一索引吗？" class="headerlink" title="Q1：分库分表后还能使用数据库唯一索引吗？"></a>Q1：分库分表后还能使用数据库唯一索引吗？</h4><p>单个真实表内可以，但它只能保证该物理表范围内唯一。全局唯一需要：</p>
+<ul>
+<li>全局 ID；</li>
+<li>路由前置唯一性服务；</li>
+<li>唯一索引表；</li>
+<li>业务上让唯一值包含分片维度；</li>
+<li>最终冲突检测与补偿。</li>
+</ul>
+<h4 id="Q2：能不能按时间分表，同时按用户查询？"><a href="#Q2：能不能按时间分表，同时按用户查询？" class="headerlink" title="Q2：能不能按时间分表，同时按用户查询？"></a>Q2：能不能按时间分表，同时按用户查询？</h4><p>可以，但用户跨时间范围查询会命中多张时间表。需要在“写入归档便利”和“用户查询便利”之间取舍。也可以分库按用户、分表按时间，但查询条件最好同时包含两者。</p>
+<h4 id="Q3：分片后能不能随便-JOIN？"><a href="#Q3：分片后能不能随便-JOIN？" class="headerlink" title="Q3：分片后能不能随便 JOIN？"></a>Q3：分片后能不能随便 JOIN？</h4><p>不能。绑定表、广播表和同分片键 JOIN 最友好；非绑定跨分片 JOIN 需要重点验证路由组合和 SQL 支持。</p>
+<h4 id="Q4：为什么不推荐所有查询都用-Hint？"><a href="#Q4：为什么不推荐所有查询都用-Hint？" class="headerlink" title="Q4：为什么不推荐所有查询都用 Hint？"></a>Q4：为什么不推荐所有查询都用 Hint？</h4><p>Hint 把路由正确性推给业务代码，容易因上下文丢失或残留导致错路由。只有分片键确实不在 SQL、且业务上下文可靠时使用。</p>
+<h4 id="Q5：ShardingSphere-能代替数据库代理吗？"><a href="#Q5：ShardingSphere-能代替数据库代理吗？" class="headerlink" title="Q5：ShardingSphere 能代替数据库代理吗？"></a>Q5：ShardingSphere 能代替数据库代理吗？</h4><p>Proxy 本身可以作为数据库网关，但 JDBC 不是通用网络代理。是否需要 Proxy 取决于语言、集中治理、运维和协议要求。</p>
+<h4 id="Q6：单表多大必须分片？"><a href="#Q6：单表多大必须分片？" class="headerlink" title="Q6：单表多大必须分片？"></a>Q6：单表多大必须分片？</h4><p>没有统一阈值。要结合行宽、索引、查询方式、写入量、DDL 窗口和硬件能力。一个 1 亿行只做主键点查的表，可能比一个 1000 万行复杂聚合表更轻松。</p>
+<h4 id="Q7：是否应该先分-1024-张表？"><a href="#Q7：是否应该先分-1024-张表？" class="headerlink" title="Q7：是否应该先分 1024 张表？"></a>Q7：是否应该先分 1024 张表？</h4><p>通常不应该。可以预留 1024 个逻辑槽位，但物理表数量要根据容量和运维能力决定。</p>
+<h4 id="Q8：读写分离会不会自动保证刚写数据可见？"><a href="#Q8：读写分离会不会自动保证刚写数据可见？" class="headerlink" title="Q8：读写分离会不会自动保证刚写数据可见？"></a>Q8：读写分离会不会自动保证刚写数据可见？</h4><p>不会。使用事务内主库、Hint 强制主库、会话粘滞或版本等待策略。</p>
+<h4 id="Q9：Spring-Boot-3-5-能否直接使用-XA？"><a href="#Q9：Spring-Boot-3-5-能否直接使用-XA？" class="headerlink" title="Q9：Spring Boot 3.5 能否直接使用 XA？"></a>Q9：Spring Boot 3.5 能否直接使用 XA？</h4><p>ShardingSphere 5.5.3 官方文档明确提示 Jakarta EE 9+&#x2F;Spring Boot 3 场景下 XA 尚未就绪。不要把“能配置”当成“生产可用”。</p>
+<h4 id="Q10：如何判断分片是否成功？"><a href="#Q10：如何判断分片是否成功？" class="headerlink" title="Q10：如何判断分片是否成功？"></a>Q10：如何判断分片是否成功？</h4><p>不是只看数据插入成功，而要验证：逻辑结果、物理落点、路由数量、事务边界、故障行为和性能基线。</p>
+<h3 id="33-术语表"><a href="#33-术语表" class="headerlink" title="33. 术语表"></a>33. 术语表</h3><table>
+<thead>
+<tr>
+<th>术语</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Logic Database</td>
+<td>应用看到的逻辑数据库</td>
+</tr>
+<tr>
+<td>Storage Unit</td>
+<td>ShardingSphere 管理的真实数据源</td>
+</tr>
+<tr>
+<td>Logic Table</td>
+<td>SQL 中使用的逻辑表名</td>
+</tr>
+<tr>
+<td>Actual Table</td>
+<td>数据库中真实存在的物理表</td>
+</tr>
+<tr>
+<td>Actual Data Node</td>
+<td>数据源与真实表的组合</td>
+</tr>
+<tr>
+<td>Sharding Column</td>
+<td>用于计算路由的字段</td>
+</tr>
+<tr>
+<td>Sharding Strategy</td>
+<td>提取分片值并调用算法的策略</td>
+</tr>
+<tr>
+<td>Sharding Algorithm</td>
+<td>将分片值映射到目标节点的算法</td>
+</tr>
+<tr>
+<td>Binding Table</td>
+<td>分片规则一致、可同路由 JOIN 的表组</td>
+</tr>
+<tr>
+<td>Broadcast Table</td>
+<td>在多个数据源保存副本的表</td>
+</tr>
+<tr>
+<td>Single Table</td>
+<td>被管理但不参与分片的表</td>
+</tr>
+<tr>
+<td>Route Unit</td>
+<td>路由生成的逻辑目标单元</td>
+</tr>
+<tr>
+<td>Execution Unit</td>
+<td>改写后可执行的真实 SQL 单元</td>
+</tr>
+<tr>
+<td>DistSQL</td>
+<td>用 SQL 管理 ShardingSphere 规则的语言</td>
+</tr>
+<tr>
+<td>Pipeline</td>
+<td>数据迁移和弹性相关能力</td>
+</tr>
+<tr>
+<td>Hint</td>
+<td>由业务上下文显式指定路由</td>
+</tr>
+<tr>
+<td>Merge</td>
+<td>把多分片结果合成为逻辑结果</td>
+</tr>
+</tbody></table>
+<h3 id="34-最终上线检查清单"><a href="#34-最终上线检查清单" class="headerlink" title="34. 最终上线检查清单"></a>34. 最终上线检查清单</h3><h4 id="架构"><a href="#架构" class="headerlink" title="架构"></a>架构</h4><ul>
+<li><input disabled="" type="checkbox"> 已证明单库优化不足；</li>
+<li><input disabled="" type="checkbox"> 分片键有真实 SQL 数据支撑；</li>
+<li><input disabled="" type="checkbox"> 绑定表、广播表、单表清单明确；</li>
+<li><input disabled="" type="checkbox"> 管理端复杂查询有独立方案；</li>
+<li><input disabled="" type="checkbox"> 扩容和回滚方案已评审。</li>
+</ul>
+<h4 id="配置"><a href="#配置" class="headerlink" title="配置"></a>配置</h4><ul>
+<li><input disabled="" type="checkbox"> 锁定 ShardingSphere 5.5.3；</li>
+<li><input disabled="" type="checkbox"> 未混入旧 Starter；</li>
+<li><input disabled="" type="checkbox"> 每个真实数据源连接池已预算；</li>
+<li><input disabled="" type="checkbox"> 生产密码不在 Git；</li>
+<li><input disabled="" type="checkbox"> 元数据检查已验证；</li>
+<li><input disabled="" type="checkbox"> SQL 日志生产默认关闭。</li>
+</ul>
+<h4 id="SQL"><a href="#SQL" class="headerlink" title="SQL"></a>SQL</h4><ul>
+<li><input disabled="" type="checkbox"> 核心查询精准路由；</li>
+<li><input disabled="" type="checkbox"> UPDATE&#x2F;DELETE 带分片键；</li>
+<li><input disabled="" type="checkbox"> 无不可控深分页；</li>
+<li><input disabled="" type="checkbox"> 聚合 SQL 有压测；</li>
+<li><input disabled="" type="checkbox"> JOIN 已验证绑定关系；</li>
+<li><input disabled="" type="checkbox"> ORM 动态 SQL 不会丢分片键。</li>
+</ul>
+<h4 id="事务与一致性"><a href="#事务与一致性" class="headerlink" title="事务与一致性"></a>事务与一致性</h4><ul>
+<li><input disabled="" type="checkbox"> 跨库事务边界清楚；</li>
+<li><input disabled="" type="checkbox"> LOCAL 不被误当强一致；</li>
+<li><input disabled="" type="checkbox"> 读己之写策略明确；</li>
+<li><input disabled="" type="checkbox"> 消息和补偿幂等；</li>
+<li><input disabled="" type="checkbox"> 对账任务已实现；</li>
+<li><input disabled="" type="checkbox"> 故障演练通过。</li>
+</ul>
+<h4 id="运维"><a href="#运维" class="headerlink" title="运维"></a>运维</h4><ul>
+<li><input disabled="" type="checkbox"> 所有真实表结构一致；</li>
+<li><input disabled="" type="checkbox"> DDL 发布流程明确；</li>
+<li><input disabled="" type="checkbox"> 迁移全量&#x2F;增量&#x2F;校验可观测；</li>
+<li><input disabled="" type="checkbox"> 规则指纹和漂移告警已建立；</li>
+<li><input disabled="" type="checkbox"> 全路由、连接池、主从延迟有告警；</li>
+<li><input disabled="" type="checkbox"> 备份恢复已演练。</li>
+</ul>
+<h3 id="35-结论"><a href="#35-结论" class="headerlink" title="35. 结论"></a>35. 结论</h3><p>ShardingSphere 的价值不是让应用“感觉不到分库分表”，而是把大量重复的 SQL 解析、路由、改写、执行和归并能力标准化。透明只存在于 API 表面，架构复杂度不会凭空消失。</p>
+<p>真正高质量的落地有几个共同点：</p>
+<ol>
+<li>分片键来自访问模式，而不是来自表字段里“看起来像 ID”的那一列；</li>
+<li>核心 SQL 默认精准路由，全路由是被识别、限制和监控的例外；</li>
+<li>事务边界通过业务聚合设计收敛，跨库一致性有消息、补偿和对账；</li>
+<li>扩容从第一天就考虑逻辑槽位、迁移、灰度和回滚；</li>
+<li>监控不仅看数据库 CPU，还看路由数、执行单元、连接池等待和归并耗时；</li>
+<li>每次规则、版本和 DDL 变化都经过自动化回归。</li>
+</ol>
+<p>分库分表最怕的不是复杂，而是复杂却不可见。把规则、路由、事务和迁移全部变成可验证的工程对象，ShardingSphere 才会真正成为基础设施，而不是新的不确定性来源。</p>
 <h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>用户指定参考文章：掘金<br><a target="_blank" rel="noopener" href="https://juejin.cn/post/7186845167989555256#heading-54">https://juejin.cn/post/7186845167989555256#heading-54</a></li>
+<li>Apache ShardingSphere 5.5.3 Release Notes<br><a target="_blank" rel="noopener" href="https://github.com/apache/shardingsphere/blob/5.5.3/RELEASE-NOTES.md">https://github.com/apache/shardingsphere/blob/5.5.3/RELEASE-NOTES.md</a></li>
+<li>Apache ShardingSphere 5.5.3 Route Engine<br><a target="_blank" rel="noopener" href="https://shardingsphere.apache.org/document/5.5.3/en/reference/sharding/route/">https://shardingsphere.apache.org/document/5.5.3/en/reference/sharding/route/</a></li>
+<li>Apache ShardingSphere 5.5.3 Rewrite Engine<br><a target="_blank" rel="noopener" href="https://shardingsphere.apache.org/document/5.5.3/en/reference/sharding/rewrite/">https://shardingsphere.apache.org/document/5.5.3/en/reference/sharding/rewrite/</a></li>
+<li>Apache ShardingSphere 5.5.3 Execute Engine<br><a target="_blank" rel="noopener" href="https://shardingsphere.apache.org/document/5.5.3/en/reference/sharding/execute/">https://shardingsphere.apache.org/document/5.5.3/en/reference/sharding/execute/</a></li>
+<li>Apache ShardingSphere 5.5.3 Merger Engine<br><a target="_blank" rel="noopener" href="https://shardingsphere.apache.org/document/5.5.3/en/reference/sharding/merge/">https://shardingsphere.apache.org/document/5.5.3/en/reference/sharding/merge/</a></li>
+<li>Apache ShardingSphere Transaction Limitations<br><a target="_blank" rel="noopener" href="https://shardingsphere.apache.org/document/current/en/features/transaction/limitations/">https://shardingsphere.apache.org/document/current/en/features/transaction/limitations/</a></li>
+<li>Apache ShardingSphere Observability<br><a target="_blank" rel="noopener" href="https://shardingsphere.apache.org/document/current/en/reference/observability/">https://shardingsphere.apache.org/document/current/en/reference/observability/</a></li>
+<li>Apache ShardingSphere-Agent<br><a target="_blank" rel="noopener" href="https://shardingsphere.apache.org/document/current/en/user-manual/shardingsphere-agent/">https://shardingsphere.apache.org/document/current/en/user-manual/shardingsphere-agent/</a></li>
 <li>Apache ShardingSphere 官方网站<br><a target="_blank" rel="noopener" href="https://shardingsphere.apache.org/">https://shardingsphere.apache.org/</a></li>
 <li>Apache ShardingSphere 5.5.3 Downloads<br><a target="_blank" rel="noopener" href="https://shardingsphere.apache.org/document/current/en/downloads/">https://shardingsphere.apache.org/document/current/en/downloads/</a></li>
 <li>Apache ShardingSphere Overview<br><a target="_blank" rel="noopener" href="https://shardingsphere.apache.org/document/current/en/overview/">https://shardingsphere.apache.org/document/current/en/overview/</a></li>
@@ -1373,7 +3322,7 @@
   <div class="license-box my-3">
     <div class="license-title">
       <div>Spring Boot 3.5 整合 Apache ShardingSphere 5.5.3 深度实践</div>
-      <div>https://allendericdalexander.github.io/2026/06/11/java/spring/springboot-shardingsphere-deep-guide/</div>
+      <div>https://allendericdalexander.github.io/2026/06/11/java/spring/Spring-Boot-3.5-ShardingSphere-5.5-deep-guide/</div>
     </div>
     <div class="license-meta">
       
