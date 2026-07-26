@@ -1,0 +1,1380 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="Spring Boot,本地消息表,最终一致性,Spring Event,RabbitMQ,HTTP,AOP,DDD">
+  
+    <meta name="description" content="将业务数据库事务与 MQ、HTTP 等外部调用解耦，通过本地任务消息表、事务提交后事件、通知策略和分组补偿任务，构建可复用的最终一致性组件。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spring Boot 本地任务消息组件：本地消息表、Spring Event 与定时补偿实现最终一致性">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/07/25/java/spring-boot-local-task-message/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="将业务数据库事务与 MQ、HTTP 等外部调用解耦，通过本地任务消息表、事务提交后事件、通知策略和分组补偿任务，构建可复用的最终一致性组件。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-25T01:30:00.000Z">
+<meta property="article:modified_time" content="2026-07-25T01:30:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="AOP">
+<meta property="article:tag" content="DDD">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="RabbitMQ">
+<meta property="article:tag" content="Spring Boot">
+<meta property="article:tag" content="Spring Event">
+<meta property="article:tag" content="最终一致性">
+<meta property="article:tag" content="本地消息表">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Spring Boot 本地任务消息组件：本地消息表、Spring Event 与定时补偿实现最终一致性 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Spring Boot 本地任务消息组件：本地消息表、Spring Event 与定时补偿实现最终一致性"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-07-25 09:30" pubdate>
+          2026年7月25日 上午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          6.4k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          54 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Spring Boot 本地任务消息组件：本地消息表、Spring Event 与定时补偿实现最终一致性</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>在订单、支付、结算、库存等业务中，经常会遇到这样的操作：</p>
+<ol>
+<li>先修改本地数据库；</li>
+<li>再发送 MQ 消息，或者调用外部 HTTP 服务；</li>
+<li>两个动作必须在业务上保持一致。</li>
+</ol>
+<p>问题在于，数据库事务只能可靠地约束数据库操作，无法天然覆盖 RabbitMQ、Kafka 或 HTTP 请求。业务数据已经提交，但外部通知失败，就会出现“库里成功、下游没收到”的不一致；反过来，如果先通知外部系统，再提交数据库，又可能出现“下游已处理、数据库却回滚”的情况。</p>
+<p>本文实现一个可复用的 <strong>Local Task Message 本地任务消息组件</strong>：在业务事务中同时写入业务数据和本地任务消息，事务提交后通过 Spring Event 触发快速通知；通知失败时，再由定时任务扫描本地消息表并持续补偿，最终达到业务一致。</p>
+<span id="more"></span>
+
+<blockquote>
+<p>本文所有架构图和流程图均使用 Mermaid 绘制。Hexo 主题需要开启 Mermaid 支持，否则代码块只会按文本显示。</p>
+</blockquote>
+<h2 id="一、问题本质：数据库事务管不到外部世界"><a href="#一、问题本质：数据库事务管不到外部世界" class="headerlink" title="一、问题本质：数据库事务管不到外部世界"></a>一、问题本质：数据库事务管不到外部世界</h2><p>假设创建订单后，需要通知库存服务：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Transactional</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">createOrder</span><span class="hljs-params">(CreateOrderCommand command)</span> &#123;<br>    orderRepository.insert(command.toOrder());<br>    rabbitTemplate.convertAndSend(<span class="hljs-string">&quot;order.exchange&quot;</span>, <span class="hljs-string">&quot;order.created&quot;</span>, command);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这段代码看起来很自然，但存在多个失败窗口：</p>
+<ul>
+<li>数据库写入成功，MQ 发送失败；</li>
+<li>MQ 已经接收消息，但本地事务随后回滚；</li>
+<li>MQ 客户端超时，生产者不知道 Broker 到底有没有收到；</li>
+<li>HTTP 返回超时，但远端实际上已经完成处理；</li>
+<li>应用在事务提交后、通知发送前宕机。</li>
+</ul>
+<p>因此，这类问题不能简单依赖一次方法调用解决。更合理的思路是：</p>
+<blockquote>
+<p>将“需要对外执行的动作”先可靠地记录到本地数据库，再异步执行；失败后可以从数据库恢复并重试。</p>
+</blockquote>
+<p>本地任务消息组件提供的是 <strong>至少一次投递与最终一致性</strong>，并不承诺严格的全局强一致，也无法天然保证外部系统只执行一次。因此，下游接口仍然必须支持幂等。</p>
+<h2 id="二、组件目标"><a href="#二、组件目标" class="headerlink" title="二、组件目标"></a>二、组件目标</h2><p>该组件主要解决以下问题：</p>
+<ul>
+<li>业务数据与任务消息在同一个本地事务中写入；</li>
+<li>支持 MQ 和 HTTP 两种通知方式，并可继续扩展 Kafka、RPC、Webhook 等通道；</li>
+<li>支持直接调用组件服务，也支持通过自定义注解无侵入接入；</li>
+<li>使用 Spring Event 作为事务提交后的快速触发通道；</li>
+<li>使用本地任务表作为可靠事实来源，应用重启后仍可恢复；</li>
+<li>使用“门牌号”对任务分片，允许多个 Job 并行扫描；</li>
+<li>通知失败后记录状态并定时补偿；</li>
+<li>上游业务系统只需要建表、引入依赖并完成配置。</li>
+</ul>
+<p>不适合直接使用该方案的场景包括：</p>
+<ul>
+<li>跨多个数据库要求原子提交；</li>
+<li>要求严格的同步强一致；</li>
+<li>不允许重复调用，且外部系统又无法提供幂等能力；</li>
+<li>每秒几十万级消息，需要专业消息日志或流处理平台承载。</li>
+</ul>
+<h2 id="三、总体架构"><a href="#三、总体架构" class="headerlink" title="三、总体架构"></a>三、总体架构</h2><pre><code class=" mermaid">flowchart LR
+    subgraph UP[&quot;上游业务系统&quot;]
+        BIZ[&quot;业务方法&lt;br/&gt;createOrder / settleBill&quot;]
+        AOP[&quot;@LocalTaskMessage&lt;br/&gt;AOP 切面&quot;]
+        API[&quot;ILocalTaskMessageHandleService&lt;br/&gt;直接调用入口&quot;]
+    end
+
+    subgraph CORE[&quot;Local Task Message 组件&quot;]
+        HANDLE[&quot;任务受理服务&quot;]
+        REPO[&quot;任务仓储&quot;]
+        PUB[&quot;Spring Event 发布器&quot;]
+        LISTENER[&quot;事务提交后事件监听器&quot;]
+        STRATEGY[&quot;通知策略路由&quot;]
+        HTTP[&quot;HTTP Gateway&quot;]
+        MQ[&quot;RabbitMQ / Kafka Adapter&quot;]
+        JOB[&quot;分组补偿 Job&quot;]
+    end
+
+    subgraph STORE[&quot;业务数据库&quot;]
+        BIZDB[(&quot;业务表&quot;)]
+        TASKDB[(&quot;local_task_message&quot;)]
+    end
+
+    subgraph EXT[&quot;外部系统&quot;]
+        HTTPAPI[&quot;外部 HTTP API&quot;]
+        BROKER[&quot;MQ Broker&quot;]
+    end
+
+    BIZ --&gt; BIZDB
+    BIZ --&gt; AOP
+    BIZ --&gt; API
+    AOP --&gt; HANDLE
+    API --&gt; HANDLE
+    HANDLE --&gt; REPO
+    REPO --&gt; TASKDB
+    HANDLE --&gt; PUB
+    PUB --&gt; LISTENER
+    LISTENER --&gt; STRATEGY
+    STRATEGY --&gt; HTTP
+    STRATEGY --&gt; MQ
+    HTTP --&gt; HTTPAPI
+    MQ --&gt; BROKER
+    JOB --&gt; TASKDB
+    JOB --&gt; STRATEGY
+
+    style CORE fill:#e8f5e9,stroke:#2e7d32
+    style STORE fill:#fff8e1,stroke:#f9a825
+    style EXT fill:#ffebee,stroke:#c62828
+</code></pre>
+
+<p>这里需要明确三个角色：</p>
+<ul>
+<li><strong>本地消息表是可靠来源</strong>：只要事务提交成功，任务就不会凭空消失；</li>
+<li><strong>Spring Event 是快速通道</strong>：正常情况下无需等待定时任务，提交后立即尝试通知；</li>
+<li><strong>定时任务是补偿通道</strong>：处理事件丢失、进程崩溃、网络异常和外部服务故障。</li>
+</ul>
+<p>Spring Event 本身不是消息中间件。它只能在当前进程内传递事件，进程突然退出时，尚未处理的内存事件会丢失。真正兜底的是数据库里的任务记录。</p>
+<h2 id="四、工程分层设计"><a href="#四、工程分层设计" class="headerlink" title="四、工程分层设计"></a>四、工程分层设计</h2><p>组件不是一个只包含几个静态方法的工具包，而是一个具备领域行为、存储能力、事件机制和调度能力的小型业务内核。可以按照 DDD 风格划分为 <code>config</code>、<code>domain</code>、<code>infrastructure</code> 和 <code>trigger</code> 四层。</p>
+<pre><code class=" mermaid">flowchart TB
+    CONFIG[&quot;config&lt;br/&gt;自动配置、属性绑定、AOP&quot;]
+    TRIGGER[&quot;trigger&lt;br/&gt;事件监听、定时任务、外部入口&quot;]
+    DOMAIN[&quot;domain&lt;br/&gt;实体、领域服务、策略、端口接口&quot;]
+    INFRA[&quot;infrastructure&lt;br/&gt;JDBC、Spring Event、HTTP、MQ&quot;]
+    SPRING[&quot;Spring 容器&quot;]
+    DB[(&quot;MySQL&quot;)]
+    OUT[&quot;HTTP / MQ&quot;]
+
+    CONFIG --&gt; SPRING
+    TRIGGER --&gt; DOMAIN
+    DOMAIN --&gt; INFRA
+    INFRA --&gt; DB
+    INFRA --&gt; OUT
+    SPRING --&gt; CONFIG
+    SPRING --&gt; TRIGGER
+    SPRING --&gt; DOMAIN
+    SPRING --&gt; INFRA
+
+    style CONFIG fill:#607d8b,color:#fff
+    style TRIGGER fill:#2196f3,color:#fff
+    style DOMAIN fill:#f2cf00,color:#111
+    style INFRA fill:#d0006f,color:#fff
+</code></pre>
+
+<p>推荐的包结构如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><code class="hljs text">local-task-message<br>├── config<br>│   ├── LocalTaskMessageAutoConfig.java<br>│   ├── LocalTaskMessageProperties.java<br>│   └── aop<br>│       └── LocalTaskMessageAop.java<br>├── message<br>│   └── LocalTaskMessage.java<br>├── domain<br>│   ├── model<br>│   │   └── entity<br>│   │       └── TaskMessageEntityCommand.java<br>│   ├── service<br>│   │   ├── ILocalTaskMessageHandleService.java<br>│   │   ├── ILocalTaskMessageNotifyService.java<br>│   │   └── strategy<br>│   │       ├── INotifyStrategy.java<br>│   │       ├── HTTPNotifyStrategy.java<br>│   │       └── RabbitMQNotifyStrategy.java<br>│   └── adapter<br>│       ├── repository<br>│       │   └── ILocalTaskMessageRepository.java<br>│       ├── event<br>│       │   └── ILocalTaskMessageEvent.java<br>│       └── port<br>│           └── ILocalTaskMessagePort.java<br>├── infrastructure<br>│   ├── dao<br>│   ├── repository<br>│   ├── event<br>│   ├── gateway<br>│   └── mq<br>└── trigger<br>    ├── listener<br>    │   └── TaskMessageEventListener.java<br>    └── job<br>        └── TaskMessageEventJob.java<br></code></pre></td></tr></table></figure>
+
+<p>分层的核心价值不是“目录看起来很高级”，而是让领域逻辑只依赖抽象接口。将来把 Retrofit 换成 OkHttp、RabbitMQ 换成 Kafka、JDBC 换成其他存储实现时，不需要修改核心业务流程。</p>
+<h2 id="五、本地任务消息表设计"><a href="#五、本地任务消息表设计" class="headerlink" title="五、本地任务消息表设计"></a>五、本地任务消息表设计</h2><h3 id="5-1-表结构"><a href="#5-1-表结构" class="headerlink" title="5.1 表结构"></a>5.1 表结构</h3><pre><code class=" mermaid">erDiagram
+    LOCAL_TASK_MESSAGE &#123;
+        BIGINT id PK &quot;自增主键&quot;
+        VARCHAR task_id UK &quot;业务任务唯一标识&quot;
+        VARCHAR task_name &quot;任务名称&quot;
+        VARCHAR notify_type &quot;http / rabbit_mq&quot;
+        TEXT notify_config &quot;通知配置 JSON&quot;
+        INT status &quot;0待处理 1处理中 2完成 3失败&quot;
+        JSON parameter_json &quot;外部通知参数&quot;
+        INT house_number &quot;门牌号/分片号&quot;
+        DATETIME create_time &quot;创建时间&quot;
+        DATETIME update_time &quot;更新时间&quot;
+    &#125;
+</code></pre>
+
+<p>基础建表语句可以设计为：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> local_task_message (<br>    id              <span class="hljs-type">BIGINT</span> UNSIGNED <span class="hljs-keyword">NOT NULL</span> AUTO_INCREMENT COMMENT <span class="hljs-string">&#x27;自增主键&#x27;</span>,<br>    task_id         <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">128</span>)    <span class="hljs-keyword">NOT NULL</span> COMMENT <span class="hljs-string">&#x27;任务唯一标识&#x27;</span>,<br>    task_name       <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">128</span>)    <span class="hljs-keyword">NOT NULL</span> COMMENT <span class="hljs-string">&#x27;任务名称&#x27;</span>,<br>    notify_type     <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">32</span>)     <span class="hljs-keyword">NOT NULL</span> COMMENT <span class="hljs-string">&#x27;通知类型：http、rabbit_mq&#x27;</span>,<br>    notify_config   TEXT            <span class="hljs-keyword">NOT NULL</span> COMMENT <span class="hljs-string">&#x27;通知配置 JSON&#x27;</span>,<br>    status          TINYINT         <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-number">0</span> COMMENT <span class="hljs-string">&#x27;0待处理 1处理中 2已完成 3失败&#x27;</span>,<br>    parameter_json  JSON            <span class="hljs-keyword">NOT NULL</span> COMMENT <span class="hljs-string">&#x27;通知参数 JSON&#x27;</span>,<br>    house_number    TINYINT         <span class="hljs-keyword">NOT NULL</span> COMMENT <span class="hljs-string">&#x27;门牌号/分片号&#x27;</span>,<br>    create_time     DATETIME        <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="hljs-string">&#x27;创建时间&#x27;</span>,<br>    update_time     DATETIME        <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-built_in">CURRENT_TIMESTAMP</span><br>                                      <span class="hljs-keyword">ON</span> <span class="hljs-keyword">UPDATE</span> <span class="hljs-built_in">CURRENT_TIMESTAMP</span> COMMENT <span class="hljs-string">&#x27;更新时间&#x27;</span>,<br>    <span class="hljs-keyword">PRIMARY KEY</span> (id),<br>    <span class="hljs-keyword">UNIQUE</span> KEY uk_local_task_message_task_id (task_id),<br>    KEY idx_local_task_message_scan (status, house_number, id)<br>) ENGINE <span class="hljs-operator">=</span> InnoDB<br>  <span class="hljs-keyword">DEFAULT</span> CHARSET <span class="hljs-operator">=</span> utf8mb4<br>  COMMENT <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;本地任务消息表&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<p><code>task_id</code> 应当具备业务唯一性，可以使用订单号、结算单号、券号或稳定生成的业务 UUID。唯一索引既能防止同一业务重复创建任务，也可以作为外部幂等键。</p>
+<h3 id="5-2-状态机"><a href="#5-2-状态机" class="headerlink" title="5.2 状态机"></a>5.2 状态机</h3><pre><code class=" mermaid">stateDiagram-v2
+    [*] --&gt; WAITING: 创建任务 status=0
+    WAITING --&gt; PROCESSING: 抢占执行 status=1
+    FAILED --&gt; PROCESSING: 补偿重试
+    PROCESSING --&gt; SUCCESS: 通知成功 status=2
+    PROCESSING --&gt; FAILED: 通知失败 status=3
+    SUCCESS --&gt; [*]
+</code></pre>
+
+<p>状态含义：</p>
+<table>
+<thead>
+<tr>
+<th align="right">状态</th>
+<th>名称</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">0</td>
+<td>待处理</td>
+<td>已经可靠写入数据库，尚未开始通知</td>
+</tr>
+<tr>
+<td align="right">1</td>
+<td>处理中</td>
+<td>已被某个执行器抢占，防止多个节点重复处理</td>
+</tr>
+<tr>
+<td align="right">2</td>
+<td>已完成</td>
+<td>外部通知成功</td>
+</tr>
+<tr>
+<td align="right">3</td>
+<td>失败</td>
+<td>本次执行失败，等待下一次补偿</td>
+</tr>
+</tbody></table>
+<p>生产环境建议继续增加以下字段：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">ALTER TABLE</span> local_task_message<br>    <span class="hljs-keyword">ADD</span> <span class="hljs-keyword">COLUMN</span> retry_count <span class="hljs-type">INT</span> <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-number">0</span> COMMENT <span class="hljs-string">&#x27;已重试次数&#x27;</span>,<br>    <span class="hljs-keyword">ADD</span> <span class="hljs-keyword">COLUMN</span> next_retry_time DATETIME <span class="hljs-keyword">NULL</span> COMMENT <span class="hljs-string">&#x27;下次重试时间&#x27;</span>,<br>    <span class="hljs-keyword">ADD</span> <span class="hljs-keyword">COLUMN</span> last_error <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">2000</span>) <span class="hljs-keyword">NULL</span> COMMENT <span class="hljs-string">&#x27;最近一次异常摘要&#x27;</span>,<br>    <span class="hljs-keyword">ADD</span> <span class="hljs-keyword">COLUMN</span> version <span class="hljs-type">INT</span> <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-number">0</span> COMMENT <span class="hljs-string">&#x27;乐观锁版本&#x27;</span>;<br><br><span class="hljs-keyword">CREATE</span> INDEX idx_local_task_message_retry<br>    <span class="hljs-keyword">ON</span> local_task_message (status, house_number, next_retry_time, id);<br></code></pre></td></tr></table></figure>
+
+<p>这些字段可以支持指数退避、最大重试次数、死信处理、异常排查和并发抢占。</p>
+<h3 id="5-3-门牌号分片"><a href="#5-3-门牌号分片" class="headerlink" title="5.3 门牌号分片"></a>5.3 门牌号分片</h3><p>如果所有 Job 都执行同一条扫描 SQL，那么增加 Job 数量并不会提升吞吐量，只会制造重复竞争。因此，可以根据 <code>task_id</code> 计算一个稳定的门牌号：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">int</span> <span class="hljs-variable">hash</span> <span class="hljs-operator">=</span> taskId.hashCode() &amp; Integer.MAX_VALUE;<br><span class="hljs-type">int</span> <span class="hljs-variable">houseNumber</span> <span class="hljs-operator">=</span> hash % <span class="hljs-number">10</span>;<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<ul>
+<li><code>group01</code> 负责门牌号 <code>[0, 1, 2, 3]</code>；</li>
+<li><code>group02</code> 负责门牌号 <code>[4, 5, 6, 7, 8, 9]</code>。</li>
+</ul>
+<p>这样每个任务组只处理自己的数据分片，可以水平扩展扫描能力。</p>
+<h2 id="六、任务命令模型"><a href="#六、任务命令模型" class="headerlink" title="六、任务命令模型"></a>六、任务命令模型</h2><p>任务命令需要描述“做什么、怎么通知、通知什么内容”。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Data</span><br><span class="hljs-meta">@NoArgsConstructor</span><br><span class="hljs-meta">@AllArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">TaskMessageEntityCommand</span> &#123;<br><br>    <span class="hljs-keyword">private</span> Long id;<br>    <span class="hljs-keyword">private</span> String taskId;<br>    <span class="hljs-keyword">private</span> String taskName;<br>    <span class="hljs-keyword">private</span> String notifyType;<br>    <span class="hljs-keyword">private</span> NotifyConfig notifyConfig;<br>    <span class="hljs-keyword">private</span> Integer status;<br>    <span class="hljs-keyword">private</span> String parameterJson;<br>    <span class="hljs-keyword">private</span> Integer houseNumber;<br><br>    <span class="hljs-meta">@Data</span><br>    <span class="hljs-meta">@Builder</span><br>    <span class="hljs-meta">@NoArgsConstructor</span><br>    <span class="hljs-meta">@AllArgsConstructor</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">NotifyConfig</span> &#123;<br>        <span class="hljs-keyword">private</span> MQ mq;<br>        <span class="hljs-keyword">private</span> HTTP http;<br><br>        <span class="hljs-meta">@Data</span><br>        <span class="hljs-meta">@Builder</span><br>        <span class="hljs-meta">@NoArgsConstructor</span><br>        <span class="hljs-meta">@AllArgsConstructor</span><br>        <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">MQ</span> &#123;<br>            <span class="hljs-keyword">private</span> String topic;<br>            <span class="hljs-keyword">private</span> String exchange;<br>        &#125;<br><br>        <span class="hljs-meta">@Data</span><br>        <span class="hljs-meta">@Builder</span><br>        <span class="hljs-meta">@NoArgsConstructor</span><br>        <span class="hljs-meta">@AllArgsConstructor</span><br>        <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">HTTP</span> &#123;<br>            <span class="hljs-keyword">private</span> String url;<br>            <span class="hljs-keyword">private</span> String method;<br>            <span class="hljs-keyword">private</span> String contentType;<br>            <span class="hljs-keyword">private</span> String authorization;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>通知类型枚举同时保存对应的 Spring 策略 Bean 名称：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Getter</span><br><span class="hljs-meta">@AllArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">enum</span> <span class="hljs-title class_">TaskNotifyEnum</span> &#123;<br><br>    HTTP(<span class="hljs-string">&quot;http&quot;</span>, <span class="hljs-string">&quot;httpNotifyStrategy&quot;</span>, <span class="hljs-string">&quot;HTTP 通知&quot;</span>),<br>    RABBIT_MQ(<span class="hljs-string">&quot;rabbit_mq&quot;</span>, <span class="hljs-string">&quot;rabbitMQNotifyStrategy&quot;</span>, <span class="hljs-string">&quot;RabbitMQ 通知&quot;</span>);<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> String type;<br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> String strategy;<br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> String description;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> TaskNotifyEnum <span class="hljs-title function_">of</span><span class="hljs-params">(String type)</span> &#123;<br>        <span class="hljs-keyword">return</span> Arrays.stream(values())<br>                .filter(item -&gt; item.type.equalsIgnoreCase(type))<br>                .findFirst()<br>                .orElseThrow(() -&gt; <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<br>                        <span class="hljs-string">&quot;Unsupported notify type: &quot;</span> + type));<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>需要在组件入口处校验 <code>notifyType</code> 与 <code>notifyConfig</code> 是否匹配。例如，<code>notifyType=http</code> 时必须配置 <code>notifyConfig.http</code>，避免任务进入数据库后才发现参数不完整。</p>
+<h2 id="七、两种接入方式"><a href="#七、两种接入方式" class="headerlink" title="七、两种接入方式"></a>七、两种接入方式</h2><pre><code class=" mermaid">flowchart LR
+    BIZ[&quot;业务方法&quot;] --&gt; MODE&#123;接入方式&#125;
+    MODE --&gt;|注解方式| ANN[&quot;@LocalTaskMessage&quot;]
+    MODE --&gt;|主动调用| CALL[&quot;handleService.acceptTaskMessage&quot;]
+    ANN --&gt; HANDLE[&quot;任务受理服务&quot;]
+    CALL --&gt; HANDLE
+    HANDLE --&gt; SAVE[&quot;保存本地任务&quot;]
+    SAVE --&gt; EVENT[&quot;发布 Spring Event&quot;]
+</code></pre>
+
+<h3 id="7-1-主动调用组件服务"><a href="#7-1-主动调用组件服务" class="headerlink" title="7.1 主动调用组件服务"></a>7.1 主动调用组件服务</h3><p>这种方式最直接，调用关系清晰，适合需要显式控制任务构造过程的场景。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">OrderApplicationService</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> OrderRepository orderRepository;<br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ILocalTaskMessageHandleService handleService;<br><br>    <span class="hljs-meta">@Transactional</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">createOrder</span><span class="hljs-params">(CreateOrderCommand request)</span> &#123;<br>        orderRepository.insert(request.toOrder());<br><br>        <span class="hljs-type">TaskMessageEntityCommand</span> <span class="hljs-variable">command</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">TaskMessageEntityCommand</span>();<br>        command.setTaskId(<span class="hljs-string">&quot;ORDER_CREATED:&quot;</span> + request.getOrderId());<br>        command.setTaskName(<span class="hljs-string">&quot;订单创建通知&quot;</span>);<br>        command.setNotifyType(TaskNotifyEnum.RABBIT_MQ.getType());<br>        command.setStatus(<span class="hljs-number">0</span>);<br>        command.setNotifyConfig(<br>                TaskMessageEntityCommand.NotifyConfig.builder()<br>                        .mq(TaskMessageEntityCommand.NotifyConfig.MQ.builder()<br>                                .exchange(<span class="hljs-string">&quot;order.exchange&quot;</span>)<br>                                .topic(<span class="hljs-string">&quot;order.created&quot;</span>)<br>                                .build())<br>                        .build());<br>        command.setParameterJson(JSON.toJSONString(request));<br><br>        handleService.acceptTaskMessage(command);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-2-注解方式"><a href="#7-2-注解方式" class="headerlink" title="7.2 注解方式"></a>7.2 注解方式</h3><p>自定义注解用于从方法参数中提取 <code>TaskMessageEntityCommand</code>，切面负责判断事务并调用组件服务。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Retention(RetentionPolicy.RUNTIME)</span><br><span class="hljs-meta">@Target(ElementType.METHOD)</span><br><span class="hljs-meta">@Documented</span><br><span class="hljs-keyword">public</span> <span class="hljs-meta">@interface</span> LocalTaskMessage &#123;<br><br>    <span class="hljs-comment">/**</span><br><span class="hljs-comment">     * 支持 command 或 request.command 这样的属性路径。</span><br><span class="hljs-comment">     */</span><br>    String <span class="hljs-title function_">entityAttributeName</span><span class="hljs-params">()</span> <span class="hljs-keyword">default</span> <span class="hljs-string">&quot;&quot;</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>使用示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Transactional</span><br><span class="hljs-meta">@LocalTaskMessage(entityAttributeName = &quot;command&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">createOrder</span><span class="hljs-params">(TaskMessageEntityCommand command)</span> &#123;<br>    orderRepository.insert(buildOrder(command));<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>嵌套参数示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Transactional</span><br><span class="hljs-meta">@LocalTaskMessage(entityAttributeName = &quot;request.command&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">createOrder</span><span class="hljs-params">(CreateOrderRequest request)</span> &#123;<br>    orderRepository.insert(request.toOrder());<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>切面的核心逻辑是：</p>
+<ol>
+<li>执行业务方法；</li>
+<li>从方法参数中解析任务命令；</li>
+<li>若当前已经存在事务，则加入当前事务；</li>
+<li>若当前没有事务，则通过 <code>TransactionTemplate</code> 新建事务；</li>
+<li>保存本地任务并发布事件；</li>
+<li>任意一步失败都必须抛出异常，让业务数据和任务记录一起回滚。</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Aspect</span><br><span class="hljs-meta">@Component</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LocalTaskMessageAop</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ILocalTaskMessageHandleService handleService;<br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> TransactionTemplate transactionTemplate;<br><br>    <span class="hljs-meta">@Around(&quot;@annotation(localTaskMessage)&quot;)</span><br>    <span class="hljs-keyword">public</span> Object <span class="hljs-title function_">around</span><span class="hljs-params">(</span><br><span class="hljs-params">            ProceedingJoinPoint joinPoint,</span><br><span class="hljs-params">            LocalTaskMessage localTaskMessage)</span> <span class="hljs-keyword">throws</span> Throwable &#123;<br><br>        <span class="hljs-keyword">if</span> (TransactionSynchronizationManager.isActualTransactionActive()) &#123;<br>            <span class="hljs-type">Object</span> <span class="hljs-variable">result</span> <span class="hljs-operator">=</span> joinPoint.proceed();<br>            <span class="hljs-type">TaskMessageEntityCommand</span> <span class="hljs-variable">command</span> <span class="hljs-operator">=</span> resolveCommand(<br>                    joinPoint, localTaskMessage.entityAttributeName());<br>            handleService.acceptTaskMessage(command);<br>            <span class="hljs-keyword">return</span> result;<br>        &#125;<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            <span class="hljs-keyword">return</span> transactionTemplate.execute(status -&gt; &#123;<br>                <span class="hljs-keyword">try</span> &#123;<br>                    <span class="hljs-type">Object</span> <span class="hljs-variable">result</span> <span class="hljs-operator">=</span> joinPoint.proceed();<br>                    <span class="hljs-type">TaskMessageEntityCommand</span> <span class="hljs-variable">command</span> <span class="hljs-operator">=</span> resolveCommand(<br>                            joinPoint, localTaskMessage.entityAttributeName());<br>                    handleService.acceptTaskMessage(command);<br>                    <span class="hljs-keyword">return</span> result;<br>                &#125; <span class="hljs-keyword">catch</span> (Throwable throwable) &#123;<br>                    status.setRollbackOnly();<br>                    <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">LocalTaskMessageException</span>(throwable);<br>                &#125;<br>            &#125;);<br>        &#125; <span class="hljs-keyword">catch</span> (LocalTaskMessageException exception) &#123;<br>            <span class="hljs-keyword">throw</span> exception.getCause();<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里有三个容易被忽略的工程细节：</p>
+<ul>
+<li>解析 Java 参数名通常需要编译时开启 <code>-parameters</code>；</li>
+<li>AOP 与 <code>@Transactional</code> 都是代理增强，需要明确切面顺序；</li>
+<li><code>handleService</code> 内部绝不能只记录异常然后吞掉，否则业务事务仍会提交，消息记录却可能没有写入。</li>
+</ul>
+<p>对于公共组件，长期更推荐使用 Spring <code>ParameterNameDiscoverer</code> 或 SpEL 解析属性路径，而不是自己维护大量反射代码。</p>
+<h2 id="八、同一事务内保存业务数据与本地任务"><a href="#八、同一事务内保存业务数据与本地任务" class="headerlink" title="八、同一事务内保存业务数据与本地任务"></a>八、同一事务内保存业务数据与本地任务</h2><p>主流程如下：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    autonumber
+    actor User as 调用方
+    participant Biz as 业务方法
+    participant Aop as 注解切面/直接入口
+    participant Handle as 任务受理服务
+    participant Repo as 任务仓储
+    participant DB as MySQL
+    participant Publisher as 事件发布器
+    participant Listener as 提交后监听器
+
+    User-&gt;&gt;Biz: 执行业务操作
+    Biz-&gt;&gt;DB: 写入业务数据
+    Biz-&gt;&gt;Aop: 提交任务命令
+    Aop-&gt;&gt;Handle: acceptTaskMessage(command)
+    Handle-&gt;&gt;Repo: saveTaskMessage(command)
+    Repo-&gt;&gt;DB: INSERT local_task_message
+    DB--&gt;&gt;Repo: success
+    Handle-&gt;&gt;Publisher: publishEvent(command)
+    Publisher--&gt;&gt;Handle: return
+    Handle--&gt;&gt;Biz: return
+    Biz--&gt;&gt;User: 本地事务提交
+    Publisher--&gt;&gt;Listener: AFTER_COMMIT 触发异步通知
+</code></pre>
+
+<h3 id="8-1-使用-Spring-JDBC，而不是裸连接"><a href="#8-1-使用-Spring-JDBC，而不是裸连接" class="headerlink" title="8.1 使用 Spring JDBC，而不是裸连接"></a>8.1 使用 Spring JDBC，而不是裸连接</h3><p>组件为了减少与上游 MyBatis 版本的冲突，可以只依赖 Spring JDBC。需要注意，若直接使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Connection</span> <span class="hljs-variable">connection</span> <span class="hljs-operator">=</span> dataSource.getConnection();<br></code></pre></td></tr></table></figure>
+
+<p>可能绕开 Spring 当前事务绑定的连接。生产实现更适合使用 <code>JdbcTemplate</code>，或者显式使用 <code>DataSourceUtils.getConnection(dataSource)</code>。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Repository</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">TaskMessageDao</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> JdbcTemplate jdbcTemplate;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">int</span> <span class="hljs-title function_">insert</span><span class="hljs-params">(TaskMessagePO po)</span> &#123;<br>        <span class="hljs-type">String</span> <span class="hljs-variable">sql</span> <span class="hljs-operator">=</span> <span class="hljs-string">&quot;INSERT INTO local_task_message &quot;</span><br>                + <span class="hljs-string">&quot;(task_id, task_name, notify_type, notify_config, &quot;</span><br>                + <span class="hljs-string">&quot;status, parameter_json, house_number, create_time, update_time) &quot;</span><br>                + <span class="hljs-string">&quot;VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)&quot;</span>;<br><br>        <span class="hljs-keyword">return</span> jdbcTemplate.update(<br>                sql,<br>                po.getTaskId(),<br>                po.getTaskName(),<br>                po.getNotifyType(),<br>                po.getNotifyConfig(),<br>                po.getStatus(),<br>                po.getParameterJson(),<br>                po.getHouseNumber(),<br>                po.getCreateTime(),<br>                po.getUpdateTime());<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>领域仓储负责完成领域对象到持久化对象的转换：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Repository</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LocalTaskMessageRepository</span><br>        <span class="hljs-keyword">implements</span> <span class="hljs-title class_">ILocalTaskMessageRepository</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> TaskMessageDao taskMessageDao;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">saveTaskMessage</span><span class="hljs-params">(TaskMessageEntityCommand command)</span> &#123;<br>        <span class="hljs-type">TaskMessagePO</span> <span class="hljs-variable">po</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">TaskMessagePO</span>();<br>        po.setTaskId(command.getTaskId());<br>        po.setTaskName(command.getTaskName());<br>        po.setNotifyType(command.getNotifyType());<br>        po.setNotifyConfig(JSON.toJSONString(command.getNotifyConfig()));<br>        po.setStatus(<span class="hljs-number">0</span>);<br>        po.setParameterJson(command.getParameterJson());<br>        po.setHouseNumber(calculateHouseNumber(command.getTaskId()));<br>        po.setCreateTime(LocalDateTime.now());<br>        po.setUpdateTime(LocalDateTime.now());<br><br>        <span class="hljs-type">int</span> <span class="hljs-variable">affectedRows</span> <span class="hljs-operator">=</span> taskMessageDao.insert(po);<br>        <span class="hljs-keyword">if</span> (affectedRows != <span class="hljs-number">1</span>) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>(<br>                    <span class="hljs-string">&quot;Save task message failed, taskId=&quot;</span> + command.getTaskId());<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-type">int</span> <span class="hljs-title function_">calculateHouseNumber</span><span class="hljs-params">(String taskId)</span> &#123;<br>        <span class="hljs-keyword">return</span> (taskId.hashCode() &amp; Integer.MAX_VALUE) % <span class="hljs-number">10</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>任务受理服务保持简单，并让异常继续向外传播：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LocalTaskMessageHandleService</span><br>        <span class="hljs-keyword">implements</span> <span class="hljs-title class_">ILocalTaskMessageHandleService</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ILocalTaskMessageRepository repository;<br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ILocalTaskMessageEvent event;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">acceptTaskMessage</span><span class="hljs-params">(TaskMessageEntityCommand command)</span> &#123;<br>        validate(command);<br>        repository.saveTaskMessage(command);<br>        event.publishEvent(command);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>要真正加入同一个事务，业务表与 <code>local_task_message</code> 必须使用：</p>
+<ul>
+<li>同一个 <code>DataSource</code>；</li>
+<li>同一个 <code>PlatformTransactionManager</code>；</li>
+<li>同一条事务传播链路。</li>
+</ul>
+<p>如果业务数据和任务消息分别写入两个数据库，这个方案就不再具备本地事务原子性。</p>
+<h2 id="九、Spring-Event：快速触发，而不是可靠存储"><a href="#九、Spring-Event：快速触发，而不是可靠存储" class="headerlink" title="九、Spring Event：快速触发，而不是可靠存储"></a>九、Spring Event：快速触发，而不是可靠存储</h2><h3 id="9-1-发布事件"><a href="#9-1-发布事件" class="headerlink" title="9.1 发布事件"></a>9.1 发布事件</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">interface</span> <span class="hljs-title class_">ILocalTaskMessageEvent</span> &#123;<br>    <span class="hljs-keyword">void</span> <span class="hljs-title function_">publishEvent</span><span class="hljs-params">(TaskMessageEntityCommand command)</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Getter</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SpringTaskMessageEvent</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> TaskMessageEntityCommand command;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">SpringTaskMessageEvent</span><span class="hljs-params">(TaskMessageEntityCommand command)</span> &#123;<br>        <span class="hljs-built_in">this</span>.command = command;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LocalTaskMessageEvent</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">ILocalTaskMessageEvent</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ApplicationEventPublisher eventPublisher;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">publishEvent</span><span class="hljs-params">(TaskMessageEntityCommand command)</span> &#123;<br>        eventPublisher.publishEvent(<span class="hljs-keyword">new</span> <span class="hljs-title class_">SpringTaskMessageEvent</span>(command));<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="9-2-在事务提交后处理"><a href="#9-2-在事务提交后处理" class="headerlink" title="9.2 在事务提交后处理"></a>9.2 在事务提交后处理</h3><p>基线实现可以使用 <code>@EventListener + @Async</code>，但异步线程可能在事务真正提交前开始执行。更稳妥的方式是使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Slf4j</span><br><span class="hljs-meta">@Component</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">TaskMessageEventListener</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ILocalTaskMessageNotifyService notifyService;<br><br>    <span class="hljs-meta">@Async(&quot;localTaskMessageExecutor&quot;)</span><br>    <span class="hljs-meta">@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">handle</span><span class="hljs-params">(SpringTaskMessageEvent event)</span> &#123;<br>        <span class="hljs-type">TaskMessageEntityCommand</span> <span class="hljs-variable">command</span> <span class="hljs-operator">=</span> event.getCommand();<br>        <span class="hljs-keyword">try</span> &#123;<br>            notifyService.notify(command);<br>        &#125; <span class="hljs-keyword">catch</span> (Exception exception) &#123;<br>            log.error(<span class="hljs-string">&quot;Task notify failed, taskId=&#123;&#125;&quot;</span>,<br>                    command.getTaskId(), exception);<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这样可以保证：</p>
+<ul>
+<li>本地事务回滚时，不执行外部通知；</li>
+<li>本地事务提交成功后，立即异步通知；</li>
+<li>通知失败不会反向影响已经提交的业务事务；</li>
+<li>即使事件尚未处理应用就崩溃，本地任务仍会被 Job 扫描。</li>
+</ul>
+<p>不要把通用组件的异步任务扔进默认线程池。应当提供独立线程池，并暴露核心参数：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Bean(&quot;localTaskMessageExecutor&quot;)</span><br><span class="hljs-keyword">public</span> Executor <span class="hljs-title function_">localTaskMessageExecutor</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-type">ThreadPoolTaskExecutor</span> <span class="hljs-variable">executor</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ThreadPoolTaskExecutor</span>();<br>    executor.setCorePoolSize(<span class="hljs-number">4</span>);<br>    executor.setMaxPoolSize(<span class="hljs-number">16</span>);<br>    executor.setQueueCapacity(<span class="hljs-number">1000</span>);<br>    executor.setThreadNamePrefix(<span class="hljs-string">&quot;local-task-message-&quot;</span>);<br>    executor.setRejectedExecutionHandler(<br>            <span class="hljs-keyword">new</span> <span class="hljs-title class_">ThreadPoolExecutor</span>.CallerRunsPolicy());<br>    executor.initialize();<br>    <span class="hljs-keyword">return</span> executor;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>线程池拒绝并不意味着任务永久丢失，因为数据库记录还在；但拒绝次数必须监控，否则补偿任务会慢慢变成“真正的主流程”。</p>
+<h2 id="十、通知策略：HTTP-与-MQ-解耦"><a href="#十、通知策略：HTTP-与-MQ-解耦" class="headerlink" title="十、通知策略：HTTP 与 MQ 解耦"></a>十、通知策略：HTTP 与 MQ 解耦</h2><p>不同通知方式的配置和执行逻辑差异较大，不适合塞进一个巨大的 <code>if...else</code>。策略模式可以把变化隔离到独立实现中。</p>
+<pre><code class=" mermaid">classDiagram
+    direction LR
+
+    class INotifyStrategy &#123;
+        &lt;&lt;interface&gt;&gt;
+        +notify(command) String
+    &#125;
+
+    class HTTPNotifyStrategy &#123;
+        -ILocalTaskMessagePort port
+        -ILocalTaskMessageRepository repository
+        +notify(command) String
+    &#125;
+
+    class RabbitMQNotifyStrategy &#123;
+        -ILocalTaskMessagePort port
+        -ILocalTaskMessageRepository repository
+        +notify(command) String
+    &#125;
+
+    class LocalTaskMessageNotifyService &#123;
+        -Map~String, INotifyStrategy~ strategies
+        +notify(command) String
+    &#125;
+
+    class ILocalTaskMessagePort &#123;
+        &lt;&lt;interface&gt;&gt;
+        +notify2http(command) String
+        +notify2rabbitmq(command) String
+    &#125;
+
+    INotifyStrategy &lt;|.. HTTPNotifyStrategy
+    INotifyStrategy &lt;|.. RabbitMQNotifyStrategy
+    LocalTaskMessageNotifyService --&gt; INotifyStrategy
+    HTTPNotifyStrategy --&gt; ILocalTaskMessagePort
+    RabbitMQNotifyStrategy --&gt; ILocalTaskMessagePort
+</code></pre>
+
+<p>策略接口：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">interface</span> <span class="hljs-title class_">INotifyStrategy</span> &#123;<br>    String <span class="hljs-title function_">notify</span><span class="hljs-params">(TaskMessageEntityCommand command)</span> <span class="hljs-keyword">throws</span> Exception;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>领域通知服务通过 Spring 自动注入所有策略 Bean：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LocalTaskMessageNotifyService</span><br>        <span class="hljs-keyword">implements</span> <span class="hljs-title class_">ILocalTaskMessageNotifyService</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> Map&lt;String, INotifyStrategy&gt; strategies;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> String <span class="hljs-title function_">notify</span><span class="hljs-params">(TaskMessageEntityCommand command)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-type">TaskNotifyEnum</span> <span class="hljs-variable">notifyType</span> <span class="hljs-operator">=</span> TaskNotifyEnum.of(command.getNotifyType());<br>        <span class="hljs-type">INotifyStrategy</span> <span class="hljs-variable">strategy</span> <span class="hljs-operator">=</span> strategies.get(notifyType.getStrategy());<br>        <span class="hljs-keyword">if</span> (strategy == <span class="hljs-literal">null</span>) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>(<br>                    <span class="hljs-string">&quot;Notify strategy not found: &quot;</span> + notifyType.getStrategy());<br>        &#125;<br>        <span class="hljs-keyword">return</span> strategy.notify(command);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="10-1-HTTP-策略"><a href="#10-1-HTTP-策略" class="headerlink" title="10.1 HTTP 策略"></a>10.1 HTTP 策略</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Slf4j</span><br><span class="hljs-meta">@Component(&quot;httpNotifyStrategy&quot;)</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">HTTPNotifyStrategy</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">INotifyStrategy</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ILocalTaskMessagePort port;<br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ILocalTaskMessageRepository repository;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> String <span class="hljs-title function_">notify</span><span class="hljs-params">(TaskMessageEntityCommand command)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-keyword">if</span> (!repository.tryMarkProcessing(command.getTaskId())) &#123;<br>            <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;task already claimed&quot;</span>;<br>        &#125;<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            <span class="hljs-type">String</span> <span class="hljs-variable">result</span> <span class="hljs-operator">=</span> port.notify2http(command);<br>            repository.markSuccess(command.getTaskId());<br>            <span class="hljs-keyword">return</span> result;<br>        &#125; <span class="hljs-keyword">catch</span> (Exception exception) &#123;<br>            repository.markFailed(command.getTaskId(), exception.getMessage());<br>            <span class="hljs-keyword">throw</span> exception;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>HTTP 调用应设置：</p>
+<ul>
+<li>连接超时、读取超时和整体调用超时；</li>
+<li>最大响应体限制；</li>
+<li>允许的 URL、协议和域名白名单，避免 SSRF；</li>
+<li><code>Idempotency-Key</code> 或稳定业务键；</li>
+<li>敏感 Header 加密存储或通过配置引用，不要明文长期落库。</li>
+</ul>
+<h3 id="10-2-RabbitMQ-策略"><a href="#10-2-RabbitMQ-策略" class="headerlink" title="10.2 RabbitMQ 策略"></a>10.2 RabbitMQ 策略</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Slf4j</span><br><span class="hljs-meta">@Component(&quot;rabbitMQNotifyStrategy&quot;)</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">RabbitMQNotifyStrategy</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">INotifyStrategy</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ILocalTaskMessagePort port;<br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ILocalTaskMessageRepository repository;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> String <span class="hljs-title function_">notify</span><span class="hljs-params">(TaskMessageEntityCommand command)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        <span class="hljs-keyword">if</span> (!repository.tryMarkProcessing(command.getTaskId())) &#123;<br>            <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;task already claimed&quot;</span>;<br>        &#125;<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            <span class="hljs-type">String</span> <span class="hljs-variable">result</span> <span class="hljs-operator">=</span> port.notify2rabbitmq(command);<br>            repository.markSuccess(command.getTaskId());<br>            <span class="hljs-keyword">return</span> result;<br>        &#125; <span class="hljs-keyword">catch</span> (Exception exception) &#123;<br>            repository.markFailed(command.getTaskId(), exception.getMessage());<br>            <span class="hljs-keyword">throw</span> exception;<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>RabbitMQ 适配器可以使用可选依赖，避免没有配置 RabbitMQ 的业务系统启动失败：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Slf4j</span><br><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">RabbitMQEvent</span> &#123;<br><br>    <span class="hljs-meta">@Autowired(required = false)</span><br>    <span class="hljs-keyword">private</span> RabbitTemplate rabbitTemplate;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">publish</span><span class="hljs-params">(String exchange, String routingKey, String message)</span> &#123;<br>        <span class="hljs-keyword">if</span> (rabbitTemplate == <span class="hljs-literal">null</span>) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>(<span class="hljs-string">&quot;RabbitTemplate is not configured&quot;</span>);<br>        &#125;<br><br>        rabbitTemplate.convertAndSend(exchange, routingKey, message, msg -&gt; &#123;<br>            msg.getMessageProperties()<br>                    .setDeliveryMode(MessageDeliveryMode.PERSISTENT);<br>            <span class="hljs-keyword">return</span> msg;<br>        &#125;);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>仅仅把消息设置为持久化还不等于发送可靠。生产环境还应配置 Publisher Confirm、Return Callback、交换机与队列持久化，并根据确认结果决定是否将本地任务标记为成功。</p>
+<h2 id="十一、定时补偿与门牌号扫描"><a href="#十一、定时补偿与门牌号扫描" class="headerlink" title="十一、定时补偿与门牌号扫描"></a>十一、定时补偿与门牌号扫描</h2><p>完整补偿流程如下：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    autonumber
+    participant Job as TaskMessageEventJob
+    participant Repo as 任务仓储
+    participant DB as local_task_message
+    participant Notify as 通知领域服务
+    participant HTTP as HTTP API
+    participant MQ as MQ Broker
+
+    Job-&gt;&gt;Repo: 按任务组和门牌号查询可重试任务
+    Repo-&gt;&gt;DB: status in (0,3) and next_retry_time &lt;= now
+    DB--&gt;&gt;Repo: 返回 limit 条任务
+    Repo--&gt;&gt;Job: TaskMessageEntityCommand 列表
+
+    loop 每条任务
+        Job-&gt;&gt;Repo: CAS 抢占 status 0/3 -&gt; 1
+        alt 抢占成功
+            Job-&gt;&gt;Notify: notify(command)
+            alt HTTP
+                Notify-&gt;&gt;HTTP: 发起请求，携带幂等键
+                HTTP--&gt;&gt;Notify: response
+            else MQ
+                Notify-&gt;&gt;MQ: 发送持久化消息
+                MQ--&gt;&gt;Notify: confirm
+            end
+            Notify-&gt;&gt;Repo: 成功改为 2，失败改为 3
+        else 已被其他节点处理
+            Job--&gt;&gt;Job: 跳过
+        end
+    end
+</code></pre>
+
+<h3 id="11-1-任务组配置"><a href="#11-1-任务组配置" class="headerlink" title="11.1 任务组配置"></a>11.1 任务组配置</h3><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">xfg:</span><br>  <span class="hljs-attr">wrench:</span><br>    <span class="hljs-attr">task:</span><br>      <span class="hljs-attr">config:</span><br>        <span class="hljs-attr">groups:</span><br>          <span class="hljs-bullet">-</span> <span class="hljs-attr">groupId:</span> <span class="hljs-string">group01</span><br>            <span class="hljs-attr">houseNumbers:</span> [<span class="hljs-number">0</span>, <span class="hljs-number">1</span>, <span class="hljs-number">2</span>, <span class="hljs-number">3</span>]<br>            <span class="hljs-attr">cron:</span> <span class="hljs-string">&quot;0/10 * * * * ?&quot;</span><br>            <span class="hljs-attr">limit:</span> <span class="hljs-number">100</span><br><br>          <span class="hljs-bullet">-</span> <span class="hljs-attr">groupId:</span> <span class="hljs-string">group02</span><br>            <span class="hljs-attr">houseNumbers:</span> [<span class="hljs-number">4</span>, <span class="hljs-number">5</span>, <span class="hljs-number">6</span>, <span class="hljs-number">7</span>, <span class="hljs-number">8</span>, <span class="hljs-number">9</span>]<br>            <span class="hljs-attr">fixedDelayMs:</span> <span class="hljs-number">5000</span><br>            <span class="hljs-attr">limit:</span> <span class="hljs-number">50</span><br></code></pre></td></tr></table></figure>
+
+<p>属性对象：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Data</span><br><span class="hljs-meta">@ConfigurationProperties(prefix = &quot;xfg.wrench.task.config&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LocalTaskMessageProperties</span> &#123;<br><br>    <span class="hljs-keyword">private</span> List&lt;TaskGroupConfig&gt; groups = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ArrayList</span>&lt;&gt;();<br><br>    <span class="hljs-meta">@Data</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">TaskGroupConfig</span> &#123;<br>        <span class="hljs-keyword">private</span> <span class="hljs-type">String</span> <span class="hljs-variable">groupId</span> <span class="hljs-operator">=</span> <span class="hljs-string">&quot;default&quot;</span>;<br>        <span class="hljs-keyword">private</span> List&lt;Integer&gt; houseNumbers = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ArrayList</span>&lt;&gt;();<br>        <span class="hljs-keyword">private</span> String cron;<br>        <span class="hljs-keyword">private</span> Long fixedDelayMs;<br>        <span class="hljs-keyword">private</span> <span class="hljs-type">Integer</span> <span class="hljs-variable">limit</span> <span class="hljs-operator">=</span> <span class="hljs-number">100</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="11-2-扫描-SQL"><a href="#11-2-扫描-SQL" class="headerlink" title="11.2 扫描 SQL"></a>11.2 扫描 SQL</h3><p>推荐让“任务状态”成为扫描条件，而不是只依赖内存中的 <code>lastId</code>：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> id,<br>       task_id,<br>       task_name,<br>       notify_type,<br>       notify_config,<br>       status,<br>       parameter_json,<br>       house_number,<br>       create_time,<br>       update_time<br><span class="hljs-keyword">FROM</span> local_task_message<br><span class="hljs-keyword">WHERE</span> house_number <span class="hljs-keyword">IN</span> (?, ?, ?)<br>  <span class="hljs-keyword">AND</span> status <span class="hljs-keyword">IN</span> (<span class="hljs-number">0</span>, <span class="hljs-number">3</span>)<br>  <span class="hljs-keyword">AND</span> (next_retry_time <span class="hljs-keyword">IS</span> <span class="hljs-keyword">NULL</span> <span class="hljs-keyword">OR</span> next_retry_time <span class="hljs-operator">&lt;=</span> NOW())<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> id<br>LIMIT ?;<br></code></pre></td></tr></table></figure>
+
+<p>然后使用条件更新抢占任务：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> local_task_message<br><span class="hljs-keyword">SET</span> status <span class="hljs-operator">=</span> <span class="hljs-number">1</span>,<br>    update_time <span class="hljs-operator">=</span> NOW(),<br>    version <span class="hljs-operator">=</span> version <span class="hljs-operator">+</span> <span class="hljs-number">1</span><br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> ?<br>  <span class="hljs-keyword">AND</span> status <span class="hljs-keyword">IN</span> (<span class="hljs-number">0</span>, <span class="hljs-number">3</span>)<br>  <span class="hljs-keyword">AND</span> version <span class="hljs-operator">=</span> ?;<br></code></pre></td></tr></table></figure>
+
+<p>只有影响行数为 <code>1</code> 的执行器才获得处理权。</p>
+<p>原始方案中常见的“找到最小 ID，再使用 <code>id &gt; lastId LIMIT N</code> 增量扫描”可以降低查询范围，但存在一个陷阱：如果某条较小 ID 的任务失败，而游标已经向后移动，这条失败任务可能被长期越过。因此：</p>
+<ul>
+<li><code>lastId</code> 不能替代任务状态条件；</li>
+<li>失败任务必须能够重新进入扫描集合；</li>
+<li>多节点部署时必须有抢占或租约机制；</li>
+<li>处理中任务需要超时恢复，防止节点宕机后永久停留在状态 <code>1</code>。</li>
+</ul>
+<h3 id="11-3-重试退避"><a href="#11-3-重试退避" class="headerlink" title="11.3 重试退避"></a>11.3 重试退避</h3><p>不要每 5 秒无限轰炸一个已经宕机的外部系统。可以使用指数退避：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">nextRetryTime = now + min(baseDelay * 2^retryCount, maxDelay)<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">10 秒 -&gt; 30 秒 -&gt; 1 分钟 -&gt; 5 分钟 -&gt; 30 分钟 -&gt; 2 小时<br></code></pre></td></tr></table></figure>
+
+<p>超过最大重试次数后，可以转为“人工处理”或“死信状态”，并触发告警。</p>
+<h2 id="十二、端到端流程"><a href="#十二、端到端流程" class="headerlink" title="十二、端到端流程"></a>十二、端到端流程</h2><pre><code class=" mermaid">flowchart TD
+    START([业务请求]) --&gt; TX[开启或加入本地事务]
+    TX --&gt; WRITE_BIZ[写入业务表]
+    WRITE_BIZ --&gt; BUILD[构造 TaskMessageEntityCommand]
+    BUILD --&gt; WRITE_TASK[写入 local_task_message]
+    WRITE_TASK --&gt; PUBLISH[发布 Spring Event]
+    PUBLISH --&gt; COMMIT&#123;事务是否提交成功&#125;
+
+    COMMIT --&gt;|否| ROLLBACK[业务数据与任务记录一起回滚]
+    COMMIT --&gt;|是| AFTER[AFTER_COMMIT 异步监听]
+    AFTER --&gt; CLAIM[抢占任务 status -&gt; 1]
+    CLAIM --&gt; NOTIFY&#123;通知类型&#125;
+    NOTIFY --&gt;|HTTP| CALL_HTTP[调用外部 HTTP]
+    NOTIFY --&gt;|MQ| SEND_MQ[发送 MQ 并等待确认]
+    CALL_HTTP --&gt; RESULT&#123;是否成功&#125;
+    SEND_MQ --&gt; RESULT
+    RESULT --&gt;|是| SUCCESS[status -&gt; 2]
+    RESULT --&gt;|否| FAILED[status -&gt; 3&lt;br/&gt;记录异常和下次重试时间]
+    FAILED --&gt; JOB[定时任务再次扫描]
+    JOB --&gt; CLAIM
+    SUCCESS --&gt; END([流程完成])
+    ROLLBACK --&gt; END
+</code></pre>
+
+<p>这套设计的关键不是“保证第一次一定成功”，而是把失败变成一种可观察、可恢复、可重试的正常状态。</p>
+<h2 id="十三、自动配置与组件发布"><a href="#十三、自动配置与组件发布" class="headerlink" title="十三、自动配置与组件发布"></a>十三、自动配置与组件发布</h2><h3 id="13-1-Spring-Boot-2"><a href="#13-1-Spring-Boot-2" class="headerlink" title="13.1 Spring Boot 2"></a>13.1 Spring Boot 2</h3><p>Spring Boot 2 可以通过 <code>META-INF/spring.factories</code> 注册自动配置：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">org.springframework.boot.autoconfigure.EnableAutoConfiguration</span>=<span class="hljs-string">\</span><br><span class="hljs-string">cn.example.localtaskmessage.config.LocalTaskMessageAutoConfig</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="13-2-Spring-Boot-3"><a href="#13-2-Spring-Boot-3" class="headerlink" title="13.2 Spring Boot 3"></a>13.2 Spring Boot 3</h3><p>Spring Boot 3 推荐使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports<br></code></pre></td></tr></table></figure>
+
+<p>文件内容：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">cn.example.localtaskmessage.config.LocalTaskMessageAutoConfig<br></code></pre></td></tr></table></figure>
+
+<p>自动配置类：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@AutoConfiguration</span><br><span class="hljs-meta">@EnableAsync</span><br><span class="hljs-meta">@EnableScheduling</span><br><span class="hljs-meta">@EnableConfigurationProperties(LocalTaskMessageProperties.class)</span><br><span class="hljs-meta">@ComponentScan(basePackages = &#123;</span><br><span class="hljs-meta">        &quot;cn.example.localtaskmessage.config.aop&quot;,</span><br><span class="hljs-meta">        &quot;cn.example.localtaskmessage.domain&quot;,</span><br><span class="hljs-meta">        &quot;cn.example.localtaskmessage.infrastructure&quot;,</span><br><span class="hljs-meta">        &quot;cn.example.localtaskmessage.trigger&quot;</span><br><span class="hljs-meta">&#125;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LocalTaskMessageAutoConfig</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>更成熟的 Starter 可以进一步增加：</p>
+<ul>
+<li><code>@ConditionalOnProperty</code>：允许关闭组件；</li>
+<li><code>@ConditionalOnClass</code>：仅在 RabbitTemplate 或 HTTP 客户端存在时装配对应适配器；</li>
+<li><code>@ConditionalOnMissingBean</code>：允许业务系统覆盖默认实现；</li>
+<li>配置元数据：为 IDE 提供 YAML 自动提示；</li>
+<li>独立线程池和调度器；</li>
+<li>健康检查与 Actuator 指标。</li>
+</ul>
+<h2 id="十四、测试方案"><a href="#十四、测试方案" class="headerlink" title="十四、测试方案"></a>十四、测试方案</h2><p>仅验证“日志里收到一条事件”远远不够。至少需要覆盖以下测试矩阵：</p>
+<table>
+<thead>
+<tr>
+<th>测试场景</th>
+<th>预期结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>业务写库成功，任务写库成功</td>
+<td>两张表同时提交</td>
+</tr>
+<tr>
+<td>业务写库异常</td>
+<td>业务表与任务表同时回滚</td>
+</tr>
+<tr>
+<td>任务写库异常</td>
+<td>业务事务回滚</td>
+</tr>
+<tr>
+<td>事务回滚</td>
+<td>AFTER_COMMIT 监听器不执行</td>
+</tr>
+<tr>
+<td>HTTP 调用成功</td>
+<td>状态变为 2</td>
+</tr>
+<tr>
+<td>HTTP 调用超时</td>
+<td>状态变为 3，并生成下次重试时间</td>
+</tr>
+<tr>
+<td>MQ Confirm 成功</td>
+<td>状态变为 2</td>
+</tr>
+<tr>
+<td>MQ 发送结果不确定</td>
+<td>保留可重试状态，下游依赖幂等去重</td>
+</tr>
+<tr>
+<td>应用提交事务后立即宕机</td>
+<td>重启后 Job 可以扫描并补偿</td>
+</tr>
+<tr>
+<td>两个节点同时扫描同一任务</td>
+<td>只有一个节点抢占成功</td>
+</tr>
+<tr>
+<td>同一任务重复创建</td>
+<td>唯一索引拦截或返回已有任务</td>
+</tr>
+<tr>
+<td>同一消息重复投递</td>
+<td>下游根据 taskId 或业务键幂等处理</td>
+</tr>
+</tbody></table>
+<p>可以在集成测试中主动模拟异常：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Transactional</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">createOrderAndRollback</span><span class="hljs-params">(TaskMessageEntityCommand command)</span> &#123;<br>    orderRepository.insert(buildOrder(command));<br>    handleService.acceptTaskMessage(command);<br>    <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>(<span class="hljs-string">&quot;mock rollback&quot;</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>断言业务表和 <code>local_task_message</code> 都没有新增数据。</p>
+<h2 id="十五、生产环境必须补齐的能力"><a href="#十五、生产环境必须补齐的能力" class="headerlink" title="十五、生产环境必须补齐的能力"></a>十五、生产环境必须补齐的能力</h2><h3 id="15-1-幂等"><a href="#15-1-幂等" class="headerlink" title="15.1 幂等"></a>15.1 幂等</h3><p>本地消息表通常只能提供“至少一次”语义。以下场景都可能导致重复：</p>
+<ul>
+<li>HTTP 服务已经处理成功，但客户端读取响应超时；</li>
+<li>MQ Broker 已接收消息，但生产者没有收到 Confirm；</li>
+<li>消息处理完成后，更新本地状态失败；</li>
+<li>执行器在完成外部调用后宕机。</li>
+</ul>
+<p>因此：</p>
+<ul>
+<li>HTTP 使用 <code>taskId</code> 作为 <code>Idempotency-Key</code>；</li>
+<li>MQ 消息携带稳定 <code>messageId/taskId</code>；</li>
+<li>消费方建立业务唯一索引或幂等记录表；</li>
+<li>不要依赖“我这里看起来只调用了一次”。分布式系统最擅长把“一次”变成“你猜几次”。</li>
+</ul>
+<h3 id="15-2-多节点并发"><a href="#15-2-多节点并发" class="headerlink" title="15.2 多节点并发"></a>15.2 多节点并发</h3><p>单机内存 <code>lastId</code> 只适合演示，不适合作为唯一协调机制。集群部署至少要选择一种方式：</p>
+<ul>
+<li>数据库条件更新抢占；</li>
+<li><code>SELECT ... FOR UPDATE SKIP LOCKED</code>；</li>
+<li>数据库租约字段；</li>
+<li>Redis 分布式锁或调度平台分片。</li>
+</ul>
+<p>对本地消息表而言，数据库条件更新通常最简单，也最容易和状态机保持一致。</p>
+<h3 id="15-3-可观测性"><a href="#15-3-可观测性" class="headerlink" title="15.3 可观测性"></a>15.3 可观测性</h3><p>建议输出以下指标：</p>
+<ul>
+<li>待处理任务数；</li>
+<li>失败任务数；</li>
+<li>最老待处理任务的等待时间；</li>
+<li>每分钟成功量、失败量和重试量；</li>
+<li>HTTP&#x2F;MQ 各通道耗时；</li>
+<li>每个门牌号的任务积压量；</li>
+<li>线程池活跃线程、队列长度和拒绝次数。</li>
+</ul>
+<p>日志至少包含：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">task_id、notify_type、house_number、status、retry_count、cost_ms、error_code、trace_id<br></code></pre></td></tr></table></figure>
+
+<h3 id="15-4-数据清理"><a href="#15-4-数据清理" class="headerlink" title="15.4 数据清理"></a>15.4 数据清理</h3><p>成功任务不能永久留在业务库。可以按月归档，或者定时删除超过保留期的状态 <code>2</code> 数据。失败和人工处理数据需要更长保留时间。</p>
+<h3 id="15-5-安全"><a href="#15-5-安全" class="headerlink" title="15.5 安全"></a>15.5 安全</h3><p><code>notify_config</code> 可能包含 URL、Token、Authorization 等敏感信息：</p>
+<ul>
+<li>不要在日志中完整输出；</li>
+<li>Token 尽量只保存配置引用，不保存明文；</li>
+<li>HTTP URL 应配置白名单；</li>
+<li>请求体和响应体需要设置大小限制；</li>
+<li>对外调用应配置超时、熔断和并发隔离。</li>
+</ul>
+<h2 id="十六、方案边界与演进方向"><a href="#十六、方案边界与演进方向" class="headerlink" title="十六、方案边界与演进方向"></a>十六、方案边界与演进方向</h2><p>本地任务消息表适合中等规模、业务数据库与外部副作用之间的最终一致性场景。随着业务增长，可以逐步演进：</p>
+<ol>
+<li>将任务执行器与业务服务拆分，但仍读取同一任务表；</li>
+<li>使用 CDC&#x2F;Canal&#x2F;Debezium 订阅任务表变更，替代高频轮询；</li>
+<li>使用 Outbox Pattern，将任务表变成标准事件 Outbox；</li>
+<li>将通知配置改为类型安全的版本化协议；</li>
+<li>增加管理后台，支持失败查询、人工重试、暂停和重放；</li>
+<li>增加租约、死信、告警和全链路追踪；</li>
+<li>对 Kafka、Pulsar、Webhook、RPC 泛化调用提供插件式适配器。</li>
+</ol>
+<p>无论如何演进，都应该保留一个核心原则：</p>
+<blockquote>
+<p>先可靠记录意图，再执行外部副作用；快速通道负责效率，持久化补偿负责可靠性。</p>
+</blockquote>
+<h2 id="十七、总结"><a href="#十七、总结" class="headerlink" title="十七、总结"></a>十七、总结</h2><p>本地任务消息组件把分散在各业务系统中的重复代码抽象为一个通用内核：</p>
+<ul>
+<li>业务数据与任务消息在同一个数据库事务中提交；</li>
+<li>Spring Event 在事务提交后立即触发通知；</li>
+<li>HTTP、MQ 使用策略模式扩展；</li>
+<li>本地消息表记录完整状态；</li>
+<li>定时任务按门牌号分组扫描并补偿；</li>
+<li>外部系统通过幂等设计承受重复投递；</li>
+<li>集群环境通过状态抢占、租约或锁避免并发重复处理。</li>
+</ul>
+<p>它不是魔法，也不会让分布式系统突然变得听话，但它能把“偶发的数据不一致事故”变成“有状态、有日志、可重试、可追踪的工程流程”。这已经是可靠性设计中非常重要的一步。</p>
+<hr>
+<blockquote>
+<p>本文根据“本地任务消息组件”系列学习材料重新整理，并结合实际工程中的事务连接、事务提交后事件、并发抢占、失败补偿和幂等要求进行了补充。</p>
+</blockquote>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1/" class="category-chain-item">架构设计</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Spring-Boot/" class="print-no-link">#Spring Boot</a>
+      
+        <a href="/tags/Java/" class="print-no-link">#Java</a>
+      
+        <a href="/tags/DDD/" class="print-no-link">#DDD</a>
+      
+        <a href="/tags/%E6%9C%AC%E5%9C%B0%E6%B6%88%E6%81%AF%E8%A1%A8/" class="print-no-link">#本地消息表</a>
+      
+        <a href="/tags/%E6%9C%80%E7%BB%88%E4%B8%80%E8%87%B4%E6%80%A7/" class="print-no-link">#最终一致性</a>
+      
+        <a href="/tags/Spring-Event/" class="print-no-link">#Spring Event</a>
+      
+        <a href="/tags/RabbitMQ/" class="print-no-link">#RabbitMQ</a>
+      
+        <a href="/tags/AOP/" class="print-no-link">#AOP</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Spring Boot 本地任务消息组件：本地消息表、Spring Event 与定时补偿实现最终一致性</div>
+      <div>https://allendericdalexander.github.io/2026/07/25/java/spring-boot-local-task-message/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年7月25日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/07/26/java/jvm/java-gc-algorithms/" title="Java GC 全景指南：从垃圾回收算法到 JDK 8、17、21、25">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Java GC 全景指南：从垃圾回收算法到 JDK 8、17、21、25</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/07/23/devops/virtual/vcsa8-install-config-windows-server-2022-ad/" title="VMware vCenter Server Appliance 8.0 安装与配置教程：接入 Windows Server 2022 AD 域">
+                        <span class="hidden-mobile">VMware vCenter Server Appliance 8.0 安装与配置教程：接入 Windows Server 2022 AD 域</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

@@ -1,0 +1,1727 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="Java GC,JVM,G1,ZGC,Shenandoah,CMS,Parallel GC,Serial GC,JDK 8,JDK 17,JDK 21,JDK 25">
+  
+    <meta name="description" content="从《垃圾回收的算法与实现》的基础算法出发，系统梳理 HotSpot 在 JDK 8、17、21、25 中的 Serial、Parallel、CMS、G1、ZGC、Shenandoah 与 Epsilon，并给出生产选型、监控和调优方法论。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Java GC 全景指南：从垃圾回收算法到 JDK 8、17、21、25">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/07/26/java/jvm/java-gc-algorithms/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="从《垃圾回收的算法与实现》的基础算法出发，系统梳理 HotSpot 在 JDK 8、17、21、25 中的 Serial、Parallel、CMS、G1、ZGC、Shenandoah 与 Epsilon，并给出生产选型、监控和调优方法论。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-26T11:30:00.000Z">
+<meta property="article:modified_time" content="2026-07-26T11:30:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="CMS">
+<meta property="article:tag" content="G1">
+<meta property="article:tag" content="GC">
+<meta property="article:tag" content="JVM">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="Shenandoah">
+<meta property="article:tag" content="ZGC">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Java GC 全景指南：从垃圾回收算法到 JDK 8、17、21、25 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Java GC 全景指南：从垃圾回收算法到 JDK 8、17、21、25"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-07-26 19:30" pubdate>
+          2026年7月26日 晚上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          9.6k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          81 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Java GC 全景指南：从垃圾回收算法到 JDK 8、17、21、25</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <blockquote>
+<p>本文以 B 站视频《一小时速通所有 Java GC》及作者发布的同名文字稿为叙事起点，补充中村成洋、相川光《垃圾回收的算法与实现》中的基础算法框架，并以 HotSpot&#x2F;OpenJDK 为讨论范围。</p>
+<p>所谓“全部 GC”，在本文中指 <strong>JDK 8、17、21、25 这几条主线中可见的 HotSpot&#x2F;OpenJDK 垃圾回收器及其底层算法积木</strong>，而不是穷举 OpenJ9、Azul Prime、GraalVM Native Image 等所有 JVM 实现。</p>
+<p>Hexo 渲染说明：文件已设置 <code>mermaid: true</code>，但最终是否能显示流程图仍取决于主题或 Mermaid 插件是否启用；未启用时，图会以 Mermaid 代码块保留，不影响正文。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="一、先给结论：GC-不是“背收集器名字”"><a href="#一、先给结论：GC-不是“背收集器名字”" class="headerlink" title="一、先给结论：GC 不是“背收集器名字”"></a>一、先给结论：GC 不是“背收集器名字”</h2><p>很多 GC 文章的学习路线是：Serial、Parallel、CMS、G1、ZGC，挨个记特点。这样可以应付一轮面试，但很难处理真实生产问题。</p>
+<p>真正稳定的方法，是先回答六个问题：</p>
+<ol>
+<li><strong>对象如何分配？</strong> 是指针碰撞、空闲链表，还是线程本地分配缓冲区？</li>
+<li><strong>谁还活着？</strong> 使用引用计数，还是从根集合做可达性追踪？</li>
+<li><strong>死亡对象如何回收？</strong> 清扫、复制，还是压缩？</li>
+<li><strong>业务线程如何与 GC 协作？</strong> 全程暂停、分段暂停，还是并发执行？</li>
+<li><strong>对象移动后，旧引用如何修正？</strong> 集中更新、转发表、读屏障，还是转发指针？</li>
+<li><strong>什么时候触发回收？</strong> 空间阈值、分配失败、预测模型，还是并发周期调度？</li>
+</ol>
+<p>所有 Java 收集器，都是对这六个问题的不同组合。名字会变，底层矛盾不会变。</p>
+<pre><code class=" mermaid">flowchart LR
+    A[对象分配] --&gt; B[识别存活对象]
+    B --&gt; C[回收死亡对象]
+    C --&gt; D[整理或转移存活对象]
+    D --&gt; E[修正引用]
+    E --&gt; F[释放或复用内存]
+    G[Mutator 业务线程] &lt;--&gt; H[Collector GC 线程]
+    H --&gt; B
+    H --&gt; C
+    H --&gt; D
+</code></pre>
+
+<h3 id="1-1-GC-永远在做多目标权衡"><a href="#1-1-GC-永远在做多目标权衡" class="headerlink" title="1.1 GC 永远在做多目标权衡"></a>1.1 GC 永远在做多目标权衡</h3><p>GC 通常同时面对四个目标：</p>
+<ul>
+<li><strong>吞吐量</strong>：业务线程真正工作的时间占比；</li>
+<li><strong>延迟</strong>：一次停顿多长，尤其是 P99、P999；</li>
+<li><strong>内存占用</strong>：堆、元数据、转发表、记忆集、GC 预留空间等；</li>
+<li><strong>CPU 成本</strong>：并发标记、屏障、复制和引用处理都会消耗 CPU。</li>
+</ul>
+<p>没有一个收集器能在所有维度无条件领先。低停顿往往需要更多并发 CPU、额外内存和屏障开销；极致吞吐量往往接受更长的 Stop-The-World；极小内存占用又可能牺牲并行度和预测能力。</p>
+<pre><code class=" mermaid">flowchart TD
+    A[GC 目标] --&gt; B[低延迟]
+    A --&gt; C[高吞吐]
+    A --&gt; D[低内存占用]
+    A --&gt; E[低 CPU 开销]
+    B -.通常需要.-&gt; F[并发执行与更多内存余量]
+    C -.通常接受.-&gt; G[更长但更少的 STW]
+    D -.通常限制.-&gt; H[并发复制与预测空间]
+    E -.通常减少.-&gt; I[复杂屏障和后台线程]
+</code></pre>
+
+<h2 id="二、从对象出生开始：分配并不只是-new"><a href="#二、从对象出生开始：分配并不只是-new" class="headerlink" title="二、从对象出生开始：分配并不只是 new"></a>二、从对象出生开始：分配并不只是 <code>new</code></h2><h3 id="2-1-new-出来的对象不一定真的进入堆"><a href="#2-1-new-出来的对象不一定真的进入堆" class="headerlink" title="2.1 new 出来的对象不一定真的进入堆"></a>2.1 <code>new</code> 出来的对象不一定真的进入堆</h3><p>从 Java 语义看，<code>new User()</code> 创建对象；从 HotSpot 实现看，JIT 可能通过逃逸分析执行：</p>
+<ul>
+<li>标量替换；</li>
+<li>锁消除；</li>
+<li>分配消除。</li>
+</ul>
+<p>因此，代码里出现一次 <code>new</code>，不等于运行时一定在 Java 堆中分配一个完整对象。</p>
+<h3 id="2-2-大多数小对象通过-TLAB-快速分配"><a href="#2-2-大多数小对象通过-TLAB-快速分配" class="headerlink" title="2.2 大多数小对象通过 TLAB 快速分配"></a>2.2 大多数小对象通过 TLAB 快速分配</h3><p>HotSpot 通常为线程分配 TLAB（Thread-Local Allocation Buffer）。线程在自己的 TLAB 中通过“指针碰撞”分配对象，常见路径只需移动指针，不必每次都竞争全局堆锁。</p>
+<pre><code class=" mermaid">flowchart LR
+    A[线程执行 new] --&gt; B&#123;JIT 能否消除分配&#125;
+    B --&gt;|可以| C[标量替换或分配消除]
+    B --&gt;|不可以| D&#123;TLAB 是否有足够空间&#125;
+    D --&gt;|有| E[TLAB 指针碰撞]
+    D --&gt;|没有| F[申请新 TLAB 或慢路径分配]
+    F --&gt; G&#123;堆空间是否充足&#125;
+    G --&gt;|是| H[完成分配]
+    G --&gt;|否| I[触发或等待 GC]
+</code></pre>
+
+<h3 id="2-3-大对象是特殊变量"><a href="#2-3-大对象是特殊变量" class="headerlink" title="2.3 大对象是特殊变量"></a>2.3 大对象是特殊变量</h3><p>大对象可能绕过普通 TLAB 路径。以 G1 为例，当对象大小达到 Region 大小的一半或以上时，会按 Humongous Object 处理，并占用一个或多个连续 Region。</p>
+<p>这类对象的风险不是“它很大”这么简单，而是：</p>
+<ul>
+<li>需要连续 Region；</li>
+<li>可能造成尾部空间浪费；</li>
+<li>高频创建会显著提高回收压力；</li>
+<li>容易暴露 Region 选择、并发周期启动过晚和碎片问题。</li>
+</ul>
+<p>所以排查 GC 时，必须同时看 <strong>对象分配速率、对象大小分布、存活时间和晋升速率</strong>，而不是只看堆用了多少。</p>
+<h2 id="三、什么对象才算垃圾"><a href="#三、什么对象才算垃圾" class="headerlink" title="三、什么对象才算垃圾"></a>三、什么对象才算垃圾</h2><h3 id="3-1-Java-采用可达性分析，而不是简单引用计数"><a href="#3-1-Java-采用可达性分析，而不是简单引用计数" class="headerlink" title="3.1 Java 采用可达性分析，而不是简单引用计数"></a>3.1 Java 采用可达性分析，而不是简单引用计数</h3><p>一个对象是否可回收，关键不是“还有几个变量指向它”，而是：</p>
+<blockquote>
+<p>从 GC Roots 出发，是否还存在一条引用路径能够到达它。</p>
+</blockquote>
+<p>常见根来源包括：</p>
+<ul>
+<li>活跃 Java 线程栈和寄存器中的对象引用；</li>
+<li>JNI Handle；</li>
+<li>已加载类及类加载器相关结构持有的引用；</li>
+<li>JVM 内部结构、同步监视器等持有的引用。</li>
+</ul>
+<p>HotSpot 属于 <strong>精确式 GC（Precise&#x2F;Exact GC）</strong>。JIT 会生成 OopMap，告诉 JVM 在安全点上哪些栈槽和寄存器保存的是对象引用，而不是把每个长得像地址的整数都当成指针。</p>
+<pre><code class=" mermaid">flowchart TD
+    R1[线程栈与寄存器] --&gt; A
+    R2[JNI Handles] --&gt; B
+    R3[类与类加载器相关根] --&gt; C
+    R4[JVM 内部根] --&gt; D
+    A[对象 A] --&gt; E[对象 E]
+    B[对象 B] --&gt; E
+    C[对象 C] --&gt; F[对象 F]
+    D[对象 D]
+    X[对象 X] --&gt; Y[对象 Y]
+    Y --&gt; X
+    style X stroke-dasharray: 5 5
+    style Y stroke-dasharray: 5 5
+</code></pre>
+
+<p>上图中的 X、Y 即使互相引用，只要无法从 GC Roots 到达，仍然可以被追踪式 GC 回收。这也是朴素引用计数无法单独解决的问题。</p>
+<h3 id="3-2-强、软、弱、虚引用"><a href="#3-2-强、软、弱、虚引用" class="headerlink" title="3.2 强、软、弱、虚引用"></a>3.2 强、软、弱、虚引用</h3><p>Java 的引用强度会影响对象进入引用处理阶段后的行为：</p>
+<table>
+<thead>
+<tr>
+<th>引用类型</th>
+<th>典型语义</th>
+<th>生产建议</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>强引用</td>
+<td>普通对象引用，只要可达就保留</td>
+<td>默认方式</td>
+</tr>
+<tr>
+<td>软引用</td>
+<td>内存压力下可清理</td>
+<td>不要把它当成可预测缓存策略</td>
+</tr>
+<tr>
+<td>弱引用</td>
+<td>GC 发现仅弱可达时可清理</td>
+<td>常用于映射、元数据关联</td>
+</tr>
+<tr>
+<td>虚引用</td>
+<td>无法通过引用取得对象，配合 <code>ReferenceQueue</code> 感知回收阶段</td>
+<td>适合资源清理通知，但清理时机仍不保证</td>
+</tr>
+</tbody></table>
+<p><code>finalize()</code> 已在 JDK 9 被弃用，并在 JDK 18 被标记为“弃用并准备移除”。关闭文件、Socket、数据库连接等外部资源，应使用 <code>try-with-resources</code> 或明确生命周期管理，而不是等待 GC 心情好时来打扫卫生。</p>
+<h2 id="四、《垃圾回收的算法与实现》中的算法地图"><a href="#四、《垃圾回收的算法与实现》中的算法地图" class="headerlink" title="四、《垃圾回收的算法与实现》中的算法地图"></a>四、《垃圾回收的算法与实现》中的算法地图</h2><p>中村成洋、相川光的《垃圾回收的算法与实现》把 GC 拆成了多种基础算法：标记-清除、引用计数、复制、标记-压缩、保守式 GC、分代 GC、增量式 GC 和 RC Immix。</p>
+<p>这些算法不是互斥的“八选一”。现代 JVM 收集器往往把其中几种组合起来。</p>
+<pre><code class=" mermaid">flowchart TD
+    A[GC 基础算法] --&gt; B[追踪式]
+    A --&gt; C[引用计数]
+    B --&gt; D[标记-清除]
+    B --&gt; E[复制]
+    B --&gt; F[标记-压缩]
+    B --&gt; G[分代]
+    B --&gt; H[增量或并发]
+    A --&gt; I[保守式与精确式]
+    C --&gt; J[朴素 RC]
+    C --&gt; K[延迟 RC / 合并 RC]
+    K --&gt; L[RC Immix 等混合设计]
+</code></pre>
+
+<h3 id="4-1-标记-清除：只回收，不移动"><a href="#4-1-标记-清除：只回收，不移动" class="headerlink" title="4.1 标记-清除：只回收，不移动"></a>4.1 标记-清除：只回收，不移动</h3><p>基本流程：</p>
+<ol>
+<li>从根集合追踪并标记存活对象；</li>
+<li>扫描堆，回收未标记对象；</li>
+<li>把空闲块加入空闲链表或其他分配结构。</li>
+</ol>
+<p>优点：</p>
+<ul>
+<li>不必复制所有存活对象；</li>
+<li>对存活对象很多的区域可能比全量搬迁划算。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>会产生外部碎片；</li>
+<li>分配可能需要搜索合适大小的空闲块；</li>
+<li>堆越碎，大对象分配越困难。</li>
+</ul>
+<p>CMS 的老年代回收核心就建立在并发标记-清除之上。</p>
+<h3 id="4-2-引用计数：引用归零立即回收"><a href="#4-2-引用计数：引用归零立即回收" class="headerlink" title="4.2 引用计数：引用归零立即回收"></a>4.2 引用计数：引用归零立即回收</h3><p>朴素引用计数为每个对象维护引用数量：</p>
+<ul>
+<li>新增引用：计数加一；</li>
+<li>删除引用：计数减一；</li>
+<li>计数归零：立即释放。</li>
+</ul>
+<p>优点是回收及时、单次延迟可分散；缺点是每次引用更新都有成本，并且无法自行处理循环引用。</p>
+<p>HotSpot 主流 GC 不把朴素引用计数作为堆回收主算法，但引用计数思想广泛存在于资源管理、对象生命周期管理和混合 GC 研究中。</p>
+<h3 id="4-3-复制算法：只搬活对象"><a href="#4-3-复制算法：只搬活对象" class="headerlink" title="4.3 复制算法：只搬活对象"></a>4.3 复制算法：只搬活对象</h3><p>把内存划分为来源空间和目标空间。回收时只复制存活对象，然后一次性重置来源空间。</p>
+<p>优点：</p>
+<ul>
+<li>分配快；</li>
+<li>回收后天然紧凑；</li>
+<li>成本更接近存活对象数量，而不是垃圾数量。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>需要目标空间；</li>
+<li>存活对象很多时，复制成本高；</li>
+<li>所有指向移动对象的引用都要被修正。</li>
+</ul>
+<p>年轻代通常采用复制&#x2F;疏散（Evacuation）思想，因为“多数对象朝生夕死”。</p>
+<h3 id="4-4-标记-压缩：标记后集中搬迁"><a href="#4-4-标记-压缩：标记后集中搬迁" class="headerlink" title="4.4 标记-压缩：标记后集中搬迁"></a>4.4 标记-压缩：标记后集中搬迁</h3><p>标记-压缩会先确定存活对象，再把它们移动到连续区域。</p>
+<p>优点是消除碎片；缺点是移动和更新引用成本高，而且传统实现往往需要较长 STW。</p>
+<p>Serial Old、Parallel Old 的老年代回收都体现了标记-压缩思想。</p>
+<h3 id="4-5-保守式-GC-与精确式-GC"><a href="#4-5-保守式-GC-与精确式-GC" class="headerlink" title="4.5 保守式 GC 与精确式 GC"></a>4.5 保守式 GC 与精确式 GC</h3><p>保守式 GC 无法完全区分“整数”和“对象指针”，会把看起来像地址的数据保守地视为引用。它可能产生“假存活”，并限制对象移动。</p>
+<p>精确式 GC 能准确识别引用，因此更适合对象搬迁和压缩。HotSpot 借助 OopMap、对象布局和安全点信息实现精确追踪。</p>
+<h3 id="4-6-分代-GC：利用弱分代假说"><a href="#4-6-分代-GC：利用弱分代假说" class="headerlink" title="4.6 分代 GC：利用弱分代假说"></a>4.6 分代 GC：利用弱分代假说</h3><p>弱分代假说可以概括为：</p>
+<ul>
+<li>大多数对象很快死亡；</li>
+<li>熬过多轮回收的对象，更可能继续存活；</li>
+<li>新对象频繁引用旧对象的比例通常低于同代引用。</li>
+</ul>
+<p>因此可以把堆分成年轻代与老年代，年轻代高频回收，老年代低频回收。</p>
+<pre><code class=" mermaid">flowchart LR
+    A[Eden 新对象] --&gt;|Young GC 存活| B[Survivor]
+    B --&gt;|继续存活| C[另一 Survivor]
+    C --&gt;|达到晋升条件| D[Old]
+    A --&gt;|大对象或特殊策略| D
+    D --&gt;|Old / Mixed / Full GC| E[回收或整理]
+</code></pre>
+
+<p>需要注意：</p>
+<ul>
+<li>“对象到 15 岁一定晋升”是过度简化；</li>
+<li>Survivor 容量、动态年龄判定、担保机制和收集器策略都会影响晋升；</li>
+<li>G1、ZGC、Shenandoah 的“代”并不等于 JDK 8 传统连续年轻代&#x2F;老年代布局。</li>
+</ul>
+<h3 id="4-7-增量式与并发式-GC"><a href="#4-7-增量式与并发式-GC" class="headerlink" title="4.7 增量式与并发式 GC"></a>4.7 增量式与并发式 GC</h3><p>这几个词经常被混用：</p>
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>串行 Serial</td>
+<td>GC 工作主要由一个线程执行</td>
+</tr>
+<tr>
+<td>并行 Parallel</td>
+<td>多个 GC 线程同时工作，但业务线程通常暂停</td>
+</tr>
+<tr>
+<td>并发 Concurrent</td>
+<td>GC 线程与业务线程在同一时间段共同运行</td>
+</tr>
+<tr>
+<td>增量 Incremental</td>
+<td>把 GC 工作切成多个小片段，穿插执行；不保证一定与业务线程并发</td>
+</tr>
+</tbody></table>
+<p>并发 GC 最大的困难是：GC 正在遍历对象图时，业务线程还在修改对象图。</p>
+<h3 id="4-8-三色标记与屏障"><a href="#4-8-三色标记与屏障" class="headerlink" title="4.8 三色标记与屏障"></a>4.8 三色标记与屏障</h3><p>追踪过程常用三色抽象：</p>
+<ul>
+<li>白色：尚未发现；</li>
+<li>灰色：对象已发现，但其子引用尚未全部扫描；</li>
+<li>黑色：对象及其子引用已扫描完成。</li>
+</ul>
+<p>如果业务线程让黑对象突然指向一个白对象，而 GC 又没有记录这次变化，白对象就可能被错误回收。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant GC as GC 线程
+    participant M as 业务线程 Mutator
+    participant A as 黑对象 A
+    participant C as 白对象 C
+    GC-&gt;&gt;A: 已扫描 A，标黑
+    M-&gt;&gt;A: 新增引用 A -&gt; C
+    Note over M,C: 若没有屏障，C 可能保持白色
+    M-&gt;&gt;GC: 写屏障记录引用变化
+    GC-&gt;&gt;C: 重新纳入标记队列
+</code></pre>
+
+<p>常见解决思路：</p>
+<ul>
+<li><strong>增量更新（Incremental Update）</strong>：记录新增引用，让新目标对象重新进入扫描；</li>
+<li><strong>SATB（Snapshot-At-The-Beginning）</strong>：保留并发标记开始时的对象图快照语义，记录被覆盖的旧引用；</li>
+<li><strong>读&#x2F;加载屏障（Load Barrier）</strong>：对象被读取时检查并修复引用状态；</li>
+<li><strong>写&#x2F;存储屏障（Store Barrier）</strong>：对象引用写入时记录跨代关系或标记变化。</li>
+</ul>
+<p>屏障不是操作系统内存屏障的同义词。它是 JVM&#x2F;JIT 在引用读写路径上插入的额外逻辑。</p>
+<h3 id="4-9-RC-Immix：理解“混合算法”的好例子"><a href="#4-9-RC-Immix：理解“混合算法”的好例子" class="headerlink" title="4.9 RC Immix：理解“混合算法”的好例子"></a>4.9 RC Immix：理解“混合算法”的好例子</h3><p>Immix 将堆组织成 Block 和 Line，在标记区域回收基础上，结合局部搬迁缓解碎片。RC Immix 再把引用计数与追踪式回收结合起来：</p>
+<ul>
+<li>引用计数负责更及时地识别大量死亡对象；</li>
+<li>追踪解决循环引用；</li>
+<li>Immix 的块&#x2F;行组织改善空间利用率和局部性；</li>
+<li>必要时只搬迁部分对象，而不是每轮全量压缩。</li>
+</ul>
+<p>HotSpot 并没有直接提供一个叫“RC Immix GC”的选项，但它提醒我们：<strong>现代 GC 的进步通常来自组合，而不是发明一个孤立的新名字。</strong></p>
+<h2 id="五、STW、安全点与安全区域"><a href="#五、STW、安全点与安全区域" class="headerlink" title="五、STW、安全点与安全区域"></a>五、STW、安全点与安全区域</h2><h3 id="5-1-为什么-GC-仍然需要暂停"><a href="#5-1-为什么-GC-仍然需要暂停" class="headerlink" title="5.1 为什么 GC 仍然需要暂停"></a>5.1 为什么 GC 仍然需要暂停</h3><p>即使是 ZGC、Shenandoah 这类并发收集器，也不是“零暂停”。GC 仍需在某些阶段取得一致状态，例如：</p>
+<ul>
+<li>枚举或处理部分根；</li>
+<li>完成并发阶段切换；</li>
+<li>处理必须原子完成的全局状态；</li>
+<li>对线程进行重定位握手或安全点同步。</li>
+</ul>
+<h3 id="5-2-STW-不等于-GC"><a href="#5-2-STW-不等于-GC" class="headerlink" title="5.2 STW 不等于 GC"></a>5.2 STW 不等于 GC</h3><p>JVM 进入安全点还可能因为：</p>
+<ul>
+<li>反优化；</li>
+<li>类重定义；</li>
+<li>某些诊断命令；</li>
+<li>Heap Dump；</li>
+<li>其他 VM Operation。</li>
+</ul>
+<p>所以看到“应用停顿”，不能只看 GC 日志，还应看 safepoint 日志、线程状态、CPU 调度和容器限流。</p>
+<h3 id="5-3-“暂停很短”不等于接口一定快"><a href="#5-3-“暂停很短”不等于接口一定快" class="headerlink" title="5.3 “暂停很短”不等于接口一定快"></a>5.3 “暂停很短”不等于接口一定快</h3><p>接口延迟还会受到以下因素影响：</p>
+<ul>
+<li>GC 并发线程抢占 CPU；</li>
+<li>内存带宽被对象复制占满；</li>
+<li>容器 CPU 被 CFS throttling；</li>
+<li>Swap 或缺页；</li>
+<li>锁竞争、IO、数据库和下游服务；</li>
+<li>GC 后缓存局部性变化。</li>
+</ul>
+<p>因此 GC 优化必须用端到端业务 SLO 验证，不能只盯 <code>Pause Young 12ms</code> 自我感动。</p>
+<h2 id="六、JDK-8-的完整收集器版图"><a href="#六、JDK-8-的完整收集器版图" class="headerlink" title="六、JDK 8 的完整收集器版图"></a>六、JDK 8 的完整收集器版图</h2><p>JDK 8 是很多存量系统的基准版本。Server-Class 机器通常默认选择 Parallel Collector，但实际默认值仍应以具体发行版、更新版本、容器识别和启动日志为准。</p>
+<h3 id="6-1-Serial-Serial-Old"><a href="#6-1-Serial-Serial-Old" class="headerlink" title="6.1 Serial + Serial Old"></a>6.1 Serial + Serial Old</h3><p>启动参数：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-XX:+UseSerialGC<br></code></pre></td></tr></table></figure>
+
+<p>结构：</p>
+<ul>
+<li>年轻代：Serial，复制算法，单 GC 线程，STW；</li>
+<li>老年代：Serial Old，标记-压缩，单 GC 线程，STW。</li>
+</ul>
+<p>适合：</p>
+<ul>
+<li>小堆；</li>
+<li>单核或 CPU 很少；</li>
+<li>命令行工具、构建工具、小型任务；</li>
+<li>启动和内存占用优先于尾延迟。</li>
+</ul>
+<p>不适合：大型、多线程、延迟敏感服务。</p>
+<h3 id="6-2-Parallel-Scavenge-Parallel-Old"><a href="#6-2-Parallel-Scavenge-Parallel-Old" class="headerlink" title="6.2 Parallel Scavenge + Parallel Old"></a>6.2 Parallel Scavenge + Parallel Old</h3><p>启动参数：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-XX:+UseParallelGC<br></code></pre></td></tr></table></figure>
+
+<p>结构：</p>
+<ul>
+<li>年轻代：Parallel Scavenge，并行复制；</li>
+<li>老年代：Parallel Old，并行标记-压缩；</li>
+<li>回收阶段主要是 STW。</li>
+</ul>
+<p>它又叫 Throughput Collector，核心目标是让多核机器尽快完成回收，减少 GC 总开销。</p>
+<p>适合：</p>
+<ul>
+<li>离线计算；</li>
+<li>批处理；</li>
+<li>报表生成；</li>
+<li>对单次暂停不敏感，但希望整体吞吐高的任务。</li>
+</ul>
+<p>关键风险：</p>
+<ul>
+<li>大堆 Full GC 可能很长；</li>
+<li>Young GC 频率高时，虽然单次不长，但总 GC CPU 可能很高；</li>
+<li>晋升失败、老年代占用过高会把系统推向频繁 Full GC。</li>
+</ul>
+<h3 id="6-3-ParNew-CMS"><a href="#6-3-ParNew-CMS" class="headerlink" title="6.3 ParNew + CMS"></a>6.3 ParNew + CMS</h3><p>启动参数：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-XX:+UseConcMarkSweepGC<br></code></pre></td></tr></table></figure>
+
+<p>在 JDK 8 中，CMS 通常负责老年代，年轻代由 ParNew 并行收集。</p>
+<p>CMS 的典型阶段：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[Initial Mark STW] --&gt; B[Concurrent Mark]
+    B --&gt; C[Concurrent Preclean]
+    C --&gt; D[Remark STW]
+    D --&gt; E[Concurrent Sweep]
+    E --&gt; F[Concurrent Reset]
+</code></pre>
+
+<p>优点：</p>
+<ul>
+<li>大部分标记和清扫与业务线程并发；</li>
+<li>相比传统整堆压缩，老年代停顿通常更短。</li>
+</ul>
+<p>关键问题：</p>
+<ol>
+<li><strong>浮动垃圾</strong>：并发清扫期间新产生的垃圾通常留到下一轮；</li>
+<li><strong>碎片</strong>：CMS 主要使用标记-清除，不做常规全量压缩；</li>
+<li><strong>并发模式失败</strong>：回收速度跟不上分配&#x2F;晋升速度时，可能退化到更重的 STW 回收；</li>
+<li><strong>CPU 竞争</strong>：并发线程会和业务争 CPU；</li>
+<li><strong>参数复杂</strong>：启动阈值过晚容易失败，过早又消耗吞吐。</li>
+</ol>
+<p>CMS 在 JDK 9 被弃用，JDK 14 被移除。迁移到 JDK 17 时不能继续使用。</p>
+<h3 id="6-4-G1"><a href="#6-4-G1" class="headerlink" title="6.4 G1"></a>6.4 G1</h3><p>启动参数：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-XX:+UseG1GC<br></code></pre></td></tr></table></figure>
+
+<p>G1 把堆划分为等大小 Region。每个 Region 在某个阶段可以承担 Eden、Survivor、Old 或 Humongous 角色，代边界不再是两块固定连续区域。</p>
+<pre><code class=" mermaid">flowchart TB
+    subgraph Heap[G1 Region 化堆]
+      R1[Eden]
+      R2[Eden]
+      R3[Survivor]
+      R4[Old]
+      R5[Old]
+      R6[Humongous Start]
+      R7[Humongous Continue]
+      R8[Free]
+    end
+</code></pre>
+
+<p>G1 的关键部件：</p>
+<ul>
+<li><strong>Card Table</strong>：把堆切成更细粒度的卡页，记录可能发生引用变化的区域；</li>
+<li><strong>Remembered Set（RSet）</strong>：记录其他 Region 中哪些卡页可能指向当前 Region；</li>
+<li><strong>SATB</strong>：并发标记期间维护开始时快照语义；</li>
+<li><strong>Collection Set（CSet）</strong>：本次暂停需要疏散的 Region 集合；</li>
+<li><strong>Evacuation</strong>：把存活对象复制到新 Region，回收整个旧 Region。</li>
+</ul>
+<p>典型周期：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[Young GC STW] --&gt; B&#123;达到并发标记启动条件&#125;
+    B --&gt;|否| A
+    B --&gt;|是| C[Concurrent Start / Initial Mark]
+    C --&gt; D[Concurrent Mark]
+    D --&gt; E[Remark STW]
+    E --&gt; F[Cleanup]
+    F --&gt; G[Mixed GC 若干次]
+    G --&gt; A
+</code></pre>
+
+<p>G1 的优势：</p>
+<ul>
+<li>通过 Region 和疏散减少长期碎片；</li>
+<li>能把老年代回收拆分到多轮 Mixed GC；</li>
+<li>使用停顿预测模型选择 CSet；</li>
+<li>兼顾吞吐和停顿，是现代 HotSpot 的通用默认选择。</li>
+</ul>
+<p>G1 的风险：</p>
+<ul>
+<li>Evacuation Failure &#x2F; To-space Exhausted；</li>
+<li>Humongous 对象过多；</li>
+<li>并发标记启动太晚，来不及回收；</li>
+<li>RSet 与屏障带来额外 CPU、内存开销；</li>
+<li><code>MaxGCPauseMillis</code> 是目标，不是硬实时承诺。</li>
+</ul>
+<p>特别注意：JDK 8 的 G1 Full GC 回退实现曾是单线程的；JDK 10 通过 JEP 307 增加了并行 Full GC。因此“都是 G1”，JDK 8 与 JDK 17 的极端退化表现也可能差很多。</p>
+<h3 id="6-5-JDK-8-收集器关系图"><a href="#6-5-JDK-8-收集器关系图" class="headerlink" title="6.5 JDK 8 收集器关系图"></a>6.5 JDK 8 收集器关系图</h3><pre><code class=" mermaid">flowchart TD
+    A[JDK 8 HotSpot] --&gt; B[UseSerialGC]
+    A --&gt; C[UseParallelGC]
+    A --&gt; D[UseConcMarkSweepGC]
+    A --&gt; E[UseG1GC]
+    B --&gt; B1[Serial Young]
+    B --&gt; B2[Serial Old]
+    C --&gt; C1[Parallel Scavenge]
+    C --&gt; C2[Parallel Old]
+    D --&gt; D1[ParNew]
+    D --&gt; D2[CMS]
+    D2 -.失败或压缩回退.-&gt; B2
+    E --&gt; E1[G1 Region / Young / Mixed / Full]
+</code></pre>
+
+<h2 id="七、JDK-17：现代生产基线"><a href="#七、JDK-17：现代生产基线" class="headerlink" title="七、JDK 17：现代生产基线"></a>七、JDK 17：现代生产基线</h2><p>JDK 17 中，CMS 已不存在。G1 是 Server-Class 环境的默认收集器，也是多数普通服务的第一选择。</p>
+<h3 id="7-1-Serial-GC"><a href="#7-1-Serial-GC" class="headerlink" title="7.1 Serial GC"></a>7.1 Serial GC</h3><p>仍然可用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-XX:+UseSerialGC<br></code></pre></td></tr></table></figure>
+
+<p>它没有因为“古老”就变得无用。在小容器、小堆、短生命周期命令行程序中，复杂并发 GC 的固定成本可能不划算。</p>
+<h3 id="7-2-Parallel-GC"><a href="#7-2-Parallel-GC" class="headerlink" title="7.2 Parallel GC"></a>7.2 Parallel GC</h3><p>仍然可用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-XX:+UseParallelGC<br></code></pre></td></tr></table></figure>
+
+<p>如果业务是吞吐优先，Parallel GC 依然可能打败 G1。不要把“默认换成 G1”误读成“Parallel 已过时”。</p>
+<h3 id="7-3-G1"><a href="#7-3-G1" class="headerlink" title="7.3 G1"></a>7.3 G1</h3><p>显式启用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-XX:+UseG1GC<br></code></pre></td></tr></table></figure>
+
+<p>JDK 17 的 G1 相比 JDK 8 已经历多年改进，包括并行 Full GC、并发线程调度、Region 回收和预测模型等方面的增强。JDK 8 迁移到 JDK 17 时，哪怕参数完全不改，GC 行为也不能按旧经验机械推断。</p>
+<h3 id="7-4-ZGC：JDK-17-中仍是非分代设计"><a href="#7-4-ZGC：JDK-17-中仍是非分代设计" class="headerlink" title="7.4 ZGC：JDK 17 中仍是非分代设计"></a>7.4 ZGC：JDK 17 中仍是非分代设计</h3><p>启用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-XX:+UseZGC<br></code></pre></td></tr></table></figure>
+
+<p>JDK 17 的 ZGC 是生产特性，但仍是单代&#x2F;非分代 ZGC。</p>
+<p>核心思路：</p>
+<ul>
+<li>Region&#x2F;Page 化堆；</li>
+<li>并发标记；</li>
+<li>并发转移；</li>
+<li>染色引用&#x2F;指针元数据；</li>
+<li>加载屏障与引用自愈；</li>
+<li>极短的根处理和阶段切换暂停。</li>
+</ul>
+<pre><code class=" mermaid">flowchart LR
+    A[短暂停：处理根] --&gt; B[并发标记]
+    B --&gt; C[短暂停：阶段切换]
+    C --&gt; D[并发转移准备]
+    D --&gt; E[并发转移]
+    E --&gt; F[加载屏障发现旧引用]
+    F --&gt; G[查转发表并自愈]
+</code></pre>
+
+<p>不要死记视频文字稿中“高 4 位分别是什么”的具体位布局。ZGC 的引用元数据布局与平台、压缩引用策略、JDK 版本和实现演进有关。应该记住的是：</p>
+<blockquote>
+<p>ZGC 把一部分 GC 状态编码到引用及配套元数据中，并通过屏障在访问路径上完成检查、重定位和修复。</p>
+</blockquote>
+<p>ZGC 的主要问题不是长 STW，而是：</p>
+<ul>
+<li>并发回收需要足够 CPU；</li>
+<li>需要足够堆余量，让业务在线程继续分配时 GC 能追上；</li>
+<li>复制和屏障会消耗内存带宽与吞吐；</li>
+<li>堆太紧时可能出现 Allocation Stall。</li>
+</ul>
+<h3 id="7-5-Shenandoah"><a href="#7-5-Shenandoah" class="headerlink" title="7.5 Shenandoah"></a>7.5 Shenandoah</h3><p>常见启用方式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-XX:+UseShenandoahGC<br></code></pre></td></tr></table></figure>
+
+<p>Shenandoah 与 ZGC 的共同目标是把对象转移&#x2F;压缩也尽量放到并发阶段。它采用 Region 化堆、并发标记、并发疏散、引用更新与加载引用屏障等机制。</p>
+<p>典型风险：</p>
+<ul>
+<li>GC 追不上分配速率；</li>
+<li>进入 Degenerated GC；</li>
+<li>进一步退化到 Full GC；</li>
+<li>并发屏障和复制带来吞吐成本。</li>
+</ul>
+<p>注意：Shenandoah 是否包含在你的 JDK 中与发行版、平台有关。不能只看 <code>java -version</code> 写着 OpenJDK 就默认一定存在，应直接用目标发行版验证。</p>
+<h3 id="7-6-Epsilon：不回收的-GC"><a href="#7-6-Epsilon：不回收的-GC" class="headerlink" title="7.6 Epsilon：不回收的 GC"></a>7.6 Epsilon：不回收的 GC</h3><p>启用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-XX:+UnlockExperimentalVMOptions -XX:+UseEpsilonGC<br></code></pre></td></tr></table></figure>
+
+<p>Epsilon 只负责分配，不回收。堆用完后直接 OOM。</p>
+<p>适用场景：</p>
+<ul>
+<li>短生命周期任务，进程结束即释放全部内存；</li>
+<li>测量“没有 GC 干扰时”的理论上限；</li>
+<li>验证对象分配量和内存预算；</li>
+<li>极端低抖动但内存边界明确的特殊任务。</li>
+</ul>
+<p>它不是“最快生产 GC”的万能答案。让垃圾一直堆着，最后一次性被 OOM 清场，这种策略和把房间垃圾都塞床底没有本质区别。</p>
+<h2 id="八、JDK-21：Generational-ZGC-加入"><a href="#八、JDK-21：Generational-ZGC-加入" class="headerlink" title="八、JDK 21：Generational ZGC 加入"></a>八、JDK 21：Generational ZGC 加入</h2><p>JDK 21 的核心 GC 变化是 JEP 439：Generational ZGC。</p>
+<p>启用方式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-XX:+UseZGC -XX:+ZGenerational<br></code></pre></td></tr></table></figure>
+
+<h3 id="8-1-为什么-ZGC-也要分代"><a href="#8-1-为什么-ZGC-也要分代" class="headerlink" title="8.1 为什么 ZGC 也要分代"></a>8.1 为什么 ZGC 也要分代</h3><p>非分代 ZGC 每轮需要面对整个堆的对象图。分代后：</p>
+<ul>
+<li>新对象进入年轻代；</li>
+<li>年轻代更频繁回收；</li>
+<li>老对象进入老年代；</li>
+<li>老年代低频处理；</li>
+<li>通过存储屏障记录老到新的跨代引用。</li>
+</ul>
+<pre><code class=" mermaid">flowchart LR
+    A[新对象] --&gt; Y[Young Generation]
+    Y --&gt;|大多死亡| F[快速回收]
+    Y --&gt;|长期存活| O[Old Generation]
+    O --&gt;|低频回收| R[Old Collection]
+    O --&gt;|引用年轻对象| B[Store Barrier / Remembered Info]
+    B --&gt; Y
+</code></pre>
+
+<p>Generational ZGC 不是简单把传统 Eden&#x2F;Survivor&#x2F;Old 原样搬进 ZGC，而是在 ZGC 并发转移、染色引用和屏障体系上加入代际管理。</p>
+<h3 id="8-2-JDK-21-与虚拟线程"><a href="#8-2-JDK-21-与虚拟线程" class="headerlink" title="8.2 JDK 21 与虚拟线程"></a>8.2 JDK 21 与虚拟线程</h3><p>虚拟线程不会自动让 GC 变轻：</p>
+<ul>
+<li>更高并发可能提高瞬时对象分配速率；</li>
+<li>请求上下文、缓冲区和异步链路可能扩大 Live Set；</li>
+<li>虚拟线程栈块位于堆中，会参与 GC；</li>
+<li>大量平台线程减少后，Native Thread Stack 压力可能下降，但堆压力可能变化。</li>
+</ul>
+<p>迁移到虚拟线程时，应重新测量分配率、存活集和尾延迟，而不是沿用平台线程时代的堆参数。</p>
+<h2 id="九、从-JDK-21-到-JDK-25：GC-演进补充"><a href="#九、从-JDK-21-到-JDK-25：GC-演进补充" class="headerlink" title="九、从 JDK 21 到 JDK 25：GC 演进补充"></a>九、从 JDK 21 到 JDK 25：GC 演进补充</h2><h3 id="9-1-JDK-22：G1-Region-Pinning"><a href="#9-1-JDK-22：G1-Region-Pinning" class="headerlink" title="9.1 JDK 22：G1 Region Pinning"></a>9.1 JDK 22：G1 Region Pinning</h3><p>JEP 423 改进了 G1 在 JNI Critical Region 等对象被固定（Pinned）场景下的处理，让 G1 能在存在固定 Region 时继续回收其他 Region，而不是轻易让整个 GC 机制失去行动能力。</p>
+<h3 id="9-2-JDK-23：Generational-ZGC-成为-ZGC-默认模式"><a href="#9-2-JDK-23：Generational-ZGC-成为-ZGC-默认模式" class="headerlink" title="9.2 JDK 23：Generational ZGC 成为 ZGC 默认模式"></a>9.2 JDK 23：Generational ZGC 成为 ZGC 默认模式</h3><p>JEP 474 把 Generational ZGC 设为 <code>UseZGC</code> 的默认模式，同时弃用非分代模式。</p>
+<h3 id="9-3-JDK-24：非分代-ZGC-被移除"><a href="#9-3-JDK-24：非分代-ZGC-被移除" class="headerlink" title="9.3 JDK 24：非分代 ZGC 被移除"></a>9.3 JDK 24：非分代 ZGC 被移除</h3><p>JEP 490 移除了非分代 ZGC，并废弃&#x2F;移除 <code>ZGenerational</code> 选项。</p>
+<p>因此 JDK 24、25 中：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-XX:+UseZGC<br></code></pre></td></tr></table></figure>
+
+<p>就已经是分代 ZGC，不要再照抄 JDK 21 参数加 <code>-XX:+ZGenerational</code>。</p>
+<p>JDK 24 的 JEP 475 还把 G1 屏障展开推迟到编译过程更后期，目标是减少 JIT 生成屏障代码的开销并改善吞吐。</p>
+<h3 id="9-4-JDK-25：G1、ZGC、Shenandoah-的关键状态"><a href="#9-4-JDK-25：G1、ZGC、Shenandoah-的关键状态" class="headerlink" title="9.4 JDK 25：G1、ZGC、Shenandoah 的关键状态"></a>9.4 JDK 25：G1、ZGC、Shenandoah 的关键状态</h3><p>JDK 25 的几个重要变化：</p>
+<ol>
+<li><strong>JEP 523</strong>：G1 在所有环境中成为默认收集器，而不再只依赖传统 Server-Class 判断；</li>
+<li><strong>JEP 521</strong>：Generational Shenandoah 从实验特性升级为产品特性；</li>
+<li><strong>ZGC</strong>：只保留分代模式；</li>
+<li><strong>JEP 519</strong>：Compact Object Headers 成为产品特性，可通过 <code>-XX:+UseCompactObjectHeaders</code> 开启。</li>
+</ol>
+<p>Generational Shenandoah 的启用示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-XX:+UseShenandoahGC -XX:ShenandoahGCMode=generational<br></code></pre></td></tr></table></figure>
+
+<p>JDK 25 中它是产品特性，但尚不是 Shenandoah 的默认模式；后续版本才继续推进“分代模式默认化”。</p>
+<p>Compact Object Headers 不是一个 GC，但会减少对象头大小，从而影响：</p>
+<ul>
+<li>分配速率折算后的字节量；</li>
+<li>Live Set；</li>
+<li>缓存局部性；</li>
+<li>同一堆大小能容纳的对象数量；</li>
+<li>GC 需要扫描和复制的数据量。</li>
+</ul>
+<p>它仍需用真实对象模型和业务负载验证，不能只因为“每个对象少几个字节”就直接上线。</p>
+<h2 id="十、四个版本的收集器总表"><a href="#十、四个版本的收集器总表" class="headerlink" title="十、四个版本的收集器总表"></a>十、四个版本的收集器总表</h2><blockquote>
+<p>“可用”以 HotSpot&#x2F;OpenJDK 主线为准；Shenandoah 等特性的实际可用性依赖 JDK 发行版和平台。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>收集器</th>
+<th align="right">JDK 8</th>
+<th align="right">JDK 17</th>
+<th align="right">JDK 21</th>
+<th align="right">JDK 25</th>
+<th>主要目标</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Serial &#x2F; Serial Old</td>
+<td align="right">可用</td>
+<td align="right">可用</td>
+<td align="right">可用</td>
+<td align="right">可用</td>
+<td>小堆、低固定开销</td>
+</tr>
+<tr>
+<td>Parallel Scavenge &#x2F; Parallel Old</td>
+<td align="right">可用，Server 常见默认</td>
+<td align="right">可用</td>
+<td align="right">可用</td>
+<td align="right">可用</td>
+<td>吞吐量</td>
+</tr>
+<tr>
+<td>ParNew + CMS</td>
+<td align="right">可用</td>
+<td align="right">已移除</td>
+<td align="right">已移除</td>
+<td align="right">已移除</td>
+<td>JDK 8 低停顿旧方案</td>
+</tr>
+<tr>
+<td>G1</td>
+<td align="right">可用</td>
+<td align="right">默认主力</td>
+<td align="right">默认主力</td>
+<td align="right">所有环境默认</td>
+<td>平衡吞吐、停顿和内存</td>
+</tr>
+<tr>
+<td>ZGC</td>
+<td align="right">不可用</td>
+<td align="right">可用，非分代</td>
+<td align="right">可用，分代需显式开启</td>
+<td align="right">可用，仅分代</td>
+<td>极低 GC 停顿、大堆</td>
+</tr>
+<tr>
+<td>Shenandoah</td>
+<td align="right">主线 JDK 8 无</td>
+<td align="right">部分发行版可用</td>
+<td align="right">部分发行版可用，非分代</td>
+<td align="right">分代模式为产品特性</td>
+<td>低停顿、并发疏散</td>
+</tr>
+<tr>
+<td>Epsilon</td>
+<td align="right">不可用</td>
+<td align="right">实验特性</td>
+<td align="right">实验特性</td>
+<td align="right">实验特性</td>
+<td>不回收、基准与特殊任务</td>
+</tr>
+</tbody></table>
+<h3 id="10-1-版本演进图"><a href="#10-1-版本演进图" class="headerlink" title="10.1 版本演进图"></a>10.1 版本演进图</h3><pre><code class=" mermaid">flowchart LR
+    J8[JDK 8] --&gt;|Parallel 常见默认| P[Parallel]
+    J8 --&gt; CMS[CMS 可用]
+    J8 --&gt; G18[G1 可用但较早期]
+    J9[JDK 9] --&gt;|默认切换| G1[G1]
+    J14[JDK 14] --&gt;|移除| CMSX[CMS]
+    J15[JDK 15] --&gt; ZP[ZGC / Shenandoah 生产化]
+    J17[JDK 17 LTS] --&gt; G117[G1 主力 + 非分代 ZGC]
+    J21[JDK 21 LTS] --&gt; GZ[Generational ZGC 可选]
+    J23[JDK 23] --&gt; GZD[Generational ZGC 默认]
+    J24[JDK 24] --&gt; NZX[移除非分代 ZGC]
+    J25[JDK 25 LTS] --&gt; G125[G1 全环境默认]
+    J25 --&gt; GS[Generational Shenandoah 产品化]
+</code></pre>
+
+<h2 id="十一、如何选-GC：先看业务，不要看名字的新旧"><a href="#十一、如何选-GC：先看业务，不要看名字的新旧" class="headerlink" title="十一、如何选 GC：先看业务，不要看名字的新旧"></a>十一、如何选 GC：先看业务，不要看名字的新旧</h2><pre><code class=" mermaid">flowchart TD
+    A[开始选型] --&gt; B&#123;任务是否短命且内存上限明确&#125;
+    B --&gt;|是| C&#123;是否需要回收&#125;
+    C --&gt;|不需要| D[Epsilon 仅限特殊场景]
+    C --&gt;|需要| E[Serial 或默认 G1]
+    B --&gt;|否| F&#123;是否以吞吐量为第一目标&#125;
+    F --&gt;|是| G[Parallel GC 与 G1 对比压测]
+    F --&gt;|否| H&#123;是否有严格尾延迟目标&#125;
+    H --&gt;|否| I[优先默认 G1]
+    H --&gt;|是| J&#123;能否提供额外 CPU 和堆余量&#125;
+    J --&gt;|是| K[ZGC / Shenandoah / G1 实测]
+    J --&gt;|否| L[先减少分配和 Live Set，再谈换 GC]
+</code></pre>
+
+<h3 id="11-1-推荐起点"><a href="#11-1-推荐起点" class="headerlink" title="11.1 推荐起点"></a>11.1 推荐起点</h3><ul>
+<li><strong>普通 Spring Boot 服务</strong>：先用当前 JDK 默认 G1；</li>
+<li><strong>JDK 8 老系统</strong>：Parallel 吞吐稳定就不必为了“先进”强换；CMS 系统应规划升级；</li>
+<li><strong>离线批处理</strong>：Parallel GC 值得作为主要候选；</li>
+<li><strong>延迟敏感、大堆服务</strong>：在 JDK 21&#x2F;25 上评估 Generational ZGC；</li>
+<li><strong>需要低停顿且发行版支持</strong>：评估 Shenandoah；</li>
+<li><strong>小堆、短任务</strong>：Serial 可能更简单有效；</li>
+<li><strong>测试无 GC 上限</strong>：Epsilon。</li>
+</ul>
+<h3 id="11-2-ZGC-和-Shenandoah-不等于“天然更快”"><a href="#11-2-ZGC-和-Shenandoah-不等于“天然更快”" class="headerlink" title="11.2 ZGC 和 Shenandoah 不等于“天然更快”"></a>11.2 ZGC 和 Shenandoah 不等于“天然更快”</h3><p>它们优化的是停顿，不是无条件提高 QPS。若服务：</p>
+<ul>
+<li>CPU 已经打满；</li>
+<li>堆余量很小；</li>
+<li>内存带宽紧张；</li>
+<li>对象分配率极高；</li>
+<li>延迟主要来自数据库或锁竞争；</li>
+</ul>
+<p>换低停顿 GC 可能只会让 GC 日志更漂亮，而业务吞吐变差。</p>
+<h2 id="十二、GC-调优的方法论"><a href="#十二、GC-调优的方法论" class="headerlink" title="十二、GC 调优的方法论"></a>十二、GC 调优的方法论</h2><h3 id="12-1-第一步：定义业务目标"><a href="#12-1-第一步：定义业务目标" class="headerlink" title="12.1 第一步：定义业务目标"></a>12.1 第一步：定义业务目标</h3><p>至少明确：</p>
+<ul>
+<li>P50、P95、P99、P999 延迟；</li>
+<li>请求超时阈值；</li>
+<li>每秒吞吐量；</li>
+<li>单实例 CPU 与内存预算；</li>
+<li>启动时间；</li>
+<li>可接受的最大停顿；</li>
+<li>容器是否允许突发 CPU；</li>
+<li>扩缩容和故障转移时间。</li>
+</ul>
+<p>只说“GC 要快”无法调优。你要的是 QPS、尾延迟，还是更低机器成本？三者经常互相打架。</p>
+<h3 id="12-2-第二步：建立基线"><a href="#12-2-第二步：建立基线" class="headerlink" title="12.2 第二步：建立基线"></a>12.2 第二步：建立基线</h3><p>固定以下变量：</p>
+<ul>
+<li>JDK 发行版、完整版本号和构建号；</li>
+<li>GC 类型和 JVM 参数；</li>
+<li>CPU 核数、NUMA、内存、Huge Page；</li>
+<li>容器 Request&#x2F;Limit；</li>
+<li>流量模型和数据规模；</li>
+<li>预热时间；</li>
+<li>测试持续时间；</li>
+<li>上游、下游和数据库版本。</li>
+</ul>
+<p>同一配置至少跑多轮，观察平均值和尾部，而不是挑一张最好看的图。</p>
+<h3 id="12-3-第三步：先看五个核心量"><a href="#12-3-第三步：先看五个核心量" class="headerlink" title="12.3 第三步：先看五个核心量"></a>12.3 第三步：先看五个核心量</h3><h4 id="1-Allocation-Rate"><a href="#1-Allocation-Rate" class="headerlink" title="1. Allocation Rate"></a>1. Allocation Rate</h4><p>单位时间分配了多少字节。高分配率会导致年轻代频繁回收，也会压缩并发 GC 的追赶窗口。</p>
+<h4 id="2-Live-Set"><a href="#2-Live-Set" class="headerlink" title="2. Live Set"></a>2. Live Set</h4><p>完成一次有代表性的老年代&#x2F;全堆回收后，仍然存活的数据规模。<code>Xmx</code> 至少要容纳 Live Set，还必须保留业务继续分配和 GC 搬迁所需的余量。</p>
+<h4 id="3-Promotion-Rate"><a href="#3-Promotion-Rate" class="headerlink" title="3. Promotion Rate"></a>3. Promotion Rate</h4><p>单位时间有多少对象进入老年代。Promotion Rate 高，可能意味着：</p>
+<ul>
+<li>Survivor 太小；</li>
+<li>中生命周期对象过多；</li>
+<li>缓存&#x2F;批处理对象跨越多个 Young GC；</li>
+<li>年轻代设置或自适应策略不合适。</li>
+</ul>
+<h4 id="4-Reclaim-Rate"><a href="#4-Reclaim-Rate" class="headerlink" title="4. Reclaim Rate"></a>4. Reclaim Rate</h4><p>GC 单位时间能回收多少内存。如果长期小于 Allocation Rate，系统最终一定会 Allocation Stall、Full GC 或 OOM。</p>
+<h4 id="5-Post-GC-Baseline"><a href="#5-Post-GC-Baseline" class="headerlink" title="5. Post-GC Baseline"></a>5. Post-GC Baseline</h4><p>每轮回收后的最低占用是否持续上涨。持续上涨往往比“某次 GC 很长”更危险，可能指向：</p>
+<ul>
+<li>无界缓存；</li>
+<li>队列堆积；</li>
+<li>ClassLoader 泄漏；</li>
+<li>ThreadLocal 泄漏；</li>
+<li>监听器未注销；</li>
+<li>大量长期连接或 Session；</li>
+<li>真正的内存泄漏。</li>
+</ul>
+<h3 id="12-4-第四步：先改代码和数据结构，再拧-JVM-旋钮"><a href="#12-4-第四步：先改代码和数据结构，再拧-JVM-旋钮" class="headerlink" title="12.4 第四步：先改代码和数据结构，再拧 JVM 旋钮"></a>12.4 第四步：先改代码和数据结构，再拧 JVM 旋钮</h3><p>调优优先级建议：</p>
+<ol>
+<li>修复泄漏和无界结构；</li>
+<li>降低对象分配率；</li>
+<li>缩短对象生命周期；</li>
+<li>避免无意义的大对象和中间集合；</li>
+<li>确定合理堆大小与进程总内存；</li>
+<li>选择合适 GC；</li>
+<li>最后才调整具体 GC 参数。</li>
+</ol>
+<p>典型代码优化包括：</p>
+<ul>
+<li>流式处理替代一次性加载全部数据；</li>
+<li>避免在热点循环中创建临时集合和字符串；</li>
+<li>控制批次大小；</li>
+<li>复用缓冲区，但不要制造失控对象池；</li>
+<li>缓存设置容量和过期策略；</li>
+<li>避免把大对象挂到静态单例或 ThreadLocal；</li>
+<li>使用 Primitive Collection 或更紧凑的数据结构时做实际验证。</li>
+</ul>
+<h3 id="12-5-第五步：一次只改一个主要变量"><a href="#12-5-第五步：一次只改一个主要变量" class="headerlink" title="12.5 第五步：一次只改一个主要变量"></a>12.5 第五步：一次只改一个主要变量</h3><p>比如对比 G1 和 ZGC 时，不要同时：</p>
+<ul>
+<li>换 JDK；</li>
+<li>改堆大小；</li>
+<li>改线程池；</li>
+<li>改数据库连接池；</li>
+<li>改业务代码；</li>
+<li>改容器 CPU Limit。</li>
+</ul>
+<p>否则得到的不是实验，是一锅性能玄学麻辣烫。</p>
+<h2 id="十三、堆大小不是越大越好"><a href="#十三、堆大小不是越大越好" class="headerlink" title="十三、堆大小不是越大越好"></a>十三、堆大小不是越大越好</h2><h3 id="13-1-Xmx-必须覆盖什么"><a href="#13-1-Xmx-必须覆盖什么" class="headerlink" title="13.1 Xmx 必须覆盖什么"></a>13.1 <code>Xmx</code> 必须覆盖什么</h3><p>对于并发 GC，最大堆至少要覆盖：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Live Set<br>+ 并发回收期间的新分配<br>+ 对象疏散/复制空间<br>+ 碎片或 Region 预留<br>+ 流量突发余量<br></code></pre></td></tr></table></figure>
+
+<p>堆太小：GC 追不上，频繁回收或分配停顿。</p>
+<p>堆太大：</p>
+<ul>
+<li>故障时 Heap Dump 巨大；</li>
+<li>缓存可能无限膨胀；</li>
+<li>Full GC 或退化路径更重；</li>
+<li>容器密度下降；</li>
+<li>问题被大堆延迟暴露。</li>
+</ul>
+<h3 id="13-2-Xms-Xmx-不是绝对真理"><a href="#13-2-Xms-Xmx-不是绝对真理" class="headerlink" title="13.2 Xms = Xmx 不是绝对真理"></a>13.2 <code>Xms = Xmx</code> 不是绝对真理</h3><p>优点：</p>
+<ul>
+<li>避免运行时扩容抖动；</li>
+<li>行为更稳定；</li>
+<li>适合固定容量、延迟敏感服务。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>更高内存承诺；</li>
+<li>降低容器密度；</li>
+<li>配合 <code>AlwaysPreTouch</code> 会增加启动时间和初始 RSS；</li>
+<li>对弹性负载可能浪费内存。</li>
+</ul>
+<h3 id="13-3-Java-堆不等于进程内存"><a href="#13-3-Java-堆不等于进程内存" class="headerlink" title="13.3 Java 堆不等于进程内存"></a>13.3 Java 堆不等于进程内存</h3><p>进程总内存还包括：</p>
+<ul>
+<li>Metaspace；</li>
+<li>Code Cache；</li>
+<li>线程栈；</li>
+<li>Direct Buffer；</li>
+<li>JNI&#x2F;本地库；</li>
+<li>GC 自身数据结构；</li>
+<li>JIT、符号表、类加载器元数据；</li>
+<li>mmap 文件和共享库。</li>
+</ul>
+<p>因此在 4 GB 容器中设置 <code>-Xmx4g</code>，通常是在邀请 OOM Killer 来参加团建。</p>
+<h2 id="十四、日志与诊断命令"><a href="#十四、日志与诊断命令" class="headerlink" title="十四、日志与诊断命令"></a>十四、日志与诊断命令</h2><h3 id="14-1-JDK-8-GC-日志模板"><a href="#14-1-JDK-8-GC-日志模板" class="headerlink" title="14.1 JDK 8 GC 日志模板"></a>14.1 JDK 8 GC 日志模板</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs bash">java \<br>  -Xms4g -Xmx4g \<br>  -XX:+UseG1GC \<br>  -XX:+PrintGCDetails \<br>  -XX:+PrintGCDateStamps \<br>  -XX:+PrintTenuringDistribution \<br>  -XX:+PrintGCApplicationStoppedTime \<br>  -Xloggc:/var/log/app/gc.log \<br>  -XX:+UseGCLogFileRotation \<br>  -XX:NumberOfGCLogFiles=10 \<br>  -XX:GCLogFileSize=100M \<br>  -XX:+HeapDumpOnOutOfMemoryError \<br>  -XX:HeapDumpPath=/var/log/app/heap.hprof \<br>  -jar app.jar<br></code></pre></td></tr></table></figure>
+
+<h3 id="14-2-JDK-17-21-25-统一日志模板"><a href="#14-2-JDK-17-21-25-统一日志模板" class="headerlink" title="14.2 JDK 17&#x2F;21&#x2F;25 统一日志模板"></a>14.2 JDK 17&#x2F;21&#x2F;25 统一日志模板</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs bash">java \<br>  -Xms4g -Xmx4g \<br>  -XX:+UseG1GC \<br>  <span class="hljs-string">&#x27;-Xlog:gc*,safepoint:file=/var/log/app/gc.log:time,uptime,level,tags:filecount=10,filesize=100M&#x27;</span> \<br>  -XX:+HeapDumpOnOutOfMemoryError \<br>  -XX:HeapDumpPath=/var/log/app/heap.hprof \<br>  -XX:ErrorFile=/var/log/app/hs_err_pid%p.log \<br>  -jar app.jar<br></code></pre></td></tr></table></figure>
+
+<h3 id="14-3-JDK-21-Generational-ZGC-模板"><a href="#14-3-JDK-21-Generational-ZGC-模板" class="headerlink" title="14.3 JDK 21 Generational ZGC 模板"></a>14.3 JDK 21 Generational ZGC 模板</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash">java \<br>  -Xms8g -Xmx8g \<br>  -XX:+UseZGC \<br>  -XX:+ZGenerational \<br>  <span class="hljs-string">&#x27;-Xlog:gc*,safepoint:file=/var/log/app/gc.log:time,uptime,level,tags:filecount=10,filesize=100M&#x27;</span> \<br>  -jar app.jar<br></code></pre></td></tr></table></figure>
+
+<h3 id="14-4-JDK-25-ZGC-模板"><a href="#14-4-JDK-25-ZGC-模板" class="headerlink" title="14.4 JDK 25 ZGC 模板"></a>14.4 JDK 25 ZGC 模板</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">java \<br>  -Xms8g -Xmx8g \<br>  -XX:+UseZGC \<br>  <span class="hljs-string">&#x27;-Xlog:gc*,safepoint:file=/var/log/app/gc.log:time,uptime,level,tags:filecount=10,filesize=100M&#x27;</span> \<br>  -jar app.jar<br></code></pre></td></tr></table></figure>
+
+<p>JDK 25 不要再添加 <code>-XX:+ZGenerational</code>。</p>
+<h3 id="14-5-常用在线诊断命令"><a href="#14-5-常用在线诊断命令" class="headerlink" title="14.5 常用在线诊断命令"></a>14.5 常用在线诊断命令</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 查看真实 JVM 版本和发行版</span><br>java -version<br><br><span class="hljs-comment"># 启动一个最小 JVM，查看默认选择的关键参数（JDK 8/部分版本）</span><br>java -XX:+PrintCommandLineFlags -version<br><br><span class="hljs-comment"># 查看 JVM 最终参数</span><br>jcmd &lt;pid&gt; VM.flags<br><br><span class="hljs-comment"># 查看堆概要</span><br>jcmd &lt;pid&gt; GC.heap_info<br><br><span class="hljs-comment"># 查看类实例直方图，可能有一定影响</span><br>jcmd &lt;pid&gt; GC.class_histogram<br><br><span class="hljs-comment"># 启动 10 分钟 JFR</span><br>jcmd &lt;pid&gt; JFR.start \<br>  name=gc-analysis \<br>  settings=profile \<br>  duration=10m \<br>  filename=/tmp/gc-analysis.jfr<br><br><span class="hljs-comment"># 已启用 NMT 时查看原生内存</span><br>jcmd &lt;pid&gt; VM.native_memory summary<br><br><span class="hljs-comment"># 快速查看各代利用率</span><br>jstat -gcutil &lt;pid&gt; 1000<br></code></pre></td></tr></table></figure>
+
+<p>Heap Dump、Live Histogram 等操作可能引发明显停顿或 IO 冲击。生产执行前要评估磁盘空间、实例冗余和流量摘除方案。</p>
+<h2 id="十五、各收集器常见故障信号"><a href="#十五、各收集器常见故障信号" class="headerlink" title="十五、各收集器常见故障信号"></a>十五、各收集器常见故障信号</h2><h3 id="15-1-Parallel-GC"><a href="#15-1-Parallel-GC" class="headerlink" title="15.1 Parallel GC"></a>15.1 Parallel GC</h3><p>重点看：</p>
+<ul>
+<li>Young GC 是否过于频繁；</li>
+<li>Full GC 停顿；</li>
+<li>Promotion Failure；</li>
+<li>Full GC 后老年代占用是否仍高；</li>
+<li><code>user + sys</code> 与 <code>real</code> 的异常关系，排查 CPU 限流、Swap、宿主机争抢。</li>
+</ul>
+<h3 id="15-2-CMS"><a href="#15-2-CMS" class="headerlink" title="15.2 CMS"></a>15.2 CMS</h3><p>重点看：</p>
+<ul>
+<li><code>concurrent mode failure</code>；</li>
+<li><code>promotion failed</code>；</li>
+<li>老年代碎片；</li>
+<li>CMS 周期是否启动过晚；</li>
+<li>Remark 停顿；</li>
+<li>并发阶段 CPU 抢占。</li>
+</ul>
+<h3 id="15-3-G1"><a href="#15-3-G1" class="headerlink" title="15.3 G1"></a>15.3 G1</h3><p>重点看：</p>
+<ul>
+<li><code>to-space exhausted</code>；</li>
+<li>Evacuation Failure；</li>
+<li>Humongous Region 数量；</li>
+<li>Concurrent Start 是否太晚；</li>
+<li>Mixed GC 是否回收效果差；</li>
+<li>Full GC；</li>
+<li>RSet Update&#x2F;Scan 时间；</li>
+<li>Object Copy 时间；</li>
+<li>Safepoint 同步时间是否远大于实际 GC 工作时间。</li>
+</ul>
+<h3 id="15-4-ZGC"><a href="#15-4-ZGC" class="headerlink" title="15.4 ZGC"></a>15.4 ZGC</h3><p>重点看：</p>
+<ul>
+<li>Allocation Stall；</li>
+<li>GC 周期是否跟不上分配；</li>
+<li>堆余量是否不足；</li>
+<li>并发 GC CPU；</li>
+<li>内存带宽；</li>
+<li>SoftMaxHeapSize 是否与 Xmx 配合合理；</li>
+<li>应用延迟是否被 CPU 竞争而非 STW 影响。</li>
+</ul>
+<h3 id="15-5-Shenandoah"><a href="#15-5-Shenandoah" class="headerlink" title="15.5 Shenandoah"></a>15.5 Shenandoah</h3><p>重点看：</p>
+<ul>
+<li>Degenerated GC；</li>
+<li>Full GC；</li>
+<li>Evacuation Reserve；</li>
+<li>并发标记&#x2F;疏散是否追不上；</li>
+<li>分配尖峰；</li>
+<li>发行版特定实现和参数差异。</li>
+</ul>
+<h2 id="十六、迁移建议"><a href="#十六、迁移建议" class="headerlink" title="十六、迁移建议"></a>十六、迁移建议</h2><h3 id="16-1-JDK-8-CMS-迁移到-JDK-17"><a href="#16-1-JDK-8-CMS-迁移到-JDK-17" class="headerlink" title="16.1 JDK 8 CMS 迁移到 JDK 17"></a>16.1 JDK 8 CMS 迁移到 JDK 17</h3><p>推荐顺序：</p>
+<ol>
+<li>先在 JDK 8 上建立 CMS 基线；</li>
+<li>升级到 JDK 17，先使用默认 G1；</li>
+<li>不要照搬 CMS 参数；</li>
+<li>对比吞吐、P99、Full GC、CPU、RSS；</li>
+<li>若 G1 尾延迟仍不满足，再评估 ZGC 或支持 Shenandoah 的发行版。</li>
+</ol>
+<p>CMS 参数如 <code>CMSInitiatingOccupancyFraction</code>、<code>UseCMSInitiatingOccupancyOnly</code> 在 G1 中没有一一对应关系。迁移是重新建立模型，不是参数翻译题。</p>
+<h3 id="16-2-JDK-8-Parallel-迁移到-JDK-17"><a href="#16-2-JDK-8-Parallel-迁移到-JDK-17" class="headerlink" title="16.2 JDK 8 Parallel 迁移到 JDK 17"></a>16.2 JDK 8 Parallel 迁移到 JDK 17</h3><p>不要默认换成 G1 就一定更快：</p>
+<ul>
+<li>批处理任务可继续使用 Parallel；</li>
+<li>在线服务可以比较默认 G1；</li>
+<li>若旧系统依赖很长但很少的 Full GC 换取高吞吐，G1 可能降低停顿但增加 GC CPU；</li>
+<li>最终以任务完成时间和业务延迟为准。</li>
+</ul>
+<h3 id="16-3-JDK-17-ZGC-迁移到-JDK-21-25"><a href="#16-3-JDK-17-ZGC-迁移到-JDK-21-25" class="headerlink" title="16.3 JDK 17 ZGC 迁移到 JDK 21&#x2F;25"></a>16.3 JDK 17 ZGC 迁移到 JDK 21&#x2F;25</h3><ul>
+<li>JDK 17：非分代 ZGC；</li>
+<li>JDK 21：用 <code>-XX:+ZGenerational</code> 显式启用分代；</li>
+<li>JDK 23：分代成为默认；</li>
+<li>JDK 24&#x2F;25：非分代模式移除，删除旧参数。</li>
+</ul>
+<p>迁移后应重新测量年轻代大小自适应、晋升行为、并发线程和堆余量，不要只看停顿是否仍低。</p>
+<h2 id="十七、常见误区纠正"><a href="#十七、常见误区纠正" class="headerlink" title="十七、常见误区纠正"></a>十七、常见误区纠正</h2><h3 id="17-1-“对象没有引用就是垃圾”"><a href="#17-1-“对象没有引用就是垃圾”" class="headerlink" title="17.1 “对象没有引用就是垃圾”"></a>17.1 “对象没有引用就是垃圾”</h3><p>更准确的说法是：对象从 GC Roots 不可达。互相循环引用的对象也可以被追踪式 GC 回收。</p>
+<h3 id="17-2-“Minor-GC-只扫描年轻代”"><a href="#17-2-“Minor-GC-只扫描年轻代”" class="headerlink" title="17.2 “Minor GC 只扫描年轻代”"></a>17.2 “Minor GC 只扫描年轻代”</h3><p>年轻代回收不能忽略老年代到年轻代的引用，因此需要 Card Table、RSet 或其他跨代引用记录。它不必扫描整个老年代，但也不是完全与老年代无关。</p>
+<h3 id="17-3-“Major-GC-就是老年代-GC，Full-GC-就是整堆-GC”"><a href="#17-3-“Major-GC-就是老年代-GC，Full-GC-就是整堆-GC”" class="headerlink" title="17.3 “Major GC 就是老年代 GC，Full GC 就是整堆 GC”"></a>17.3 “Major GC 就是老年代 GC，Full GC 就是整堆 GC”</h3><p><code>Major GC</code> 在不同收集器、工具和文章中的含义并不统一。分析时应以 GC 日志中的具体事件和收集器阶段为准，不要只凭名词下结论。</p>
+<h3 id="17-4-“G1-会严格保证-200ms”"><a href="#17-4-“G1-会严格保证-200ms”" class="headerlink" title="17.4 “G1 会严格保证 200ms”"></a>17.4 “G1 会严格保证 200ms”</h3><p><code>-XX:MaxGCPauseMillis</code> 是软目标。对象复制量、根集合、RSet、引用处理、系统调度和硬件状态都可能让实际停顿超出目标。</p>
+<h3 id="17-5-“ZGC-永远小于-1ms”"><a href="#17-5-“ZGC-永远小于-1ms”" class="headerlink" title="17.5 “ZGC 永远小于 1ms”"></a>17.5 “ZGC 永远小于 1ms”</h3><p>官方描述强调 GC 暂停目标很低且与堆大小弱相关，但：</p>
+<ul>
+<li>不同 JDK、平台、根集合规模和系统负载会变化；</li>
+<li>应用端到端延迟可能远高于 GC pause；</li>
+<li>Allocation Stall、CPU 抢占和内存带宽仍会影响业务。</li>
+</ul>
+<p>不要把营销式数字当 SLA。</p>
+<h3 id="17-6-“换-GC-可以解决内存泄漏”"><a href="#17-6-“换-GC-可以解决内存泄漏”" class="headerlink" title="17.6 “换 GC 可以解决内存泄漏”"></a>17.6 “换 GC 可以解决内存泄漏”</h3><p>GC 只能回收不可达对象。只要泄漏对象仍被静态集合、缓存、线程、监听器或 ClassLoader 可达，换任何 GC 都不会回收。</p>
+<h3 id="17-7-“堆越大，GC-越少，所以越好”"><a href="#17-7-“堆越大，GC-越少，所以越好”" class="headerlink" title="17.7 “堆越大，GC 越少，所以越好”"></a>17.7 “堆越大，GC 越少，所以越好”</h3><p>堆大可能降低频率，但也会提高内存成本、故障分析成本和退化路径代价。真正要看的是 Live Set、分配率、回收率和业务 SLO。</p>
+<h2 id="十八、一个可落地的生产检查清单"><a href="#十八、一个可落地的生产检查清单" class="headerlink" title="十八、一个可落地的生产检查清单"></a>十八、一个可落地的生产检查清单</h2><h3 id="上线前"><a href="#上线前" class="headerlink" title="上线前"></a>上线前</h3><ul>
+<li><input disabled="" type="checkbox"> 确认 JDK 发行版、版本和目标平台；</li>
+<li><input disabled="" type="checkbox"> 确认实际 GC，而不是猜默认值；</li>
+<li><input disabled="" type="checkbox"> 开启 GC 与 Safepoint 日志；</li>
+<li><input disabled="" type="checkbox"> 设置 OOM Heap Dump 与错误日志目录；</li>
+<li><input disabled="" type="checkbox"> 预留足够磁盘；</li>
+<li><input disabled="" type="checkbox"> 明确容器内存中堆与非堆预算；</li>
+<li><input disabled="" type="checkbox"> 做至少一轮持续压测和流量尖峰测试；</li>
+<li><input disabled="" type="checkbox"> 观察 P99&#x2F;P999，而不是只看平均值。</li>
+</ul>
+<h3 id="运行中"><a href="#运行中" class="headerlink" title="运行中"></a>运行中</h3><ul>
+<li><input disabled="" type="checkbox"> Allocation Rate；</li>
+<li><input disabled="" type="checkbox"> Live Set；</li>
+<li><input disabled="" type="checkbox"> Promotion Rate；</li>
+<li><input disabled="" type="checkbox"> Post-GC Baseline；</li>
+<li><input disabled="" type="checkbox"> GC CPU 和暂停分布；</li>
+<li><input disabled="" type="checkbox"> Full&#x2F;Degenerated&#x2F;Allocation Stall；</li>
+<li><input disabled="" type="checkbox"> Humongous、大数组和大字符串；</li>
+<li><input disabled="" type="checkbox"> Metaspace、Direct Memory、线程栈和 RSS；</li>
+<li><input disabled="" type="checkbox"> 容器 CPU throttling、Swap、缺页和节点争抢。</li>
+</ul>
+<h3 id="出问题时"><a href="#出问题时" class="headerlink" title="出问题时"></a>出问题时</h3><ol>
+<li>先判断是堆、非堆还是系统资源；</li>
+<li>再判断是分配率、存活集还是回收能力；</li>
+<li>确认是否有 Full GC、退化回收或 Allocation Stall；</li>
+<li>用 JFR 找分配热点；</li>
+<li>用 Histogram&#x2F;Heap Dump 找存活对象来源；</li>
+<li>修代码和容量模型；</li>
+<li>最后再换 GC 或调参数。</li>
+</ol>
+<h2 id="十九、最终总结"><a href="#十九、最终总结" class="headerlink" title="十九、最终总结"></a>十九、最终总结</h2><p>把 Java GC 的演进压缩成一句话：</p>
+<blockquote>
+<p>从“停下业务、扫描整堆、一次性清理”，逐步演化为“按代和 Region 管理、并发追踪、并发搬迁，并通过屏障修正不断变化的对象图”。</p>
+</blockquote>
+<p>从算法角度看：</p>
+<ul>
+<li>Serial 是简单的串行复制与压缩；</li>
+<li>Parallel 用多 GC 线程换吞吐；</li>
+<li>CMS 用并发标记-清除换更短老年代停顿，却承担碎片和失败退化；</li>
+<li>G1 用 Region、RSet、SATB 和疏散，在吞吐与停顿之间取得通用平衡；</li>
+<li>ZGC 用染色引用、屏障和并发转移追求极低停顿，并在 JDK 21 以后走向分代；</li>
+<li>Shenandoah 同样把疏散与引用更新并发化，并在 JDK 25 把分代模式产品化；</li>
+<li>Epsilon 则提醒我们：不回收也是一种有边界的实验工具。</li>
+</ul>
+<p>真正的 GC 调优不是收集器排名，而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">业务 SLO<br>→ 分配率与 Live Set<br>→ 回收能力与系统资源<br>→ 选择收集器<br>→ 日志与 JFR 验证<br>→ 小步实验<br>→ 以端到端结果决定<br></code></pre></td></tr></table></figure>
+
+<p>默认 G1 是一个很好的起点，但不是信仰；ZGC 和 Shenandoah 是低延迟工具，但不是免费午餐；Parallel 并没有过时，Serial 也不是废物。能把工作负载、算法代价和版本差异对应起来，才算真正理解 GC。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ol>
+<li><a target="_blank" rel="noopener" href="https://www.bilibili.com/video/BV1FWWmz1ESi/">B 站：一小时速通所有 Java GC</a></li>
+<li><a target="_blank" rel="noopener" href="https://juejin.cn/post/7563190036532592703">程序猿有风：Java GC 全系列一小时速通教程</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.ituring.com.cn/book/1460">图灵社区：《垃圾回收的算法与实现》</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.oracle.com/javase/8/docs/technotes/guides/vm/gctuning/">Oracle JDK 8 Garbage Collection Tuning Guide</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.oracle.com/en/java/javase/17/gctuning/">Oracle JDK 17 Garbage Collection Tuning Guide</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.oracle.com/en/java/javase/21/gctuning/">Oracle JDK 21 Garbage Collection Tuning Guide</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.oracle.com/en/java/javase/25/gctuning/">Oracle JDK 25 Garbage Collection Tuning Guide</a></li>
+<li><a target="_blank" rel="noopener" href="https://openjdk.org/jeps/248">JEP 248：Make G1 the Default Garbage Collector</a></li>
+<li><a target="_blank" rel="noopener" href="https://openjdk.org/jeps/307">JEP 307：Parallel Full GC for G1</a></li>
+<li><a target="_blank" rel="noopener" href="https://openjdk.org/jeps/318">JEP 318：Epsilon</a></li>
+<li><a target="_blank" rel="noopener" href="https://openjdk.org/jeps/333">JEP 333：ZGC Experimental</a></li>
+<li><a target="_blank" rel="noopener" href="https://openjdk.org/jeps/363">JEP 363：Remove CMS</a></li>
+<li><a target="_blank" rel="noopener" href="https://openjdk.org/jeps/377">JEP 377：ZGC Production</a></li>
+<li><a target="_blank" rel="noopener" href="https://openjdk.org/jeps/379">JEP 379：Shenandoah Production</a></li>
+<li><a target="_blank" rel="noopener" href="https://openjdk.org/jeps/423">JEP 423：Region Pinning for G1</a></li>
+<li><a target="_blank" rel="noopener" href="https://openjdk.org/jeps/439">JEP 439：Generational ZGC</a></li>
+<li><a target="_blank" rel="noopener" href="https://openjdk.org/jeps/474">JEP 474：ZGC Generational Mode by Default</a></li>
+<li><a target="_blank" rel="noopener" href="https://openjdk.org/jeps/475">JEP 475：Late Barrier Expansion for G1</a></li>
+<li><a target="_blank" rel="noopener" href="https://openjdk.org/jeps/490">JEP 490：Remove Non-Generational ZGC</a></li>
+<li><a target="_blank" rel="noopener" href="https://openjdk.org/jeps/519">JEP 519：Compact Object Headers</a></li>
+<li><a target="_blank" rel="noopener" href="https://openjdk.org/jeps/521">JEP 521：Generational Shenandoah</a></li>
+<li><a target="_blank" rel="noopener" href="https://openjdk.org/jeps/523">JEP 523：Make G1 the Default Garbage Collector in All Environments</a></li>
+<li><a target="_blank" rel="noopener" href="https://wiki.openjdk.org/spaces/shenandoah/overview">OpenJDK Shenandoah Project</a></li>
+</ol>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Java/" class="category-chain-item">Java</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/Java/JVM/" class="category-chain-item">JVM</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Java/" class="print-no-link">#Java</a>
+      
+        <a href="/tags/JVM/" class="print-no-link">#JVM</a>
+      
+        <a href="/tags/GC/" class="print-no-link">#GC</a>
+      
+        <a href="/tags/G1/" class="print-no-link">#G1</a>
+      
+        <a href="/tags/ZGC/" class="print-no-link">#ZGC</a>
+      
+        <a href="/tags/Shenandoah/" class="print-no-link">#Shenandoah</a>
+      
+        <a href="/tags/CMS/" class="print-no-link">#CMS</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Java GC 全景指南：从垃圾回收算法到 JDK 8、17、21、25</div>
+      <div>https://allendericdalexander.github.io/2026/07/26/java/jvm/java-gc-algorithms/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年7月26日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/07/25/java/spring-boot-local-task-message/" title="Spring Boot 本地任务消息组件：本地消息表、Spring Event 与定时补偿实现最终一致性">
+                        <span class="hidden-mobile">Spring Boot 本地任务消息组件：本地消息表、Spring Event 与定时补偿实现最终一致性</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
