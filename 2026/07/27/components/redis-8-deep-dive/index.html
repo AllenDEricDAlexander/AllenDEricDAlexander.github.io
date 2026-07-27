@@ -1,0 +1,2773 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="深入解析 Redis 8 的命令执行链路、过期与淘汰、事务、内存容量计算、AOF&#x2F;RDB、主从复制、Redis Cluster、底层数据结构及生产最佳实践。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Redis 8 深度解析：从命令执行、内存管理到持久化、复制与 Cluster">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/07/27/components/redis-8-deep-dive/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="深入解析 Redis 8 的命令执行链路、过期与淘汰、事务、内存容量计算、AOF&#x2F;RDB、主从复制、Redis Cluster、底层数据结构及生产最佳实践。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-27T06:30:00.000Z">
+<meta property="article:modified_time" content="2026-07-27T06:30:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Cache">
+<meta property="article:tag" content="Data Structure">
+<meta property="article:tag" content="Persistence">
+<meta property="article:tag" content="Redis 8">
+<meta property="article:tag" content="Redis Cluster">
+<meta property="article:tag" content="Replication">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Redis 8 深度解析：从命令执行、内存管理到持久化、复制与 Cluster - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Redis 8 深度解析：从命令执行、内存管理到持久化、复制与 Cluster"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-07-27 14:30" pubdate>
+          2026年7月27日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          15k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          128 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Redis 8 深度解析：从命令执行、内存管理到持久化、复制与 Cluster</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <blockquote>
+<p>本文面向已经使用过 Redis、希望进一步理解其内部执行机制与生产设计边界的开发者和架构师。</p>
+<p><strong>版本基线</strong>：截至 2026 年 7 月 27 日，Redis Open Source 当前稳定系列为 8.8，本文以 <strong>Redis 8.8.1 源码与最新版官方文档</strong>为主要依据；涉及 Redis 8.0 引入的 I&#x2F;O 线程重构、Redis 7.0 延续至 Redis 8 的 Multi-Part AOF 等机制时，会明确说明版本边界。</p>
+<p>文中的容量公式属于工程估算模型，不是 Redis 内部的固定计算公式。任何生产容量结论都应通过真实数据、真实编码、真实客户端和真实写入速率进行压测验证。</p>
+<p>文中架构图均使用 Mermaid 代码块。发布到 Hexo 前，请确认当前主题或 Markdown 渲染链路已经启用 Mermaid。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="一、先建立一张-Redis-8-全景图"><a href="#一、先建立一张-Redis-8-全景图" class="headerlink" title="一、先建立一张 Redis 8 全景图"></a>一、先建立一张 Redis 8 全景图</h2><p>Redis 常被概括为“单线程内存数据库”，这个说法只说对了一半。</p>
+<p>更准确的描述是：</p>
+<blockquote>
+<p>Redis 8 以内存数据结构为核心，以事件驱动模型处理连接，以 I&#x2F;O 线程并行完成部分网络读取、协议解析与响应写回，以主执行线程串行执行绝大多数核心命令，再通过后台线程或子进程完成异步释放、AOF 刷盘、RDB 生成和 AOF 重写等工作。</p>
+</blockquote>
+<p>这套设计解决了几个相互冲突的问题：</p>
+<ol>
+<li>核心键空间操作尽量避免锁竞争；</li>
+<li>单条普通命令天然具备清晰的串行执行边界；</li>
+<li>网络 I&#x2F;O 不再完全受限于单个线程；</li>
+<li>磁盘持久化、内存释放等慢操作尽可能移出主执行路径；</li>
+<li>通过复制和 Cluster，将单实例能力扩展为高可用与水平分片能力。</li>
+</ol>
+<pre><code class=" mermaid">flowchart TB
+    Client[客户端&lt;br/&gt;RESP2 / RESP3] --&gt; Net[Socket 与事件循环&lt;br/&gt;epoll / kqueue / select]
+    Net --&gt; IO[I/O 线程&lt;br/&gt;读取、协议解析、响应写回]
+    IO --&gt; Main[主执行线程]
+
+    Main --&gt; Gate[命令入口检查&lt;br/&gt;ACL / OOM / Cluster / 状态校验]
+    Gate --&gt; Proc[命令处理函数&lt;br/&gt;操作内存数据结构]
+    Proc --&gt; Reply[客户端响应缓冲区]
+    Reply --&gt; IO
+
+    Proc --&gt; AOF[AOF Buffer / fsync]
+    Proc --&gt; Repl[复制流 / Replication Backlog]
+    Proc --&gt; Notify[通知、慢日志、统计、缓存失效]
+
+    Main --&gt; BG[后台任务]
+    BG --&gt; Lazy[Lazy Free]
+    BG --&gt; RDB[RDB 子进程]
+    BG --&gt; Rewrite[AOF Rewrite 子进程]
+</code></pre>
+
+<p>理解 Redis，不能只看某一个命令的时间复杂度，还必须把下面四条链路放在一起：</p>
+<ul>
+<li><strong>前台链路</strong>：请求读取 → 协议解析 → 命令校验 → 命令执行 → 返回响应；</li>
+<li><strong>内存链路</strong>：对象编码 → 分配器 → 碎片 → RSS → fork Copy-on-Write；</li>
+<li><strong>数据安全链路</strong>：AOF&#x2F;RDB → 主从复制 → 故障转移；</li>
+<li><strong>分布式链路</strong>：Hash Slot → 客户端路由 → 节点故障判定 → Replica 晋升。</li>
+</ul>
+<hr>
+<h1 id="二、Redis-8-整体执行逻辑"><a href="#二、Redis-8-整体执行逻辑" class="headerlink" title="二、Redis 8 整体执行逻辑"></a>二、Redis 8 整体执行逻辑</h1><blockquote>
+<p>本章主要依据：<a target="_blank" rel="noopener" href="https://redis.io/docs/latest/operate/oss_and_stack/stack-with-enterprise/release-notes/redisce/redisos-8.0-release-notes/">Redis 8.0 Release Notes</a>、<a target="_blank" rel="noopener" href="https://github.com/redis/redis/blob/8.8.1/src/networking.c">networking.c</a> 与 <a target="_blank" rel="noopener" href="https://github.com/redis/redis/blob/8.8.1/src/server.c">server.c</a>。</p>
+</blockquote>
+<h2 id="2-1-Redis-启动阶段做了什么"><a href="#2-1-Redis-启动阶段做了什么" class="headerlink" title="2.1 Redis 启动阶段做了什么"></a>2.1 Redis 启动阶段做了什么</h2><p>Redis 启动并不是简单地“读取配置后监听 6379”。典型过程如下：</p>
+<pre><code class=" mermaid">flowchart TD
+    Start[进程启动] --&gt; Config[加载配置文件与启动参数]
+    Config --&gt; Init[初始化 server 状态、数据库、命令表、ACL]
+    Init --&gt; Modules[加载内置组件或外部模块]
+    Modules --&gt; Persist&#123;是否存在可恢复数据&#125;
+    Persist --&gt;|AOF 可用| LoadAOF[加载 AOF]
+    Persist --&gt;|仅 RDB| LoadRDB[加载 RDB]
+    Persist --&gt;|无持久化| Empty[空数据集启动]
+    LoadAOF --&gt; Listen[创建 TCP / Unix Socket]
+    LoadRDB --&gt; Listen
+    Empty --&gt; Listen
+    Listen --&gt; Events[注册文件事件与时间事件]
+    Events --&gt; Loop[进入主事件循环]
+</code></pre>
+
+<p>启动阶段主要完成：</p>
+<ul>
+<li>初始化 <code>redisServer</code> 全局状态；</li>
+<li>创建逻辑数据库及键空间；</li>
+<li>注册命令表，将命令名映射到具体处理函数；</li>
+<li>初始化 ACL、慢日志、延迟监控、客户端缓存等子系统；</li>
+<li>根据配置加载 Redis 8 集成的数据能力；</li>
+<li>根据持久化配置恢复数据；</li>
+<li>创建监听 Socket；</li>
+<li>注册连接、读写、时间事件；</li>
+<li>启动 I&#x2F;O 线程及后台线程；</li>
+<li>进入事件循环。</li>
+</ul>
+<p>如果同时启用 AOF 与 RDB，Redis 重启时优先使用 AOF 恢复，因为 AOF 通常保存了更完整的变更历史。这里的“优先”不代表 AOF 一定比 RDB 更可靠，最终可靠性仍取决于 <code>appendfsync</code>、磁盘、文件完整性和备份策略。</p>
+<h2 id="2-2-从-TCP-字节到-Redis-命令"><a href="#2-2-从-TCP-字节到-Redis-命令" class="headerlink" title="2.2 从 TCP 字节到 Redis 命令"></a>2.2 从 TCP 字节到 Redis 命令</h2><p>客户端通常通过 RESP2 或 RESP3 发送请求。例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">SET user:1001 Mario EX 60<br></code></pre></td></tr></table></figure>
+
+<p>编码成 RESP 后类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">*5\r\n<br>$3\r\n<br>SET\r\n<br>$9\r\n<br>user:1001\r\n<br>$5\r\n<br>Mario\r\n<br>$2\r\n<br>EX\r\n<br>$2\r\n<br>60\r\n<br></code></pre></td></tr></table></figure>
+
+<p>Redis 收到字节后，不会立刻调用 <code>setCommand()</code>，而是先经历：</p>
+<ol>
+<li>Socket 可读事件触发；</li>
+<li>数据进入客户端查询缓冲区；</li>
+<li>RESP 解析器判断是否已经得到一条完整命令；</li>
+<li>构造 <code>argc/argv</code>；</li>
+<li>识别命令、参数和涉及的 Key；</li>
+<li>将命令交给主执行线程；</li>
+<li>进入统一命令入口进行校验；</li>
+<li>调用具体命令处理函数。</li>
+</ol>
+<p>在 Redis 8.8.1 源码中，<code>networking.c</code> 的解析代码会把请求转换成待执行命令结构；<code>server.c</code> 中的 <code>processCommand()</code> 再完成真正的命令入口控制。</p>
+<h2 id="2-3-Redis-8-的-I-O-线程到底做什么"><a href="#2-3-Redis-8-的-I-O-线程到底做什么" class="headerlink" title="2.3 Redis 8 的 I&#x2F;O 线程到底做什么"></a>2.3 Redis 8 的 I&#x2F;O 线程到底做什么</h2><p>Redis 6 已经引入 I&#x2F;O 多线程，Redis 8 又对 I&#x2F;O 线程模型做了重构和性能优化。理解这一点时，必须避免两个极端误解：</p>
+<ul>
+<li>错误理解一：Redis 8 还是彻底的单线程；</li>
+<li>错误理解二：Redis 8 的所有命令都能在多个线程并行修改数据。</li>
+</ul>
+<p>对于 Redis 核心命令，更接近真实情况的是：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant C as Client
+    participant IO as I/O Thread
+    participant M as Main Execution Thread
+    participant D as In-memory Dataset
+
+    C-&gt;&gt;IO: 发送 RESP 请求
+    IO-&gt;&gt;IO: 读取 Socket、解析完整命令
+    IO-&gt;&gt;M: 加入主线程待执行队列
+    M-&gt;&gt;M: 命令查找与统一校验
+    M-&gt;&gt;D: 串行执行核心数据操作
+    D--&gt;&gt;M: 返回执行结果
+    M-&gt;&gt;IO: 响应进入输出队列
+    IO--&gt;&gt;C: 写回 Socket
+</code></pre>
+
+<p>也就是说：</p>
+<blockquote>
+<p><strong>I&#x2F;O 可以并行，绝大多数核心键空间命令仍在主执行线程中串行执行。</strong></p>
+</blockquote>
+<p>这样设计的主要收益是：</p>
+<ul>
+<li>网络读取、RESP 解析、响应写回可以利用多核；</li>
+<li>核心数据结构不需要普遍引入细粒度锁；</li>
+<li>命令顺序和原子边界仍然清晰；</li>
+<li>减少共享数据竞争带来的复杂度。</li>
+</ul>
+<p>源码中，当命令在非主 I&#x2F;O 线程完成解析后，会设置待执行标记并进入主线程队列，而不是直接在该 I&#x2F;O 线程里调用核心命令处理函数。</p>
+<p>需要注意，Redis 8 集成的 Search、Vector、TimeSeries 等能力可能使用自己的 Worker 或协作执行机制。因此，“核心命令主要串行执行”不能机械地推广为“Redis 进程内任何计算都只能使用一个线程”。</p>
+<h2 id="2-4-processCommand-：真正的命令总闸门"><a href="#2-4-processCommand-：真正的命令总闸门" class="headerlink" title="2.4 processCommand()：真正的命令总闸门"></a>2.4 <code>processCommand()</code>：真正的命令总闸门</h2><p>命令解析完成后，会进入统一入口。这个入口不是简单的 <code>switch-case</code>，而是一组安全性和运行状态检查。</p>
+<p>典型检查包括：</p>
+<h3 id="1-命令存在性和参数数量"><a href="#1-命令存在性和参数数量" class="headerlink" title="1. 命令存在性和参数数量"></a>1. 命令存在性和参数数量</h3><p>Redis 根据命令表查找 <code>SET</code>、<code>GET</code>、<code>HSET</code> 等命令，并检查参数数量。不存在的命令或错误参数会在真正访问数据之前被拒绝。</p>
+<h3 id="2-ACL-和认证"><a href="#2-ACL-和认证" class="headerlink" title="2. ACL 和认证"></a>2. ACL 和认证</h3><p>检查当前连接是否已经认证，以及用户是否有权：</p>
+<ul>
+<li>执行当前命令；</li>
+<li>访问当前 Key；</li>
+<li>访问当前命令类别；</li>
+<li>使用受保护的管理命令。</li>
+</ul>
+<h3 id="3-Cluster-Slot"><a href="#3-Cluster-Slot" class="headerlink" title="3. Cluster Slot"></a>3. Cluster Slot</h3><p>Cluster 模式下，Redis 会提取命令涉及的 Key 并计算 Slot。如果多 Key 命令跨 Slot，通常返回 <code>CROSSSLOT</code>；如果请求发到错误节点，则返回 <code>MOVED</code> 或 <code>ASK</code>。</p>
+<h3 id="4-内存与淘汰"><a href="#4-内存与淘汰" class="headerlink" title="4. 内存与淘汰"></a>4. 内存与淘汰</h3><p>写命令执行前可能触发内存检查和淘汰。如果无法释放足够内存，并且命令属于会增加内存的类型，Redis 返回 OOM 错误。</p>
+<h3 id="5-实例状态"><a href="#5-实例状态" class="headerlink" title="5. 实例状态"></a>5. 实例状态</h3><p>包括：</p>
+<ul>
+<li>当前是否正在加载数据；</li>
+<li>当前节点是否为只读 Replica；</li>
+<li>AOF&#x2F;RDB 是否出现阻止写入的错误；</li>
+<li>是否满足 <code>min-replicas-to-write</code> 等写安全条件；</li>
+<li>是否处于暂停状态；</li>
+<li>是否有超时脚本或繁忙模块；</li>
+<li>Pub&#x2F;Sub 客户端是否允许执行该命令；</li>
+<li>是否需要延迟或阻塞当前客户端。</li>
+</ul>
+<p>通过这些检查后，Redis 才会进入命令处理函数。</p>
+<h2 id="2-5-call-与具体命令处理函数"><a href="#2-5-call-与具体命令处理函数" class="headerlink" title="2.5 call() 与具体命令处理函数"></a>2.5 <code>call()</code> 与具体命令处理函数</h2><p>概念上，命令执行链路可简化为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">aeMain / event loop<br>  -&gt; readQueryFromClient<br>  -&gt; processInputBuffer<br>  -&gt; processCommand<br>  -&gt; call<br>  -&gt; command-&gt;proc(client)<br>  -&gt; addReply<br>  -&gt; pending writes<br></code></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<ul>
+<li><code>processCommand()</code> 负责统一入口与状态检查；</li>
+<li><code>call()</code> 负责执行前后统计、传播控制和慢日志等工作；</li>
+<li><code>command-&gt;proc(client)</code> 是具体命令函数，如 <code>setCommand()</code>、<code>getCommand()</code>；</li>
+<li><code>addReply()</code> 一类函数把结果放入客户端输出缓冲区。</li>
+</ul>
+<p>一次写命令完成后，还可能触发：</p>
+<ul>
+<li>AOF 传播；</li>
+<li>复制流传播；</li>
+<li>Keyspace Notification；</li>
+<li>Client Tracking 失效消息；</li>
+<li>慢日志和命令统计；</li>
+<li>被阻塞客户端唤醒；</li>
+<li>过期或淘汰统计更新。</li>
+</ul>
+<p>因此，“命令执行完”并不等于“只修改了一个 Hash 表”。Redis 还要维护整套可观测性、持久化和复制语义。</p>
+<h2 id="2-6-一个-SET-命令的完整链路"><a href="#2-6-一个-SET-命令的完整链路" class="headerlink" title="2.6 一个 SET 命令的完整链路"></a>2.6 一个 <code>SET</code> 命令的完整链路</h2><p>假设执行：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs redis">SET order:1001 PAID EX 60<br></code></pre></td></tr></table></figure>
+
+<pre><code class=" mermaid">flowchart TD
+    A[客户端发送 RESP] --&gt; B[I/O 线程读取并解析]
+    B --&gt; C[构造 argv&lt;br/&gt;SET order:1001 PAID EX 60]
+    C --&gt; D[主线程 processCommand]
+    D --&gt; E&#123;检查&#125;
+    E --&gt; E1[命令与参数]
+    E --&gt; E2[ACL]
+    E --&gt; E3[Cluster Slot]
+    E --&gt; E4[maxmemory / OOM]
+    E --&gt; E5[实例角色与持久化状态]
+    E --&gt; F[调用 SET 处理函数]
+    F --&gt; G[写入键空间]
+    G --&gt; H[写入绝对过期时间]
+    H --&gt; I[生成 OK 响应]
+    I --&gt; J[AOF / 复制传播]
+    J --&gt; K[I/O 线程写回客户端]
+</code></pre>
+
+<p>需要区分几个时间点：</p>
+<ul>
+<li>内存数据已经更新；</li>
+<li>响应已经进入输出缓冲区；</li>
+<li>响应已经到达客户端；</li>
+<li>AOF 已经 <code>write()</code>；</li>
+<li>AOF 已经 <code>fsync()</code>；</li>
+<li>Replica 已经接收；</li>
+<li>Replica 已经处理；</li>
+<li>RDB 已经包含这条数据。</li>
+</ul>
+<p>这些不是同一个时刻。Redis 的性能来自对这些时刻进行解耦，而数据安全设计恰恰要明确业务需要保证到哪一个时刻。</p>
+<h2 id="2-7-为什么慢命令仍然危险"><a href="#2-7-为什么慢命令仍然危险" class="headerlink" title="2.7 为什么慢命令仍然危险"></a>2.7 为什么慢命令仍然危险</h2><p>即使启用了多个 I&#x2F;O 线程，下面这些操作仍可能长期占用主执行线程：</p>
+<ul>
+<li>对超大 Key 执行 <code>HGETALL</code>、<code>SMEMBERS</code>；</li>
+<li>返回数百万成员的范围查询；</li>
+<li>大集合的交并差运算；</li>
+<li>复杂 Lua 脚本或 Function；</li>
+<li><code>KEYS *</code>；</li>
+<li>大 Key 同步删除；</li>
+<li>某些高复杂度模块命令；</li>
+<li>在单次 Pipeline 中堆积过量请求与响应。</li>
+</ul>
+<p>I&#x2F;O 线程好比增加了收银、传菜和打包人员，但厨房里某道核心菜仍可能占住主灶台。网络吞吐提高了，并不会自动消除算法复杂度和大对象处理成本。</p>
+<hr>
+<h1 id="三、过期键、内存淘汰策略与事务"><a href="#三、过期键、内存淘汰策略与事务" class="headerlink" title="三、过期键、内存淘汰策略与事务"></a>三、过期键、内存淘汰策略与事务</h1><blockquote>
+<p>本章主要依据：<a target="_blank" rel="noopener" href="https://redis.io/docs/latest/commands/expire/">EXPIRE</a>、<a target="_blank" rel="noopener" href="https://redis.io/docs/latest/develop/reference/eviction/">Key Eviction</a>、<a target="_blank" rel="noopener" href="https://redis.io/docs/latest/develop/using-commands/transactions/">Transactions</a>、<a target="_blank" rel="noopener" href="https://github.com/redis/redis/blob/8.8.1/src/expire.c">expire.c</a> 与 <a target="_blank" rel="noopener" href="https://github.com/redis/redis/blob/8.8.1/src/evict.c">evict.c</a>。</p>
+</blockquote>
+<h2 id="3-1-过期和淘汰不是一回事"><a href="#3-1-过期和淘汰不是一回事" class="headerlink" title="3.1 过期和淘汰不是一回事"></a>3.1 过期和淘汰不是一回事</h2><p>二者经常被混为一谈：</p>
+<table>
+<thead>
+<tr>
+<th>机制</th>
+<th>触发原因</th>
+<th align="right">是否需要 <code>maxmemory</code></th>
+<th>目标</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>过期 Expiration</td>
+<td>Key 的 TTL 到期</td>
+<td align="right">否</td>
+<td>删除已经失效的数据</td>
+</tr>
+<tr>
+<td>淘汰 Eviction</td>
+<td>实例达到内存上限</td>
+<td align="right">是</td>
+<td>为新写入腾出内存</td>
+</tr>
+</tbody></table>
+<p>一个 Key 可能：</p>
+<ul>
+<li>因 TTL 到期被删除；</li>
+<li>在 TTL 到期前因内存压力被淘汰；</li>
+<li>永不过期，但被 <code>allkeys-*</code> 策略淘汰；</li>
+<li>永不过期且在 <code>volatile-*</code> 策略下永远不成为候选者。</li>
+</ul>
+<h2 id="3-2-Redis-如何保存-TTL"><a href="#3-2-Redis-如何保存-TTL" class="headerlink" title="3.2 Redis 如何保存 TTL"></a>3.2 Redis 如何保存 TTL</h2><p>Redis 不是给每个 Key 启动一个定时器。那样在数千万 Key 下会产生无法接受的调度成本。</p>
+<p>逻辑上，Redis 为有过期时间的 Key 维护额外的过期元数据。过期时间使用绝对时间戳，因此：</p>
+<ul>
+<li>Redis 停机期间，时间仍然流逝；</li>
+<li>重启后，已过期的 Key 会被视为过期；</li>
+<li>系统时钟异常跳变可能影响 TTL 行为；</li>
+<li>分布式锁等依赖 TTL 的场景应正确配置时间同步，并理解墙上时钟变化的风险。</li>
+</ul>
+<p>Redis 8 还支持 Hash Field Expiration，即可以给 Hash 的字段设置过期时间。它改变了过去“一个 Hash 只能整体过期”的建模限制，但字段级 TTL 同样会带来额外元数据和扫描成本，使用前仍需测量实际内存。</p>
+<h2 id="3-3-被动过期：访问时发现"><a href="#3-3-被动过期：访问时发现" class="headerlink" title="3.3 被动过期：访问时发现"></a>3.3 被动过期：访问时发现</h2><p>当客户端访问某个 Key 时，Redis 会检查它是否已经过期：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[访问 Key] --&gt; B&#123;是否存在 TTL&#125;
+    B --&gt;|否| C[正常读取]
+    B --&gt;|是| D&#123;当前时间是否超过过期时间&#125;
+    D --&gt;|否| C
+    D --&gt;|是| E[删除 Key]
+    E --&gt; F[表现为 Key 不存在]
+</code></pre>
+
+<p>优点是简单、精准，不需要扫描全部 Key。</p>
+<p>问题是：如果一个过期 Key 再也没有被访问，它就可能继续占用内存。因此 Redis 还需要主动过期。</p>
+<h2 id="3-4-主动过期：自适应抽样清理"><a href="#3-4-主动过期：自适应抽样清理" class="headerlink" title="3.4 主动过期：自适应抽样清理"></a>3.4 主动过期：自适应抽样清理</h2><p>Redis 周期性从带 TTL 的键空间中抽样，删除已经过期的 Key，并根据抽样中过期比例决定是否继续。</p>
+<p>核心思想不是“每秒扫描所有 Key”，而是：</p>
+<ol>
+<li>从过期字典中抽样；</li>
+<li>删除样本中的过期 Key；</li>
+<li>如果样本中过期比例仍高，继续一轮；</li>
+<li>受 CPU 和时间预算约束，避免过期清理长期霸占主线程；</li>
+<li>在普通周期和事件循环休眠前存在不同强度的清理机会。</li>
+</ol>
+<p><code>active-expire-effort</code> 可以在 CPU、延迟和过期内存滞留之间调整。值越大，Redis 越积极地寻找和删除过期 Key，但也会消耗更多 CPU，并可能增加延迟。</p>
+<p>主动过期是一种概率和预算控制算法，所以：</p>
+<blockquote>
+<p>TTL 到期表示 Key 从语义上已经失效，不保证对应内存会在那个毫秒立即归还给操作系统。</p>
+</blockquote>
+<h2 id="3-5-过期删除如何保持主从一致"><a href="#3-5-过期删除如何保持主从一致" class="headerlink" title="3.5 过期删除如何保持主从一致"></a>3.5 过期删除如何保持主从一致</h2><p>Primary 负责决定 Key 何时真正删除，并将删除语义传播到 Replica 和 AOF。Replica 不应完全依赖自己的本地时钟独立决定最终数据历史，否则主从节点可能因为时钟或调度差异产生不同结果。</p>
+<p>因此，复制链路中不仅包含客户端写命令，也包含：</p>
+<ul>
+<li>Key 过期产生的删除；</li>
+<li>内存淘汰产生的删除；</li>
+<li>其他会改变数据集的内部动作。</li>
+</ul>
+<h2 id="3-6-maxmemory-到底限制了什么"><a href="#3-6-maxmemory-到底限制了什么" class="headerlink" title="3.6 maxmemory 到底限制了什么"></a>3.6 <code>maxmemory</code> 到底限制了什么</h2><p>达到 <code>maxmemory</code> 时，Redis 会根据策略尝试释放 Key。但并不是 Redis 进程的所有内存都严格计入淘汰判断。</p>
+<p>例如下列内存可能形成额外峰值：</p>
+<ul>
+<li>复制积压缓冲区；</li>
+<li>Replica 输出缓冲区；</li>
+<li>AOF Buffer；</li>
+<li>AOF Rewrite 相关缓冲；</li>
+<li>普通客户端输出缓冲；</li>
+<li>Cluster Bus 与迁移缓冲；</li>
+<li>allocator 碎片；</li>
+<li>fork 后 Copy-on-Write 页面；</li>
+<li>Redis 进程代码、栈和其他非数据集内存。</li>
+</ul>
+<p><code>INFO memory</code> 中的 <code>mem_not_counted_for_evict</code> 用于描述不计入 Key 淘汰判断的一部分内存，主要包括临时复制与 AOF 缓冲。这也是为什么把 <code>maxmemory</code> 直接配置成宿主机物理内存大小非常危险。</p>
+<h2 id="3-7-Redis-8-当前淘汰策略"><a href="#3-7-Redis-8-当前淘汰策略" class="headerlink" title="3.7 Redis 8 当前淘汰策略"></a>3.7 Redis 8 当前淘汰策略</h2><table>
+<thead>
+<tr>
+<th>策略</th>
+<th>候选范围</th>
+<th>选择依据</th>
+<th>适合场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>noeviction</code></td>
+<td>不淘汰</td>
+<td>内存不足时拒绝部分写命令</td>
+<td>数据不可随意丢失、由业务控制容量</td>
+</tr>
+<tr>
+<td><code>allkeys-lru</code></td>
+<td>所有 Key</td>
+<td>近似淘汰最久未访问</td>
+<td>通用缓存，热点明显</td>
+</tr>
+<tr>
+<td><code>allkeys-lfu</code></td>
+<td>所有 Key</td>
+<td>近似淘汰访问频率最低</td>
+<td>长期热点比短期最近访问更重要</td>
+</tr>
+<tr>
+<td><code>allkeys-lrm</code></td>
+<td>所有 Key</td>
+<td>近似淘汰最久未修改</td>
+<td>读多写少，希望保留持续更新的数据</td>
+</tr>
+<tr>
+<td><code>allkeys-random</code></td>
+<td>所有 Key</td>
+<td>随机</td>
+<td>访问分布接近均匀或实现极简</td>
+</tr>
+<tr>
+<td><code>volatile-lru</code></td>
+<td>仅有 TTL 的 Key</td>
+<td>近似 LRU</td>
+<td>只允许缓存数据被淘汰</td>
+</tr>
+<tr>
+<td><code>volatile-lfu</code></td>
+<td>仅有 TTL 的 Key</td>
+<td>近似 LFU</td>
+<td>有 TTL 的频率型缓存</td>
+</tr>
+<tr>
+<td><code>volatile-lrm</code></td>
+<td>仅有 TTL 的 Key</td>
+<td>近似 LRM</td>
+<td>按修改活跃度保护带 TTL 数据</td>
+</tr>
+<tr>
+<td><code>volatile-random</code></td>
+<td>仅有 TTL 的 Key</td>
+<td>随机</td>
+<td>简单 TTL 候选池</td>
+</tr>
+<tr>
+<td><code>volatile-ttl</code></td>
+<td>仅有 TTL 的 Key</td>
+<td>优先淘汰剩余 TTL 最短</td>
+<td>业务已经用 TTL 表达价值优先级</td>
+</tr>
+</tbody></table>
+<p>注意：如果使用 <code>volatile-*</code>，但没有任何 Key 带 TTL，那么效果会退化得类似 <code>noeviction</code>，写入可能直接失败。</p>
+<h2 id="3-8-Redis-的-LRU-LFU-LRM-为什么是“近似”"><a href="#3-8-Redis-的-LRU-LFU-LRM-为什么是“近似”" class="headerlink" title="3.8 Redis 的 LRU&#x2F;LFU&#x2F;LRM 为什么是“近似”"></a>3.8 Redis 的 LRU&#x2F;LFU&#x2F;LRM 为什么是“近似”</h2><p>Redis 不维护一个包含全部 Key、每次访问都精确移动节点的全局 LRU 双向链表，因为那会带来：</p>
+<ul>
+<li>每次访问都修改共享元数据；</li>
+<li>大量指针和链表内存；</li>
+<li>更高 CPU 与缓存行开销；</li>
+<li>更复杂的并发协调。</li>
+</ul>
+<p>Redis 采用采样和候选池：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[达到 maxmemory] --&gt; B[从候选 Key 中抽样]
+    B --&gt; C[计算 idle / freq / modified time]
+    C --&gt; D[更新 eviction pool]
+    D --&gt; E[选出当前最差候选]
+    E --&gt; F[删除并传播]
+    F --&gt; G&#123;内存是否降到目标内&#125;
+    G --&gt;|否| B
+    G --&gt;|是| H[继续执行命令]
+</code></pre>
+
+<p><code>maxmemory-samples</code> 越高，结果越接近精确算法，但 CPU 成本也越高。</p>
+<h3 id="LRU、LFU、LRM-的差异"><a href="#LRU、LFU、LRM-的差异" class="headerlink" title="LRU、LFU、LRM 的差异"></a>LRU、LFU、LRM 的差异</h3><ul>
+<li><strong>LRU</strong> 关心最近一次访问时间；</li>
+<li><strong>LFU</strong> 关心访问频率，并带有频率衰减概念；</li>
+<li><strong>LRM</strong> 关心最近一次修改时间，而不是读取时间。</li>
+</ul>
+<p>如果一个 Key 被频繁读取但很久没有更新：</p>
+<ul>
+<li>LRU&#x2F;LFU 可能认为它很有价值；</li>
+<li>LRM 可能认为它应该优先被淘汰。</li>
+</ul>
+<p>因此策略必须和业务价值模型一致，而不是“听说 LRU 最常用就一律 LRU”。</p>
+<h2 id="3-9-同步删除与-Lazy-Free"><a href="#3-9-同步删除与-Lazy-Free" class="headerlink" title="3.9 同步删除与 Lazy Free"></a>3.9 同步删除与 Lazy Free</h2><p>删除一个小 String 很快，但删除一个包含数百万成员的集合可能非常慢。</p>
+<ul>
+<li><code>DEL</code> 通常在命令路径中同步释放对象；</li>
+<li><code>UNLINK</code> 先从键空间摘除，再由后台线程异步释放；</li>
+<li><code>lazyfree-lazy-eviction</code>、<code>lazyfree-lazy-expire</code> 等选项可以让某些淘汰或过期释放异步化。</li>
+</ul>
+<p>异步释放降低主线程阻塞，但会形成“逻辑上已删除、物理内存稍后归还”的时间差。监控时要同时观察待释放对象与 RSS，而不能只看 Key 数量。</p>
+<h2 id="3-10-Redis-事务的真正语义"><a href="#3-10-Redis-事务的真正语义" class="headerlink" title="3.10 Redis 事务的真正语义"></a>3.10 Redis 事务的真正语义</h2><p>Redis 事务围绕：</p>
+<ul>
+<li><code>MULTI</code></li>
+<li><code>EXEC</code></li>
+<li><code>DISCARD</code></li>
+<li><code>WATCH</code></li>
+</ul>
+<p>工作。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant C as Client
+    participant R as Redis
+
+    C-&gt;&gt;R: MULTI
+    R--&gt;&gt;C: OK
+    C-&gt;&gt;R: SET account:a 90
+    R--&gt;&gt;C: QUEUED
+    C-&gt;&gt;R: SET account:b 110
+    R--&gt;&gt;C: QUEUED
+    C-&gt;&gt;R: EXEC
+    R-&gt;&gt;R: 顺序执行整个队列，中间不插入其他客户端命令
+    R--&gt;&gt;C: 返回每条命令结果数组
+</code></pre>
+
+<p>Redis 事务提供的关键保证是：</p>
+<ul>
+<li><code>EXEC</code> 后，事务中的命令按顺序执行；</li>
+<li>执行期间不会插入其他普通客户端命令；</li>
+<li><code>MULTI</code> 后的命令先排队，不立即执行；</li>
+<li><code>DISCARD</code> 丢弃队列；</li>
+<li>AOF 对事务使用完整事务记录边界。</li>
+</ul>
+<p>但它不是关系数据库事务的简单平替。</p>
+<h3 id="Redis-没有自动回滚"><a href="#Redis-没有自动回滚" class="headerlink" title="Redis 没有自动回滚"></a>Redis 没有自动回滚</h3><p>错误分为两类：</p>
+<ol>
+<li><strong>入队前错误</strong>：命令名、参数数量等错误，事务可在 <code>EXEC</code> 时被整体拒绝；</li>
+<li><strong>执行期错误</strong>：例如对 String 执行 List 操作，这一条返回错误，但其他已经排队的命令继续执行。</li>
+</ol>
+<p>Redis 不为执行期错误回滚已经成功的命令。</p>
+<h3 id="WATCH-是乐观锁"><a href="#WATCH-是乐观锁" class="headerlink" title="WATCH 是乐观锁"></a><code>WATCH</code> 是乐观锁</h3><p><code>WATCH key</code> 后，如果在 <code>EXEC</code> 前该 Key 被其他客户端修改，事务会放弃执行，并返回空结果。客户端需要重新读取、重新计算和重试。</p>
+<p><code>WATCH</code> 适合低冲突的 Compare-And-Set；高冲突场景可能发生大量重试。</p>
+<h2 id="3-11-Pipeline、Transaction、Lua-Function-的区别"><a href="#3-11-Pipeline、Transaction、Lua-Function-的区别" class="headerlink" title="3.11 Pipeline、Transaction、Lua&#x2F;Function 的区别"></a>3.11 Pipeline、Transaction、Lua&#x2F;Function 的区别</h2><table>
+<thead>
+<tr>
+<th>能力</th>
+<th>主要目的</th>
+<th align="right">是否减少 RTT</th>
+<th align="right">是否保证组合原子性</th>
+<th>失败处理</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pipeline</td>
+<td>批量发送，提升吞吐</td>
+<td align="right">是</td>
+<td align="right">否</td>
+<td>每条命令独立返回</td>
+</tr>
+<tr>
+<td>MULTI&#x2F;EXEC</td>
+<td>串行执行一组命令</td>
+<td align="right">可结合 Pipeline</td>
+<td align="right">是，执行期间不被其他命令插入</td>
+<td>无运行时自动回滚</td>
+</tr>
+<tr>
+<td>Lua &#x2F; Function</td>
+<td>服务端执行复合逻辑</td>
+<td align="right">是</td>
+<td align="right">通常作为一个执行单元</td>
+<td>脚本错误需业务处理</td>
+</tr>
+</tbody></table>
+<p>Lua 或 Function 可以避免“读取—计算—写入”之间被其他客户端插入，但脚本执行时间过长会占用主执行线程。正确做法是：逻辑短小、数据边界明确、时间复杂度可控。</p>
+<p>Cluster 模式下，事务和 Lua 涉及的 Key 通常必须位于同一 Slot。</p>
+<hr>
+<h1 id="四、Redis-内存计算：从-Key-大小到宿主机容量"><a href="#四、Redis-内存计算：从-Key-大小到宿主机容量" class="headerlink" title="四、Redis 内存计算：从 Key 大小到宿主机容量"></a>四、Redis 内存计算：从 Key 大小到宿主机容量</h1><blockquote>
+<p>本章主要依据：<a target="_blank" rel="noopener" href="https://redis.io/docs/latest/commands/memory-usage/">MEMORY USAGE</a>、<a target="_blank" rel="noopener" href="https://redis.io/docs/latest/commands/memory-stats/">MEMORY STATS</a>、<a target="_blank" rel="noopener" href="https://redis.io/docs/latest/commands/info/">INFO</a> 与 <a target="_blank" rel="noopener" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/memory-optimization/">Memory Optimization</a>。容量公式为工程预算模型，必须通过压测校准。</p>
+</blockquote>
+<h2 id="4-1-“Redis-占用内存”至少有四种口径"><a href="#4-1-“Redis-占用内存”至少有四种口径" class="headerlink" title="4.1 “Redis 占用内存”至少有四种口径"></a>4.1 “Redis 占用内存”至少有四种口径</h2><p>生产中最常见的误判是只盯着一个 <code>used_memory</code>。</p>
+<pre><code class=" mermaid">flowchart TB
+    Data[逻辑数据集&lt;br/&gt;Key + Value + TTL] --&gt; Alloc[allocator_allocated&lt;br/&gt;分配器已分配]
+    Alloc --&gt; Active[allocator_active&lt;br/&gt;活跃页，含外部碎片]
+    Active --&gt; Resident[allocator_resident&lt;br/&gt;分配器驻留页]
+    Resident --&gt; RSS[used_memory_rss&lt;br/&gt;进程实际驻留内存]
+
+    Buffer[客户端 / AOF / 复制 / Cluster 缓冲] --&gt; RSS
+    COW[fork Copy-on-Write] --&gt; RSS
+    Code[代码、栈、共享库等] --&gt; RSS
+</code></pre>
+
+<p>关键指标含义：</p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>used_memory</code></td>
+<td>Redis 通过分配器分配的内存总量</td>
+</tr>
+<tr>
+<td><code>used_memory_dataset</code></td>
+<td>数据集本身占用，尽量排除管理开销</td>
+</tr>
+<tr>
+<td><code>used_memory_overhead</code></td>
+<td>键空间、客户端、复制等管理开销</td>
+</tr>
+<tr>
+<td><code>allocator_allocated</code></td>
+<td>allocator 已经分配给 Redis 的字节</td>
+</tr>
+<tr>
+<td><code>allocator_active</code></td>
+<td>allocator 活跃页，可能包含碎片</td>
+</tr>
+<tr>
+<td><code>allocator_resident</code></td>
+<td>allocator 当前驻留物理内存</td>
+</tr>
+<tr>
+<td><code>used_memory_rss</code></td>
+<td>OS 看到的进程 RSS</td>
+</tr>
+<tr>
+<td><code>mem_not_counted_for_evict</code></td>
+<td>不纳入 Key 淘汰计算的部分缓冲内存</td>
+</tr>
+<tr>
+<td><code>mem_clients_normal</code></td>
+<td>普通客户端缓冲区</td>
+</tr>
+<tr>
+<td><code>mem_replication_backlog</code></td>
+<td>复制积压缓冲区</td>
+</tr>
+<tr>
+<td><code>mem_aof_buffer</code></td>
+<td>AOF 相关临时缓冲</td>
+</tr>
+<tr>
+<td><code>mem_cluster_links</code></td>
+<td>Cluster 节点连接内存</td>
+</tr>
+</tbody></table>
+<h2 id="4-2-一个-Key-的内存不等于字符串长度"><a href="#4-2-一个-Key-的内存不等于字符串长度" class="headerlink" title="4.2 一个 Key 的内存不等于字符串长度"></a>4.2 一个 Key 的内存不等于字符串长度</h2><p>假设：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs redis">SET user:1001 Mario<br></code></pre></td></tr></table></figure>
+
+<p>业务字符串总长度很小，但实际内存还包括：</p>
+<ul>
+<li>Key 对象；</li>
+<li>Value 对象；</li>
+<li>SDS Header；</li>
+<li>字典 Entry 或 Key-Value 对象；</li>
+<li>Hash Table Bucket；</li>
+<li>指针与对齐；</li>
+<li>allocator size class 浪费；</li>
+<li>TTL 元数据；</li>
+<li>可能的引用和访问元数据；</li>
+<li>Rehash 期间的临时双表开销。</li>
+</ul>
+<p>所以不能用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Key 长度 + Value 长度<br></code></pre></td></tr></table></figure>
+
+<p>直接估算 Redis 容量。</p>
+<p>推荐使用：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs redis">MEMORY USAGE user:1001<br>MEMORY USAGE myhash SAMPLES 0<br>MEMORY STATS<br>INFO memory<br>MEMORY DOCTOR<br></code></pre></td></tr></table></figure>
+
+<p><code>MEMORY USAGE</code> 对嵌套类型默认抽样，<code>SAMPLES 0</code> 表示扫描全部成员进行估算，但对超大集合可能非常昂贵，不应在高峰期随意执行。</p>
+<h2 id="4-3-数据结构编码会让内存发生阶跃变化"><a href="#4-3-数据结构编码会让内存发生阶跃变化" class="headerlink" title="4.3 数据结构编码会让内存发生阶跃变化"></a>4.3 数据结构编码会让内存发生阶跃变化</h2><p>Redis 会根据元素数量和元素长度，为小聚合对象选择紧凑编码。当超过阈值后，再转换为普通结构。</p>
+<p>Redis 8.8.1 默认配置中常见阈值包括：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs conf">hash-max-listpack-entries 512<br>hash-max-listpack-value 64<br><br>set-max-intset-entries 512<br>set-max-listpack-entries 128<br>set-max-listpack-value 64<br><br>zset-max-listpack-entries 128<br>zset-max-listpack-value 64<br><br>list-max-listpack-size -2<br>list-compress-depth 0<br></code></pre></td></tr></table></figure>
+
+<p>这意味着同样的业务对象：</p>
+<ul>
+<li>在阈值以内可能使用 Listpack&#x2F;Intset，内存很紧凑；</li>
+<li>超过阈值后转为 Hash Table、Skip List、Quicklist 等结构；</li>
+<li>单个元素变长，也可能触发转换；</li>
+<li>转换后内存可能不是线性小幅增长，而是出现阶跃。</li>
+</ul>
+<p>因此容量压测必须覆盖：</p>
+<ul>
+<li>正常对象大小；</li>
+<li>P95&#x2F;P99 大对象；</li>
+<li>刚好跨编码阈值的对象；</li>
+<li>Rehash；</li>
+<li>TTL；</li>
+<li>写高峰；</li>
+<li>RDB&#x2F;AOF Rewrite。</li>
+</ul>
+<h2 id="4-4-一个可执行的容量估算方法"><a href="#4-4-一个可执行的容量估算方法" class="headerlink" title="4.4 一个可执行的容量估算方法"></a>4.4 一个可执行的容量估算方法</h2><h3 id="第一步：采样真实数据"><a href="#第一步：采样真实数据" class="headerlink" title="第一步：采样真实数据"></a>第一步：采样真实数据</h3><p>不要拿随便生成的 <code>key1=value1</code> 代替真实业务数据。至少按业务类型分层采样：</p>
+<ul>
+<li>普通缓存；</li>
+<li>Session；</li>
+<li>Hash 聚合对象；</li>
+<li>ZSet 排行榜；</li>
+<li>Stream；</li>
+<li>向量、JSON、TimeSeries；</li>
+<li>大 Key 与异常长尾。</li>
+</ul>
+<h3 id="第二步：计算每类对象的实际平均内存"><a href="#第二步：计算每类对象的实际平均内存" class="headerlink" title="第二步：计算每类对象的实际平均内存"></a>第二步：计算每类对象的实际平均内存</h3><p>设第 <code>i</code> 类数据：</p>
+<ul>
+<li>数量为 <code>N_i</code>；</li>
+<li>平均 <code>MEMORY USAGE</code> 为 <code>M_i</code>；</li>
+<li>峰值增长系数为 <code>G_i</code>。</li>
+</ul>
+<p>则数据集初步估算：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Dataset ≈ Σ(N_i × M_i × G_i)<br></code></pre></td></tr></table></figure>
+
+<p>这是数据集估算，不是最终 <code>maxmemory</code>，更不是宿主机 RSS。</p>
+<h3 id="第三步：加上固定与动态开销"><a href="#第三步：加上固定与动态开销" class="headerlink" title="第三步：加上固定与动态开销"></a>第三步：加上固定与动态开销</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">Redis_Peak_RSS ≈<br>    Dataset<br>  + Keyspace_Overhead<br>  + Client_Buffers<br>  + Replication_Backlog_And_Output_Buffers<br>  + AOF_Buffers<br>  + Cluster_Buffers<br>  + Allocator_Fragmentation<br>  + Fork_COW_Peak<br>  + Process_And_OS_Overhead<br></code></pre></td></tr></table></figure>
+
+<h3 id="第四步：反推-maxmemory"><a href="#第四步：反推-maxmemory" class="headerlink" title="第四步：反推 maxmemory"></a>第四步：反推 <code>maxmemory</code></h3><p>工程上可采用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">maxmemory ≈<br>    Physical_RAM<br>  - OS_Reserve<br>  - Non_Evictable_Buffers<br>  - Expected_COW_Peak<br>  - Fragmentation_Headroom<br>  - Safety_Margin<br></code></pre></td></tr></table></figure>
+
+<p>这不是官方固定比例，而是一种预算思维。</p>
+<h2 id="4-5-容量示例"><a href="#4-5-容量示例" class="headerlink" title="4.5 容量示例"></a>4.5 容量示例</h2><p>假设在预生产导入真实数据后，某类缓存对象的平均 <code>MEMORY USAGE</code> 为 420 Byte，峰值预计 8000 万个：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">420 × 80,000,000 ÷ 1024³ ≈ 31.29 GiB<br></code></pre></td></tr></table></figure>
+
+<p>这只是对象样本的内存，还没有考虑：</p>
+<ul>
+<li>数据库字典增长和 Rehash；</li>
+<li>TTL 字典；</li>
+<li>复制与 AOF 缓冲；</li>
+<li>客户端输出缓冲；</li>
+<li>allocator 碎片；</li>
+<li>fork COW；</li>
+<li>流量增长。</li>
+</ul>
+<p>假设宿主机为 64 GiB，团队基于压测得到如下预算：</p>
+<table>
+<thead>
+<tr>
+<th>预算项</th>
+<th align="right">示例值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>OS、监控与进程基础预留</td>
+<td align="right">6 GiB</td>
+</tr>
+<tr>
+<td>高写入期间预期 COW 峰值</td>
+<td align="right">10 GiB</td>
+</tr>
+<tr>
+<td>复制、AOF、客户端等缓冲</td>
+<td align="right">4 GiB</td>
+</tr>
+<tr>
+<td>碎片与安全余量</td>
+<td align="right">4 GiB</td>
+</tr>
+<tr>
+<td>可配置给 <code>maxmemory</code></td>
+<td align="right">约 40 GiB</td>
+</tr>
+</tbody></table>
+<p>这里的 40 GiB 只是示例。写入速率越高、对象越大、持久化越频繁、Replica 越慢、客户端返回越大，需要预留的空间通常越多。</p>
+<h2 id="4-6-Copy-on-Write-为什么会形成峰值"><a href="#4-6-Copy-on-Write-为什么会形成峰值" class="headerlink" title="4.6 Copy-on-Write 为什么会形成峰值"></a>4.6 Copy-on-Write 为什么会形成峰值</h2><p>执行 <code>BGSAVE</code> 或 <code>BGREWRITEAOF</code> 时，Redis 使用 <code>fork()</code> 创建子进程。父子进程起初共享物理页；父进程继续写入时，被修改的内存页会复制。</p>
+<pre><code class=" mermaid">flowchart LR
+    Before[现有内存页] --&gt; Fork[fork]
+    Fork --&gt; Parent[父进程继续服务]
+    Fork --&gt; Child[子进程生成 RDB / AOF Base]
+    Parent --&gt; Write&#123;父进程修改某页&#125;
+    Write --&gt;|未修改| Shared[父子共享物理页]
+    Write --&gt;|发生修改| Copy[复制该内存页]
+    Copy --&gt; Peak[RSS 上升]
+</code></pre>
+
+<p>COW 额外内存取决于：</p>
+<ul>
+<li>子进程持续时间；</li>
+<li>写入速率；</li>
+<li>修改页面分布；</li>
+<li>页面大小与 Transparent Huge Pages；</li>
+<li>数据结构更新方式；</li>
+<li>内存是否高度碎片化。</li>
+</ul>
+<p>不能简单认为 fork 一定复制整个数据集，也不能假设 fork 几乎不占额外内存。正确答案只能来自写入压测和 <code>INFO persistence</code>、<code>INFO memory</code> 中的实际观测。</p>
+<h2 id="4-7-内存碎片怎么看"><a href="#4-7-内存碎片怎么看" class="headerlink" title="4.7 内存碎片怎么看"></a>4.7 内存碎片怎么看</h2><p>常见关系：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">allocator_frag_ratio ≈ allocator_active / allocator_allocated<br>allocator_rss_ratio  ≈ allocator_resident / allocator_active<br>rss_overhead_ratio   ≈ used_memory_rss / allocator_resident<br></code></pre></td></tr></table></figure>
+
+<p>解释时必须结合绝对值：</p>
+<ul>
+<li>小实例因为基数很小，比例可能看起来很高；</li>
+<li>比例接近 1 不代表一定健康，还要看 RSS 是否持续增长；</li>
+<li>碎片高可能来自频繁创建删除、大小分布复杂、allocator 无法及时归还页面；</li>
+<li>RSS 高也可能来自 COW、客户端缓冲或 OS 行为，而不只是 allocator 碎片。</li>
+</ul>
+<p><code>MEMORY PURGE</code> 可以请求 allocator 尝试归还空闲页，但不保证所有内存立即回到 OS，也不应把它当作容量设计的补丁。</p>
+<h2 id="4-8-大-Key-与大量小-Key，谁更危险"><a href="#4-8-大-Key-与大量小-Key，谁更危险" class="headerlink" title="4.8 大 Key 与大量小 Key，谁更危险"></a>4.8 大 Key 与大量小 Key，谁更危险</h2><h3 id="大-Key-的问题"><a href="#大-Key-的问题" class="headerlink" title="大 Key 的问题"></a>大 Key 的问题</h3><ul>
+<li>单次命令处理时间长；</li>
+<li>网络响应大；</li>
+<li>删除释放慢；</li>
+<li>复制流突增；</li>
+<li>AOF 体积与重写压力大；</li>
+<li>Cluster 迁移慢；</li>
+<li>形成热点 Slot。</li>
+</ul>
+<h3 id="大量小-Key-的问题"><a href="#大量小-Key-的问题" class="headerlink" title="大量小 Key 的问题"></a>大量小 Key 的问题</h3><ul>
+<li>每个 Key 的固定对象和字典开销被放大；</li>
+<li>TTL 元数据增加；</li>
+<li>过期扫描成本增加；</li>
+<li>Rehash 和 Bucket 占用显著；</li>
+<li>RDB&#x2F;AOF 中 Key 元数据比例升高。</li>
+</ul>
+<p>所以 Redis 的内存优化不是简单地“不要大 Key”，而是：</p>
+<blockquote>
+<p>在业务可接受的原子边界、访问模式和维护成本之间，选择合适的聚合粒度。</p>
+</blockquote>
+<hr>
+<h1 id="五、AOF-与-RDB-原理"><a href="#五、AOF-与-RDB-原理" class="headerlink" title="五、AOF 与 RDB 原理"></a>五、AOF 与 RDB 原理</h1><blockquote>
+<p>本章主要依据：<a target="_blank" rel="noopener" href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/">Redis Persistence</a> 与 Redis 8.8.1 示例配置文件。</p>
+</blockquote>
+<h2 id="5-1-RDB：某一时刻的数据快照"><a href="#5-1-RDB：某一时刻的数据快照" class="headerlink" title="5.1 RDB：某一时刻的数据快照"></a>5.1 RDB：某一时刻的数据快照</h2><p>RDB 保存的是数据集在某个时刻的紧凑二进制表示。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant P as Parent Redis
+    participant C as Child Process
+    participant F as Disk
+
+    P-&gt;&gt;P: 触发 BGSAVE
+    P-&gt;&gt;C: fork
+    par 父进程继续处理请求
+        P-&gt;&gt;P: 读写内存数据
+    and 子进程生成快照
+        C-&gt;&gt;F: 写临时 RDB 文件
+        C-&gt;&gt;F: fsync / 完成写入
+        C-&gt;&gt;F: 原子替换旧 RDB
+    end
+    C--&gt;&gt;P: 返回完成状态
+</code></pre>
+
+<h3 id="优点"><a href="#优点" class="headerlink" title="优点"></a>优点</h3><ul>
+<li>文件紧凑；</li>
+<li>适合离线备份和跨机房归档；</li>
+<li>大数据集重启通常比纯 AOF 更快；</li>
+<li>父进程不负责逐条写入完整快照；</li>
+<li>完成后通过临时文件原子替换，已有 RDB 不会被边写边破坏。</li>
+</ul>
+<h3 id="缺点"><a href="#缺点" class="headerlink" title="缺点"></a>缺点</h3><ul>
+<li>RPO 取决于快照间隔；</li>
+<li>进程崩溃可能丢失最近一次快照之后的全部写入；</li>
+<li><code>fork()</code> 可能产生主线程停顿；</li>
+<li>子进程期间持续写入会产生 COW 内存峰值；</li>
+<li>大数据集会造成磁盘和页缓存压力。</li>
+</ul>
+<h3 id="SAVE-与-BGSAVE"><a href="#SAVE-与-BGSAVE" class="headerlink" title="SAVE 与 BGSAVE"></a><code>SAVE</code> 与 <code>BGSAVE</code></h3><ul>
+<li><code>SAVE</code> 在主进程同步生成快照，会直接阻塞服务，生产通常不应随意使用；</li>
+<li><code>BGSAVE</code> fork 子进程生成快照，父进程继续服务，但 fork 本身和 COW 仍可能引起延迟与内存压力。</li>
+</ul>
+<h2 id="5-2-AOF：记录数据变更历史"><a href="#5-2-AOF：记录数据变更历史" class="headerlink" title="5.2 AOF：记录数据变更历史"></a>5.2 AOF：记录数据变更历史</h2><p>AOF 记录会改变数据集的命令，启动时通过重放命令恢复状态。</p>
+<pre><code class=" mermaid">flowchart LR
+    A[写命令执行] --&gt; B[AOF Buffer]
+    B --&gt; C[write 写入页缓存]
+    C --&gt; D&#123;appendfsync&#125;
+    D --&gt;|always| E[每批写入后 fsync]
+    D --&gt;|everysec| F[后台线程约每秒 fsync]
+    D --&gt;|no| G[由操作系统决定刷盘]
+</code></pre>
+
+<h3 id="三种-fsync-策略"><a href="#三种-fsync-策略" class="headerlink" title="三种 fsync 策略"></a>三种 fsync 策略</h3><table>
+<thead>
+<tr>
+<th>策略</th>
+<th>持久化语义</th>
+<th>性能和风险</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>always</code></td>
+<td>每批追加后 fsync</td>
+<td>最强但延迟和吞吐成本最高</td>
+</tr>
+<tr>
+<td><code>everysec</code></td>
+<td>通常每秒 fsync</td>
+<td>默认折中，极端故障可能丢约 1 秒数据</td>
+</tr>
+<tr>
+<td><code>no</code></td>
+<td>仅 write，刷盘交给 OS</td>
+<td>性能较好，但数据丢失窗口由 OS 决定，可能更大</td>
+</tr>
+</tbody></table>
+<p>客户端收到成功响应并不总是表示数据已经进入非易失介质。使用 <code>everysec</code> 时，响应可能先返回，而 fsync 稍后发生。</p>
+<h2 id="5-3-Redis-7-Redis-8-的-Multi-Part-AOF"><a href="#5-3-Redis-7-Redis-8-的-Multi-Part-AOF" class="headerlink" title="5.3 Redis 7+ &#x2F; Redis 8 的 Multi-Part AOF"></a>5.3 Redis 7+ &#x2F; Redis 8 的 Multi-Part AOF</h2><p>Redis 7.0 之后不再只依赖一个不断增长的单体 AOF，而是使用：</p>
+<ul>
+<li>最多一个 Base AOF；</li>
+<li>一个或多个 Incremental AOF；</li>
+<li>Manifest 清单文件。</li>
+</ul>
+<pre><code class=" mermaid">flowchart TD
+    M[Manifest] --&gt; B[Base AOF&lt;br/&gt;RDB 或 AOF 格式]
+    M --&gt; I1[Incremental AOF 1]
+    M --&gt; I2[Incremental AOF 2]
+    M --&gt; I3[Incremental AOF ...]
+</code></pre>
+
+<p>默认 <code>aof-use-rdb-preamble yes</code> 时，Base 部分可以使用 RDB 格式，提高生成和加载效率，后续增量仍以 AOF 记录。</p>
+<h2 id="5-4-AOF-Rewrite-不是“压缩文本文件”"><a href="#5-4-AOF-Rewrite-不是“压缩文本文件”" class="headerlink" title="5.4 AOF Rewrite 不是“压缩文本文件”"></a>5.4 AOF Rewrite 不是“压缩文本文件”</h2><p>AOF Rewrite 的目标是根据当前内存状态，生成恢复当前数据所需的最短或更紧凑命令集合。</p>
+<p>例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs redis">INCR counter<br>INCR counter<br>INCR counter<br>...执行 100 次<br></code></pre></td></tr></table></figure>
+
+<p>旧 AOF 可能有 100 条命令，但重写后只需要表达当前 <code>counter=100</code> 的状态。</p>
+<p>Redis 7+ 重写过程：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant P as Parent
+    participant C as Rewrite Child
+    participant D as Disk
+
+    P-&gt;&gt;C: fork
+    P-&gt;&gt;D: 打开新的 Incremental AOF，继续接收写入
+    C-&gt;&gt;D: 根据 fork 时数据生成新的 Base AOF
+    C--&gt;&gt;P: Base 完成
+    P-&gt;&gt;D: 生成临时 Manifest
+    P-&gt;&gt;D: 原子替换 Manifest
+    P-&gt;&gt;D: 清理旧 Base 与无用 Incremental 文件
+</code></pre>
+
+<p>相较 Redis 7 之前的单 AOF 重写，Multi-Part AOF 避免了重写期间大量写命令在内存中集中积累后一次性追加的问题，但 fork、COW、磁盘 I&#x2F;O 和增量文件仍需要容量规划。</p>
+<h2 id="5-5-RDB-与-AOF-如何选择"><a href="#5-5-RDB-与-AOF-如何选择" class="headerlink" title="5.5 RDB 与 AOF 如何选择"></a>5.5 RDB 与 AOF 如何选择</h2><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>RDB</th>
+<th>AOF</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>数据模型</td>
+<td>时间点快照</td>
+<td>写命令日志 + Base</td>
+</tr>
+<tr>
+<td>典型 RPO</td>
+<td>分钟级，取决于快照周期</td>
+<td><code>everysec</code> 下约秒级风险窗口</td>
+</tr>
+<tr>
+<td>恢复速度</td>
+<td>大数据集通常更快</td>
+<td>通常需要加载 Base 并重放增量</td>
+</tr>
+<tr>
+<td>文件体积</td>
+<td>通常更小</td>
+<td>通常更大</td>
+</tr>
+<tr>
+<td>持续磁盘写入</td>
+<td>较少</td>
+<td>持续追加</td>
+</tr>
+<tr>
+<td>fork</td>
+<td>BGSAVE 需要</td>
+<td>Rewrite 需要</td>
+</tr>
+<tr>
+<td>适合备份</td>
+<td>很适合</td>
+<td>也可用，但管理更复杂</td>
+</tr>
+</tbody></table>
+<p>常见策略：</p>
+<h3 id="纯缓存"><a href="#纯缓存" class="headerlink" title="纯缓存"></a>纯缓存</h3><ul>
+<li>可关闭持久化；</li>
+<li>必须接受重启后缓存清空；</li>
+<li>上游数据库需要能承受缓存重建流量；</li>
+<li>需要防止重启后缓存雪崩。</li>
+</ul>
+<h3 id="可接受分钟级丢失"><a href="#可接受分钟级丢失" class="headerlink" title="可接受分钟级丢失"></a>可接受分钟级丢失</h3><ul>
+<li>RDB；</li>
+<li>配合远端备份；</li>
+<li>明确快照周期与恢复流程。</li>
+</ul>
+<h3 id="需要更小-RPO"><a href="#需要更小-RPO" class="headerlink" title="需要更小 RPO"></a>需要更小 RPO</h3><ul>
+<li>AOF <code>everysec</code> + RDB；</li>
+<li>使用 RDB 做备份和快速恢复基础；</li>
+<li>使用 AOF 保留更细粒度变更。</li>
+</ul>
+<h3 id="极强数据安全需求"><a href="#极强数据安全需求" class="headerlink" title="极强数据安全需求"></a>极强数据安全需求</h3><p>Redis 不是因为开启 <code>appendfsync always</code> 就自动等价于关系数据库。还要考虑：</p>
+<ul>
+<li>主机和磁盘故障；</li>
+<li>文件系统语义；</li>
+<li>复制和故障转移；</li>
+<li>操作误删；</li>
+<li>异地备份；</li>
+<li>恢复演练；</li>
+<li>业务幂等和审计。</li>
+</ul>
+<h2 id="5-6-no-appendfsync-on-rewrite-的真实取舍"><a href="#5-6-no-appendfsync-on-rewrite-的真实取舍" class="headerlink" title="5.6 no-appendfsync-on-rewrite 的真实取舍"></a>5.6 <code>no-appendfsync-on-rewrite</code> 的真实取舍</h2><p>AOF Rewrite 或 BGSAVE 期间磁盘压力增大，fsync 可能导致延迟抖动。配置：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs conf">no-appendfsync-on-rewrite yes<br></code></pre></td></tr></table></figure>
+
+<p>可以在后台保存期间避免主进程 fsync，从而降低部分延迟风险，但此时持久化安全性会退化，最坏丢失窗口可能明显增加。</p>
+<p>官方默认是 <code>no</code>，即优先保持更安全的持久化语义。不要为了压低一张 P99 图，悄悄扩大 RPO 而不通知业务——那不是优化，是把问题藏进事故报告。</p>
+<h2 id="5-7-持久化的生产检查项"><a href="#5-7-持久化的生产检查项" class="headerlink" title="5.7 持久化的生产检查项"></a>5.7 持久化的生产检查项</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs redis">INFO persistence<br>INFO memory<br>LATENCY LATEST<br>LATENCY DOCTOR<br></code></pre></td></tr></table></figure>
+
+<p>重点关注：</p>
+<ul>
+<li><code>rdb_bgsave_in_progress</code>；</li>
+<li><code>rdb_last_bgsave_status</code>；</li>
+<li><code>rdb_last_cow_size</code>；</li>
+<li><code>latest_fork_usec</code>；</li>
+<li><code>aof_enabled</code>；</li>
+<li><code>aof_rewrite_in_progress</code>；</li>
+<li><code>aof_last_bgrewrite_status</code>；</li>
+<li><code>aof_delayed_fsync</code>；</li>
+<li>磁盘剩余空间；</li>
+<li>RDB&#x2F;AOF 文件是否能在隔离环境成功恢复。</li>
+</ul>
+<p>“文件生成成功”不是备份成功；“备份存在”也不是恢复成功。只有定期恢复演练通过，才说明备份链路可用。</p>
+<hr>
+<h1 id="六、Redis-主从复制原理"><a href="#六、Redis-主从复制原理" class="headerlink" title="六、Redis 主从复制原理"></a>六、Redis 主从复制原理</h1><blockquote>
+<p>本章主要依据：<a target="_blank" rel="noopener" href="https://redis.io/docs/latest/operate/oss_and_stack/management/replication/">Redis Replication</a>、<a target="_blank" rel="noopener" href="https://redis.io/docs/latest/operate/oss_and_stack/stack-with-enterprise/release-notes/redisce/redisos-8.0-release-notes/">Redis 8.0 Release Notes</a> 与 <a target="_blank" rel="noopener" href="https://github.com/redis/redis/blob/8.8.1/src/replication.c">replication.c</a>。</p>
+</blockquote>
+<h2 id="6-1-主从复制的三条主线"><a href="#6-1-主从复制的三条主线" class="headerlink" title="6.1 主从复制的三条主线"></a>6.1 主从复制的三条主线</h2><p>Redis 基础复制是 Primary—Replica 模型。它本身提供数据副本，不自动等于完整高可用；自动故障转移由 Sentinel 或 Cluster 等上层机制完成。</p>
+<p>官方文档把复制概括为三种状态：</p>
+<ol>
+<li>连接正常时，Primary 持续发送命令流；</li>
+<li>短暂断线后，尝试部分重同步；</li>
+<li>无法部分重同步时，执行全量重同步。</li>
+</ol>
+<pre><code class=" mermaid">flowchart TD
+    A[Replica 连接 Primary] --&gt; B&#123;是否拥有可续接的 replid + offset&#125;
+    B --&gt;|是| C&#123;Backlog 是否仍包含缺失数据&#125;
+    C --&gt;|是| PSYNC[Partial Resync&lt;br/&gt;发送缺失命令流]
+    C --&gt;|否| FULL[Full Resync]
+    B --&gt;|否| FULL
+    FULL --&gt; RDB[生成或流式传输 RDB]
+    RDB --&gt; LOAD[Replica 加载完整数据]
+    LOAD --&gt; STREAM[继续应用复制命令流]
+    PSYNC --&gt; ONLINE[在线复制]
+    STREAM --&gt; ONLINE
+</code></pre>
+
+<h2 id="6-2-正常在线复制"><a href="#6-2-正常在线复制" class="headerlink" title="6.2 正常在线复制"></a>6.2 正常在线复制</h2><p>客户端写入 Primary 后：</p>
+<ol>
+<li>Primary 在本地执行命令；</li>
+<li>将改变数据集的操作写入复制流；</li>
+<li>Replica 接收并按顺序重放；</li>
+<li>Replica 周期性上报已处理的复制 Offset。</li>
+</ol>
+<p>传播内容不仅包括客户端显式写命令，也包括过期、淘汰等导致的数据变化。</p>
+<p>默认复制是异步的：</p>
+<ul>
+<li>Primary 不需要每次都等 Replica 执行完成再返回客户端；</li>
+<li>延迟较低；</li>
+<li>但故障窗口内可能丢失已经被 Primary 确认、尚未复制完成的写入。</li>
+</ul>
+<h2 id="6-3-replid-offset：复制历史坐标"><a href="#6-3-replid-offset：复制历史坐标" class="headerlink" title="6.3 replid + offset：复制历史坐标"></a>6.3 <code>replid + offset</code>：复制历史坐标</h2><p>可以把复制流理解为一条不断增长的字节流：</p>
+<ul>
+<li><code>replid</code> 标识一段复制历史；</li>
+<li><code>offset</code> 表示实例处理到这段历史的哪个位置；</li>
+<li>Replication Backlog 保存最近一段命令流。</li>
+</ul>
+<p>Replica 重连时携带自己的 <code>replid + offset</code>。如果 Primary 能识别这段历史，并且缺失部分仍在 Backlog 中，就只发送差异部分。</p>
+<p>Backlog 太小的后果是：</p>
+<ul>
+<li>网络抖动稍长就无法部分同步；</li>
+<li>被迫执行 Full Sync；</li>
+<li>fork、网络、Replica 加载和 COW 压力明显增加。</li>
+</ul>
+<p>因此 <code>repl-backlog-size</code> 应根据：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">写入复制带宽 × 希望容忍的断线时间 × 安全系数<br></code></pre></td></tr></table></figure>
+
+<p>估算，而不是永远使用默认值。</p>
+<h2 id="6-4-Full-Sync"><a href="#6-4-Full-Sync" class="headerlink" title="6.4 Full Sync"></a>6.4 Full Sync</h2><p>传统 Full Sync 过程：</p>
+<ol>
+<li>Primary 创建完整 RDB；</li>
+<li>向 Replica 传输 RDB；</li>
+<li>同步期间的新写入进入复制缓冲；</li>
+<li>Replica 加载 RDB；</li>
+<li>再追赶增量命令流。</li>
+</ol>
+<p>压力点包括：</p>
+<ul>
+<li>Primary fork；</li>
+<li>COW；</li>
+<li>RDB 生成和网络传输；</li>
+<li>同步期间写入缓冲；</li>
+<li>Replica 清空旧数据；</li>
+<li>Replica 加载 RDB 时的主线程阻塞；</li>
+<li>多个 Replica 同时全量同步造成的放大。</li>
+</ul>
+<h2 id="6-5-Redis-8-的全量复制改进"><a href="#6-5-Redis-8-的全量复制改进" class="headerlink" title="6.5 Redis 8 的全量复制改进"></a>6.5 Redis 8 的全量复制改进</h2><p>Redis 8 对 Full Sync 做了重要优化：RDB 基础数据传输与同步期间产生的命令流可以通过并行通道推进，从而降低过去“等 RDB 完成后再集中追增量”带来的缓冲峰值和同步时间压力。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant P as Primary
+    participant R as Replica
+
+    P-&gt;&gt;R: 建立 RDB 数据通道
+    P-&gt;&gt;R: 开始传输快照
+    par 基础快照
+        P--&gt;&gt;R: RDB 数据流
+    and 持续写入
+        P--&gt;&gt;R: Replication Command Stream
+    end
+    R-&gt;&gt;R: 加载快照并衔接增量流
+    R--&gt;&gt;P: ACK Offset
+</code></pre>
+
+<p>这并不意味着 Full Sync 没有成本。RDB、fork、网络、加载、COW 和缓冲仍然存在，只是峰值和等待关系得到改善。</p>
+<h2 id="6-6-WAIT-能把-Redis-变成强一致吗"><a href="#6-6-WAIT-能把-Redis-变成强一致吗" class="headerlink" title="6.6 WAIT 能把 Redis 变成强一致吗"></a>6.6 <code>WAIT</code> 能把 Redis 变成强一致吗</h2><p>不能。</p>
+<p><code>WAIT numreplicas timeout</code> 可以要求当前连接之前的写入被指定数量的 Replica 确认，从而显著降低故障时丢写概率。</p>
+<p>但它不等于：</p>
+<ul>
+<li>共识协议提交；</li>
+<li>线性一致读写；</li>
+<li>故障转移绝不丢数据；</li>
+<li>Replica 已经完成磁盘持久化；</li>
+<li>事务跨节点原子提交。</li>
+</ul>
+<p>官方文档明确说明，<code>WAIT</code> 不会把一组 Redis 实例变成强一致 CP 系统。故障转移后是否丢写还与持久化、拓扑和具体故障顺序有关。</p>
+<h2 id="6-7-min-replicas-to-write-的作用"><a href="#6-7-min-replicas-to-write-的作用" class="headerlink" title="6.7 min-replicas-to-write 的作用"></a>6.7 <code>min-replicas-to-write</code> 的作用</h2><p>可配置：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs conf">min-replicas-to-write 1<br>min-replicas-max-lag 10<br></code></pre></td></tr></table></figure>
+
+<p>含义是：如果 Primary 发现满足延迟要求的 Replica 数量不足，就拒绝写入。</p>
+<p>它可以减少 Primary 在长期失去副本保护时继续接受大量写入，但仍不是共识协议。它基于 Replica ACK 和延迟观测，存在时间窗口，也不能解决所有网络分区和故障转移场景。</p>
+<h2 id="6-8-Replica-读扩展的代价"><a href="#6-8-Replica-读扩展的代价" class="headerlink" title="6.8 Replica 读扩展的代价"></a>6.8 Replica 读扩展的代价</h2><p>Replica 可以承担读请求，但要接受：</p>
+<ul>
+<li>复制延迟；</li>
+<li>读到旧值；</li>
+<li>主从切换时拓扑变化；</li>
+<li>Full Sync 期间的可用性与加载阻塞；</li>
+<li>读后写、写后读一致性问题；</li>
+<li>过期和删除传播的时间差。</li>
+</ul>
+<p>适合下沉到 Replica 的场景通常是：</p>
+<ul>
+<li>允许最终一致的报表；</li>
+<li>可容忍短暂旧值的查询；</li>
+<li>重型只读分析；</li>
+<li>运维扫描。</li>
+</ul>
+<p>支付、库存、锁状态等强依赖最新写入结果的请求，不应在没有一致性设计的情况下随意读 Replica。</p>
+<h2 id="6-9-一个危险配置：Primary-无持久化且自动重启"><a href="#6-9-一个危险配置：Primary-无持久化且自动重启" class="headerlink" title="6.9 一个危险配置：Primary 无持久化且自动重启"></a>6.9 一个危险配置：Primary 无持久化且自动重启</h2><p>假设：</p>
+<ul>
+<li>Primary 不做持久化；</li>
+<li>Replica 有完整数据；</li>
+<li>Primary 崩溃后被进程管理器自动重启；</li>
+<li>Primary 以空数据集启动；</li>
+<li>Replica 重新向这个空 Primary 同步。</li>
+</ul>
+<p>结果可能是 Replica 也被清空。</p>
+<p>因此，若 Primary 关闭持久化，必须非常谨慎地设计重启、故障转移和角色恢复流程。复制不是备份，Replica 也不是防误操作保险箱。</p>
+<h2 id="6-10-复制、Sentinel-与-Cluster-的边界"><a href="#6-10-复制、Sentinel-与-Cluster-的边界" class="headerlink" title="6.10 复制、Sentinel 与 Cluster 的边界"></a>6.10 复制、Sentinel 与 Cluster 的边界</h2><table>
+<thead>
+<tr>
+<th>能力</th>
+<th align="right">Replication</th>
+<th align="right">Sentinel</th>
+<th align="right">Cluster</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>数据副本</td>
+<td align="right">是</td>
+<td align="right">依赖 Replication</td>
+<td align="right">是</td>
+</tr>
+<tr>
+<td>自动故障检测</td>
+<td align="right">否</td>
+<td align="right">是</td>
+<td align="right">是</td>
+</tr>
+<tr>
+<td>自动主从切换</td>
+<td align="right">否</td>
+<td align="right">是</td>
+<td align="right">是</td>
+</tr>
+<tr>
+<td>数据分片</td>
+<td align="right">否</td>
+<td align="right">否</td>
+<td align="right">是</td>
+</tr>
+<tr>
+<td>客户端路由变化</td>
+<td align="right">需自行处理</td>
+<td align="right">通过 Sentinel 获取主节点</td>
+<td align="right">Cluster-aware Client</td>
+</tr>
+</tbody></table>
+<hr>
+<h1 id="七、Redis-Cluster-原理"><a href="#七、Redis-Cluster-原理" class="headerlink" title="七、Redis Cluster 原理"></a>七、Redis Cluster 原理</h1><blockquote>
+<p>本章主要依据：<a target="_blank" rel="noopener" href="https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/">Redis Cluster Specification</a> 与 <a target="_blank" rel="noopener" href="https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/">Scale with Redis Cluster</a>。</p>
+</blockquote>
+<h2 id="7-1-为什么是-16384-个-Slot"><a href="#7-1-为什么是-16384-个-Slot" class="headerlink" title="7.1 为什么是 16384 个 Slot"></a>7.1 为什么是 16384 个 Slot</h2><p>Redis Cluster 不直接把每个 Key 固定映射到某个节点，而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">slot = CRC16(key) mod 16384<br></code></pre></td></tr></table></figure>
+
+<p>再把 16384 个 Slot 分配给不同 Primary。</p>
+<pre><code class=" mermaid">flowchart LR
+    K[Key] --&gt; H[CRC16]
+    H --&gt; S[Hash Slot 0..16383]
+    S --&gt; M&#123;Slot Map&#125;
+    M --&gt; N1[Primary A]
+    M --&gt; N2[Primary B]
+    M --&gt; N3[Primary C]
+</code></pre>
+
+<p>引入 Slot 的好处：</p>
+<ul>
+<li>迁移时移动 Slot，而不是重新计算所有 Key 的节点；</li>
+<li>客户端可缓存 <code>Slot -&gt; Node</code> 映射；</li>
+<li>节点负责一段 Slot 范围；</li>
+<li>故障转移时由 Replica 接管同一批 Slot。</li>
+</ul>
+<h2 id="7-2-Cluster-只有-DB-0"><a href="#7-2-Cluster-只有-DB-0" class="headerlink" title="7.2 Cluster 只有 DB 0"></a>7.2 Cluster 只有 DB 0</h2><p>Redis Cluster 不支持 Standalone 中的多逻辑数据库切换，<code>SELECT</code> 不可用，只使用 DB 0。</p>
+<p>生产上本来也不建议依赖 <code>SELECT 0/1/2</code> 作为租户或环境隔离。更清晰的方式是：</p>
+<ul>
+<li>不同实例或 Cluster；</li>
+<li>明确 Key Namespace；</li>
+<li>ACL；</li>
+<li>资源与容量隔离。</li>
+</ul>
+<h2 id="7-3-Hash-Tag：控制多个-Key-落到同一-Slot"><a href="#7-3-Hash-Tag：控制多个-Key-落到同一-Slot" class="headerlink" title="7.3 Hash Tag：控制多个 Key 落到同一 Slot"></a>7.3 Hash Tag：控制多个 Key 落到同一 Slot</h2><p>Key 中第一个有效 <code>{...}</code> 子串用于计算 Slot：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">order:&#123;1001&#125;:header<br>order:&#123;1001&#125;:items<br>order:&#123;1001&#125;:payment<br></code></pre></td></tr></table></figure>
+
+<p>这三个 Key 使用 <code>1001</code> 计算 Slot，因此可以执行同 Slot 多 Key 命令或事务。</p>
+<p>Hash Tag 的风险是：</p>
+<ul>
+<li>标签粒度过粗会产生热点 Slot；</li>
+<li>大量业务都使用同一个标签，相当于主动放弃分片；</li>
+<li>Slot 迁移时单个 Slot 过大；</li>
+<li>扩容后数据仍无法均衡。</li>
+</ul>
+<p>Hash Tag 应围绕“必须原子操作的数据边界”设计，而不是为了绕过 <code>CROSSSLOT</code> 把所有 Key 都塞进 <code>{global}</code>。</p>
+<h2 id="7-4-客户端如何路由"><a href="#7-4-客户端如何路由" class="headerlink" title="7.4 客户端如何路由"></a>7.4 客户端如何路由</h2><p>Cluster 节点不负责通用代理。客户端发错节点时，收到重定向：</p>
+<h3 id="MOVED"><a href="#MOVED" class="headerlink" title="MOVED"></a><code>MOVED</code></h3><p>表示 Slot 的正式归属已经在另一个节点。客户端应更新本地 Slot Map，以后直接请求新节点。</p>
+<h3 id="ASK"><a href="#ASK" class="headerlink" title="ASK"></a><code>ASK</code></h3><p>通常发生在 Slot 迁移过程中，表示这一次请求临时去目标节点，并先发送 <code>ASKING</code>；客户端不应仅凭 <code>ASK</code> 永久改写整个 Slot Map。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant C as Cluster Client
+    participant A as Node A
+    participant B as Node B
+
+    C-&gt;&gt;A: GET key
+    A--&gt;&gt;C: MOVED slot B
+    C-&gt;&gt;C: 更新 Slot Map
+    C-&gt;&gt;B: GET key
+    B--&gt;&gt;C: value
+</code></pre>
+
+<p>Cluster Client 的质量非常关键。它需要处理：</p>
+<ul>
+<li>Slot Map 初始化；</li>
+<li>MOVED；</li>
+<li>ASK；</li>
+<li>连接池；</li>
+<li>节点上下线；</li>
+<li>Pipeline 按节点拆分；</li>
+<li>重试幂等；</li>
+<li>超时与拓扑刷新；</li>
+<li>Read from Replica 时的只读路由。</li>
+</ul>
+<h2 id="7-5-Cluster-Bus-与-Gossip"><a href="#7-5-Cluster-Bus-与-Gossip" class="headerlink" title="7.5 Cluster Bus 与 Gossip"></a>7.5 Cluster Bus 与 Gossip</h2><p>每个 Cluster 节点除了客户端端口，还通过 Cluster Bus 与其他节点通信。Cluster Bus 使用二进制协议，负责：</p>
+<ul>
+<li>节点发现；</li>
+<li>PING&#x2F;PONG；</li>
+<li>Gossip 状态传播；</li>
+<li>故障信息；</li>
+<li>配置纪元；</li>
+<li>Failover 协调；</li>
+<li>Slot 归属变更；</li>
+<li>Cluster 内部消息。</li>
+</ul>
+<p>Cluster 不是由一个中心配置服务器实时指挥，而是节点通过 Gossip 汇聚状态。</p>
+<h2 id="7-6-从-PFAIL-到-FAIL"><a href="#7-6-从-PFAIL-到-FAIL" class="headerlink" title="7.6 从 PFAIL 到 FAIL"></a>7.6 从 <code>PFAIL</code> 到 <code>FAIL</code></h2><p>概念上：</p>
+<ol>
+<li>某节点长时间无法联系另一个节点；</li>
+<li>本地把对方标记为 <code>PFAIL</code>，即主观疑似下线；</li>
+<li>故障信息通过 Gossip 传播；</li>
+<li>足够多负责 Slot 的 Primary 对故障形成确认；</li>
+<li>节点被标记为 <code>FAIL</code>，即客观下线；</li>
+<li>如果故障节点有合格 Replica，则进入 Failover 选举。</li>
+</ol>
+<pre><code class=" mermaid">flowchart TD
+    A[节点通信超时] --&gt; B[本地主观 PFAIL]
+    B --&gt; C[Gossip 传播故障报告]
+    C --&gt; D&#123;是否达到多数 Primary 确认&#125;
+    D --&gt;|否| B
+    D --&gt;|是| E[标记 FAIL]
+    E --&gt; F&#123;是否有合格 Replica&#125;
+    F --&gt;|否| G[相关 Slot 不可用]
+    F --&gt;|是| H[Replica 发起选举]
+    H --&gt; I[获得多数投票]
+    I --&gt; J[晋升为 Primary并接管 Slot]
+</code></pre>
+
+<h2 id="7-7-Replica-选举与配置纪元"><a href="#7-7-Replica-选举与配置纪元" class="headerlink" title="7.7 Replica 选举与配置纪元"></a>7.7 Replica 选举与配置纪元</h2><p>多个 Replica 不会无条件同时晋升。选举会考虑：</p>
+<ul>
+<li>与旧 Primary 的复制 Offset；</li>
+<li>Replica 数据新鲜度；</li>
+<li>Replica 排名和延迟；</li>
+<li>选举投票；</li>
+<li>Configuration Epoch。</li>
+</ul>
+<p>Configuration Epoch 用于确定较新的集群配置。最终集群需要对“谁拥有这些 Slot”形成一致认识。</p>
+<h2 id="7-8-Cluster-的一致性边界"><a href="#7-8-Cluster-的一致性边界" class="headerlink" title="7.8 Cluster 的一致性边界"></a>7.8 Cluster 的一致性边界</h2><p>Redis Cluster 使用异步复制，因此存在已确认写入丢失窗口：</p>
+<ol>
+<li>客户端写入 Primary；</li>
+<li>Primary 返回成功；</li>
+<li>写入尚未到 Replica；</li>
+<li>Primary 故障；</li>
+<li>Replica 晋升；</li>
+<li>该写入丢失。</li>
+</ol>
+<p>网络分区时，少数派侧旧 Primary 在检测到自己无法联系多数 Primary 后，会停止接受写入，但检测不是零时间，因此仍存在窗口。</p>
+<p>Redis Cluster 的设计优先级是：</p>
+<ul>
+<li>高性能；</li>
+<li>线性扩展；</li>
+<li>可接受程度的写安全；</li>
+<li>多数派可用。</li>
+</ul>
+<p>它不是 Raft&#x2F;Paxos 风格的强一致分布式数据库。</p>
+<h2 id="7-9-多-Key-命令为什么会-CROSSSLOT"><a href="#7-9-多-Key-命令为什么会-CROSSSLOT" class="headerlink" title="7.9 多 Key 命令为什么会 CROSSSLOT"></a>7.9 多 Key 命令为什么会 <code>CROSSSLOT</code></h2><p>假设：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs redis">MGET user:1 user:2<br></code></pre></td></tr></table></figure>
+
+<p>如果两个 Key 不同 Slot，Redis 无法在一个节点的单线程执行边界内完成原子操作，也没有跨分片二阶段提交，因此返回 <code>CROSSSLOT</code>。</p>
+<p>解决方式：</p>
+<ul>
+<li>使用 Hash Tag，把有原子关系的 Key 放到同一 Slot；</li>
+<li>调整数据模型，让一个聚合对象使用 Hash&#x2F;JSON；</li>
+<li>客户端拆分请求，并接受非原子语义；</li>
+<li>使用业务层 Saga、幂等和补偿；</li>
+<li>选择更适合跨分片事务的数据系统。</li>
+</ul>
+<h2 id="7-10-扩容和-Reshard"><a href="#7-10-扩容和-Reshard" class="headerlink" title="7.10 扩容和 Reshard"></a>7.10 扩容和 Reshard</h2><p>Cluster 扩容通常是：</p>
+<ol>
+<li>新增节点；</li>
+<li>将部分 Slot 从旧节点迁移到新节点；</li>
+<li>逐步迁移 Slot 内的 Key；</li>
+<li>迁移期间客户端处理 <code>ASK</code>；</li>
+<li>Slot 正式归属变更后处理 <code>MOVED</code>。</li>
+</ol>
+<p>迁移成本取决于：</p>
+<ul>
+<li>Slot 内 Key 数量；</li>
+<li>大 Key；</li>
+<li>网络带宽；</li>
+<li>写入速率；</li>
+<li>迁移期间增量变更；</li>
+<li>客户端重定向处理；</li>
+<li>Cluster 迁移缓冲。</li>
+</ul>
+<p>所以容量规划不仅要看总数据量，还要看 Slot 分布和最大 Slot。</p>
+<h2 id="7-11-推荐拓扑不是协议硬要求"><a href="#7-11-推荐拓扑不是协议硬要求" class="headerlink" title="7.11 推荐拓扑不是协议硬要求"></a>7.11 推荐拓扑不是协议硬要求</h2><p>生产常见起步拓扑是：</p>
+<ul>
+<li>3 个 Primary；</li>
+<li>每个 Primary 至少 1 个 Replica；</li>
+<li>共 6 个节点；</li>
+<li>Primary 与其 Replica 分布在不同宿主机或可用区。</li>
+</ul>
+<p>这不是 Redis Cluster 协议唯一允许的拓扑，而是为了让多数 Primary、故障切换和副本隔离更合理。具体节点数应由容量、故障域、成本和可用性目标决定。</p>
+<hr>
+<h1 id="八、Redis-数据结构与内部编码"><a href="#八、Redis-数据结构与内部编码" class="headerlink" title="八、Redis 数据结构与内部编码"></a>八、Redis 数据结构与内部编码</h1><blockquote>
+<p>本章主要依据：<a target="_blank" rel="noopener" href="https://redis.io/docs/latest/develop/data-types/">Redis Data Types</a>、Redis 8.8.1 源码与示例配置中的编码阈值。</p>
+</blockquote>
+<h2 id="8-1-Redis-是数据结构服务器，不只是字符串-KV"><a href="#8-1-Redis-是数据结构服务器，不只是字符串-KV" class="headerlink" title="8.1 Redis 是数据结构服务器，不只是字符串 KV"></a>8.1 Redis 是数据结构服务器，不只是字符串 KV</h2><p>Redis 的逻辑模型是：</p>
+<pre><code class=" mermaid">flowchart LR
+    DB[redisDb / Keyspace] --&gt; K1[Key A]
+    DB --&gt; K2[Key B]
+    DB --&gt; K3[Key C]
+    K1 --&gt; O1[Redis Object / KV Object]
+    K2 --&gt; O2[Redis Object / KV Object]
+    K3 --&gt; O3[Redis Object / KV Object]
+    O1 --&gt; S[String / SDS]
+    O2 --&gt; H[Hash / Listpack or Hashtable]
+    O3 --&gt; Z[ZSet / Listpack or Dict + Skiplist]
+</code></pre>
+
+<p>逻辑类型和底层编码不是一一对应。Redis 会根据数据规模选择不同编码，在内存和 CPU 之间折中。</p>
+<h2 id="8-2-String"><a href="#8-2-String" class="headerlink" title="8.2 String"></a>8.2 String</h2><p>String 是二进制安全字节序列，最大值大小受 Redis 限制。常见用途：</p>
+<ul>
+<li>缓存序列化对象；</li>
+<li>计数器；</li>
+<li>分布式锁值；</li>
+<li>Bitmap；</li>
+<li>Bitfield；</li>
+<li>简单状态；</li>
+<li>Token。</li>
+</ul>
+<p>内部通常基于 SDS，并可能使用整数、短字符串紧凑编码或普通动态字符串编码。</p>
+<p>常见复杂度：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>典型复杂度</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>GET</code> &#x2F; <code>SET</code></td>
+<td>O(1)</td>
+</tr>
+<tr>
+<td><code>INCR</code></td>
+<td>O(1)</td>
+</tr>
+<tr>
+<td><code>APPEND</code></td>
+<td>与追加长度相关，均摊通常较好</td>
+</tr>
+<tr>
+<td><code>GETRANGE</code></td>
+<td>O(N)，N 为返回长度</td>
+</tr>
+</tbody></table>
+<p>O(1) 不等于固定网络成本。一个 20 MB String 的 <code>GET</code> 即使查找是 O(1)，序列化和传输仍然很重。</p>
+<h2 id="8-3-Hash"><a href="#8-3-Hash" class="headerlink" title="8.3 Hash"></a>8.3 Hash</h2><p>Hash 适合保存对象字段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs redis">HSET user:1001 name Mario age 28 status active<br></code></pre></td></tr></table></figure>
+
+<p>小 Hash 通常使用 Listpack；超过元素数量或 Value 长度阈值后转为 Hash Table。</p>
+<p>优点：</p>
+<ul>
+<li>字段级读写；</li>
+<li>小对象紧凑；</li>
+<li>可用 <code>HINCRBY</code> 原子更新计数；</li>
+<li>Redis 8 支持字段级过期能力。</li>
+</ul>
+<p>风险：</p>
+<ul>
+<li>超大 Hash 形成 Big Key；</li>
+<li><code>HGETALL</code> 返回全量；</li>
+<li>字段级 TTL 增加元数据和清理复杂度；</li>
+<li>单 Hash 过度聚合会破坏 Cluster 并行度。</li>
+</ul>
+<h2 id="8-4-List"><a href="#8-4-List" class="headerlink" title="8.4 List"></a>8.4 List</h2><p>Redis List 按插入顺序保存字符串，常见底层结构是 Listpack 与 Quicklist 的组合或切换：</p>
+<ul>
+<li>小列表可保持紧凑；</li>
+<li>大列表使用由多个紧凑节点组成的 Quicklist；</li>
+<li>可以配置节点大小和中间节点压缩深度。</li>
+</ul>
+<p>适合：</p>
+<ul>
+<li>简单 FIFO&#x2F;LIFO；</li>
+<li>固定长度最近记录；</li>
+<li>阻塞队列原语。</li>
+</ul>
+<p>不适合：</p>
+<ul>
+<li>需要消费组、重试、确认和消息追踪的复杂消息系统；</li>
+<li>大范围中间索引随机访问；</li>
+<li>无界增长的日志。</li>
+</ul>
+<p>复杂消息场景通常优先考虑 Streams。</p>
+<h2 id="8-5-Set"><a href="#8-5-Set" class="headerlink" title="8.5 Set"></a>8.5 Set</h2><p>Set 保存唯一无序元素。</p>
+<p>内部编码可能是：</p>
+<ul>
+<li>全整数小集合：Intset；</li>
+<li>小型普通集合：Listpack；</li>
+<li>更大集合：Hash Table。</li>
+</ul>
+<p>适合：</p>
+<ul>
+<li>去重；</li>
+<li>标签；</li>
+<li>共同关注；</li>
+<li>黑白名单；</li>
+<li>随机抽样；</li>
+<li>集合关系。</li>
+</ul>
+<p><code>SUNION</code>、<code>SINTER</code>、<code>SDIFF</code> 的成本取决于集合大小。大集合交集应评估主线程占用，必要时离线计算或在 Replica 执行只读分析。</p>
+<h2 id="8-6-Sorted-Set"><a href="#8-6-Sorted-Set" class="headerlink" title="8.6 Sorted Set"></a>8.6 Sorted Set</h2><p>ZSet 为每个 Member 关联一个 Score，并按 Score 排序。</p>
+<p>小 ZSet 可使用 Listpack；较大 ZSet 通常使用：</p>
+<ul>
+<li>Dictionary：按 Member 快速找到 Score；</li>
+<li>Skip List：按 Score 排序、范围扫描和排名。</li>
+</ul>
+<p>适合：</p>
+<ul>
+<li>排行榜；</li>
+<li>延迟队列；</li>
+<li>时间窗口；</li>
+<li>优先级队列；</li>
+<li>带权重排序。</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs redis">ZADD leaderboard 100 user:1<br>ZADD leaderboard 120 user:2<br>ZREVRANGE leaderboard 0 9 WITHSCORES<br></code></pre></td></tr></table></figure>
+
+<p>延迟队列用 ZSet 时，应注意：</p>
+<ul>
+<li>多消费者抢占；</li>
+<li>原子取出；</li>
+<li>失败重试；</li>
+<li>消息丢失；</li>
+<li>时钟；</li>
+<li>大量到期任务同时涌入。</li>
+</ul>
+<p>单纯 <code>ZRANGEBYSCORE + ZREM</code> 分两步执行可能发生并发竞争，应使用原子命令、事务或 Function。</p>
+<h2 id="8-7-Streams"><a href="#8-7-Streams" class="headerlink" title="8.7 Streams"></a>8.7 Streams</h2><p>Streams 面向追加事件流，支持：</p>
+<ul>
+<li>自动或指定 ID；</li>
+<li>范围读取；</li>
+<li>阻塞读取；</li>
+<li>Consumer Group；</li>
+<li>Pending Entries List；</li>
+<li>ACK；</li>
+<li>Claim；</li>
+<li>截断。</li>
+</ul>
+<p>内部使用 Radix Tree 等结构组织紧凑的消息节点。</p>
+<p>适合：</p>
+<ul>
+<li>轻量事件流；</li>
+<li>工作队列；</li>
+<li>消费组；</li>
+<li>需要重试与 ACK 的任务。</li>
+</ul>
+<p>需要关注：</p>
+<ul>
+<li>PEL 无界增长；</li>
+<li>消费者假死；</li>
+<li>未 ACK 消息回收；</li>
+<li>Stream 截断策略；</li>
+<li>消息体过大；</li>
+<li>Redis 持久化与故障转移语义。</li>
+</ul>
+<p>Redis Streams 不是天然替代 Kafka。是否适合取决于消息保留、吞吐、跨机房、分区、回放和数据安全需求。</p>
+<h2 id="8-8-Bitmap-与-Bitfield"><a href="#8-8-Bitmap-与-Bitfield" class="headerlink" title="8.8 Bitmap 与 Bitfield"></a>8.8 Bitmap 与 Bitfield</h2><p>Bitmap 本质上是对 String 的位操作，适合：</p>
+<ul>
+<li>签到；</li>
+<li>用户活跃状态；</li>
+<li>布尔特征集合；</li>
+<li>大规模 ID 状态。</li>
+</ul>
+<p>1 亿个布尔状态理论位数据约为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">100,000,000 bit ÷ 8 ≈ 11.92 MiB<br></code></pre></td></tr></table></figure>
+
+<p>实际还会有 Key 和对象开销，但仍远小于 1 亿个独立 Key。</p>
+<p>Bitfield 可以在 String 上保存多个定长整数，并原子执行读取、写入和增量操作。</p>
+<h2 id="8-9-HyperLogLog-与概率结构"><a href="#8-9-HyperLogLog-与概率结构" class="headerlink" title="8.9 HyperLogLog 与概率结构"></a>8.9 HyperLogLog 与概率结构</h2><p>HyperLogLog 用固定且较小的空间估算基数，适合：</p>
+<ul>
+<li>UV；</li>
+<li>去重计数；</li>
+<li>可接受误差的巨大集合基数。</li>
+</ul>
+<p>Redis 8 集成的概率结构还包括：</p>
+<ul>
+<li>Bloom Filter；</li>
+<li>Cuckoo Filter；</li>
+<li>Count-Min Sketch；</li>
+<li>Top-K；</li>
+<li>t-digest。</li>
+</ul>
+<p>概率结构的价值是以可控误差换取内存与计算效率。它们不应被用在“绝不能误判”的财务唯一性、权限或强一致去重场景。</p>
+<h2 id="8-10-Geospatial"><a href="#8-10-Geospatial" class="headerlink" title="8.10 Geospatial"></a>8.10 Geospatial</h2><p>Redis Geo 基于经纬度编码和 Sorted Set 能力，适合：</p>
+<ul>
+<li>附近门店；</li>
+<li>附近骑手；</li>
+<li>半径或矩形范围检索。</li>
+</ul>
+<p>它适合实时近邻过滤，不是完整 GIS 系统。复杂多边形、道路网络、坐标投影和空间拓扑通常需要专业空间数据库或 Search 能力。</p>
+<h2 id="8-11-JSON、TimeSeries、Vector-Sets-与-Search"><a href="#8-11-JSON、TimeSeries、Vector-Sets-与-Search" class="headerlink" title="8.11 JSON、TimeSeries、Vector Sets 与 Search"></a>8.11 JSON、TimeSeries、Vector Sets 与 Search</h2><p>Redis 8 将过去常见于 Redis Stack 的多种能力统一到 Redis Open Source 发行体系，包括：</p>
+<ul>
+<li>JSON 文档；</li>
+<li>TimeSeries；</li>
+<li>Search 与聚合；</li>
+<li>Vector Search &#x2F; Vector Sets；</li>
+<li>概率数据结构；</li>
+<li>Redis 8.8 的 Array 等新类型。</li>
+</ul>
+<p>这意味着 Redis 8 已经不仅是传统缓存服务器，还可以承担：</p>
+<ul>
+<li>文档字段更新；</li>
+<li>二级索引；</li>
+<li>全文检索；</li>
+<li>向量相似度检索；</li>
+<li>时序聚合；</li>
+<li>实时查询。</li>
+</ul>
+<p>但索引也需要内存，查询也需要 CPU。使用 Search&#x2F;Vector 时，容量模型应包含：</p>
+<ul>
+<li>原始文档；</li>
+<li>索引；</li>
+<li>向量；</li>
+<li>索引构建峰值；</li>
+<li>查询 Worker；</li>
+<li>返回结果；</li>
+<li>Cluster 分片聚合。</li>
+</ul>
+<p>不要拿只存 String 的内存比值，去估算带向量索引的 Redis 8 实例。</p>
+<h2 id="8-12-数据类型选型表"><a href="#8-12-数据类型选型表" class="headerlink" title="8.12 数据类型选型表"></a>8.12 数据类型选型表</h2><table>
+<thead>
+<tr>
+<th>需求</th>
+<th>优先考虑</th>
+<th>不要忽略</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>简单缓存、计数器</td>
+<td>String</td>
+<td>Value 大小、序列化、TTL</td>
+</tr>
+<tr>
+<td>对象字段更新</td>
+<td>Hash &#x2F; JSON</td>
+<td>Big Key、字段级 TTL、索引成本</td>
+</tr>
+<tr>
+<td>去重、关系集合</td>
+<td>Set</td>
+<td>大集合运算成本</td>
+</tr>
+<tr>
+<td>排行榜、优先级</td>
+<td>ZSet</td>
+<td>Score 精度、热点 Key</td>
+</tr>
+<tr>
+<td>简单双端队列</td>
+<td>List</td>
+<td>无 ACK、复杂重试困难</td>
+</tr>
+<tr>
+<td>消费组消息</td>
+<td>Stream</td>
+<td>PEL、截断、持久化</td>
+</tr>
+<tr>
+<td>布尔状态</td>
+<td>Bitmap</td>
+<td>ID 稀疏导致空间浪费</td>
+</tr>
+<tr>
+<td>近似基数</td>
+<td>HyperLogLog</td>
+<td>误差不可消除</td>
+</tr>
+<tr>
+<td>会员存在性预判</td>
+<td>Bloom&#x2F;Cuckoo</td>
+<td>假阳性或删除语义</td>
+</tr>
+<tr>
+<td>地理近邻</td>
+<td>Geo</td>
+<td>不是完整 GIS</td>
+</tr>
+<tr>
+<td>文档与字段查询</td>
+<td>JSON + Search</td>
+<td>索引内存与更新成本</td>
+</tr>
+<tr>
+<td>向量检索</td>
+<td>Vector &#x2F; Search</td>
+<td>向量内存、召回率、索引参数</td>
+</tr>
+</tbody></table>
+<hr>
+<h1 id="九、Redis-最佳实践与常见场景"><a href="#九、Redis-最佳实践与常见场景" class="headerlink" title="九、Redis 最佳实践与常见场景"></a>九、Redis 最佳实践与常见场景</h1><blockquote>
+<p>本章主要依据 Redis 官方的 Pipelining、SCAN、Latency、Distributed Locks 等文档，并结合前述机制推导工程实践。凡涉及容量比例和批次大小的建议，都应以真实压测结果为准。</p>
+</blockquote>
+<h2 id="9-1-缓存：Cache-Aside-的正确打开方式"><a href="#9-1-缓存：Cache-Aside-的正确打开方式" class="headerlink" title="9.1 缓存：Cache-Aside 的正确打开方式"></a>9.1 缓存：Cache-Aside 的正确打开方式</h2><pre><code class=" mermaid">sequenceDiagram
+    participant App as Application
+    participant R as Redis
+    participant DB as Database
+
+    App-&gt;&gt;R: GET key
+    alt Cache Hit
+        R--&gt;&gt;App: value
+    else Cache Miss
+        R--&gt;&gt;App: nil
+        App-&gt;&gt;DB: SELECT
+        DB--&gt;&gt;App: value
+        App-&gt;&gt;R: SET key value EX ttl
+    end
+</code></pre>
+
+<p>更新常见模式：</p>
+<ol>
+<li>更新数据库；</li>
+<li>删除缓存；</li>
+<li>下次读取回填。</li>
+</ol>
+<p>为什么通常选择删除而不是直接更新缓存：</p>
+<ul>
+<li>缓存值可能由多个表聚合；</li>
+<li>更新缓存与更新数据库难以形成跨系统事务；</li>
+<li>并发下直接更新可能写入旧计算结果；</li>
+<li>删除让读取路径重新构建权威状态。</li>
+</ul>
+<p>但删除缓存也不是绝对一致，需要结合：</p>
+<ul>
+<li>延迟双删；</li>
+<li>消息通知；</li>
+<li>CDC；</li>
+<li>版本号；</li>
+<li>逻辑过期；</li>
+<li>最终一致性容忍度。</li>
+</ul>
+<h2 id="9-2-缓存穿透、击穿、雪崩"><a href="#9-2-缓存穿透、击穿、雪崩" class="headerlink" title="9.2 缓存穿透、击穿、雪崩"></a>9.2 缓存穿透、击穿、雪崩</h2><h3 id="穿透"><a href="#穿透" class="headerlink" title="穿透"></a>穿透</h3><p>查询不存在的数据，每次都落到数据库。</p>
+<p>方案：</p>
+<ul>
+<li>缓存空值并设置短 TTL；</li>
+<li>Bloom Filter；</li>
+<li>参数校验；</li>
+<li>风控和限流。</li>
+</ul>
+<h3 id="击穿"><a href="#击穿" class="headerlink" title="击穿"></a>击穿</h3><p>单个热点 Key 失效，大量请求同时回源。</p>
+<p>方案：</p>
+<ul>
+<li>单飞请求合并；</li>
+<li>分布式互斥；</li>
+<li>逻辑过期；</li>
+<li>提前刷新；</li>
+<li>热点永不过期 + 主动更新，但必须设计失效机制。</li>
+</ul>
+<h3 id="雪崩"><a href="#雪崩" class="headerlink" title="雪崩"></a>雪崩</h3><p>大量 Key 同时失效或 Redis 整体不可用。</p>
+<p>方案：</p>
+<ul>
+<li>TTL 加随机抖动；</li>
+<li>分批预热；</li>
+<li>限流、熔断、降级；</li>
+<li>多级缓存；</li>
+<li>隔离热点；</li>
+<li>数据库保护；</li>
+<li>Redis 高可用与容量余量。</li>
+</ul>
+<h2 id="9-3-Session-与-Token"><a href="#9-3-Session-与-Token" class="headerlink" title="9.3 Session 与 Token"></a>9.3 Session 与 Token</h2><p>Redis 适合集中式 Session：</p>
+<ul>
+<li>TTL 与登录有效期一致；</li>
+<li>按用户或设备维度建模；</li>
+<li>登录刷新时谨慎续期；</li>
+<li>删除或版本号控制强制下线；</li>
+<li>避免在 Value 中保存过多权限快照；</li>
+<li>需要考虑 Redis 故障时的认证降级策略。</li>
+</ul>
+<p>JWT 并不等于完全不需要 Redis。黑名单、Refresh Token、设备会话和强制注销仍可能需要状态存储。</p>
+<h2 id="9-4-计数器与限流"><a href="#9-4-计数器与限流" class="headerlink" title="9.4 计数器与限流"></a>9.4 计数器与限流</h2><p>简单计数器：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs redis">INCR api:count:20260727<br>EXPIRE api:count:20260727 86400<br></code></pre></td></tr></table></figure>
+
+<p><code>INCR</code> 与 <code>EXPIRE</code> 分两条命令存在中间失败窗口，可使用：</p>
+<ul>
+<li>Redis 8.8 <code>INCREX</code> 等新能力；</li>
+<li><code>MULTI/EXEC</code>；</li>
+<li>Lua&#x2F;Function；</li>
+<li>客户端库提供的原子限流实现。</li>
+</ul>
+<p>限流算法包括：</p>
+<ul>
+<li>固定窗口；</li>
+<li>滑动窗口计数；</li>
+<li>滑动日志；</li>
+<li>Token Bucket；</li>
+<li>Leaky Bucket。</li>
+</ul>
+<p>选择时看：</p>
+<ul>
+<li>精度；</li>
+<li>内存；</li>
+<li>突发容忍；</li>
+<li>Cluster Slot；</li>
+<li>脚本复杂度；</li>
+<li>时钟；</li>
+<li>限流失败时是 Fail-Open 还是 Fail-Close。</li>
+</ul>
+<h2 id="9-5-分布式锁"><a href="#9-5-分布式锁" class="headerlink" title="9.5 分布式锁"></a>9.5 分布式锁</h2><p>Redis 8.4+ 单实例锁的基本模式可使用唯一 Token 配合原子条件删除：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs redis">SET lock:order:1001 &lt;unique-token&gt; NX PX 30000<br></code></pre></td></tr></table></figure>
+
+<p>释放时必须只删除自己持有的锁。Redis 8.4 引入 <code>DELEX ... IFEQ ...</code>；旧版本通常使用 Lua 比较 Value 后删除。</p>
+<p>绝不能简单：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs redis">DEL lock:order:1001<br></code></pre></td></tr></table></figure>
+
+<p>因为锁可能已经过期并被另一个客户端重新获取。</p>
+<p>更重要的是，分布式锁不是拿到 Key 就万事大吉：</p>
+<ul>
+<li>业务执行时间可能超过 TTL；</li>
+<li>GC Pause 或线程停顿可能让持锁方失去租约却继续写资源；</li>
+<li>主从异步复制与 Failover 可能破坏简单锁的互斥；</li>
+<li>时钟变化会影响租约；</li>
+<li>高一致场景应使用 Fencing Token；</li>
+<li>需要明确续期、重试、超时和幂等。</li>
+</ul>
+<p>如果业务真正要求“任何故障下都不能有两个执行者修改外部资源”，必须把外部资源的 Fencing Token 或版本校验纳入设计，而不是只依赖 Redis Key。</p>
+<h2 id="9-6-消息场景：Pub-Sub、List、Stream-怎么选"><a href="#9-6-消息场景：Pub-Sub、List、Stream-怎么选" class="headerlink" title="9.6 消息场景：Pub&#x2F;Sub、List、Stream 怎么选"></a>9.6 消息场景：Pub&#x2F;Sub、List、Stream 怎么选</h2><table>
+<thead>
+<tr>
+<th>能力</th>
+<th align="right">Pub&#x2F;Sub</th>
+<th align="right">List</th>
+<th align="right">Stream</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>离线消息保留</td>
+<td align="right">否</td>
+<td align="right">可保留</td>
+<td align="right">可保留</td>
+</tr>
+<tr>
+<td>多消费者竞争</td>
+<td align="right">广播</td>
+<td align="right">可用阻塞弹出</td>
+<td align="right">Consumer Group</td>
+</tr>
+<tr>
+<td>ACK</td>
+<td align="right">否</td>
+<td align="right">无原生完整 ACK</td>
+<td align="right">是</td>
+</tr>
+<tr>
+<td>Pending&#x2F;Claim</td>
+<td align="right">否</td>
+<td align="right">需自建</td>
+<td align="right">是</td>
+</tr>
+<tr>
+<td>回放</td>
+<td align="right">否</td>
+<td align="right">有限</td>
+<td align="right">支持 ID 范围</td>
+</tr>
+<tr>
+<td>适合</td>
+<td align="right">在线通知</td>
+<td align="right">简单队列</td>
+<td align="right">可靠性更高的事件消费</td>
+</tr>
+</tbody></table>
+<p>Redis 消息能力适合低延迟和中等复杂度场景。若需要：</p>
+<ul>
+<li>长期海量日志；</li>
+<li>跨地域复制；</li>
+<li>强持久化分区日志；</li>
+<li>极长时间回放；</li>
+<li>大规模消费者生态；</li>
+</ul>
+<p>应认真评估 Kafka、Pulsar 等日志系统。</p>
+<h2 id="9-7-Pipeline-的正确使用"><a href="#9-7-Pipeline-的正确使用" class="headerlink" title="9.7 Pipeline 的正确使用"></a>9.7 Pipeline 的正确使用</h2><p>Pipeline 将多条命令一次发送，减少 RTT，并让 Redis 更高效地批量处理网络数据。</p>
+<p>但 Pipeline 不是越大越好：</p>
+<ul>
+<li>服务端必须缓存未返回的响应；</li>
+<li>客户端也要保存请求与结果；</li>
+<li>单批太大可能形成延迟尖峰；</li>
+<li>Cluster 需要按目标节点拆分；</li>
+<li>重试时要处理部分成功；</li>
+<li>非幂等命令不能盲目整体重放。</li>
+</ul>
+<p>应通过压测确定批次大小，例如从几十或几百条开始，而不是一次塞几十万条。</p>
+<h2 id="9-8-禁止无边界命令"><a href="#9-8-禁止无边界命令" class="headerlink" title="9.8 禁止无边界命令"></a>9.8 禁止无边界命令</h2><p>生产中应重点审计：</p>
+<ul>
+<li><code>KEYS</code>；</li>
+<li><code>HGETALL</code>；</li>
+<li><code>SMEMBERS</code>；</li>
+<li>大范围 <code>ZRANGE</code>；</li>
+<li>无限制 <code>LRANGE</code>；</li>
+<li>大集合交并差；</li>
+<li>超长 Lua；</li>
+<li>大 Key <code>DEL</code>；</li>
+<li>返回全库或全集合的管理接口。</li>
+</ul>
+<p>使用：</p>
+<ul>
+<li><code>SCAN</code> &#x2F; <code>HSCAN</code> &#x2F; <code>SSCAN</code> &#x2F; <code>ZSCAN</code>；</li>
+<li>分页与范围限制；</li>
+<li><code>UNLINK</code>；</li>
+<li>异步任务；</li>
+<li>Replica 离线分析；</li>
+<li>数据模型拆分。</li>
+</ul>
+<p>SCAN 是增量遍历，不提供静态快照。遍历期间集合变化时可能出现重复或变化，需要业务去重和容忍。</p>
+<h2 id="9-9-Key-设计"><a href="#9-9-Key-设计" class="headerlink" title="9.9 Key 设计"></a>9.9 Key 设计</h2><p>推荐格式：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">&lt;system&gt;:&lt;module&gt;:&lt;entity&gt;:&lt;id&gt;:&lt;attribute&gt;<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">finance:settlement:bill:1001<br>finance:settlement:&#123;merchant-88&#125;:period:2026-07<br></code></pre></td></tr></table></figure>
+
+<p>原则：</p>
+<ul>
+<li>可读；</li>
+<li>长度适中；</li>
+<li>避免把敏感信息直接写入 Key；</li>
+<li>Hash Tag 只用于真实的同 Slot 原子边界；</li>
+<li>不依赖模糊的数字数据库编号隔离环境；</li>
+<li>设计可扫描的 Namespace，但不要依赖 <code>KEYS</code>；</li>
+<li>明确 TTL 所有权。</li>
+</ul>
+<h2 id="9-10-热-Key-与热-Slot"><a href="#9-10-热-Key-与热-Slot" class="headerlink" title="9.10 热 Key 与热 Slot"></a>9.10 热 Key 与热 Slot</h2><p>热 Key 的影响：</p>
+<ul>
+<li>单节点 CPU 或网络打满；</li>
+<li>单 Key 操作形成主线程热点；</li>
+<li>Replica 也可能被大流量压垮；</li>
+<li>Cluster 增加节点也无法自动拆分一个 Key。</li>
+</ul>
+<p>处理方式：</p>
+<ul>
+<li>本地缓存；</li>
+<li>请求合并；</li>
+<li>读副本；</li>
+<li>Key 分片；</li>
+<li>预计算；</li>
+<li>热点隔离实例；</li>
+<li>降低单次返回大小。</li>
+</ul>
+<p>Key 分片会牺牲原子性和查询便利，需要业务层聚合。</p>
+<h2 id="9-11-连接与超时"><a href="#9-11-连接与超时" class="headerlink" title="9.11 连接与超时"></a>9.11 连接与超时</h2><p>客户端应配置：</p>
+<ul>
+<li>连接超时；</li>
+<li>命令超时；</li>
+<li>连接池上限；</li>
+<li>空闲检测；</li>
+<li>重试次数和退避；</li>
+<li>Cluster 拓扑刷新；</li>
+<li>请求积压上限；</li>
+<li>熔断和降级。</li>
+</ul>
+<p>重试必须识别命令是否幂等。例如：</p>
+<ul>
+<li><code>GET</code> 通常可安全重试；</li>
+<li><code>SET key value</code> 覆盖写通常较容易推理；</li>
+<li><code>INCR</code> 在响应丢失后盲目重试可能重复执行；</li>
+<li><code>XADD *</code> 重试可能产生两条消息。</li>
+</ul>
+<h2 id="9-12-安全"><a href="#9-12-安全" class="headerlink" title="9.12 安全"></a>9.12 安全</h2><p>生产最低要求：</p>
+<ul>
+<li>不暴露到公网；</li>
+<li>使用网络隔离和防火墙；</li>
+<li>使用 ACL 最小权限；</li>
+<li>管理命令严格限制；</li>
+<li>需要时启用 TLS；</li>
+<li>密钥进入 Secret 管理系统；</li>
+<li>避免在命令、Key、日志中泄露敏感数据；</li>
+<li>定期升级安全补丁；</li>
+<li>审计危险命令和异常连接。</li>
+</ul>
+<h2 id="9-13-操作系统与延迟"><a href="#9-13-操作系统与延迟" class="headerlink" title="9.13 操作系统与延迟"></a>9.13 操作系统与延迟</h2><p>低延迟环境常见检查：</p>
+<ul>
+<li>关闭 Transparent Huge Pages；</li>
+<li>评估 <code>vm.overcommit_memory</code>；</li>
+<li>保证时间同步；</li>
+<li>监控 Swap，通常应避免 Redis 工作集被换出；</li>
+<li>使用低延迟磁盘；</li>
+<li>避免与高 I&#x2F;O、高内存抖动任务混部；</li>
+<li>通过 <code>redis-cli --intrinsic-latency</code> 测量宿主机基础延迟；</li>
+<li>观察 <code>latest_fork_usec</code>。</li>
+</ul>
+<p>Redis 延迟问题可能来自命令、网络、fork、COW、fsync、Swap、虚拟化抖动或客户端 GC，不能一看到 P99 就只调线程数。</p>
+<h2 id="9-14-生产监控清单"><a href="#9-14-生产监控清单" class="headerlink" title="9.14 生产监控清单"></a>9.14 生产监控清单</h2><h3 id="流量与延迟"><a href="#流量与延迟" class="headerlink" title="流量与延迟"></a>流量与延迟</h3><ul>
+<li>QPS；</li>
+<li>网络入站&#x2F;出站；</li>
+<li>P50&#x2F;P95&#x2F;P99；</li>
+<li><code>instantaneous_ops_per_sec</code>；</li>
+<li>Slow Log；</li>
+<li>Latency Monitor；</li>
+<li>命令调用次数与总耗时。</li>
+</ul>
+<h3 id="内存"><a href="#内存" class="headerlink" title="内存"></a>内存</h3><ul>
+<li><code>used_memory</code>；</li>
+<li><code>used_memory_rss</code>；</li>
+<li><code>used_memory_dataset</code>；</li>
+<li><code>mem_fragmentation_ratio</code>；</li>
+<li><code>mem_not_counted_for_evict</code>；</li>
+<li>客户端输出缓冲；</li>
+<li><code>evicted_keys</code>；</li>
+<li><code>expired_keys</code>；</li>
+<li>Lazy Free Pending Objects。</li>
+</ul>
+<h3 id="持久化"><a href="#持久化" class="headerlink" title="持久化"></a>持久化</h3><ul>
+<li>最近 RDB&#x2F;AOF 状态；</li>
+<li>Fork 时间；</li>
+<li>COW Size；</li>
+<li>AOF Delayed fsync；</li>
+<li>重写时长；</li>
+<li>磁盘空间；</li>
+<li>备份恢复演练。</li>
+</ul>
+<h3 id="复制"><a href="#复制" class="headerlink" title="复制"></a>复制</h3><ul>
+<li><code>master_repl_offset</code>；</li>
+<li>Replica Offset；</li>
+<li>Lag；</li>
+<li>Backlog 大小；</li>
+<li>Full Sync 次数；</li>
+<li>复制断线；</li>
+<li>Replica 输出缓冲。</li>
+</ul>
+<h3 id="Cluster"><a href="#Cluster" class="headerlink" title="Cluster"></a>Cluster</h3><ul>
+<li>Slot 是否全部覆盖；</li>
+<li>PFAIL&#x2F;FAIL；</li>
+<li>节点 Link 状态；</li>
+<li>Slot 分布；</li>
+<li>热 Slot；</li>
+<li>迁移缓冲；</li>
+<li>Failover 次数与耗时；</li>
+<li><code>MOVED</code> &#x2F; <code>ASK</code> 异常增加。</li>
+</ul>
+<h2 id="9-15-上线前检查表"><a href="#9-15-上线前检查表" class="headerlink" title="9.15 上线前检查表"></a>9.15 上线前检查表</h2><ul>
+<li><input disabled="" type="checkbox"> 已确定 Redis 的角色：缓存、主存储、消息、锁、索引还是混合用途；</li>
+<li><input disabled="" type="checkbox"> 已明确允许的数据丢失窗口 RPO；</li>
+<li><input disabled="" type="checkbox"> 已明确恢复时间目标 RTO；</li>
+<li><input disabled="" type="checkbox"> 已用真实数据测量 <code>MEMORY USAGE</code>；</li>
+<li><input disabled="" type="checkbox"> 已考虑 COW、复制、AOF、客户端缓冲和碎片；</li>
+<li><input disabled="" type="checkbox"> <code>maxmemory</code> 未设置为物理内存上限；</li>
+<li><input disabled="" type="checkbox"> 淘汰策略与业务价值一致；</li>
+<li><input disabled="" type="checkbox"> 缓存 Key 有合理 TTL 和抖动；</li>
+<li><input disabled="" type="checkbox"> 已审计 Big Key、Hot Key、Hot Slot；</li>
+<li><input disabled="" type="checkbox"> 已禁止无边界命令；</li>
+<li><input disabled="" type="checkbox"> Pipeline 有批次上限；</li>
+<li><input disabled="" type="checkbox"> 重试区分幂等和非幂等；</li>
+<li><input disabled="" type="checkbox"> Cluster 多 Key 原子边界已经设计；</li>
+<li><input disabled="" type="checkbox"> 持久化文件已实际恢复验证；</li>
+<li><input disabled="" type="checkbox"> Replica 与备份不在同一故障域；</li>
+<li><input disabled="" type="checkbox"> 已配置 ACL、网络隔离和必要的 TLS；</li>
+<li><input disabled="" type="checkbox"> 已配置 Slow Log、Latency Monitor 和完整告警；</li>
+<li><input disabled="" type="checkbox"> 已演练节点故障、磁盘满、Replica 落后、Cluster Failover 和缓存全失效。</li>
+</ul>
+<hr>
+<h1 id="十、结论"><a href="#十、结论" class="headerlink" title="十、结论"></a>十、结论</h1><p>Redis 8 的关键不在于“它是单线程还是多线程”这一道面试判断题，而在于理解不同工作被放在了不同执行边界：</p>
+<ol>
+<li>网络 I&#x2F;O 可以并行；</li>
+<li>绝大多数核心命令仍由主执行线程串行修改键空间；</li>
+<li>过期采用访问时检查与自适应主动抽样；</li>
+<li>淘汰是在内存上限压力下按近似策略选择候选 Key；</li>
+<li>事务提供顺序执行和不被插入，但没有关系数据库式自动回滚；</li>
+<li>Redis 实际 RSS 远大于简单的 Key+Value 字节数；</li>
+<li>RDB 是时间点快照，AOF 是变更日志与 Base&#x2F;Increment 文件组合；</li>
+<li>复制默认异步，<code>WAIT</code> 只能降低丢写概率，不能带来强一致；</li>
+<li>Cluster 通过 16384 个 Slot 水平分片，由客户端处理重定向；</li>
+<li>数据结构编码、Big Key、Hot Key、fork COW 和缓冲内存决定了生产上限。</li>
+</ol>
+<p>最终，Redis 的正确使用方式不是把所有高并发问题都“塞进 Redis”，而是先明确：</p>
+<ul>
+<li>数据是否允许丢；</li>
+<li>是否允许旧读；</li>
+<li>原子边界在哪里；</li>
+<li>单 Key 是否会过热；</li>
+<li>故障后如何恢复；</li>
+<li>Redis 不可用时业务如何降级。</li>
+</ul>
+<p>理解这些边界之后，Redis 才不是一个“快但玄学”的黑盒，而是一套可以计算、验证和演练的实时数据系统。</p>
+<hr>
+<h1 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h1><p>本文优先引用 Redis 官方文档和 Redis 8.8.1 源码。建议阅读时以当前版本文档和实际部署版本源码为准。</p>
+<ol>
+<li><p>Redis Open Source 8.8 Release Notes<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/operate/oss_and_stack/stack-with-enterprise/release-notes/redisce/redisos-8.8-release-notes/">https://redis.io/docs/latest/operate/oss_and_stack/stack-with-enterprise/release-notes/redisce/redisos-8.8-release-notes/</a></p>
+</li>
+<li><p>Redis Downloads<br><a target="_blank" rel="noopener" href="https://redis.io/downloads/">https://redis.io/downloads/</a></p>
+</li>
+<li><p>Redis Open Source 8.0 Release Notes（I&#x2F;O 线程与复制改进）<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/operate/oss_and_stack/stack-with-enterprise/release-notes/redisce/redisos-8.0-release-notes/">https://redis.io/docs/latest/operate/oss_and_stack/stack-with-enterprise/release-notes/redisce/redisos-8.0-release-notes/</a></p>
+</li>
+<li><p>Redis 8.8.1 <code>src/networking.c</code><br><a target="_blank" rel="noopener" href="https://github.com/redis/redis/blob/8.8.1/src/networking.c">https://github.com/redis/redis/blob/8.8.1/src/networking.c</a></p>
+</li>
+<li><p>Redis 8.8.1 <code>src/server.c</code><br><a target="_blank" rel="noopener" href="https://github.com/redis/redis/blob/8.8.1/src/server.c">https://github.com/redis/redis/blob/8.8.1/src/server.c</a></p>
+</li>
+<li><p>Redis 8.8.1 <code>src/expire.c</code><br><a target="_blank" rel="noopener" href="https://github.com/redis/redis/blob/8.8.1/src/expire.c">https://github.com/redis/redis/blob/8.8.1/src/expire.c</a></p>
+</li>
+<li><p>Redis 8.8.1 <code>src/evict.c</code><br><a target="_blank" rel="noopener" href="https://github.com/redis/redis/blob/8.8.1/src/evict.c">https://github.com/redis/redis/blob/8.8.1/src/evict.c</a></p>
+</li>
+<li><p>Redis 8.8.1 <code>src/replication.c</code><br><a target="_blank" rel="noopener" href="https://github.com/redis/redis/blob/8.8.1/src/replication.c">https://github.com/redis/redis/blob/8.8.1/src/replication.c</a></p>
+</li>
+<li><p>Redis 8.8.1 Example Configuration<br><a target="_blank" rel="noopener" href="https://github.com/redis/redis/blob/8.8.1/redis.conf">https://github.com/redis/redis/blob/8.8.1/redis.conf</a></p>
+</li>
+<li><p>Key Expiration<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/commands/expire/">https://redis.io/docs/latest/commands/expire/</a></p>
+</li>
+<li><p>Key Eviction<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/develop/reference/eviction/">https://redis.io/docs/latest/develop/reference/eviction/</a></p>
+</li>
+<li><p>Redis Transactions<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/develop/using-commands/transactions/">https://redis.io/docs/latest/develop/using-commands/transactions/</a></p>
+</li>
+<li><p>MEMORY USAGE<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/commands/memory-usage/">https://redis.io/docs/latest/commands/memory-usage/</a></p>
+</li>
+<li><p>MEMORY STATS<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/commands/memory-stats/">https://redis.io/docs/latest/commands/memory-stats/</a></p>
+</li>
+<li><p>INFO Command<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/commands/info/">https://redis.io/docs/latest/commands/info/</a></p>
+</li>
+<li><p>Memory Optimization<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/memory-optimization/">https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/memory-optimization/</a></p>
+</li>
+<li><p>Redis Persistence<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/">https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/</a></p>
+</li>
+<li><p>Redis Replication<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/operate/oss_and_stack/management/replication/">https://redis.io/docs/latest/operate/oss_and_stack/management/replication/</a></p>
+</li>
+<li><p>Redis Cluster Specification<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/">https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/</a></p>
+</li>
+<li><p>Scale with Redis Cluster<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/">https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/</a></p>
+</li>
+<li><p>Redis Data Types<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/develop/data-types/">https://redis.io/docs/latest/develop/data-types/</a></p>
+</li>
+<li><p>Redis Pipelining<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/develop/using-commands/pipelining/">https://redis.io/docs/latest/develop/using-commands/pipelining/</a></p>
+</li>
+<li><p>SCAN<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/commands/scan/">https://redis.io/docs/latest/commands/scan/</a></p>
+</li>
+<li><p>Diagnosing Latency Issues<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/">https://redis.io/docs/latest/operate/oss_and_stack/management/optimization/latency/</a></p>
+</li>
+<li><p>Distributed Locks with Redis<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/">https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/</a></p>
+</li>
+</ol>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Middleware/" class="category-chain-item">Middleware</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/Middleware/Redis/" class="category-chain-item">Redis</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Cache/" class="print-no-link">#Cache</a>
+      
+        <a href="/tags/Redis-8/" class="print-no-link">#Redis 8</a>
+      
+        <a href="/tags/Persistence/" class="print-no-link">#Persistence</a>
+      
+        <a href="/tags/Replication/" class="print-no-link">#Replication</a>
+      
+        <a href="/tags/Redis-Cluster/" class="print-no-link">#Redis Cluster</a>
+      
+        <a href="/tags/Data-Structure/" class="print-no-link">#Data Structure</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Redis 8 深度解析：从命令执行、内存管理到持久化、复制与 Cluster</div>
+      <div>https://allendericdalexander.github.io/2026/07/27/components/redis-8-deep-dive/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年7月27日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/07/26/java/jvm/java-gc-algorithms/" title="Java GC 全景指南：从垃圾回收算法到 JDK 8、17、21、25">
+                        <span class="hidden-mobile">Java GC 全景指南：从垃圾回收算法到 JDK 8、17、21、25</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
