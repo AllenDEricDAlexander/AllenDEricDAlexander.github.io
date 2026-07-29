@@ -1,0 +1,1175 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="从订单广播、候选骑手匹配、原子抢单、幂等、超时回收、公平性和反作弊等维度设计外卖骑手抢单系统。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="场景设计：美团&#x2F;饿了么外卖骑手抢单系统">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/07/29/archtect/examples/02-food-delivery-rider-order-grabbing/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="从订单广播、候选骑手匹配、原子抢单、幂等、超时回收、公平性和反作弊等维度设计外卖骑手抢单系统。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-29T05:20:00.000Z">
+<meta property="article:modified_time" content="2026-07-29T05:09:52.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Redis">
+<meta property="article:tag" content="抢单">
+<meta property="article:tag" content="数据库并发控制">
+<meta property="article:tag" content="消息队列">
+<meta property="article:tag" content="状态机">
+<meta property="article:tag" content="高并发">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>场景设计：美团/饿了么外卖骑手抢单系统 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="场景设计：美团/饿了么外卖骑手抢单系统"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-07-29 13:20" pubdate>
+          2026年7月29日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          4.5k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          38 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">场景设计：美团/饿了么外卖骑手抢单系统</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <blockquote>
+<p>本文讨论通用外卖抢单场景，不代表任何具体平台的内部实现。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-题目本质"><a href="#1-题目本质" class="headerlink" title="1. 题目本质"></a>1. 题目本质</h2><p>骑手抢单并不只是“加一个分布式锁”。这个场景同时包含：</p>
+<ul>
+<li>一个订单只能被一名骑手成功领取；</li>
+<li>大量骑手可能在同一瞬间点击抢单；</li>
+<li>抢单接口必须低延迟；</li>
+<li>订单、骑手和配送任务的状态必须一致；</li>
+<li>重试、重复请求、网络超时不能导致重复接单；</li>
+<li>广播范围要合理，不能把所有订单推给所有骑手；</li>
+<li>平台还要考虑公平性、履约能力和反作弊；</li>
+<li>抢单后骑手失联或超时，需要回收并重新分配。</li>
+</ul>
+<p>因此，完整系统至少包含三个问题：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">哪些骑手可以看到订单？<br>谁最终抢到了订单？<br>抢到以后如何保证履约状态不乱？<br></code></pre></td></tr></table></figure>
+
+<h2 id="2-需求拆解"><a href="#2-需求拆解" class="headerlink" title="2. 需求拆解"></a>2. 需求拆解</h2><h3 id="2-1-功能需求"><a href="#2-1-功能需求" class="headerlink" title="2.1 功能需求"></a>2.1 功能需求</h3><ol>
+<li>商家出单后生成配送任务；</li>
+<li>根据距离、运力、骑手状态筛选候选骑手；</li>
+<li>将订单推送给候选骑手；</li>
+<li>多名骑手并发抢单，最多一个成功；</li>
+<li>成功骑手获得订单详情和导航信息；</li>
+<li>失败骑手立即收到“已被抢走”；</li>
+<li>超时无人接单时扩大广播范围或转自动派单；</li>
+<li>骑手接单后可到店、取餐、送达；</li>
+<li>异常时支持取消、转单、重新派单。</li>
+</ol>
+<h3 id="2-2-非功能需求"><a href="#2-2-非功能需求" class="headerlink" title="2.2 非功能需求"></a>2.2 非功能需求</h3><ul>
+<li>抢单核心链路 P99 尽可能低；</li>
+<li>订单不重分、不漏分；</li>
+<li>服务重启和消息重复不影响正确性；</li>
+<li>能承受热点订单瞬时竞争；</li>
+<li>能审计“谁在什么时候抢单、为什么成功或失败”；</li>
+<li>核心操作具备明确的状态机和补偿机制。</li>
+</ul>
+<h2 id="3-先设计订单配送状态机"><a href="#3-先设计订单配送状态机" class="headerlink" title="3. 先设计订单配送状态机"></a>3. 先设计订单配送状态机</h2><p>没有状态机，抢单系统很快会变成一堆互相冲突的 <code>if</code>。</p>
+<pre><code class=" mermaid">stateDiagram-v2
+    [*] --&gt; CREATED: 配送任务创建
+    CREATED --&gt; BROADCASTING: 开始广播
+    BROADCASTING --&gt; RESERVED: 某骑手获得短暂预占
+    RESERVED --&gt; ACCEPTED: 业务事务确认成功
+    RESERVED --&gt; BROADCASTING: 预占超时/确认失败
+    BROADCASTING --&gt; DISPATCHING: 多轮抢单无人领取
+    DISPATCHING --&gt; ACCEPTED: 系统派单成功
+    ACCEPTED --&gt; ARRIVED_STORE: 骑手到店
+    ARRIVED_STORE --&gt; PICKED_UP: 已取餐
+    PICKED_UP --&gt; DELIVERED: 已送达
+    ACCEPTED --&gt; CANCELLED: 取消/转单
+    BROADCASTING --&gt; CANCELLED: 订单取消
+    DELIVERED --&gt; [*]
+    CANCELLED --&gt; [*]
+</code></pre>
+
+<p>核心约束：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">同一个 delivery_order_id 在 ACCEPTED 及其后续状态只能绑定一个有效 rider_id。<br></code></pre></td></tr></table></figure>
+
+<p>数据库层最好再加约束，避免应用 Bug 直接破坏业务不变量。</p>
+<h2 id="4-总体架构"><a href="#4-总体架构" class="headerlink" title="4. 总体架构"></a>4. 总体架构</h2><pre><code class=" mermaid">flowchart LR
+    OMS[订单系统] --&gt; TASK[配送任务服务]
+    TASK --&gt; OUTBOX[(Outbox/CDC)]
+    OUTBOX --&gt; MQ[事件总线]
+
+    MQ --&gt; MATCH[候选骑手匹配服务]
+    MATCH --&gt; GEO[(骑手位置索引)]
+    MATCH --&gt; CAP[骑手运力/状态服务]
+    MATCH --&gt; BOARD[(待抢订单池)]
+    MATCH --&gt; PUSH[Push/WebSocket 网关]
+
+    RIDER[骑手 App] --&gt; GRAB[抢单网关]
+    GRAB --&gt; CLAIM[抢单核心服务]
+    CLAIM --&gt; REDIS[(Redis 原子预占)]
+    CLAIM --&gt; DB[(配送任务数据库)]
+    CLAIM --&gt; RIDER_STATE[骑手状态服务]
+    CLAIM --&gt; EVENT[抢单结果事件]
+
+    EVENT --&gt; PUSH
+    EVENT --&gt; BILL[计费/履约/风控]
+    EVENT --&gt; AUDIT[审计日志]
+</code></pre>
+
+<p>核心链路最好保持短小：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">鉴权 -&gt; 参数校验 -&gt; 幂等校验 -&gt; 原子竞争 -&gt; 数据库确认 -&gt; 返回结果<br></code></pre></td></tr></table></figure>
+
+<p>推荐、画像、复杂风控等不应全部同步阻塞在最核心的竞争临界区内。</p>
+<h2 id="5-候选骑手如何选"><a href="#5-候选骑手如何选" class="headerlink" title="5. 候选骑手如何选"></a>5. 候选骑手如何选</h2><p>不能把一个订单广播给整个城市。候选骑手匹配通常考虑：</p>
+<ul>
+<li>骑手当前位置与商家距离；</li>
+<li>骑手是否在线、是否可接单；</li>
+<li>当前持有订单数量；</li>
+<li>已有路线与新订单的顺路程度；</li>
+<li>交通工具和配送能力；</li>
+<li>骑手所属站点、服务区域；</li>
+<li>预计到店时间；</li>
+<li>历史履约质量；</li>
+<li>风控状态；</li>
+<li>商家出餐时间和订单承诺时效。</li>
+</ul>
+<h3 id="5-1-分轮广播"><a href="#5-1-分轮广播" class="headerlink" title="5.1 分轮广播"></a>5.1 分轮广播</h3><pre><code class=" mermaid">flowchart TD
+    O[新配送订单] --&gt; R1[第一轮：近距离高匹配骑手]
+    R1 --&gt;|无人接单 5 秒| R2[第二轮：扩大半径]
+    R2 --&gt;|仍无人接单| R3[第三轮：更大范围并提高补贴]
+    R3 --&gt;|仍无人接单| A[转自动派单/人工调度]
+</code></pre>
+
+<p>这里的时间和半径只是示意，生产参数应动态配置，并结合城市、天气、时段、运力供需进行调整。</p>
+<h3 id="5-2-待抢订单池"><a href="#5-2-待抢订单池" class="headerlink" title="5.2 待抢订单池"></a>5.2 待抢订单池</h3><p>可以按城市和空间网格组织：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">grab:orders:&#123;cityId&#125;:&#123;gridId&#125;<br></code></pre></td></tr></table></figure>
+
+<p>骑手 App 不一定只依赖推送，也可以定期拉取附近待抢订单。推送负责提醒，拉取负责恢复和校准，避免因推送丢失导致骑手看不到订单。</p>
+<h2 id="6-核心问题：如何保证只有一个骑手成功"><a href="#6-核心问题：如何保证只有一个骑手成功" class="headerlink" title="6. 核心问题：如何保证只有一个骑手成功"></a>6. 核心问题：如何保证只有一个骑手成功</h2><h3 id="6-1-最简单可靠的数据库条件更新"><a href="#6-1-最简单可靠的数据库条件更新" class="headerlink" title="6.1 最简单可靠的数据库条件更新"></a>6.1 最简单可靠的数据库条件更新</h3><p>把数据库作为最终裁决者：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> delivery_order<br><span class="hljs-keyword">SET</span> rider_id <span class="hljs-operator">=</span> :riderId,<br>    status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;ACCEPTED&#x27;</span>,<br>    accepted_at <span class="hljs-operator">=</span> NOW(),<br>    version <span class="hljs-operator">=</span> version <span class="hljs-operator">+</span> <span class="hljs-number">1</span><br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> :orderId<br>  <span class="hljs-keyword">AND</span> status <span class="hljs-keyword">IN</span> (<span class="hljs-string">&#x27;BROADCASTING&#x27;</span>, <span class="hljs-string">&#x27;RESERVED&#x27;</span>)<br>  <span class="hljs-keyword">AND</span> rider_id <span class="hljs-keyword">IS</span> <span class="hljs-keyword">NULL</span>;<br></code></pre></td></tr></table></figure>
+
+<p>根据受影响行数判断：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">affected_rows = 1 -&gt; 抢单成功<br>affected_rows = 0 -&gt; 已被别人抢走、订单失效或状态不允许<br></code></pre></td></tr></table></figure>
+
+<p>这条 SQL 本身就是原子比较并更新，不需要先查再改。</p>
+<p>错误写法：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">SELECT status<br>if status == WAITING:<br>    UPDATE rider_id<br></code></pre></td></tr></table></figure>
+
+<p>因为查询和更新之间存在竞争窗口，两名骑手可能都读到待抢状态。</p>
+<h3 id="6-2-是否需要悲观锁"><a href="#6-2-是否需要悲观锁" class="headerlink" title="6.2 是否需要悲观锁"></a>6.2 是否需要悲观锁</h3><p>可以使用：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span> <span class="hljs-keyword">FROM</span> delivery_order<br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> :orderId<br><span class="hljs-keyword">FOR</span> <span class="hljs-keyword">UPDATE</span>;<br></code></pre></td></tr></table></figure>
+
+<p>然后判断状态并更新。</p>
+<p>但热点订单会让大量请求在数据库行锁上排队，浪费连接和线程。对简单状态竞争，条件更新通常更轻量。</p>
+<h3 id="6-3-Redis-原子预占-数据库最终确认"><a href="#6-3-Redis-原子预占-数据库最终确认" class="headerlink" title="6.3 Redis 原子预占 + 数据库最终确认"></a>6.3 Redis 原子预占 + 数据库最终确认</h3><p>在超高并发下，可以先通过 Redis 快速裁剪竞争者：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs redis">SET grab:lock:&#123;orderId&#125; &#123;riderId&#125;:&#123;requestId&#125; NX PX 3000<br></code></pre></td></tr></table></figure>
+
+<p>只有获得短租约的骑手进入数据库确认流程，其他请求快速失败。</p>
+<p>但必须明确：</p>
+<blockquote>
+<p>Redis 预占只是性能优化，数据库中的配送状态才是最终事实。</p>
+</blockquote>
+<p>因为 Redis 可能发生：</p>
+<ul>
+<li>主从切换时锁数据丢失；</li>
+<li>网络分区导致客户端误判；</li>
+<li>持锁服务宕机；</li>
+<li>锁过期但数据库事务仍在执行；</li>
+<li>缓存与数据库状态不一致。</li>
+</ul>
+<p>更稳妥的流程：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant R1 as 骑手 A
+    participant R2 as 骑手 B
+    participant API as 抢单服务
+    participant Redis as Redis
+    participant DB as 配送数据库
+    participant MQ as 事件总线
+
+    par 并发请求
+        R1-&gt;&gt;API: grab(orderId, requestIdA)
+        R2-&gt;&gt;API: grab(orderId, requestIdB)
+    end
+
+    API-&gt;&gt;Redis: 原子 SET NX PX
+    Redis--&gt;&gt;API: 骑手 A 获得预占
+    API--&gt;&gt;R2: 抢单失败/处理中
+
+    API-&gt;&gt;DB: 条件 UPDATE 绑定 riderId
+    alt 数据库更新成功
+        DB--&gt;&gt;API: affectedRows = 1
+        API-&gt;&gt;MQ: 发布 OrderAccepted
+        API--&gt;&gt;R1: 抢单成功
+    else 数据库更新失败
+        DB--&gt;&gt;API: affectedRows = 0
+        API-&gt;&gt;Redis: 校验 token 后释放预占
+        API--&gt;&gt;R1: 订单已失效
+    end
+</code></pre>
+
+<p>释放 Redis 锁时不能直接 <code>DEL</code>，必须比较锁值，避免误删已经被下一位持有者获得的新锁。通常使用 Lua 脚本完成“比较并删除”。</p>
+<h2 id="7-更推荐的实现：单次-Lua-原子判定"><a href="#7-更推荐的实现：单次-Lua-原子判定" class="headerlink" title="7. 更推荐的实现：单次 Lua 原子判定"></a>7. 更推荐的实现：单次 Lua 原子判定</h2><p>如果 Redis 中维护待抢状态，可使用 Lua 同时完成：</p>
+<ul>
+<li>检查订单是否仍可抢；</li>
+<li>检查骑手是否重复请求；</li>
+<li>设置预占骑手；</li>
+<li>设置短 TTL；</li>
+<li>记录请求 ID。</li>
+</ul>
+<p>伪代码：</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs lua"><span class="hljs-comment">-- KEYS[1] = grab:order:&#123;orderId&#125;</span><br><span class="hljs-comment">-- ARGV[1] = riderId</span><br><span class="hljs-comment">-- ARGV[2] = requestId</span><br><span class="hljs-comment">-- ARGV[3] = expireMs</span><br><br><span class="hljs-keyword">local</span> <span class="hljs-built_in">status</span> = redis.call(<span class="hljs-string">&#x27;HGET&#x27;</span>, KEYS[<span class="hljs-number">1</span>], <span class="hljs-string">&#x27;status&#x27;</span>)<br><span class="hljs-keyword">if</span> <span class="hljs-built_in">status</span> ~= <span class="hljs-string">&#x27;OPEN&#x27;</span> <span class="hljs-keyword">then</span><br>    <span class="hljs-keyword">return</span> &#123;<span class="hljs-number">0</span>, <span class="hljs-string">&#x27;NOT_OPEN&#x27;</span>&#125;<br><span class="hljs-keyword">end</span><br><br><span class="hljs-keyword">local</span> current = redis.call(<span class="hljs-string">&#x27;HGET&#x27;</span>, KEYS[<span class="hljs-number">1</span>], <span class="hljs-string">&#x27;riderId&#x27;</span>)<br><span class="hljs-keyword">if</span> current <span class="hljs-keyword">then</span><br>    <span class="hljs-keyword">return</span> &#123;<span class="hljs-number">0</span>, <span class="hljs-string">&#x27;TAKEN&#x27;</span>&#125;<br><span class="hljs-keyword">end</span><br><br>redis.call(<span class="hljs-string">&#x27;HSET&#x27;</span>, KEYS[<span class="hljs-number">1</span>],<br>    <span class="hljs-string">&#x27;status&#x27;</span>, <span class="hljs-string">&#x27;RESERVED&#x27;</span>,<br>    <span class="hljs-string">&#x27;riderId&#x27;</span>, ARGV[<span class="hljs-number">1</span>],<br>    <span class="hljs-string">&#x27;requestId&#x27;</span>, ARGV[<span class="hljs-number">2</span>])<br>redis.call(<span class="hljs-string">&#x27;PEXPIRE&#x27;</span>, KEYS[<span class="hljs-number">1</span>], ARGV[<span class="hljs-number">3</span>])<br><span class="hljs-keyword">return</span> &#123;<span class="hljs-number">1</span>, <span class="hljs-string">&#x27;RESERVED&#x27;</span>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>注意：如果整个 Hash 直接过期，可能把订单的其他缓存字段一起删除。生产中通常把“订单展示缓存”和“抢单租约”拆成不同 Key。</p>
+<h2 id="8-幂等设计"><a href="#8-幂等设计" class="headerlink" title="8. 幂等设计"></a>8. 幂等设计</h2><h3 id="8-1-为什么必须幂等"><a href="#8-1-为什么必须幂等" class="headerlink" title="8.1 为什么必须幂等"></a>8.1 为什么必须幂等</h3><p>骑手点击一次抢单，可能由于以下原因发出多次请求：</p>
+<ul>
+<li>App 连点；</li>
+<li>客户端超时重试；</li>
+<li>网关重试；</li>
+<li>网络抖动导致响应丢失；</li>
+<li>骑手切换网络；</li>
+<li>服务内部补偿重放。</li>
+</ul>
+<p>每次请求应携带：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">request_id / idempotency_key<br></code></pre></td></tr></table></figure>
+
+<p>推荐键：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">riderId + orderId + clientRequestId<br></code></pre></td></tr></table></figure>
+
+<p>服务端保存结果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">idempotency:grab:&#123;riderId&#125;:&#123;requestId&#125; -&gt; SUCCESS/FAILED + result<br></code></pre></td></tr></table></figure>
+
+<p>同一请求再次到达时直接返回第一次结果，而不是重新参与竞争。</p>
+<h3 id="8-2-“重复请求”和“再次抢单”要区分"><a href="#8-2-“重复请求”和“再次抢单”要区分" class="headerlink" title="8.2 “重复请求”和“再次抢单”要区分"></a>8.2 “重复请求”和“再次抢单”要区分</h3><ul>
+<li>相同 <code>requestId</code>：同一次业务请求的重试，应返回相同结果；</li>
+<li>新 <code>requestId</code>：用户再次点击，可重新判断当前订单状态；</li>
+<li>已成功骑手再次请求：应返回“已经由你接单”，而不是失败。</li>
+</ul>
+<h2 id="9-数据库事务边界"><a href="#9-数据库事务边界" class="headerlink" title="9. 数据库事务边界"></a>9. 数据库事务边界</h2><p>抢单成功至少涉及：</p>
+<ol>
+<li>更新配送订单；</li>
+<li>更新骑手当前负载；</li>
+<li>写抢单流水；</li>
+<li>生成履约事件；</li>
+<li>通知其他骑手订单已失效。</li>
+</ol>
+<p>不能把所有远程 RPC 都放进数据库事务。</p>
+<p>推荐本地事务：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">更新配送订单<br>写 rider_order 关系<br>写 grab_record<br>写 outbox_event<br>提交事务<br></code></pre></td></tr></table></figure>
+
+<p>事务提交后，由 Outbox&#x2F;CDC 发布事件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">OrderAccepted<br></code></pre></td></tr></table></figure>
+
+<p>下游异步处理：</p>
+<ul>
+<li>通知其他骑手；</li>
+<li>更新骑手画像和运力；</li>
+<li>计费；</li>
+<li>调度；</li>
+<li>风控；</li>
+<li>数据分析。</li>
+</ul>
+<pre><code class=" mermaid">flowchart LR
+    TX[本地事务] --&gt; O1[更新配送任务]
+    TX --&gt; O2[写抢单流水]
+    TX --&gt; O3[写 Outbox]
+    O3 --&gt; CDC[CDC/轮询发布器]
+    CDC --&gt; MQ[消息队列]
+    MQ --&gt; PUSH[通知]
+    MQ --&gt; CAP[运力更新]
+    MQ --&gt; RISK[风控]
+    MQ --&gt; DATA[实时数仓]
+</code></pre>
+
+<h2 id="10-骑手状态的一致性"><a href="#10-骑手状态的一致性" class="headerlink" title="10. 骑手状态的一致性"></a>10. 骑手状态的一致性</h2><p>一个骑手可能同时抢多个订单，需要限制：</p>
+<ul>
+<li>最大持单数量；</li>
+<li>相互冲突的路线；</li>
+<li>当前是否暂停接单；</li>
+<li>是否被封禁；</li>
+<li>车辆能力是否满足订单类型。</li>
+</ul>
+<p>如果只锁订单，不校验骑手状态，可能出现一个骑手瞬间抢到几十单。</p>
+<p>可以在同一数据库事务内做条件更新：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> rider_capacity<br><span class="hljs-keyword">SET</span> active_order_count <span class="hljs-operator">=</span> active_order_count <span class="hljs-operator">+</span> <span class="hljs-number">1</span>,<br>    version <span class="hljs-operator">=</span> version <span class="hljs-operator">+</span> <span class="hljs-number">1</span><br><span class="hljs-keyword">WHERE</span> rider_id <span class="hljs-operator">=</span> :riderId<br>  <span class="hljs-keyword">AND</span> status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;AVAILABLE&#x27;</span><br>  <span class="hljs-keyword">AND</span> active_order_count <span class="hljs-operator">&lt;</span> max_order_count;<br></code></pre></td></tr></table></figure>
+
+<p>然后再更新订单。若任一条件失败，整个本地事务回滚。</p>
+<p>如果订单和骑手数据位于不同库，则需要重新设计边界：</p>
+<ul>
+<li>将“可接单额度”做成配送域内的本地资源；</li>
+<li>使用预留额度 + 最终确认；</li>
+<li>或通过同一分片策略让相关数据尽量落在同库；</li>
+<li>避免为了抢单直接引入重型全局分布式事务。</li>
+</ul>
+<h2 id="11-热点订单与惊群问题"><a href="#11-热点订单与惊群问题" class="headerlink" title="11. 热点订单与惊群问题"></a>11. 热点订单与惊群问题</h2><p>一个高补贴订单可能被数千骑手同时抢，形成热点：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">一个 orderId -&gt; 一个 Redis Key -&gt; 一行数据库 -&gt; 大量瞬时请求<br></code></pre></td></tr></table></figure>
+
+<p>优化手段：</p>
+<h3 id="11-1-限制广播候选数"><a href="#11-1-限制广播候选数" class="headerlink" title="11.1 限制广播候选数"></a>11.1 限制广播候选数</h3><p>只推送给最匹配的一小批骑手，而不是无限广播。</p>
+<h3 id="11-2-接入层快速失败"><a href="#11-2-接入层快速失败" class="headerlink" title="11.2 接入层快速失败"></a>11.2 接入层快速失败</h3><p>在网关或抢单服务中缓存订单已结束状态，后续请求不再进入数据库。</p>
+<h3 id="11-3-Redis-预裁剪"><a href="#11-3-Redis-预裁剪" class="headerlink" title="11.3 Redis 预裁剪"></a>11.3 Redis 预裁剪</h3><p>用原子预占让绝大多数失败请求在内存层结束。</p>
+<h3 id="11-4-请求合并不是核心方案"><a href="#11-4-请求合并不是核心方案" class="headerlink" title="11.4 请求合并不是核心方案"></a>11.4 请求合并不是核心方案</h3><p>对于同一订单可以短时间合并状态查询，但真正的抢单请求仍需逐一返回结果，不能简单把不同骑手请求合并为一个。</p>
+<h3 id="11-5-结果广播"><a href="#11-5-结果广播" class="headerlink" title="11.5 结果广播"></a>11.5 结果广播</h3><p>订单被抢后，立刻向相关骑手推送 <code>ORDER_TAKEN</code>，让客户端移除卡片，减少继续点击产生的无效请求。</p>
+<h2 id="12-推送丢失怎么办"><a href="#12-推送丢失怎么办" class="headerlink" title="12. 推送丢失怎么办"></a>12. 推送丢失怎么办</h2><p>不能假设 WebSocket 或 Push 一定可靠。</p>
+<p>骑手端应采用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">实时推送 + 周期拉取 + 版本校准<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<ul>
+<li>推送到达：立即更新；</li>
+<li>推送断开：客户端重连后携带 <code>lastEventSeq</code>；</li>
+<li>服务端补发缺失事件，或让客户端重新拉取当前待抢列表；</li>
+<li>订单卡片点击前再次以服务端状态为准。</li>
+</ul>
+<p>推送只是“提醒”，抢单结果必须由抢单服务返回或查询确认。</p>
+<h2 id="13-超时回收和重新广播"><a href="#13-超时回收和重新广播" class="headerlink" title="13. 超时回收和重新广播"></a>13. 超时回收和重新广播</h2><p>骑手获得短预占后，可能在数据库确认前宕机。预占必须有 TTL，并由定时任务或延迟消息检查。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant Claim as 抢单服务
+    participant Lease as 预占租约
+    participant Delay as 延迟队列
+    participant DB as 数据库
+    participant Dispatch as 调度服务
+
+    Claim-&gt;&gt;Lease: 创建 3 秒预占
+    Claim-&gt;&gt;Delay: 投递 LeaseCheck(orderId, leaseId)
+    Delay-&gt;&gt;DB: 查询最终状态
+    alt 已 ACCEPTED
+        DB--&gt;&gt;Delay: 已确认
+    else 仍 RESERVED/OPEN
+        Delay-&gt;&gt;Lease: 校验租约是否过期
+        Delay-&gt;&gt;Dispatch: 重新广播或自动派单
+    end
+</code></pre>
+
+<p>延迟任务必须携带版本号或 <code>lease_id</code>，否则旧的超时任务可能误回收新的预占。</p>
+<h2 id="14-公平性与反作弊"><a href="#14-公平性与反作弊" class="headerlink" title="14. 公平性与反作弊"></a>14. 公平性与反作弊</h2><p>纯“谁网络快谁抢到”可能导致：</p>
+<ul>
+<li>机房附近或高性能设备长期占优；</li>
+<li>自动化脚本抢单；</li>
+<li>GPS 模拟和位置欺骗；</li>
+<li>骑手抢单后高频取消；</li>
+<li>团伙代抢；</li>
+<li>内部接口被逆向调用。</li>
+</ul>
+<p>可设计：</p>
+<h3 id="14-1-服务端资格令牌"><a href="#14-1-服务端资格令牌" class="headerlink" title="14.1 服务端资格令牌"></a>14.1 服务端资格令牌</h3><p>订单推送时给候选骑手签发短时 <code>grab_ticket</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">grab_ticket = Sign(orderId, riderId, roundId, expireAt, nonce)<br></code></pre></td></tr></table></figure>
+
+<p>抢单必须携带合法票据，避免非候选骑手直接枚举订单 ID。</p>
+<h3 id="14-2-请求签名和设备证明"><a href="#14-2-请求签名和设备证明" class="headerlink" title="14.2 请求签名和设备证明"></a>14.2 请求签名和设备证明</h3><p>校验：</p>
+<ul>
+<li>设备 ID；</li>
+<li>App 版本；</li>
+<li>请求时间戳；</li>
+<li>nonce；</li>
+<li>完整性证明；</li>
+<li>TLS 和证书绑定策略；</li>
+<li>风险设备指纹。</li>
+</ul>
+<h3 id="14-3-公平窗口"><a href="#14-3-公平窗口" class="headerlink" title="14.3 公平窗口"></a>14.3 公平窗口</h3><p>部分场景可在极短时间窗口内收集多个意向，再按匹配分排序，而不是严格按到达纳秒决定结果。</p>
+<p>但这会增加延迟，是否采用取决于业务目标：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">极速抢单、公平分配、履约最优，这三者并不总能同时最大化。<br></code></pre></td></tr></table></figure>
+
+<h3 id="14-4-取消惩罚和履约评分"><a href="#14-4-取消惩罚和履约评分" class="headerlink" title="14.4 取消惩罚和履约评分"></a>14.4 取消惩罚和履约评分</h3><p>将接单后取消率、超时率纳入候选匹配，不把公平性简单理解成完全随机。</p>
+<h2 id="15-API-设计示例"><a href="#15-API-设计示例" class="headerlink" title="15. API 设计示例"></a>15. API 设计示例</h2><h3 id="15-1-查询待抢订单"><a href="#15-1-查询待抢订单" class="headerlink" title="15.1 查询待抢订单"></a>15.1 查询待抢订单</h3><figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs http">GET /api/v1/riders/&#123;riderId&#125;/grab-orders?cursor=xxx<br></code></pre></td></tr></table></figure>
+
+<p>响应：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;items&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;orderId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">980001</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;merchantName&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;示例门店&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;pickupDistanceMeters&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">820</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;estimatedIncome&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">9.5</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;expireAt&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1785303000000</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;grabTicket&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;signed-token&quot;</span><br>    <span class="hljs-punctuation">&#125;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;nextCursor&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;...&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;serverTime&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1785302900000</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="15-2-抢单"><a href="#15-2-抢单" class="headerlink" title="15.2 抢单"></a>15.2 抢单</h3><figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs http">POST /api/v1/grab-orders/&#123;orderId&#125;/claim<br><span class="hljs-attribute">Idempotency-Key</span><span class="hljs-punctuation">: </span>01K...<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;riderId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">70001</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;grabTicket&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;signed-token&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;clientTime&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1785302901234</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;location&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>    <span class="hljs-attr">&quot;lat&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">31.2304</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;lon&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">121.4737</span><br>  <span class="hljs-punctuation">&#125;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>响应状态要区分：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">SUCCESS<br>ALREADY_ACCEPTED_BY_YOU<br>TAKEN_BY_OTHER<br>ORDER_EXPIRED<br>RIDER_CAPACITY_FULL<br>INVALID_TICKET<br>RISK_REJECTED<br>PROCESSING<br></code></pre></td></tr></table></figure>
+
+<p>不要只返回笼统的 <code>false</code>。</p>
+<h2 id="16-数据模型示例"><a href="#16-数据模型示例" class="headerlink" title="16. 数据模型示例"></a>16. 数据模型示例</h2><h3 id="16-1-配送订单"><a href="#16-1-配送订单" class="headerlink" title="16.1 配送订单"></a>16.1 配送订单</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> delivery_order (<br>    id                  <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">PRIMARY KEY</span>,<br>    biz_order_id        <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    merchant_id         <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    rider_id            <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NULL</span>,<br>    status              <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">32</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    broadcast_round     <span class="hljs-type">INT</span> <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-number">0</span>,<br>    lease_id            <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NULL</span>,<br>    accepted_at         <span class="hljs-type">TIMESTAMP</span> <span class="hljs-keyword">NULL</span>,<br>    version             <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-number">0</span>,<br>    created_at          <span class="hljs-type">TIMESTAMP</span> <span class="hljs-keyword">NOT NULL</span>,<br>    updated_at          <span class="hljs-type">TIMESTAMP</span> <span class="hljs-keyword">NOT NULL</span><br>);<br><br><span class="hljs-keyword">CREATE</span> INDEX idx_delivery_status_created<br><span class="hljs-keyword">ON</span> delivery_order(status, created_at);<br></code></pre></td></tr></table></figure>
+
+<h3 id="16-2-抢单流水"><a href="#16-2-抢单流水" class="headerlink" title="16.2 抢单流水"></a>16.2 抢单流水</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> grab_record (<br>    id                  <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">PRIMARY KEY</span>,<br>    order_id            <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    rider_id            <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    request_id          <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    <span class="hljs-keyword">result</span>              <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">32</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    reject_reason       <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NULL</span>,<br>    server_received_at  <span class="hljs-type">TIMESTAMP</span> <span class="hljs-keyword">NOT NULL</span>,<br>    created_at          <span class="hljs-type">TIMESTAMP</span> <span class="hljs-keyword">NOT NULL</span>,<br>    <span class="hljs-keyword">UNIQUE</span> (rider_id, request_id)<br>);<br></code></pre></td></tr></table></figure>
+
+<p>抢单流水既用于幂等，也用于争议审计和风控分析。</p>
+<h2 id="17-故障场景推演"><a href="#17-故障场景推演" class="headerlink" title="17. 故障场景推演"></a>17. 故障场景推演</h2><h3 id="17-1-Redis-成功，数据库失败"><a href="#17-1-Redis-成功，数据库失败" class="headerlink" title="17.1 Redis 成功，数据库失败"></a>17.1 Redis 成功，数据库失败</h3><p>处理方式：</p>
+<ul>
+<li>数据库条件更新失败则释放预占；</li>
+<li>释放时比较锁 token；</li>
+<li>由租约超时任务兜底；</li>
+<li>不向骑手返回成功。</li>
+</ul>
+<h3 id="17-2-数据库成功，响应丢失"><a href="#17-2-数据库成功，响应丢失" class="headerlink" title="17.2 数据库成功，响应丢失"></a>17.2 数据库成功，响应丢失</h3><p>骑手重试同一 <code>requestId</code>，幂等记录返回原成功结果。</p>
+<h3 id="17-3-数据库成功，MQ-发布失败"><a href="#17-3-数据库成功，MQ-发布失败" class="headerlink" title="17.3 数据库成功，MQ 发布失败"></a>17.3 数据库成功，MQ 发布失败</h3><p>通过 Outbox&#x2F;CDC 重试发布。不能使用“提交数据库后直接发 MQ，发失败就算了”。</p>
+<h3 id="17-4-抢单服务在事务提交后宕机"><a href="#17-4-抢单服务在事务提交后宕机" class="headerlink" title="17.4 抢单服务在事务提交后宕机"></a>17.4 抢单服务在事务提交后宕机</h3><p>幂等记录、订单状态和 Outbox 都已提交。重试时查到订单已归该骑手，应返回成功。</p>
+<h3 id="17-5-两个机房同时处理同一订单"><a href="#17-5-两个机房同时处理同一订单" class="headerlink" title="17.5 两个机房同时处理同一订单"></a>17.5 两个机房同时处理同一订单</h3><p>需要保证同一订单的写请求有唯一裁决点，例如：</p>
+<ul>
+<li>数据库主节点条件更新；</li>
+<li>按 <code>orderId</code> 路由到固定主分片；</li>
+<li>单 Leader 状态机；</li>
+<li>严格定义跨地域写入策略。</li>
+</ul>
+<p>多活不是让两个地域同时随意改同一行。</p>
+<h2 id="18-监控指标"><a href="#18-监控指标" class="headerlink" title="18. 监控指标"></a>18. 监控指标</h2><p>核心指标包括：</p>
+<ul>
+<li>抢单请求 QPS、成功率、失败原因分布；</li>
+<li>P50&#x2F;P95&#x2F;P99 延迟；</li>
+<li>Redis 预占成功但数据库确认失败比例；</li>
+<li>幂等命中率；</li>
+<li>同一订单竞争请求数；</li>
+<li>广播轮次与最终接单率；</li>
+<li>从出单到接单的时长；</li>
+<li>无人接单率；</li>
+<li>超时回收数量；</li>
+<li>数据库条件更新冲突率；</li>
+<li>推送到达率和重连率；</li>
+<li>骑手接单后取消率。</li>
+</ul>
+<h2 id="19-常见错误回答"><a href="#19-常见错误回答" class="headerlink" title="19. 常见错误回答"></a>19. 常见错误回答</h2><h3 id="错误一：只使用分布式锁"><a href="#错误一：只使用分布式锁" class="headerlink" title="错误一：只使用分布式锁"></a>错误一：只使用分布式锁</h3><p>锁解决不了数据库最终状态、消息可靠发布、幂等和骑手容量一致性。</p>
+<h3 id="错误二：先查订单再更新"><a href="#错误二：先查订单再更新" class="headerlink" title="错误二：先查订单再更新"></a>错误二：先查订单再更新</h3><p>存在明显并发窗口，应使用条件更新或原子状态机。</p>
+<h3 id="错误三：Redis-抢到就立即告诉客户端成功"><a href="#错误三：Redis-抢到就立即告诉客户端成功" class="headerlink" title="错误三：Redis 抢到就立即告诉客户端成功"></a>错误三：Redis 抢到就立即告诉客户端成功</h3><p>如果数据库落单失败，会产生“客户端成功、系统没有订单”的严重不一致。</p>
+<h3 id="错误四：把所有逻辑放进一个大事务"><a href="#错误四：把所有逻辑放进一个大事务" class="headerlink" title="错误四：把所有逻辑放进一个大事务"></a>错误四：把所有逻辑放进一个大事务</h3><p>跨 RPC 长事务会占用连接、放大锁等待，并且难以恢复。</p>
+<h3 id="错误五：默认推送绝不丢"><a href="#错误五：默认推送绝不丢" class="headerlink" title="错误五：默认推送绝不丢"></a>错误五：默认推送绝不丢</h3><p>推送只能加速，不应成为状态正确性的唯一来源。</p>
+<h2 id="20-面试总结话术"><a href="#20-面试总结话术" class="headerlink" title="20. 面试总结话术"></a>20. 面试总结话术</h2><blockquote>
+<p>我会把系统分为候选匹配、订单广播和原子抢单三部分。候选匹配根据位置、运力、路线和风控筛选骑手，采用分轮广播减少惊群。抢单请求带幂等键和服务端签发的候选票据，核心并发控制使用数据库条件更新作为最终裁决；高并发下可增加 Redis 短租约预裁剪，但不能把 Redis 当唯一事实源。订单、抢单流水和 Outbox 在同一本地事务提交，通知、运力画像和计费通过事件异步完成。对预占超时、响应丢失、MQ 失败和服务宕机分别通过租约、幂等、Outbox 和状态对账兜底。</p>
+</blockquote>
+<h2 id="21-延伸追问"><a href="#21-延伸追问" class="headerlink" title="21. 延伸追问"></a>21. 延伸追问</h2><ol>
+<li>抢单和自动派单同时发生，如何避免冲突？</li>
+<li>如何支持一名骑手一次接多个顺路订单？</li>
+<li>如何处理商家取消和骑手接单并发？</li>
+<li>城市级 Redis 故障时怎样降级？</li>
+<li>如何设计跨机房容灾而不发生双骑手接单？</li>
+<li>“先到先得”和“履约最优”冲突时如何取舍？</li>
+<li>如何发现脚本抢单和 GPS 欺骗？</li>
+</ol>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>Redis SET: <a target="_blank" rel="noopener" href="https://redis.io/docs/latest/commands/set/">https://redis.io/docs/latest/commands/set/</a></li>
+<li>Redis Scripting: <a target="_blank" rel="noopener" href="https://redis.io/docs/latest/develop/programmability/eval-intro/">https://redis.io/docs/latest/develop/programmability/eval-intro/</a></li>
+<li>Apache Kafka Documentation: <a target="_blank" rel="noopener" href="https://kafka.apache.org/documentation/">https://kafka.apache.org/documentation/</a></li>
+<li>Transactional Outbox Pattern: <a target="_blank" rel="noopener" href="https://microservices.io/patterns/data/transactional-outbox.html">https://microservices.io/patterns/data/transactional-outbox.html</a></li>
+</ul>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E5%90%8E%E7%AB%AF%E6%9E%B6%E6%9E%84/" class="category-chain-item">后端架构</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/%E5%90%8E%E7%AB%AF%E6%9E%B6%E6%9E%84/%E5%9C%BA%E6%99%AF%E8%AE%BE%E8%AE%A1/" class="category-chain-item">场景设计</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Redis/" class="print-no-link">#Redis</a>
+      
+        <a href="/tags/%E9%AB%98%E5%B9%B6%E5%8F%91/" class="print-no-link">#高并发</a>
+      
+        <a href="/tags/%E6%8A%A2%E5%8D%95/" class="print-no-link">#抢单</a>
+      
+        <a href="/tags/%E6%95%B0%E6%8D%AE%E5%BA%93%E5%B9%B6%E5%8F%91%E6%8E%A7%E5%88%B6/" class="print-no-link">#数据库并发控制</a>
+      
+        <a href="/tags/%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97/" class="print-no-link">#消息队列</a>
+      
+        <a href="/tags/%E7%8A%B6%E6%80%81%E6%9C%BA/" class="print-no-link">#状态机</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>场景设计：美团/饿了么外卖骑手抢单系统</div>
+      <div>https://allendericdalexander.github.io/2026/07/29/archtect/examples/02-food-delivery-rider-order-grabbing/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年7月29日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/07/29/archtect/examples/03-wechat-moments-chronological-feed/" title="场景设计：类微信朋友圈时间序 Feed 系统">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">场景设计：类微信朋友圈时间序 Feed 系统</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/07/29/archtect/examples/01-nearby-merchants-within-1km/" title="场景设计：美团/饿了么如何找出附近 1km 的商家">
+                        <span class="hidden-mobile">场景设计：美团/饿了么如何找出附近 1km 的商家</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

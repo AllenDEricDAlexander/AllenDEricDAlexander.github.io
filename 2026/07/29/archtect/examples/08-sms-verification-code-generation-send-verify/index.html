@@ -1,0 +1,1264 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="从安全随机数、挑战事务、发送限流、供应商回执、验证码哈希存储、原子验证、防刷和风险分级等角度设计短信验证码系统。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="场景设计：手机短信验证码的生成、发送与验证">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/07/29/archtect/examples/08-sms-verification-code-generation-send-verify/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="从安全随机数、挑战事务、发送限流、供应商回执、验证码哈希存储、原子验证、防刷和风险分级等角度设计短信验证码系统。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-29T06:20:00.000Z">
+<meta property="article:modified_time" content="2026-07-29T05:28:52.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="OTP">
+<meta property="article:tag" content="Redis">
+<meta property="article:tag" content="安全">
+<meta property="article:tag" content="幂等">
+<meta property="article:tag" content="短信验证码">
+<meta property="article:tag" content="限流">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>场景设计：手机短信验证码的生成、发送与验证 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="场景设计：手机短信验证码的生成、发送与验证"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-07-29 14:20" pubdate>
+          2026年7月29日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          5.7k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          48 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">场景设计：手机短信验证码的生成、发送与验证</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <span id="more"></span>
+
+<h2 id="1-题目本质"><a href="#1-题目本质" class="headerlink" title="1. 题目本质"></a>1. 题目本质</h2><p>短信验证码看起来只有三步：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">生成 -&gt; 发送 -&gt; 校验<br></code></pre></td></tr></table></figure>
+
+<p>但真正上线时会遇到：</p>
+<ul>
+<li>验证码被暴力猜解；</li>
+<li>短信接口被刷，产生巨额费用；</li>
+<li>同一手机号频繁发送；</li>
+<li>攻击者批量轰炸他人手机号；</li>
+<li>旧验证码和新验证码同时有效；</li>
+<li>短信供应商超时、重复发送或回执延迟；</li>
+<li>用户重复点击导致多条短信顺序混乱；</li>
+<li>验证接口重试导致验证码被重复消费；</li>
+<li>验证码明文出现在数据库、日志和监控中；</li>
+<li>SIM 换卡、短信劫持和社会工程攻击；</li>
+<li>注册、登录、找回密码等场景安全等级不同。</li>
+</ul>
+<p>因此，短信验证码系统不是一个随机数工具类，而是一个带状态、限流、风控、审计和供应商治理的认证挑战系统。</p>
+<h2 id="2-先明确短信验证码的定位"><a href="#2-先明确短信验证码的定位" class="headerlink" title="2. 先明确短信验证码的定位"></a>2. 先明确短信验证码的定位</h2><p>短信 OTP 能证明的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">当前请求者在某个时间窗口内能够接收目标手机号的短信<br></code></pre></td></tr></table></figure>
+
+<p>它不能天然证明：</p>
+<ul>
+<li>这个手机号一直属于此人；</li>
+<li>SIM 卡没有被换卡攻击；</li>
+<li>手机没有中木马；</li>
+<li>短信没有被转发；</li>
+<li>运营商链路绝对安全；</li>
+<li>用户没有把验证码告诉诈骗者。</li>
+</ul>
+<p>NIST SP 800-63B 将基于公共电话网络的带外认证视为受限认证方式。工程上应把短信验证码用于风险可接受的场景，并对高价值转账、密钥修改、管理员登录等操作叠加更强认证，例如 Passkey、TOTP、硬件密钥或设备绑定确认。</p>
+<h2 id="3-场景必须隔离"><a href="#3-场景必须隔离" class="headerlink" title="3. 场景必须隔离"></a>3. 场景必须隔离</h2><p>验证码不能只有“手机号 + code”两个字段。至少要绑定业务场景：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">REGISTER<br>LOGIN<br>RESET_PASSWORD<br>CHANGE_PHONE_OLD<br>CHANGE_PHONE_NEW<br>PAYMENT_CONFIRM<br>BIND_DEVICE<br>RISK_CHALLENGE<br></code></pre></td></tr></table></figure>
+
+<p>同一个手机号在注册场景收到的验证码，不能用于重置密码。</p>
+<p>推荐挑战主键：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">challenge_id<br></code></pre></td></tr></table></figure>
+
+<p>而不是只用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">sms:&#123;phone&#125;<br></code></pre></td></tr></table></figure>
+
+<p>因为同一个手机号可能同时存在不同场景、不同设备发起的挑战。</p>
+<h2 id="4-总体架构"><a href="#4-总体架构" class="headerlink" title="4. 总体架构"></a>4. 总体架构</h2><pre><code class=" mermaid">flowchart LR
+    APP[客户端] --&gt; GW[API Gateway / WAF]
+    GW --&gt; SMS[验证码服务]
+
+    SMS --&gt; RISK[风控与反滥用]
+    SMS --&gt; LIMIT[限流服务]
+    SMS --&gt; STORE[(挑战状态 Redis)]
+    SMS --&gt; OUTBOX[(发送任务/Outbox)]
+
+    OUTBOX --&gt; MQ[消息队列]
+    MQ --&gt; SENDER[短信发送器]
+    SENDER --&gt; P1[供应商 A]
+    SENDER --&gt; P2[供应商 B]
+
+    P1 --&gt; CALLBACK[状态回执]
+    P2 --&gt; CALLBACK
+    CALLBACK --&gt; SMS
+
+    SMS --&gt; AUDIT[(安全审计/发送流水)]
+    SMS --&gt; METRIC[监控与成本分析]
+</code></pre>
+
+<p>将“创建验证码挑战”和“调用短信供应商”适度解耦，可以：</p>
+<ul>
+<li>控制供应商并发；</li>
+<li>做重试和切换；</li>
+<li>统一模板和签名；</li>
+<li>记录成本；</li>
+<li>隔离供应商故障。</li>
+</ul>
+<p>但登录等场景通常希望尽快反馈“发送请求已受理”。异步不是让用户等半天，而是避免把供应商的不稳定事务耦合到核心接口中。</p>
+<h2 id="5-核心状态机"><a href="#5-核心状态机" class="headerlink" title="5. 核心状态机"></a>5. 核心状态机</h2><pre><code class=" mermaid">stateDiagram-v2
+    [*] --&gt; CREATED: 创建挑战
+    CREATED --&gt; QUEUED: 进入发送队列
+    QUEUED --&gt; SENT: 供应商受理
+    QUEUED --&gt; SEND_FAILED: 发送失败
+    SENT --&gt; VERIFIED: 验证成功并消费
+    SENT --&gt; LOCKED: 错误次数超限
+    SENT --&gt; EXPIRED: 超过有效期
+    SEND_FAILED --&gt; QUEUED: 满足条件时重试/切换供应商
+    VERIFIED --&gt; [*]
+    LOCKED --&gt; [*]
+    EXPIRED --&gt; [*]
+</code></pre>
+
+<p>关键不变量：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">验证码一旦 VERIFIED，不得再次成功验证。<br>达到最大错误次数后必须 LOCKED。<br>超过有效期后不能恢复有效。<br></code></pre></td></tr></table></figure>
+
+<h2 id="6-验证码如何生成"><a href="#6-验证码如何生成" class="headerlink" title="6. 验证码如何生成"></a>6. 验证码如何生成</h2><h3 id="6-1-使用密码学安全随机数"><a href="#6-1-使用密码学安全随机数" class="headerlink" title="6.1 使用密码学安全随机数"></a>6.1 使用密码学安全随机数</h3><p>Java 中应使用 <code>SecureRandom</code>，不要使用：</p>
+<ul>
+<li><code>Math.random()</code>；</li>
+<li>普通 <code>Random</code>；</li>
+<li>当前时间戳后 6 位；</li>
+<li>手机号后 6 位；</li>
+<li>自增序列；</li>
+<li>可预测哈希截断。</li>
+</ul>
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> java.security.SecureRandom;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">final</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SmsCodeGenerator</span> &#123;<br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> <span class="hljs-type">SecureRandom</span> <span class="hljs-variable">SECURE_RANDOM</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">SecureRandom</span>();<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-title function_">SmsCodeGenerator</span><span class="hljs-params">()</span> &#123;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> String <span class="hljs-title function_">generateSixDigits</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-type">int</span> <span class="hljs-variable">value</span> <span class="hljs-operator">=</span> SECURE_RANDOM.nextInt(<span class="hljs-number">1_000_000</span>);<br>        <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;%06d&quot;</span>.formatted(value);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><code>000042</code> 是合法 6 位验证码，因此必须使用字符串保存，不能用整数导致前导零丢失。</p>
+<h3 id="6-2-位数选择"><a href="#6-2-位数选择" class="headerlink" title="6.2 位数选择"></a>6.2 位数选择</h3><p>常见为 6 位数字：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">10^6 = 1,000,000 种组合<br></code></pre></td></tr></table></figure>
+
+<p>安全性不只取决于位数，还取决于：</p>
+<ul>
+<li>有效期；</li>
+<li>最大尝试次数；</li>
+<li>限流；</li>
+<li>场景绑定；</li>
+<li>设备和会话绑定；</li>
+<li>风控；</li>
+<li>是否一次性消费。</li>
+</ul>
+<p>一个无限尝试的 8 位验证码，也可能比只允许 5 次尝试的 6 位验证码更危险。</p>
+<h3 id="6-3-不要为了避免重复降低随机性"><a href="#6-3-不要为了避免重复降低随机性" class="headerlink" title="6.3 不要为了避免重复降低随机性"></a>6.3 不要为了避免重复降低随机性</h3><p>“最近 10 次不能重复”通常不是核心要求。随机数偶尔重复并不等于不安全，关键是挑战 ID、场景、有效期和一次性消费。</p>
+<h2 id="7-验证码是否明文保存"><a href="#7-验证码是否明文保存" class="headerlink" title="7. 验证码是否明文保存"></a>7. 验证码是否明文保存</h2><p>推荐不要在 Redis、数据库或日志中长期明文保存验证码。</p>
+<h3 id="7-1-HMAC-摘要"><a href="#7-1-HMAC-摘要" class="headerlink" title="7.1 HMAC 摘要"></a>7.1 HMAC 摘要</h3><p>验证码熵较低，单纯无盐 SHA-256 容易被枚举。可以使用服务端密钥做 HMAC：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">code_digest = HMAC-SHA256(<br>    server_secret,<br>    challengeId + phone + scene + code<br>)<br></code></pre></td></tr></table></figure>
+
+<p>验证时对用户输入做相同计算并使用常量时间比较。</p>
+<p>示例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> javax.crypto.Mac;<br><span class="hljs-keyword">import</span> javax.crypto.spec.SecretKeySpec;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><span class="hljs-keyword">import</span> java.security.MessageDigest;<br><span class="hljs-keyword">import</span> java.util.HexFormat;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">final</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SmsCodeDigester</span> &#123;<br>    <span class="hljs-keyword">private</span> <span class="hljs-title function_">SmsCodeDigester</span><span class="hljs-params">()</span> &#123;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> String <span class="hljs-title function_">hmacSha256</span><span class="hljs-params">(</span><br><span class="hljs-params">            <span class="hljs-type">byte</span>[] secret,</span><br><span class="hljs-params">            String challengeId,</span><br><span class="hljs-params">            String phone,</span><br><span class="hljs-params">            String scene,</span><br><span class="hljs-params">            String code)</span> &#123;<br>        <span class="hljs-keyword">try</span> &#123;<br>            <span class="hljs-type">Mac</span> <span class="hljs-variable">mac</span> <span class="hljs-operator">=</span> Mac.getInstance(<span class="hljs-string">&quot;HmacSHA256&quot;</span>);<br>            mac.init(<span class="hljs-keyword">new</span> <span class="hljs-title class_">SecretKeySpec</span>(secret, <span class="hljs-string">&quot;HmacSHA256&quot;</span>));<br>            <span class="hljs-type">String</span> <span class="hljs-variable">value</span> <span class="hljs-operator">=</span> String.join(<span class="hljs-string">&quot;|&quot;</span>, challengeId, phone, scene, code);<br>            <span class="hljs-keyword">return</span> HexFormat.of().formatHex(<br>                    mac.doFinal(value.getBytes(StandardCharsets.UTF_8))<br>            );<br>        &#125; <span class="hljs-keyword">catch</span> (Exception e) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>(<span class="hljs-string">&quot;Unable to calculate SMS code digest&quot;</span>, e);<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">constantTimeEquals</span><span class="hljs-params">(String expectedHex, String actualHex)</span> &#123;<br>        <span class="hljs-keyword">return</span> MessageDigest.isEqual(<br>                HexFormat.of().parseHex(expectedHex),<br>                HexFormat.of().parseHex(actualHex)<br>        );<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>服务端密钥应由密钥管理系统管理和轮换，不能硬编码在仓库。</p>
+<h3 id="7-2-为什么短信供应商仍需要明文"><a href="#7-2-为什么短信供应商仍需要明文" class="headerlink" title="7.2 为什么短信供应商仍需要明文"></a>7.2 为什么短信供应商仍需要明文</h3><p>供应商必须拿到验证码文本才能发送。因此明文验证码会短暂存在于：</p>
+<ul>
+<li>创建请求进程内存；</li>
+<li>发送任务的受保护载荷；</li>
+<li>供应商调用链。</li>
+</ul>
+<p>要做到：</p>
+<ul>
+<li>不写普通日志；</li>
+<li>不进入 APM 请求体采集；</li>
+<li>MQ 消息加密或受严格 ACL 保护；</li>
+<li>发送完成后不保留明文；</li>
+<li>供应商后台权限最小化；</li>
+<li>对模板参数做脱敏。</li>
+</ul>
+<h2 id="8-Challenge-数据结构"><a href="#8-Challenge-数据结构" class="headerlink" title="8. Challenge 数据结构"></a>8. Challenge 数据结构</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Key: sms:challenge:&#123;challengeId&#125;<br>TTL: 5min<br></code></pre></td></tr></table></figure>
+
+<p>Hash 示例：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;phoneHash&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;...&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;scene&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;LOGIN&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;codeDigest&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;...&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;status&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;SENT&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;attemptCount&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;0&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;maxAttempts&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;5&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;createdAt&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;1785303000000&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;expiresAt&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;1785303300000&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;deviceHash&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;...&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;requestIpPrefix&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;...&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;sendVersion&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;1&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;verifiedUserId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>客户端获得 <code>challengeId</code>，验证时同时提交：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">challengeId + code + scene<br></code></pre></td></tr></table></figure>
+
+<p>手机号可由挑战中查出，也可再次提交后进行一致性校验。</p>
+<h2 id="9-发送流程"><a href="#9-发送流程" class="headerlink" title="9. 发送流程"></a>9. 发送流程</h2><pre><code class=" mermaid">sequenceDiagram
+    autonumber
+    participant App as 客户端
+    participant API as 验证码服务
+    participant Risk as 风控/限流
+    participant Redis as Challenge Store
+    participant MQ as 发送队列
+    participant Sender as 短信发送器
+    participant Vendor as 短信供应商
+
+    App-&gt;&gt;API: 请求发送(phone, scene, device, requestId)
+    API-&gt;&gt;API: 规范化手机号、校验场景
+    API-&gt;&gt;Risk: IP/手机号/设备/账号风险检查
+    Risk--&gt;&gt;API: ALLOW / CHALLENGE / REJECT
+    API-&gt;&gt;Redis: 原子检查冷却时间并创建 challenge
+    API-&gt;&gt;MQ: SendSms(challengeId, encryptedCode, template)
+    API--&gt;&gt;App: challengeId + resendAfter + expireAt
+
+    MQ-&gt;&gt;Sender: 发送任务
+    Sender-&gt;&gt;Vendor: 模板短信
+    Vendor--&gt;&gt;Sender: request accepted/vendorMessageId
+    Sender-&gt;&gt;Redis: 更新 SENT/失败状态
+</code></pre>
+
+<h3 id="9-1-客户端返回“受理”还是“发送成功”"><a href="#9-1-客户端返回“受理”还是“发送成功”" class="headerlink" title="9.1 客户端返回“受理”还是“发送成功”"></a>9.1 客户端返回“受理”还是“发送成功”</h3><p>供应商接口返回通常只代表受理，不代表短信已经送达手机。</p>
+<p>API 可返回：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ACCEPTED<br></code></pre></td></tr></table></figure>
+
+<p>而不是绝对承诺：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">DELIVERED<br></code></pre></td></tr></table></figure>
+
+<p>运营商回执可能延迟甚至缺失。用户体验上可以显示“验证码已发送，请注意查收”，但系统内部状态要区分供应商受理和最终送达回执。</p>
+<h2 id="10-验证流程"><a href="#10-验证流程" class="headerlink" title="10. 验证流程"></a>10. 验证流程</h2><pre><code class=" mermaid">sequenceDiagram
+    autonumber
+    participant App as 客户端
+    participant API as 验证码服务
+    participant Redis as Challenge Store
+    participant Biz as 登录/注册业务
+    participant Audit as 审计
+
+    App-&gt;&gt;API: verify(challengeId, code, scene, requestId)
+    API-&gt;&gt;Redis: Lua 原子校验状态/过期/次数/摘要
+    alt 验证码错误
+        Redis--&gt;&gt;API: INVALID + remainingAttempts
+        API-&gt;&gt;Audit: 记录失败与风险信号
+        API--&gt;&gt;App: 验证失败
+    else 已锁定或过期
+        Redis--&gt;&gt;API: LOCKED/EXPIRED
+        API--&gt;&gt;App: 失败
+    else 验证成功
+        Redis--&gt;&gt;API: VERIFIED + verificationTicket
+        API-&gt;&gt;Biz: 使用一次性票据继续登录/注册
+        API-&gt;&gt;Audit: 记录成功
+        API--&gt;&gt;App: verificationTicket
+    end
+</code></pre>
+
+<h2 id="11-为什么验证必须原子完成"><a href="#11-为什么验证必须原子完成" class="headerlink" title="11. 为什么验证必须原子完成"></a>11. 为什么验证必须原子完成</h2><p>错误流程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">GET challenge<br>判断 code 正确<br>调用业务<br>SET status = VERIFIED<br></code></pre></td></tr></table></figure>
+
+<p>两个并发请求可能都在状态更新前通过，导致同一个验证码被消费两次。</p>
+<p>正确做法是用 Lua 或数据库条件更新一次完成：</p>
+<ol>
+<li>Key 是否存在；</li>
+<li>状态是否为 SENT；</li>
+<li>是否过期；</li>
+<li>场景是否一致；</li>
+<li>尝试次数是否超限；</li>
+<li>摘要是否匹配；</li>
+<li>错误则原子增加次数；</li>
+<li>正确则原子改为 VERIFIED；</li>
+<li>生成或写入一次性验证票据。</li>
+</ol>
+<p>伪 Lua：</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><code class="hljs lua"><span class="hljs-keyword">local</span> <span class="hljs-built_in">status</span> = redis.call(<span class="hljs-string">&#x27;HGET&#x27;</span>, KEYS[<span class="hljs-number">1</span>], <span class="hljs-string">&#x27;status&#x27;</span>)<br><span class="hljs-keyword">if</span> <span class="hljs-keyword">not</span> <span class="hljs-built_in">status</span> <span class="hljs-keyword">then</span><br>    <span class="hljs-keyword">return</span> &#123;<span class="hljs-number">0</span>, <span class="hljs-string">&#x27;NOT_FOUND_OR_EXPIRED&#x27;</span>&#125;<br><span class="hljs-keyword">end</span><br><br><span class="hljs-keyword">if</span> <span class="hljs-built_in">status</span> ~= <span class="hljs-string">&#x27;SENT&#x27;</span> <span class="hljs-keyword">then</span><br>    <span class="hljs-keyword">return</span> &#123;<span class="hljs-number">0</span>, <span class="hljs-built_in">status</span>&#125;<br><span class="hljs-keyword">end</span><br><br><span class="hljs-keyword">local</span> attempts = <span class="hljs-built_in">tonumber</span>(redis.call(<span class="hljs-string">&#x27;HGET&#x27;</span>, KEYS[<span class="hljs-number">1</span>], <span class="hljs-string">&#x27;attemptCount&#x27;</span>) <span class="hljs-keyword">or</span> <span class="hljs-string">&#x27;0&#x27;</span>)<br><span class="hljs-keyword">local</span> maxAttempts = <span class="hljs-built_in">tonumber</span>(redis.call(<span class="hljs-string">&#x27;HGET&#x27;</span>, KEYS[<span class="hljs-number">1</span>], <span class="hljs-string">&#x27;maxAttempts&#x27;</span>) <span class="hljs-keyword">or</span> <span class="hljs-string">&#x27;5&#x27;</span>)<br><br><span class="hljs-keyword">if</span> attempts &gt;= maxAttempts <span class="hljs-keyword">then</span><br>    redis.call(<span class="hljs-string">&#x27;HSET&#x27;</span>, KEYS[<span class="hljs-number">1</span>], <span class="hljs-string">&#x27;status&#x27;</span>, <span class="hljs-string">&#x27;LOCKED&#x27;</span>)<br>    <span class="hljs-keyword">return</span> &#123;<span class="hljs-number">0</span>, <span class="hljs-string">&#x27;LOCKED&#x27;</span>&#125;<br><span class="hljs-keyword">end</span><br><br><span class="hljs-keyword">local</span> expected = redis.call(<span class="hljs-string">&#x27;HGET&#x27;</span>, KEYS[<span class="hljs-number">1</span>], <span class="hljs-string">&#x27;codeDigest&#x27;</span>)<br><span class="hljs-keyword">if</span> expected ~= ARGV[<span class="hljs-number">1</span>] <span class="hljs-keyword">then</span><br>    attempts = redis.call(<span class="hljs-string">&#x27;HINCRBY&#x27;</span>, KEYS[<span class="hljs-number">1</span>], <span class="hljs-string">&#x27;attemptCount&#x27;</span>, <span class="hljs-number">1</span>)<br>    <span class="hljs-keyword">if</span> attempts &gt;= maxAttempts <span class="hljs-keyword">then</span><br>        redis.call(<span class="hljs-string">&#x27;HSET&#x27;</span>, KEYS[<span class="hljs-number">1</span>], <span class="hljs-string">&#x27;status&#x27;</span>, <span class="hljs-string">&#x27;LOCKED&#x27;</span>)<br>        <span class="hljs-keyword">return</span> &#123;<span class="hljs-number">0</span>, <span class="hljs-string">&#x27;LOCKED&#x27;</span>&#125;<br>    <span class="hljs-keyword">end</span><br>    <span class="hljs-keyword">return</span> &#123;<span class="hljs-number">0</span>, <span class="hljs-string">&#x27;INVALID&#x27;</span>, maxAttempts - attempts&#125;<br><span class="hljs-keyword">end</span><br><br>redis.call(<span class="hljs-string">&#x27;HSET&#x27;</span>, KEYS[<span class="hljs-number">1</span>],<br>    <span class="hljs-string">&#x27;status&#x27;</span>, <span class="hljs-string">&#x27;VERIFIED&#x27;</span>,<br>    <span class="hljs-string">&#x27;verifiedAt&#x27;</span>, ARGV[<span class="hljs-number">2</span>])<br><span class="hljs-keyword">return</span> &#123;<span class="hljs-number">1</span>, <span class="hljs-string">&#x27;VERIFIED&#x27;</span>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>注意：Lua 中直接比较摘要字符串并不等价于应用层常量时间比较。若对侧信道风险要求高，可将关键比较放在受控应用逻辑中，再用 CAS 脚本消费；对于远程网络攻击，限流、尝试次数和短 TTL 通常更关键。</p>
+<h2 id="12-验证成功后不要直接永久信任-challengeId"><a href="#12-验证成功后不要直接永久信任-challengeId" class="headerlink" title="12. 验证成功后不要直接永久信任 challengeId"></a>12. 验证成功后不要直接永久信任 challengeId</h2><p>推荐生成短期、一次性的 <code>verification_ticket</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">verification_ticket -&gt; phone + scene + challengeId + expireAt + consumed=false<br></code></pre></td></tr></table></figure>
+
+<p>后续登录&#x2F;注册接口消费该票据：</p>
+<pre><code class=" mermaid">flowchart LR
+    V[验证码校验成功] --&gt; T[签发短期 verification ticket]
+    T --&gt; B[登录/注册/改手机号业务]
+    B --&gt; C&#123;原子消费 ticket&#125;
+    C -- 成功 --&gt; S[完成业务]
+    C -- 已消费/过期 --&gt; F[拒绝]
+</code></pre>
+
+<p>这样可避免：</p>
+<ul>
+<li>登录业务反复重新校验验证码；</li>
+<li>验证码服务和账号业务强耦合；</li>
+<li><code>challengeId</code> 被无限复用；</li>
+<li>不同场景串用。</li>
+</ul>
+<p>票据必须绑定：</p>
+<ul>
+<li>手机号；</li>
+<li>场景；</li>
+<li>账号或用户（若已知）；</li>
+<li>设备&#x2F;会话（视风险）；</li>
+<li>有效期；</li>
+<li>一次性消费状态。</li>
+</ul>
+<h2 id="13-发送限流"><a href="#13-发送限流" class="headerlink" title="13. 发送限流"></a>13. 发送限流</h2><p>仅限制“60 秒内不能重发”远远不够。应多维限流。</p>
+<h3 id="13-1-手机号维度"><a href="#13-1-手机号维度" class="headerlink" title="13.1 手机号维度"></a>13.1 手机号维度</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">同手机号同场景：60 秒 1 次<br>同手机号：1 小时最多 N 次<br>同手机号：1 天最多 M 次<br></code></pre></td></tr></table></figure>
+
+<h3 id="13-2-IP-维度"><a href="#13-2-IP-维度" class="headerlink" title="13.2 IP 维度"></a>13.2 IP 维度</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">同 IP：分钟、小时、日级限额<br></code></pre></td></tr></table></figure>
+
+<p>但大量用户可能共享企业 NAT 或运营商出口，IP 限流不能过于简单粗暴。</p>
+<h3 id="13-3-设备维度"><a href="#13-3-设备维度" class="headerlink" title="13.3 设备维度"></a>13.3 设备维度</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">同 deviceId / device fingerprint 的发送频率<br></code></pre></td></tr></table></figure>
+
+<h3 id="13-4-账号维度"><a href="#13-4-账号维度" class="headerlink" title="13.4 账号维度"></a>13.4 账号维度</h3><p>已登录场景可限制同账号修改手机号、找回密码等敏感操作。</p>
+<h3 id="13-5-号码段和国家维度"><a href="#13-5-号码段和国家维度" class="headerlink" title="13.5 号码段和国家维度"></a>13.5 号码段和国家维度</h3><p>防止攻击者批量枚举某号段或高成本国际短信目的地。</p>
+<h3 id="13-6-全局成本熔断"><a href="#13-6-全局成本熔断" class="headerlink" title="13.6 全局成本熔断"></a>13.6 全局成本熔断</h3><p>监控每分钟、每小时短信量和费用。当异常增长时：</p>
+<ul>
+<li>限流收紧；</li>
+<li>开启 CAPTCHA；</li>
+<li>暂停高风险国家&#x2F;号段；</li>
+<li>切换供应商；</li>
+<li>人工告警。</li>
+</ul>
+<h2 id="14-Redis-滑动窗口限流"><a href="#14-Redis-滑动窗口限流" class="headerlink" title="14. Redis 滑动窗口限流"></a>14. Redis 滑动窗口限流</h2><p>可以使用 ZSet：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Key: sms:rate:phone:&#123;phoneHash&#125;:hour<br>Score: requestTimeMillis<br>Member: requestId<br></code></pre></td></tr></table></figure>
+
+<p>Lua 原子流程：</p>
+<ol>
+<li>删除窗口外成员；</li>
+<li>统计当前数量；</li>
+<li>超限则拒绝；</li>
+<li>未超限则写入本次 requestId；</li>
+<li>设置 TTL。</li>
+</ol>
+<p>伪代码：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs redis">ZREMRANGEBYSCORE key -inf now-window<br>ZCARD key<br>ZADD key now requestId<br>EXPIRE key ttl<br></code></pre></td></tr></table></figure>
+
+<p>必须放进 Lua，避免并发请求都先看到未超限，然后同时写入。</p>
+<p>对于固定时间窗口，也可用 <code>INCR + EXPIRE</code>，实现简单但边界处可能突发双倍流量。选择取决于精度和成本。</p>
+<h2 id="15-防短信轰炸"><a href="#15-防短信轰炸" class="headerlink" title="15. 防短信轰炸"></a>15. 防短信轰炸</h2><p>攻击者可能不断给受害者发送验证码，造成骚扰。</p>
+<p>措施：</p>
+<ul>
+<li>同手机号冷却时间；</li>
+<li>多维限流；</li>
+<li>高风险请求先通过 CAPTCHA；</li>
+<li>风险设备和代理 IP 拦截；</li>
+<li>同一手机号频繁被多个 IP 请求时提高风险；</li>
+<li>短信文案明确“请勿泄露，非本人操作请忽略”；</li>
+<li>提供投诉和安全冻结渠道；</li>
+<li>对攻击流量返回统一响应，避免号码枚举；</li>
+<li>防止第三方页面跨站触发发送接口。</li>
+</ul>
+<p>发送接口应校验 CSRF&#x2F;Origin（Web 场景）、设备证明和请求签名，不能只是公开的手机号 POST 接口。</p>
+<h2 id="16-防号码枚举"><a href="#16-防号码枚举" class="headerlink" title="16. 防号码枚举"></a>16. 防号码枚举</h2><p>注册或找回密码时，如果响应：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">“该手机号未注册”<br></code></pre></td></tr></table></figure>
+
+<p>攻击者可以枚举用户。</p>
+<p>可根据业务采用统一响应：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">“如果该手机号符合条件，我们将发送验证码。”<br></code></pre></td></tr></table></figure>
+
+<p>但完全统一响应会影响用户体验。可以在前端流程、风控和错误延迟之间做平衡，至少避免接口对未认证攻击者返回过于明确的账号存在性信息。</p>
+<h2 id="17-新验证码是否让旧验证码失效"><a href="#17-新验证码是否让旧验证码失效" class="headerlink" title="17. 新验证码是否让旧验证码失效"></a>17. 新验证码是否让旧验证码失效</h2><p>建议同一“手机号 + 场景 + 业务会话”只有一个当前有效 challenge 版本。</p>
+<p>当用户点击重发：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">sendVersion + 1<br>旧 challenge 标记 SUPERSEDED<br>新 challenge 生效<br></code></pre></td></tr></table></figure>
+
+<p>否则用户可能收到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">短信 A: 123456<br>短信 B: 654321<br></code></pre></td></tr></table></figure>
+
+<p>由于运营商延迟，B 先到、A 后到。若两个都有效，安全和体验都变差。</p>
+<p>客户端页面显示最新挑战的 <code>challengeId</code>，只验证最新版本。</p>
+<p>但要注意：重发不能无限立即发生，仍需冷却和总次数限制。</p>
+<h2 id="18-短信供应商治理"><a href="#18-短信供应商治理" class="headerlink" title="18. 短信供应商治理"></a>18. 短信供应商治理</h2><h3 id="18-1-多供应商"><a href="#18-1-多供应商" class="headerlink" title="18.1 多供应商"></a>18.1 多供应商</h3><p>可以配置主备供应商：</p>
+<pre><code class=" mermaid">flowchart TD
+    T[发送任务] --&gt; R[路由策略]
+    R --&gt; A[供应商 A]
+    R --&gt; B[供应商 B]
+    A --&gt;|超时/熔断| B
+    A --&gt; M[成功率/延迟/成本]
+    B --&gt; M
+</code></pre>
+
+<p>路由考虑：</p>
+<ul>
+<li>国家和运营商覆盖；</li>
+<li>送达率；</li>
+<li>延迟；</li>
+<li>单价；</li>
+<li>模板审核；</li>
+<li>当前熔断状态；</li>
+<li>每日配额；</li>
+<li>合规和数据驻留。</li>
+</ul>
+<h3 id="18-2-供应商超时能否直接重试"><a href="#18-2-供应商超时能否直接重试" class="headerlink" title="18.2 供应商超时能否直接重试"></a>18.2 供应商超时能否直接重试</h3><p>危险点：供应商可能已经受理，但响应在网络中丢失。立即切换另一个供应商会导致用户收到两条短信。</p>
+<p>需要：</p>
+<ul>
+<li>供应商侧幂等请求 ID；</li>
+<li>查询发送状态；</li>
+<li>延迟确认后再切换；</li>
+<li>对重复短信可接受度做业务权衡；</li>
+<li>记录 providerRequestId 和 vendorMessageId。</li>
+</ul>
+<h3 id="18-3-回执不等于绝对事实"><a href="#18-3-回执不等于绝对事实" class="headerlink" title="18.3 回执不等于绝对事实"></a>18.3 回执不等于绝对事实</h3><p>运营商回执可能延迟、不完整或状态语义不同。内部统一映射：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">ACCEPTED<br>DELIVERED<br>FAILED_PERMANENT<br>FAILED_TRANSIENT<br>UNKNOWN<br></code></pre></td></tr></table></figure>
+
+<h2 id="19-发送流水"><a href="#19-发送流水" class="headerlink" title="19. 发送流水"></a>19. 发送流水</h2><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> sms_send_record (<br>    id                  <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">PRIMARY KEY</span>,<br>    challenge_id        <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    request_id          <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    phone_hash          <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">128</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    scene               <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">32</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    template_id         <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    provider            <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">32</span>) <span class="hljs-keyword">NULL</span>,<br>    provider_request_id <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">128</span>) <span class="hljs-keyword">NULL</span>,<br>    status              <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">32</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    error_code          <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NULL</span>,<br>    cost_amount         <span class="hljs-type">DECIMAL</span>(<span class="hljs-number">12</span>, <span class="hljs-number">6</span>) <span class="hljs-keyword">NULL</span>,<br>    created_at          <span class="hljs-type">TIMESTAMP</span> <span class="hljs-keyword">NOT NULL</span>,<br>    updated_at          <span class="hljs-type">TIMESTAMP</span> <span class="hljs-keyword">NOT NULL</span>,<br>    <span class="hljs-keyword">UNIQUE</span>(request_id)<br>);<br></code></pre></td></tr></table></figure>
+
+<p>不要在流水中保存明文验证码和完整手机号。手机号可保存加密值供受控业务使用，同时保留不可逆 hash 用于统计和限流关联。</p>
+<h2 id="20-API-设计"><a href="#20-API-设计" class="headerlink" title="20. API 设计"></a>20. API 设计</h2><h3 id="20-1-请求发送"><a href="#20-1-请求发送" class="headerlink" title="20.1 请求发送"></a>20.1 请求发送</h3><figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs http">POST /api/v1/sms/challenges<br><span class="hljs-attribute">Idempotency-Key</span><span class="hljs-punctuation">: </span>&lt;request-id&gt;<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;phone&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;+8613800000000&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;scene&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;LOGIN&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;deviceId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;device-abc&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;captchaTicket&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;optional&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;locale&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;zh-CN&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>响应：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;challengeId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;sms_01K...&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;status&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;ACCEPTED&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;expireAt&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1785303300000</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;resendAfter&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">60</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;maskedPhone&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;+86 138****0000&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="20-2-验证验证码"><a href="#20-2-验证验证码" class="headerlink" title="20.2 验证验证码"></a>20.2 验证验证码</h3><figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs http">POST /api/v1/sms/challenges/&#123;challengeId&#125;/verify<br><span class="hljs-attribute">Idempotency-Key</span><span class="hljs-punctuation">: </span>&lt;request-id&gt;<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;scene&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;LOGIN&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;code&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;042381&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;deviceId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;device-abc&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>响应：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;verified&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">true</span></span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;verificationTicket&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;vt_01K...&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;ticketExpireAt&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1785303360000</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>错误响应不必告诉攻击者验证码具体错在哪个字符，也不要暴露过多限流规则。</p>
+<h2 id="21-幂等设计"><a href="#21-幂等设计" class="headerlink" title="21. 幂等设计"></a>21. 幂等设计</h2><h3 id="21-1-发送幂等"><a href="#21-1-发送幂等" class="headerlink" title="21.1 发送幂等"></a>21.1 发送幂等</h3><p>同一个 <code>Idempotency-Key</code> 重试，应返回相同 challenge，而不是再发一条短信。</p>
+<h3 id="21-2-验证幂等"><a href="#21-2-验证幂等" class="headerlink" title="21.2 验证幂等"></a>21.2 验证幂等</h3><p>同一验证请求响应丢失后重试：</p>
+<ul>
+<li>可以返回原 <code>verificationTicket</code> 的安全恢复结果；</li>
+<li>或返回“已验证”，由同一业务会话继续；</li>
+<li>不应再次增加失败次数；</li>
+<li>不应重复消费到多个业务。</li>
+</ul>
+<h3 id="21-3-业务消费幂等"><a href="#21-3-业务消费幂等" class="headerlink" title="21.3 业务消费幂等"></a>21.3 业务消费幂等</h3><p><code>verificationTicket</code> 在登录&#x2F;注册业务中原子消费。即使业务请求重复，也只产生一个账号绑定或一次敏感操作。</p>
+<h2 id="22-失败次数和锁定"><a href="#22-失败次数和锁定" class="headerlink" title="22. 失败次数和锁定"></a>22. 失败次数和锁定</h2><p>建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">每个 challenge 最多 5 次左右尝试（示例）<br></code></pre></td></tr></table></figure>
+
+<p>达到上限后：</p>
+<ul>
+<li>状态变为 LOCKED；</li>
+<li>该 challenge 永久失效；</li>
+<li>是否允许立即重新发送由风险策略决定；</li>
+<li>对连续失败的手机号&#x2F;IP&#x2F;设备提高风险；</li>
+<li>不要仅清空 attemptCount 让攻击者无限循环。</li>
+</ul>
+<p>同时设置全局验证限流：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">同手机号、同 IP、同设备在一小时内的总验证尝试数<br></code></pre></td></tr></table></figure>
+
+<p>否则攻击者可以不断创建新 challenge，每个都尝试 5 次。</p>
+<h2 id="23-有效期设计"><a href="#23-有效期设计" class="headerlink" title="23. 有效期设计"></a>23. 有效期设计</h2><p>常见为几分钟，但应按场景配置：</p>
+<ul>
+<li>登录：较短；</li>
+<li>高延迟国际短信：可适度更长；</li>
+<li>支付确认：更短并绑定交易；</li>
+<li>找回密码：短时有效，后续票据也要短时。</li>
+</ul>
+<p>验证码过期判断必须使用服务端时间。</p>
+<p>Redis TTL 到期后 Key 消失，但为了审计可在持久化流水中保留：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">challenge created / sent / verified / expired / locked<br></code></pre></td></tr></table></figure>
+
+<h2 id="24-验证码日志脱敏"><a href="#24-验证码日志脱敏" class="headerlink" title="24. 验证码日志脱敏"></a>24. 验证码日志脱敏</h2><p>以下内容不能进入普通日志：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">明文 code<br>完整手机号<br>verificationTicket<br>供应商密钥<br>Authorization Token<br>完整请求体<br></code></pre></td></tr></table></figure>
+
+<p>可记录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">challengeId<br>phoneHash<br>maskedPhone<br>scene<br>provider<br>result<br>reasonCode<br>requestId<br>traceId<br>costMs<br></code></pre></td></tr></table></figure>
+
+<p>要检查：</p>
+<ul>
+<li>网关访问日志；</li>
+<li>APM body capture；</li>
+<li>异常堆栈；</li>
+<li>MQ 控制台；</li>
+<li>数据库慢日志；</li>
+<li>第三方监控平台；</li>
+<li>客服后台。</li>
+</ul>
+<p>很多验证码泄漏不是算法问题，而是可观测平台把请求体完整收集了。</p>
+<h2 id="25-容量和成本估算"><a href="#25-容量和成本估算" class="headerlink" title="25. 容量和成本估算"></a>25. 容量和成本估算</h2><p>假设：</p>
+<ul>
+<li>每天发送 1000 万条短信；</li>
+<li>峰值集中在活动或登录高峰；</li>
+<li>每条短信成本由国家、供应商和通道决定；</li>
+</ul>
+<p>必须监控：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">发送请求数<br>供应商受理数<br>送达数<br>验证成功数<br>重复发送数<br>每次成功验证的短信成本<br>异常国家/号段费用<br></code></pre></td></tr></table></figure>
+
+<p>漏斗：</p>
+<pre><code class=" mermaid">flowchart LR
+    R[发送请求] --&gt; A[风控允许]
+    A --&gt; S[供应商受理]
+    S --&gt; D[送达/未知]
+    D --&gt; V[验证成功]
+</code></pre>
+
+<p>如果发送量增长但验证成功量不变，可能是：</p>
+<ul>
+<li>攻击；</li>
+<li>供应商送达率下降；</li>
+<li>模板问题；</li>
+<li>客户端重复请求；</li>
+<li>验证码延迟导致用户重发；</li>
+<li>产品流程异常。</li>
+</ul>
+<h2 id="26-故障场景"><a href="#26-故障场景" class="headerlink" title="26. 故障场景"></a>26. 故障场景</h2><h3 id="26-1-Challenge-创建成功，发送任务失败"><a href="#26-1-Challenge-创建成功，发送任务失败" class="headerlink" title="26.1 Challenge 创建成功，发送任务失败"></a>26.1 Challenge 创建成功，发送任务失败</h3><p>状态标为 SEND_FAILED，可按策略重试或切换供应商。客户端可允许在冷却后重新请求。</p>
+<h3 id="26-2-供应商受理成功，服务响应丢失"><a href="#26-2-供应商受理成功，服务响应丢失" class="headerlink" title="26.2 供应商受理成功，服务响应丢失"></a>26.2 供应商受理成功，服务响应丢失</h3><p>使用 providerRequestId 查询，不立即盲目切换，避免重复短信。</p>
+<h3 id="26-3-短信延迟到达"><a href="#26-3-短信延迟到达" class="headerlink" title="26.3 短信延迟到达"></a>26.3 短信延迟到达</h3><p>旧 challenge 被新版本 supersede 后，即使旧短信后到也不能验证成功。</p>
+<h3 id="26-4-Redis-主从切换丢失-challenge"><a href="#26-4-Redis-主从切换丢失-challenge" class="headerlink" title="26.4 Redis 主从切换丢失 challenge"></a>26.4 Redis 主从切换丢失 challenge</h3><p>验证码验证失败，提示重新发送。不能降级为“只要格式正确就通过”。</p>
+<p>对高价值认证，可把挑战状态写入更强持久化存储或使用具备强一致能力的状态服务。</p>
+<h3 id="26-5-验证成功，业务登录失败"><a href="#26-5-验证成功，业务登录失败" class="headerlink" title="26.5 验证成功，业务登录失败"></a>26.5 验证成功，业务登录失败</h3><p>verificationTicket 仍在短时间内有效，业务可幂等重试；或业务消费失败后不标记消费。需要明确票据消费与业务事务边界。</p>
+<h3 id="26-6-业务成功，响应丢失"><a href="#26-6-业务成功，响应丢失" class="headerlink" title="26.6 业务成功，响应丢失"></a>26.6 业务成功，响应丢失</h3><p>业务接口自身通过幂等键返回原结果，不能让用户重新走短信流程并重复创建账号或绑定。</p>
+<h2 id="27-高风险场景的加强措施"><a href="#27-高风险场景的加强措施" class="headerlink" title="27. 高风险场景的加强措施"></a>27. 高风险场景的加强措施</h2><p>对于改手机号、找回账号、资金操作：</p>
+<ul>
+<li>校验现有登录态；</li>
+<li>旧设备确认；</li>
+<li>Passkey&#x2F;WebAuthn；</li>
+<li>TOTP 或硬件密钥；</li>
+<li>风险等待期；</li>
+<li>新旧手机号双向验证；</li>
+<li>最近换卡风险检测；</li>
+<li>新设备和异地风控；</li>
+<li>生物识别；</li>
+<li>人工申诉流程；</li>
+<li>操作后通知所有已登录设备。</li>
+</ul>
+<p>不要把短信 OTP 当作所有敏感操作的唯一防线。</p>
+<h2 id="28-常见错误回答"><a href="#28-常见错误回答" class="headerlink" title="28. 常见错误回答"></a>28. 常见错误回答</h2><h3 id="错误一：Random-生成-6-位数字"><a href="#错误一：Random-生成-6-位数字" class="headerlink" title="错误一：Random 生成 6 位数字"></a>错误一：<code>Random</code> 生成 6 位数字</h3><p>普通伪随机数可预测，应使用 <code>SecureRandom</code>。</p>
+<h3 id="错误二：Redis-Key-只用手机号"><a href="#错误二：Redis-Key-只用手机号" class="headerlink" title="错误二：Redis Key 只用手机号"></a>错误二：Redis Key 只用手机号</h3><p>不同场景会互相覆盖，也无法区分多次挑战和设备会话。</p>
+<h3 id="错误三：明文验证码写数据库和日志"><a href="#错误三：明文验证码写数据库和日志" class="headerlink" title="错误三：明文验证码写数据库和日志"></a>错误三：明文验证码写数据库和日志</h3><p>内部人员、日志平台和备份都会扩大泄漏面。</p>
+<h3 id="错误四：验证时-GET-后-DELETE"><a href="#错误四：验证时-GET-后-DELETE" class="headerlink" title="错误四：验证时 GET 后 DELETE"></a>错误四：验证时 GET 后 DELETE</h3><p>并发请求可能都验证成功，应原子校验并消费。</p>
+<h3 id="错误五：只限制-60-秒重发"><a href="#错误五：只限制-60-秒重发" class="headerlink" title="错误五：只限制 60 秒重发"></a>错误五：只限制 60 秒重发</h3><p>攻击者仍可对大量手机号、IP 或设备进行批量攻击，需要多维限流和全局成本熔断。</p>
+<h3 id="错误六：供应商超时就立刻换另一家"><a href="#错误六：供应商超时就立刻换另一家" class="headerlink" title="错误六：供应商超时就立刻换另一家"></a>错误六：供应商超时就立刻换另一家</h3><p>第一家可能已发送，会造成重复短信和费用翻倍。</p>
+<h3 id="错误七：验证码正确后永久标记手机号已验证"><a href="#错误七：验证码正确后永久标记手机号已验证" class="headerlink" title="错误七：验证码正确后永久标记手机号已验证"></a>错误七：验证码正确后永久标记手机号已验证</h3><p>验证结果必须绑定场景、业务会话和短有效期，并通过一次性票据消费。</p>
+<h3 id="错误八：短信验证码可以保护所有高价值操作"><a href="#错误八：短信验证码可以保护所有高价值操作" class="headerlink" title="错误八：短信验证码可以保护所有高价值操作"></a>错误八：短信验证码可以保护所有高价值操作</h3><p>短信存在 SIM 换卡、劫持和社会工程风险，高风险操作需要更强认证。</p>
+<h2 id="29-面试总结话术"><a href="#29-面试总结话术" class="headerlink" title="29. 面试总结话术"></a>29. 面试总结话术</h2><blockquote>
+<p>我会把短信验证码建模为短生命周期 challenge，而不是简单的 phone-code Key。服务端使用 SecureRandom 生成验证码，使用 HMAC 摘要保存，并绑定 challengeId、手机号、场景、设备和有效期。发送前按手机号、IP、设备、账号、号段和全局成本做多维限流与风控，通过消息队列和供应商适配层发送，记录受理和回执状态。验证时使用 Redis Lua 或数据库条件更新原子完成状态、过期、错误次数、摘要匹配和一次性消费；成功后签发短期 verification ticket，后续业务再原子消费。重发会让旧 challenge 失效，接口和供应商调用都要幂等。短信 OTP 只适用于风险可接受的场景，高价值操作应叠加 Passkey、TOTP 或设备确认。</p>
+</blockquote>
+<h2 id="30-延伸追问"><a href="#30-延伸追问" class="headerlink" title="30. 延伸追问"></a>30. 延伸追问</h2><ol>
+<li>为什么验证码摘要不能简单使用无盐 SHA-256？</li>
+<li>Redis 挂了以后是否允许查数据库验证？</li>
+<li>同一个手机号 60 秒内重复点击如何幂等？</li>
+<li>供应商超时但实际已经发送，如何避免双发？</li>
+<li>如何防止攻击者批量轰炸手机号？</li>
+<li>修改手机号为什么需要验证旧手机号和新手机号？</li>
+<li>验证成功后业务接口失败，票据如何恢复？</li>
+<li>如何防止验证码出现在 APM 和网关日志？</li>
+<li>国际短信成本突然上涨如何自动熔断？</li>
+<li>短信 OTP 与 Passkey 如何组合？</li>
+</ol>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>NIST SP 800-63B: <a target="_blank" rel="noopener" href="https://pages.nist.gov/800-63-4/sp800-63b.html">https://pages.nist.gov/800-63-4/sp800-63b.html</a></li>
+<li>NIST Authenticator Guidance: <a target="_blank" rel="noopener" href="https://pages.nist.gov/800-63-4/sp800-63b/authenticators/">https://pages.nist.gov/800-63-4/sp800-63b/authenticators/</a></li>
+<li>OWASP Authentication Cheat Sheet: <a target="_blank" rel="noopener" href="https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html">https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html</a></li>
+<li>OWASP Credential Stuffing Prevention Cheat Sheet: <a target="_blank" rel="noopener" href="https://cheatsheetseries.owasp.org/cheatsheets/Credential_Stuffing_Prevention_Cheat_Sheet.html">https://cheatsheetseries.owasp.org/cheatsheets/Credential_Stuffing_Prevention_Cheat_Sheet.html</a></li>
+<li>Redis SET: <a target="_blank" rel="noopener" href="https://redis.io/docs/latest/commands/set/">https://redis.io/docs/latest/commands/set/</a></li>
+<li>Redis EXPIRE: <a target="_blank" rel="noopener" href="https://redis.io/docs/latest/commands/expire/">https://redis.io/docs/latest/commands/expire/</a></li>
+</ul>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E5%90%8E%E7%AB%AF%E6%9E%B6%E6%9E%84/" class="category-chain-item">后端架构</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/%E5%90%8E%E7%AB%AF%E6%9E%B6%E6%9E%84/%E5%9C%BA%E6%99%AF%E8%AE%BE%E8%AE%A1/" class="category-chain-item">场景设计</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Redis/" class="print-no-link">#Redis</a>
+      
+        <a href="/tags/%E5%B9%82%E7%AD%89/" class="print-no-link">#幂等</a>
+      
+        <a href="/tags/%E7%9F%AD%E4%BF%A1%E9%AA%8C%E8%AF%81%E7%A0%81/" class="print-no-link">#短信验证码</a>
+      
+        <a href="/tags/OTP/" class="print-no-link">#OTP</a>
+      
+        <a href="/tags/%E9%99%90%E6%B5%81/" class="print-no-link">#限流</a>
+      
+        <a href="/tags/%E5%AE%89%E5%85%A8/" class="print-no-link">#安全</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>场景设计：手机短信验证码的生成、发送与验证</div>
+      <div>https://allendericdalexander.github.io/2026/07/29/archtect/examples/08-sms-verification-code-generation-send-verify/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年7月29日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/07/29/archtect/examples/07-statistics-user-online-duration/" title="场景设计：如何统计用户在线时长">
+                        <span class="hidden-mobile">场景设计：如何统计用户在线时长</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

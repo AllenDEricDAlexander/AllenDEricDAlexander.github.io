@@ -1,0 +1,2555 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="直播弹幕系统,WebSocket,Redis ZSet,Kafka,长连接,消息推送,热点房间">
+  
+    <meta name="description" content="从业务特征、容量估算、轮询 MVP、WebSocket 长连接、消息顺序、房间路由、热门直播间、可靠性、存储、限流降级到监控运维，完整设计一套可演进的直播弹幕系统。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从 MVP 到百万并发：直播弹幕系统完整设计">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/07/29/archtect/design/live-streaming-danmaku-system-design/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="从业务特征、容量估算、轮询 MVP、WebSocket 长连接、消息顺序、房间路由、热门直播间、可靠性、存储、限流降级到监控运维，完整设计一套可演进的直播弹幕系统。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-29T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-07-29T04:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Kafka">
+<meta property="article:tag" content="Redis">
+<meta property="article:tag" content="WebSocket">
+<meta property="article:tag" content="弹幕">
+<meta property="article:tag" content="消息系统">
+<meta property="article:tag" content="直播">
+<meta property="article:tag" content="高并发">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>从 MVP 到百万并发：直播弹幕系统完整设计 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="从 MVP 到百万并发：直播弹幕系统完整设计"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-07-29 12:00" pubdate>
+          2026年7月29日 中午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          14k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          116 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">从 MVP 到百万并发：直播弹幕系统完整设计</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <blockquote>
+<p>本文参考并延伸了王帅真《<a target="_blank" rel="noopener" href="https://blog.qizong007.top/article/live-streaming-bullet-system">直播弹幕系统设计</a>》中的演进思路，在其“轮询 MVP → 长连接推送 → MQ 削峰 → 热门直播间优化”的基础上，补充容量估算、协议设计、房间路由、顺序一致性、可靠性、慢消费者治理、内容安全、容灾和运维方案。</p>
+<p>本文不是对某一家直播平台内部实现的复刻，而是一套可以用于系统设计面试、技术方案评审和真实项目落地的通用架构。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="一、问题定义：直播弹幕系统到底在解决什么"><a href="#一、问题定义：直播弹幕系统到底在解决什么" class="headerlink" title="一、问题定义：直播弹幕系统到底在解决什么"></a>一、问题定义：直播弹幕系统到底在解决什么</h2><p>从表面看，直播弹幕只是用户发送一段文本，然后让直播间里的其他用户看到。</p>
+<p>但当一个直播间从几十人增长到几十万人时，问题就不再是“保存一条消息”，而是：</p>
+<ol>
+<li>如何维持海量客户端长连接；</li>
+<li>如何让一条弹幕尽快到达同一房间内的用户；</li>
+<li>如何避免一条消息被直接复制几十万次，形成巨大的写扩散；</li>
+<li>如何处理热门直播间的瞬时流量；</li>
+<li>如何保证同一直播间内消息大体有序；</li>
+<li>如何在断线重连后补齐少量遗漏消息；</li>
+<li>如何过滤违规内容、广告、刷屏和恶意请求；</li>
+<li>如何在系统过载时优先保住直播，而不是让弹幕拖垮整个平台；</li>
+<li>是否需要保存历史弹幕，以及如何支持直播回放；</li>
+<li>如何控制带宽、CPU、内存和存储成本。</li>
+</ol>
+<p>直播弹幕系统与 IM 系统很像，本质都是在一个逻辑空间内收发消息。但二者的业务优先级并不完全相同：</p>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>即时通讯</th>
+<th>直播弹幕</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>消息对象</td>
+<td>单聊、群聊</td>
+<td>直播间</td>
+</tr>
+<tr>
+<td>消息价值</td>
+<td>通常需要长期保留</td>
+<td>普通弹幕时效性强，过期价值快速下降</td>
+</tr>
+<tr>
+<td>到达要求</td>
+<td>一般要求可靠到达</td>
+<td>普通弹幕可允许少量丢失，礼物、付费消息不能随意丢</td>
+</tr>
+<tr>
+<td>顺序要求</td>
+<td>会话内顺序较重要</td>
+<td>通常只要求房间内近似有序或局部有序</td>
+</tr>
+<tr>
+<td>在线关系</td>
+<td>联系人、群成员相对稳定</td>
+<td>用户随时进入、退出直播间</td>
+</tr>
+<tr>
+<td>流量形态</td>
+<td>相对均匀</td>
+<td>明显热点，容易在赛事、抽奖、带货节点瞬间爆发</td>
+</tr>
+<tr>
+<td>扇出规模</td>
+<td>一个群数十到数万人</td>
+<td>热门房间可能同时在线数十万甚至更多</td>
+</tr>
+<tr>
+<td>展示能力</td>
+<td>客户端通常全部展示</td>
+<td>屏幕每秒只能展示有限数量，天然需要采样和降噪</td>
+</tr>
+</tbody></table>
+<p>因此，直播弹幕系统的核心矛盾不是“有没有能力接收所有消息”，而是：</p>
+<blockquote>
+<p>如何在有限的连接、计算和带宽资源下，把最有价值的消息，以足够低的延迟，稳定地送到尽可能多的用户面前。</p>
+</blockquote>
+<hr>
+<h2 id="二、先定义目标，不要一上来堆中间件"><a href="#二、先定义目标，不要一上来堆中间件" class="headerlink" title="二、先定义目标，不要一上来堆中间件"></a>二、先定义目标，不要一上来堆中间件</h2><p>系统设计最容易犯的错误，是没有规模假设就直接画 Kafka、Redis、WebSocket 和几十个微服务。</p>
+<p>下面以一个中大型直播平台为例，定义一组用于设计的假设。实际项目应使用真实业务数据替换。</p>
+<h3 id="2-1-规模假设"><a href="#2-1-规模假设" class="headerlink" title="2.1 规模假设"></a>2.1 规模假设</h3><table>
+<thead>
+<tr>
+<th>指标</th>
+<th align="right">假设值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>日活用户</td>
+<td align="right">2000 万</td>
+</tr>
+<tr>
+<td>峰值在线用户</td>
+<td align="right">200 万</td>
+</tr>
+<tr>
+<td>同时开播房间</td>
+<td align="right">5 万</td>
+</tr>
+<tr>
+<td>单个热门房间峰值在线</td>
+<td align="right">30 万</td>
+</tr>
+<tr>
+<td>全站峰值弹幕发送量</td>
+<td align="right">10 万条&#x2F;秒</td>
+</tr>
+<tr>
+<td>热门房间峰值发送量</td>
+<td align="right">5000 条&#x2F;秒</td>
+</tr>
+<tr>
+<td>单条弹幕编码后平均大小</td>
+<td align="right">约 220 字节</td>
+</tr>
+<tr>
+<td>普通用户端实际展示速率</td>
+<td align="right">20～50 条&#x2F;秒</td>
+</tr>
+<tr>
+<td>WebSocket 推送 P99 延迟目标</td>
+<td align="right">小于 500 毫秒</td>
+</tr>
+<tr>
+<td>发送接口 P99 响应时间</td>
+<td align="right">小于 100 毫秒</td>
+</tr>
+<tr>
+<td>服务可用性目标</td>
+<td align="right">99.99%</td>
+</tr>
+</tbody></table>
+<p>这些数值不是行业标准，只是容量设计的起点。</p>
+<h3 id="2-2-入口流量并不可怕，广播流量才可怕"><a href="#2-2-入口流量并不可怕，广播流量才可怕" class="headerlink" title="2.2 入口流量并不可怕，广播流量才可怕"></a>2.2 入口流量并不可怕，广播流量才可怕</h3><p>全站每秒写入 10 万条消息，假设每条 220 字节：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">100000 × 220 B ≈ 22 MB/s<br></code></pre></td></tr></table></figure>
+
+<p>22 MB&#x2F;s 的入口流量对一个经过扩容的消息集群并不夸张。</p>
+<p>真正危险的是热门房间的广播。假设一个房间每秒产生 5000 条弹幕，在线用户 30 万，每条消息 220 字节，如果对每个用户逐条复制：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">5000 × 300000 × 220 B<br>≈ 330 GB/s<br></code></pre></td></tr></table></figure>
+
+<p>这还没有计算 TCP、TLS、WebSocket 帧和公网传输开销。</p>
+<p>因此，大型弹幕系统绝不能简单实现成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">收到 1 条弹幕<br>→ 查询房间 30 万用户<br>→ 循环发送 30 万次<br></code></pre></td></tr></table></figure>
+
+<p>这段代码在功能测试里可能很优雅，在生产环境里则像一个精心编写的自毁按钮。</p>
+<h3 id="2-3-系统目标分级"><a href="#2-3-系统目标分级" class="headerlink" title="2.3 系统目标分级"></a>2.3 系统目标分级</h3><p>不同类型的消息，可靠性和优先级不应相同。</p>
+<table>
+<thead>
+<tr>
+<th>消息类型</th>
+<th>示例</th>
+<th>可靠性</th>
+<th>优先级</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>普通弹幕</td>
+<td>“主播好”“666”</td>
+<td>允许极少量丢失</td>
+<td>低</td>
+</tr>
+<tr>
+<td>系统通知</td>
+<td>开播、封禁、房间状态变化</td>
+<td>应可靠到达</td>
+<td>高</td>
+</tr>
+<tr>
+<td>礼物消息</td>
+<td>用户赠送礼物</td>
+<td>必须可追踪、可补偿</td>
+<td>高</td>
+</tr>
+<tr>
+<td>付费弹幕</td>
+<td>醒目留言、超级留言</td>
+<td>不应丢失</td>
+<td>最高</td>
+</tr>
+<tr>
+<td>互动事件</td>
+<td>点赞聚合、投票变化</td>
+<td>可合并、可采样</td>
+<td>中</td>
+</tr>
+<tr>
+<td>风控指令</td>
+<td>禁言、踢出、关闭房间</td>
+<td>必须及时执行</td>
+<td>最高</td>
+</tr>
+</tbody></table>
+<p>这意味着系统不应只有一个统一的“消息通道”。至少要在协议、队列或调度层面区分优先级。</p>
+<hr>
+<h2 id="三、核心业务流程"><a href="#三、核心业务流程" class="headerlink" title="三、核心业务流程"></a>三、核心业务流程</h2><p>一条弹幕从用户 A 到达同房间用户 B，至少经过以下阶段：</p>
+<ol>
+<li>客户端建立连接并完成鉴权；</li>
+<li>客户端加入直播间；</li>
+<li>用户发送弹幕；</li>
+<li>接入层校验参数、身份、频率和房间状态；</li>
+<li>内容安全系统进行快速审核；</li>
+<li>消息写入可靠消息通道；</li>
+<li>房间处理器分配顺序标识；</li>
+<li>路由系统找到当前订阅该房间的网关节点；</li>
+<li>网关在本机对连接进行广播；</li>
+<li>客户端去重、排序、限速并渲染；</li>
+<li>历史写入服务异步落库；</li>
+<li>实时分析系统消费消息，更新热度和运营指标。</li>
+</ol>
+<pre><code class=" mermaid">flowchart LR
+    A[发送方客户端] --&gt; B[接入层 / API Gateway]
+    B --&gt; C[鉴权与限流]
+    C --&gt; D[内容安全快速审核]
+    D --&gt; E[消息队列]
+    E --&gt; F[房间消息处理器]
+    F --&gt; G[房间路由 / Fanout Router]
+    G --&gt; H1[连接网关 1]
+    G --&gt; H2[连接网关 2]
+    G --&gt; H3[连接网关 N]
+    H1 --&gt; I1[本机连接集合]
+    H2 --&gt; I2[本机连接集合]
+    H3 --&gt; I3[本机连接集合]
+    E --&gt; J[历史存储消费者]
+    E --&gt; K[实时计算与监控]
+</code></pre>
+
+<p>这里最重要的优化是：</p>
+<blockquote>
+<p>消息不是从中心服务直接复制给每一个用户，而是先按“订阅该房间的网关节点”发送一份，再由网关在本机完成局部广播。</p>
+</blockquote>
+<p>假设一个热门房间的 30 万用户分布在 30 台连接网关上，中心路由层每条消息只需要发送约 30 份，而不是 30 万份。</p>
+<hr>
+<h2 id="四、消息数据模型"><a href="#四、消息数据模型" class="headerlink" title="四、消息数据模型"></a>四、消息数据模型</h2><p>直播弹幕看似只有 <code>roomId</code>、<code>userId</code> 和 <code>content</code>，但真正上线后会迅速出现去重、顺序、重试、审核、样式和回放问题。</p>
+<p>推荐的数据结构如下：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;messageId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;01JZ8X9YQ4J9K1P7X2R5F8A6BC&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;clientMsgId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;8e88b9d0-97a4-4a87-b5d5-4c6b991f0c67&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;roomId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;live_9527&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;userId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;user_10086&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;messageType&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;DANMAKU&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;content&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;这波操作太强了&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;serverTime&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1785297600123</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;roomSeq&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">928381</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;priority&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">10</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;style&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>    <span class="hljs-attr">&quot;color&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;#FFFFFF&quot;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;fontSize&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">14</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;position&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;SCROLL&quot;</span><br>  <span class="hljs-punctuation">&#125;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;moderation&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>    <span class="hljs-attr">&quot;status&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;PASS&quot;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;riskLevel&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;LOW&quot;</span><br>  <span class="hljs-punctuation">&#125;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;extension&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>    <span class="hljs-attr">&quot;userLevel&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">12</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;badge&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;VIP&quot;</span><br>  <span class="hljs-punctuation">&#125;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;traceId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;6bb32f92f35c48cf&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="4-1-字段说明"><a href="#4-1-字段说明" class="headerlink" title="4.1 字段说明"></a>4.1 字段说明</h3><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>messageId</code></td>
+<td>服务端生成的全局唯一消息 ID</td>
+</tr>
+<tr>
+<td><code>clientMsgId</code></td>
+<td>客户端生成，用于请求重试时幂等去重</td>
+</tr>
+<tr>
+<td><code>roomId</code></td>
+<td>直播间标识，也是消息分区和路由的重要依据</td>
+</tr>
+<tr>
+<td><code>messageType</code></td>
+<td>普通弹幕、系统消息、礼物、禁言指令等</td>
+</tr>
+<tr>
+<td><code>serverTime</code></td>
+<td>服务端接收或确认时间，避免依赖不可信的客户端时间</td>
+</tr>
+<tr>
+<td><code>roomSeq</code></td>
+<td>房间内顺序号，用于排序、断线补偿和缺口检测</td>
+</tr>
+<tr>
+<td><code>priority</code></td>
+<td>推送和丢弃策略的依据</td>
+</tr>
+<tr>
+<td><code>moderation.status</code></td>
+<td>内容审核状态</td>
+</tr>
+<tr>
+<td><code>extension</code></td>
+<td>可扩展业务属性，避免频繁修改主协议</td>
+</tr>
+<tr>
+<td><code>traceId</code></td>
+<td>链路追踪标识</td>
+</tr>
+</tbody></table>
+<h3 id="4-2-直播是否需要视频时间偏移"><a href="#4-2-直播是否需要视频时间偏移" class="headerlink" title="4.2 直播是否需要视频时间偏移"></a>4.2 直播是否需要视频时间偏移</h3><p>纯实时直播中，弹幕通常按服务器时间到达即可，并不一定需要点播视频那样的固定偏移量。</p>
+<p>但以下场景仍然需要视频时间轴字段：</p>
+<ul>
+<li>直播回放；</li>
+<li>DVR 时移播放；</li>
+<li>用户主动拖动直播进度；</li>
+<li>主播端和观众端存在不同播放缓冲；</li>
+<li>多 CDN 节点造成播放延迟差异；</li>
+<li>需要把弹幕重新挂载到录播文件。</li>
+</ul>
+<p>因此可以增加可选字段：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;videoPts&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">186320</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;streamEpoch&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;2026-07-29T11:30:00Z&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>其中 <code>videoPts</code> 表示消息对应的媒体时间位置，<code>streamEpoch</code> 用于区分断流重开后的不同直播时间轴。</p>
+<hr>
+<h2 id="五、第一阶段：轮询模式的-MVP"><a href="#五、第一阶段：轮询模式的-MVP" class="headerlink" title="五、第一阶段：轮询模式的 MVP"></a>五、第一阶段：轮询模式的 MVP</h2><p>早期业务规模较小时，不需要立刻建设复杂的长连接集群。</p>
+<p>最小可行版本可以采用：</p>
+<ul>
+<li>HTTP 短连接；</li>
+<li>客户端每 1～2 秒轮询一次；</li>
+<li>Redis 保存最近一段时间的弹幕；</li>
+<li>数据库异步保存需要回放或审计的消息；</li>
+<li>服务端返回自上次游标之后的增量消息。</li>
+</ul>
+<pre><code class=" mermaid">flowchart LR
+    A[客户端发送弹幕] --&gt; B[弹幕 API]
+    B --&gt; C[校验/限流/审核]
+    C --&gt; D[(Redis 最近消息)]
+    C --&gt; E[消息队列]
+    E --&gt; F[(历史数据库)]
+
+    G[客户端定时轮询] --&gt; H[查询 API]
+    H --&gt; I[本地缓存]
+    I --&gt;|未命中| D
+    H --&gt; G
+</code></pre>
+
+<h3 id="5-1-使用-Redis-ZSet-保存最近消息"><a href="#5-1-使用-Redis-ZSet-保存最近消息" class="headerlink" title="5.1 使用 Redis ZSet 保存最近消息"></a>5.1 使用 Redis ZSet 保存最近消息</h3><p>可以按直播间建立 ZSet：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Key: danmaku:room:&#123;roomId&#125;:recent<br>Score: serverTimeMillis<br>Member: roomSeq|messageId|payload<br></code></pre></td></tr></table></figure>
+
+<p>写入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ZADD danmaku:room:&#123;roomId&#125;:recent &lt;serverTimeMillis&gt; &lt;member&gt;<br></code></pre></td></tr></table></figure>
+
+<p>查询：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ZRANGEBYSCORE danmaku:room:&#123;roomId&#125;:recent &lt;lastTimestamp&gt; +inf LIMIT 0 200<br></code></pre></td></tr></table></figure>
+
+<p>Redis Sorted Set 允许不同成员使用相同分值，但成员本身必须唯一。同分值成员会进一步按字典序排列。因此，不能只把弹幕正文作为 member，否则相同内容会互相覆盖；应把 <code>messageId</code> 或 <code>roomSeq</code> 编入 member。</p>
+<h3 id="5-2-时间戳游标的缺陷"><a href="#5-2-时间戳游标的缺陷" class="headerlink" title="5.2 时间戳游标的缺陷"></a>5.2 时间戳游标的缺陷</h3><p>如果客户端只记录 <code>lastTimestamp</code>，同一毫秒内存在多条消息时容易出现：</p>
+<ul>
+<li>重复拉取；</li>
+<li>边界消息遗漏；</li>
+<li>同分值顺序不稳定；</li>
+<li>客户端重试时难以精确恢复。</li>
+</ul>
+<p>更稳妥的方式是返回复合游标：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;cursor&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>    <span class="hljs-attr">&quot;serverTime&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1785297600123</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;roomSeq&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">928381</span><br>  <span class="hljs-punctuation">&#125;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>服务端按照 <code>(serverTime, roomSeq)</code> 做稳定排序。</p>
+<p>如果系统已经具备连续房间序号，也可以直接使用 <code>roomSeq</code> 作为增量游标。</p>
+<h3 id="5-3-清理旧消息"><a href="#5-3-清理旧消息" class="headerlink" title="5.3 清理旧消息"></a>5.3 清理旧消息</h3><p>Redis 只保留最近 30 秒或最近 5000 条消息：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ZREMRANGEBYSCORE key -inf &lt;expireTimestamp&gt;<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ZREMRANGEBYRANK key 0 -(maxCount + 1)<br></code></pre></td></tr></table></figure>
+
+<p>清理动作可以由写入 Lua 脚本、定时任务或后台消费者完成，避免每次读请求都执行昂贵清理。</p>
+<h3 id="5-4-本地缓存降低重复读取"><a href="#5-4-本地缓存降低重复读取" class="headerlink" title="5.4 本地缓存降低重复读取"></a>5.4 本地缓存降低重复读取</h3><p>同一直播间的客户端会在相近时间请求几乎相同的数据。如果每次都回源 Redis，会造成大量重复读取。</p>
+<p>查询服务可以缓存最近 1～5 秒的房间消息：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">roomId -&gt; recentMessageBatch<br></code></pre></td></tr></table></figure>
+
+<p>优化原则：</p>
+<ol>
+<li>只缓存活跃房间；</li>
+<li>设置最大房间数量和最大内存；</li>
+<li>使用 Caffeine 等带权重淘汰的本地缓存；</li>
+<li>不要因为房间多就无限创建缓存项；</li>
+<li>对热门房间采用请求合并，避免同一时刻大量回源；</li>
+<li>使用一致性哈希或房间路由，使同一房间的读请求尽量命中相同节点。</li>
+</ol>
+<h3 id="5-5-轮询模式的问题"><a href="#5-5-轮询模式的问题" class="headerlink" title="5.5 轮询模式的问题"></a>5.5 轮询模式的问题</h3><p>轮询方案实现简单，但规模上升后会暴露明显问题：</p>
+<ul>
+<li>大量请求没有新消息，形成空轮询；</li>
+<li>HTTP 头和连接管理开销较高；</li>
+<li>实时性受轮询周期限制；</li>
+<li>客户端越多，Redis 重复查询越严重；</li>
+<li>热门直播间的瞬时消息仍会冲击单个 Redis Key；</li>
+<li>客户端轮询时间不一致，用户看到的弹幕不同步；</li>
+<li>服务端难以主动下发封禁、房间关闭等控制指令。</li>
+</ul>
+<p>因此，轮询适合作为早期 MVP 和后续降级通道，而不适合作为大规模系统的唯一方案。</p>
+<hr>
+<h2 id="六、传输协议选型：轮询、SSE-还是-WebSocket"><a href="#六、传输协议选型：轮询、SSE-还是-WebSocket" class="headerlink" title="六、传输协议选型：轮询、SSE 还是 WebSocket"></a>六、传输协议选型：轮询、SSE 还是 WebSocket</h2><table>
+<thead>
+<tr>
+<th>方案</th>
+<th>通信方向</th>
+<th>优点</th>
+<th>缺点</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>短轮询</td>
+<td>客户端主动请求</td>
+<td>简单、兼容性好</td>
+<td>空请求多、延迟高</td>
+<td>MVP、降级</td>
+</tr>
+<tr>
+<td>长轮询</td>
+<td>服务器延迟响应</td>
+<td>比短轮询实时</td>
+<td>每次消息后仍需重新发起请求</td>
+<td>中小规模</td>
+</tr>
+<tr>
+<td>SSE</td>
+<td>服务端单向推送</td>
+<td>基于 HTTP、自动重连、协议简单</td>
+<td>浏览器侧主要是单向通道</td>
+<td>只需要服务端推送</td>
+</tr>
+<tr>
+<td>WebSocket</td>
+<td>全双工</td>
+<td>双向、长连接、帧开销低</td>
+<td>连接治理和运维复杂</td>
+<td>直播、IM、协同编辑</td>
+</tr>
+<tr>
+<td>WebTransport</td>
+<td>多流、基于 QUIC</td>
+<td>更灵活，弱网潜力更好</td>
+<td>生态和基础设施成熟度要求高</td>
+<td>特定新项目</td>
+</tr>
+</tbody></table>
+<p>直播弹幕既要客户端发送消息，也要服务端主动推送消息，因此生产系统通常选择 WebSocket。</p>
+<p>WebSocket 在 RFC 6455 中定义为基于 TCP 的双向消息协议，典型方式是先通过 HTTP&#x2F;1.1 Upgrade 完成握手。RFC 8441 又定义了在 HTTP&#x2F;2 单个流上引导 WebSocket 的机制。因此，不能简单把 WebSocket 等同于“HTTP&#x2F;2 自带的全双工通信”。</p>
+<hr>
+<h2 id="七、生产架构：WebSocket-推送模式"><a href="#七、生产架构：WebSocket-推送模式" class="headerlink" title="七、生产架构：WebSocket 推送模式"></a>七、生产架构：WebSocket 推送模式</h2><p>随着并发用户增长，系统需要将“业务处理”和“连接维护”拆开。</p>
+<h3 id="7-1-总体架构"><a href="#7-1-总体架构" class="headerlink" title="7.1 总体架构"></a>7.1 总体架构</h3><pre><code class=" mermaid">flowchart TB
+    subgraph Client[客户端]
+        C1[Web / App / TV]
+    end
+
+    subgraph Edge[边缘接入层]
+        LB[四层/七层负载均衡]
+        GW1[Connection Gateway 1]
+        GW2[Connection Gateway 2]
+        GWN[Connection Gateway N]
+    end
+
+    subgraph Core[弹幕核心服务]
+        API[Danmaku Ingress]
+        AUTH[鉴权服务]
+        LIMIT[限流与风控]
+        SAFE[内容安全]
+        MQ[(消息队列)]
+        RP[Room Processor]
+        FR[Fanout Router]
+        ROUTE[(Room-Gateway 路由表)]
+    end
+
+    subgraph Data[数据层]
+        REDIS[(Redis 热数据)]
+        DB[(历史消息数据库)]
+        OBJ[(对象存储/离线数仓)]
+    end
+
+    C1 --&gt; LB
+    LB --&gt; GW1
+    LB --&gt; GW2
+    LB --&gt; GWN
+
+    GW1 --&gt; API
+    GW2 --&gt; API
+    GWN --&gt; API
+
+    API --&gt; AUTH
+    API --&gt; LIMIT
+    API --&gt; SAFE
+    SAFE --&gt; MQ
+    MQ --&gt; RP
+    RP --&gt; FR
+    FR --&gt; ROUTE
+    FR --&gt; GW1
+    FR --&gt; GW2
+    FR --&gt; GWN
+
+    MQ --&gt; DB
+    DB --&gt; OBJ
+    RP --&gt; REDIS
+</code></pre>
+
+<h3 id="7-2-组件职责"><a href="#7-2-组件职责" class="headerlink" title="7.2 组件职责"></a>7.2 组件职责</h3><h4 id="Connection-Gateway"><a href="#Connection-Gateway" class="headerlink" title="Connection Gateway"></a>Connection Gateway</h4><p>只负责连接和协议，不承担复杂直播业务：</p>
+<ul>
+<li>建立和关闭 WebSocket；</li>
+<li>心跳检测；</li>
+<li>解析二进制或 JSON 协议；</li>
+<li>维护本机连接表；</li>
+<li>维护本机 <code>roomId -&gt; connections</code> 索引；</li>
+<li>将用户上行消息转发给弹幕接入服务；</li>
+<li>接收 Fanout Router 的房间消息；</li>
+<li>在本机批量广播；</li>
+<li>管理慢消费者和发送缓冲区；</li>
+<li>连接优雅迁移与关闭。</li>
+</ul>
+<p>它是有连接状态的服务，但业务状态应尽量外置。节点故障后，客户端可以重连到任意其他节点并恢复房间订阅。</p>
+<h4 id="Danmaku-Ingress"><a href="#Danmaku-Ingress" class="headerlink" title="Danmaku Ingress"></a>Danmaku Ingress</h4><p>负责写入链路：</p>
+<ul>
+<li>验证用户身份和直播间状态；</li>
+<li>校验消息长度、类型和协议版本；</li>
+<li>用户级、设备级、IP 级和房间级限流；</li>
+<li>幂等校验；</li>
+<li>快速内容审核；</li>
+<li>生成服务端消息 ID；</li>
+<li>将消息写入消息队列；</li>
+<li>返回发送确认。</li>
+</ul>
+<h4 id="Room-Processor"><a href="#Room-Processor" class="headerlink" title="Room Processor"></a>Room Processor</h4><p>负责房间维度的消息处理：</p>
+<ul>
+<li>按房间串行消费；</li>
+<li>分配 <code>roomSeq</code>；</li>
+<li>应用房间规则；</li>
+<li>处理禁言、管理员、付费优先级；</li>
+<li>聚合点赞等高频事件；</li>
+<li>生成适合下游推送的统一事件。</li>
+</ul>
+<h4 id="Fanout-Router"><a href="#Fanout-Router" class="headerlink" title="Fanout Router"></a>Fanout Router</h4><p>负责把一条房间消息发送到真正有该房间观众的网关节点：</p>
+<ul>
+<li>查询 <code>roomId -&gt; gatewayId 集合</code>；</li>
+<li>每个目标网关只发送一份；</li>
+<li>批量发送多条消息；</li>
+<li>对热门房间进行分层广播；</li>
+<li>根据节点负载实施降级和丢弃策略；</li>
+<li>收集推送结果和拥塞信息。</li>
+</ul>
+<h4 id="History-Writer"><a href="#History-Writer" class="headerlink" title="History Writer"></a>History Writer</h4><p>异步保存需要回放、审计和分析的消息，不参与普通弹幕的主推送路径，避免数据库抖动直接影响实时链路。</p>
+<hr>
+<h2 id="八、WebSocket-连接生命周期"><a href="#八、WebSocket-连接生命周期" class="headerlink" title="八、WebSocket 连接生命周期"></a>八、WebSocket 连接生命周期</h2><h3 id="8-1-建立连接"><a href="#8-1-建立连接" class="headerlink" title="8.1 建立连接"></a>8.1 建立连接</h3><p>浏览器原生 WebSocket API 不方便自定义任意 <code>Authorization</code> 请求头。可以采用以下方式：</p>
+<ol>
+<li>客户端先通过 HTTPS 使用登录凭证换取一个短期、一次性的 WebSocket Ticket；</li>
+<li>客户端使用 Ticket 建立连接；</li>
+<li>网关校验 Ticket，绑定用户、设备和会话；</li>
+<li>Ticket 使用后立即失效。</li>
+</ol>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">POST /api/ws/ticket<br>Authorization: Bearer &lt;access-token&gt;<br><br>Response:<br>&#123;<br>  &quot;ticket&quot;: &quot;short-lived-one-time-ticket&quot;,<br>  &quot;expiresIn&quot;: 30<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">wss://push.example.com/ws?ticket=&lt;ticket&gt;<br></code></pre></td></tr></table></figure>
+
+<p>不要把长期 Access Token 放在 URL 中，因为 URL 可能出现在代理日志、浏览器历史或监控系统中。</p>
+<h3 id="8-2-连接时序"><a href="#8-2-连接时序" class="headerlink" title="8.2 连接时序"></a>8.2 连接时序</h3><pre><code class=" mermaid">sequenceDiagram
+    participant C as Client
+    participant A as Auth API
+    participant L as Load Balancer
+    participant G as Connection Gateway
+    participant R as Route Registry
+
+    C-&gt;&gt;A: 申请一次性 WebSocket Ticket
+    A--&gt;&gt;C: Ticket，30 秒过期
+    C-&gt;&gt;L: WebSocket Handshake + Ticket
+    L-&gt;&gt;G: 转发握手
+    G-&gt;&gt;A: 校验 Ticket
+    A--&gt;&gt;G: userId / deviceId / permissions
+    G--&gt;&gt;C: CONNECTED(sessionId, heartbeatInterval)
+    C-&gt;&gt;G: JOIN_ROOM(roomId, lastSeq)
+    G-&gt;&gt;R: 首个本地用户加入时注册 roomId -&gt; gatewayId
+    G--&gt;&gt;C: JOINED(roomId, currentSeq)
+</code></pre>
+
+<h3 id="8-3-负载均衡是否必须使用粘性会话"><a href="#8-3-负载均衡是否必须使用粘性会话" class="headerlink" title="8.3 负载均衡是否必须使用粘性会话"></a>8.3 负载均衡是否必须使用粘性会话</h3><p>WebSocket 连接建立后，TCP 连接本身已经固定在某台网关上，因此连接存续期间不需要再做请求级粘性路由。</p>
+<p>但需要注意：</p>
+<ul>
+<li>重连可能进入另一台网关；</li>
+<li>网关不能把关键业务状态只放在本机；</li>
+<li>订阅关系需要重新恢复；</li>
+<li>客户端应保存最近房间和 <code>lastSeq</code>；</li>
+<li>负载均衡器、Ingress 和反向代理的空闲超时必须大于心跳间隔；</li>
+<li>滚动发布时需要先停止接收新连接，再排空旧连接。</li>
+</ul>
+<h3 id="8-4-心跳"><a href="#8-4-心跳" class="headerlink" title="8.4 心跳"></a>8.4 心跳</h3><p>推荐使用协议级 Ping&#x2F;Pong 或应用级心跳：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;PING&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;clientTime&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1785297600000</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>服务端响应：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;PONG&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;serverTime&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1785297600026</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>心跳间隔不能过短，否则百万连接会产生大量无意义请求。例如 200 万连接每 5 秒一次心跳，相当于每秒 40 万次心跳。可以设置为 20～60 秒，并配合 TCP Keepalive、移动端前后台策略和随机抖动。</p>
+<hr>
+<h2 id="九、协议设计"><a href="#九、协议设计" class="headerlink" title="九、协议设计"></a>九、协议设计</h2><h3 id="9-1-帧类型"><a href="#9-1-帧类型" class="headerlink" title="9.1 帧类型"></a>9.1 帧类型</h3><table>
+<thead>
+<tr>
+<th>帧类型</th>
+<th>方向</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CONNECTED</code></td>
+<td>服务端 → 客户端</td>
+<td>连接建立成功</td>
+</tr>
+<tr>
+<td><code>JOIN_ROOM</code></td>
+<td>客户端 → 服务端</td>
+<td>加入房间</td>
+</tr>
+<tr>
+<td><code>LEAVE_ROOM</code></td>
+<td>客户端 → 服务端</td>
+<td>离开房间</td>
+</tr>
+<tr>
+<td><code>SEND_DANMAKU</code></td>
+<td>客户端 → 服务端</td>
+<td>发送弹幕</td>
+</tr>
+<tr>
+<td><code>SEND_ACK</code></td>
+<td>服务端 → 客户端</td>
+<td>确认发送结果</td>
+</tr>
+<tr>
+<td><code>ROOM_MESSAGE</code></td>
+<td>服务端 → 客户端</td>
+<td>房间消息</td>
+</tr>
+<tr>
+<td><code>BATCH_MESSAGES</code></td>
+<td>服务端 → 客户端</td>
+<td>批量房间消息</td>
+</tr>
+<tr>
+<td><code>RESUME</code></td>
+<td>客户端 → 服务端</td>
+<td>断线恢复</td>
+</tr>
+<tr>
+<td><code>PING/PONG</code></td>
+<td>双向</td>
+<td>心跳</td>
+</tr>
+<tr>
+<td><code>KICK_OUT</code></td>
+<td>服务端 → 客户端</td>
+<td>强制下线</td>
+</tr>
+<tr>
+<td><code>FLOW_CONTROL</code></td>
+<td>服务端 → 客户端</td>
+<td>通知客户端降速</td>
+</tr>
+<tr>
+<td><code>ERROR</code></td>
+<td>服务端 → 客户端</td>
+<td>协议或业务错误</td>
+</tr>
+</tbody></table>
+<h3 id="9-2-发送弹幕"><a href="#9-2-发送弹幕" class="headerlink" title="9.2 发送弹幕"></a>9.2 发送弹幕</h3><p>客户端发送：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;SEND_DANMAKU&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;requestId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;req-101&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;clientMsgId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;local-9527&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;roomId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;live-9527&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;content&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;主播这波操作太秀了&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>服务端确认：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;SEND_ACK&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;requestId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;req-101&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;clientMsgId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;local-9527&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;messageId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;01JZ8X9YQ4J9K1P7X2R5F8A6BC&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;roomSeq&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">928381</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;status&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;ACCEPTED&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;serverTime&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1785297600123</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>客户端可以先本地乐观展示，再根据 ACK 将临时消息替换为正式消息。如果服务端拒绝，则标记发送失败，而不是悄悄消失。</p>
+<h3 id="9-3-批量推送"><a href="#9-3-批量推送" class="headerlink" title="9.3 批量推送"></a>9.3 批量推送</h3><p>逐条发送 WebSocket 帧会增加系统调用、对象创建和协议开销。网关可以按 10～50 毫秒窗口聚合：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;BATCH_MESSAGES&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;roomId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;live-9527&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;fromSeq&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">928381</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;toSeq&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">928390</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;messages&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;messageId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;m1&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;roomSeq&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">928381</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;content&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;第一条&quot;</span><br>    <span class="hljs-punctuation">&#125;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;messageId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;m2&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;roomSeq&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">928382</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;content&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;第二条&quot;</span><br>    <span class="hljs-punctuation">&#125;</span><br>  <span class="hljs-punctuation">]</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>批量窗口过大，会增加延迟；过小，则节省不了多少开销。需要结合消息速率动态调整。</p>
+<h3 id="9-4-JSON-还是-Protobuf"><a href="#9-4-JSON-还是-Protobuf" class="headerlink" title="9.4 JSON 还是 Protobuf"></a>9.4 JSON 还是 Protobuf</h3><table>
+<thead>
+<tr>
+<th>方案</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>JSON</td>
+<td>易调试、前端接入简单</td>
+<td>体积较大、解析成本较高</td>
+</tr>
+<tr>
+<td>Protobuf</td>
+<td>体积小、解析快、Schema 明确</td>
+<td>调试和版本治理更复杂</td>
+</tr>
+<tr>
+<td>MessagePack</td>
+<td>比 JSON 紧凑</td>
+<td>生态和 Schema 约束弱于 Protobuf</td>
+</tr>
+</tbody></table>
+<p>早期可以使用 JSON，规模上升后切换 Protobuf，并保留协议版本：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">magic | version | command | requestId | payloadLength | payload<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十、消息写入链路"><a href="#十、消息写入链路" class="headerlink" title="十、消息写入链路"></a>十、消息写入链路</h2><h3 id="10-1-完整写入时序"><a href="#10-1-完整写入时序" class="headerlink" title="10.1 完整写入时序"></a>10.1 完整写入时序</h3><pre><code class=" mermaid">sequenceDiagram
+    participant C as Client
+    participant G as Connection Gateway
+    participant I as Danmaku Ingress
+    participant S as Safety Service
+    participant M as MQ
+    participant P as Room Processor
+    participant F as Fanout Router
+    participant T as Target Gateways
+    participant D as History Writer
+
+    C-&gt;&gt;G: SEND_DANMAKU(clientMsgId)
+    G-&gt;&gt;I: 转发消息
+    I-&gt;&gt;I: 鉴权、参数校验、限流、幂等
+    I-&gt;&gt;S: 快速内容审核
+    S--&gt;&gt;I: PASS / REJECT / REVIEW
+    I-&gt;&gt;M: 按 roomId 写入
+    M--&gt;&gt;I: Broker ACK
+    I--&gt;&gt;G: SEND_ACK(ACCEPTED)
+    G--&gt;&gt;C: 发送确认
+
+    M-&gt;&gt;P: 顺序消费房间事件
+    P-&gt;&gt;P: 分配 roomSeq
+    P-&gt;&gt;F: 发布可推送事件
+    F-&gt;&gt;T: 每个有订阅者的网关发送一份
+    T--&gt;&gt;C: ROOM_MESSAGE / BATCH_MESSAGES
+
+    M-&gt;&gt;D: 异步落历史存储
+</code></pre>
+
+<h3 id="10-2-ACK-到底代表什么"><a href="#10-2-ACK-到底代表什么" class="headerlink" title="10.2 ACK 到底代表什么"></a>10.2 ACK 到底代表什么</h3><p>必须明确 ACK 语义：</p>
+<table>
+<thead>
+<tr>
+<th>ACK 状态</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>RECEIVED</code></td>
+<td>网关收到，但尚未进入可靠队列</td>
+</tr>
+<tr>
+<td><code>ACCEPTED</code></td>
+<td>已通过基础校验并写入可靠消息队列</td>
+</tr>
+<tr>
+<td><code>PUBLISHED</code></td>
+<td>已进入房间广播链路</td>
+</tr>
+<tr>
+<td><code>REJECTED</code></td>
+<td>被审核、限流或业务规则拒绝</td>
+</tr>
+<tr>
+<td><code>REVIEWING</code></td>
+<td>进入人工或异步审核，不立即广播</td>
+</tr>
+</tbody></table>
+<p>普通弹幕通常在 MQ 确认写入后返回 <code>ACCEPTED</code> 即可，不必等待所有观众收到。否则一个慢客户端就可能拖慢发送方响应。</p>
+<h3 id="10-3-为什么需要-clientMsgId"><a href="#10-3-为什么需要-clientMsgId" class="headerlink" title="10.3 为什么需要 clientMsgId"></a>10.3 为什么需要 <code>clientMsgId</code></h3><p>客户端超时后可能重试。如果没有幂等键，同一条弹幕会重复发送。</p>
+<p>服务端可以在短时间窗口内记录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">(userId, clientMsgId) -&gt; messageId<br></code></pre></td></tr></table></figure>
+
+<p>重复请求直接返回原 ACK。</p>
+<p>幂等记录可以放在 Redis，并设置几分钟过期。对于付费消息，还应使用数据库唯一约束或业务流水号，不能只依赖短期缓存。</p>
+<hr>
+<h2 id="十一、消息队列与房间顺序"><a href="#十一、消息队列与房间顺序" class="headerlink" title="十一、消息队列与房间顺序"></a>十一、消息队列与房间顺序</h2><h3 id="11-1-按-roomId-分区"><a href="#11-1-按-roomId-分区" class="headerlink" title="11.1 按 roomId 分区"></a>11.1 按 <code>roomId</code> 分区</h3><p>消息队列的分区键应使用 <code>roomId</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">partition = hash(roomId) % partitionCount<br></code></pre></td></tr></table></figure>
+
+<p>这样同一房间的消息进入同一个分区，并由一个房间处理器顺序消费。</p>
+<p>Kafka 官方文档明确说明：同一个 Key 的事件会进入同一分区，消费者读取某个 Topic-Partition 时，会按照写入顺序读取事件。</p>
+<pre><code class=" mermaid">flowchart LR
+    A1[Room A 消息] --&gt; P1[Partition 1]
+    A2[Room A 消息] --&gt; P1
+    B1[Room B 消息] --&gt; P2[Partition 2]
+    C1[Room C 消息] --&gt; P3[Partition 3]
+    P1 --&gt; C01[Consumer 1]
+    P2 --&gt; C02[Consumer 2]
+    P3 --&gt; C03[Consumer 3]
+</code></pre>
+
+<h3 id="11-2-全局顺序没有必要"><a href="#11-2-全局顺序没有必要" class="headerlink" title="11.2 全局顺序没有必要"></a>11.2 全局顺序没有必要</h3><p>直播弹幕不需要全站统一顺序，只需要同一房间内具备可解释的顺序。</p>
+<p>强行追求全局顺序会导致：</p>
+<ul>
+<li>单分区瓶颈；</li>
+<li>跨机房协调；</li>
+<li>吞吐下降；</li>
+<li>故障恢复复杂；</li>
+<li>系统成本显著增加。</li>
+</ul>
+<h3 id="11-3-roomSeq-如何生成"><a href="#11-3-roomSeq-如何生成" class="headerlink" title="11.3 roomSeq 如何生成"></a>11.3 <code>roomSeq</code> 如何生成</h3><p>可选方案：</p>
+<h4 id="方案一：Redis-INCR"><a href="#方案一：Redis-INCR" class="headerlink" title="方案一：Redis INCR"></a>方案一：Redis INCR</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">INCR danmaku:room:&#123;roomId&#125;:seq<br></code></pre></td></tr></table></figure>
+
+<p>优点是简单；缺点是热门房间会形成单 Key 热点，Redis 故障和迁移也需要处理序号连续性。</p>
+<h4 id="方案二：房间处理器内存计数"><a href="#方案二：房间处理器内存计数" class="headerlink" title="方案二：房间处理器内存计数"></a>方案二：房间处理器内存计数</h4><p>同一房间始终由同一个顺序消费者处理，在内存中递增，并周期性持久化检查点。</p>
+<p>优点：</p>
+<ul>
+<li>无需每条消息访问 Redis；</li>
+<li>延迟低；</li>
+<li>与分区消费模型自然结合。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>消费者切换时需要恢复；</li>
+<li>检查点落后可能产生重复或跳号；</li>
+<li>需要使用 Epoch 区分不同处理实例。</li>
+</ul>
+<p>可使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">roomSeq = epoch + localCounter<br></code></pre></td></tr></table></figure>
+
+<p>更准确地说，可以把 <code>epoch</code> 放在高位，把本地计数器放在低位，避免旧消费者恢复后与新消费者产生序号冲突。</p>
+<h4 id="方案三：直接使用消息队列-Offset"><a href="#方案三：直接使用消息队列-Offset" class="headerlink" title="方案三：直接使用消息队列 Offset"></a>方案三：直接使用消息队列 Offset</h4><p>队列 Offset 在分区内单调递增，但一个分区通常承载多个房间，因此对某个房间来说会出现大量跳号。</p>
+<p>它可以用于排序，但不适合直接作为“连续房间序号”进行缺口判断。</p>
+<h3 id="11-4-是否需要-Exactly-Once"><a href="#11-4-是否需要-Exactly-Once" class="headerlink" title="11.4 是否需要 Exactly Once"></a>11.4 是否需要 Exactly Once</h3><p>普通弹幕没有必要追求端到端 Exactly Once。</p>
+<p>更现实的目标是：</p>
+<ul>
+<li>MQ 至少一次投递；</li>
+<li>消息处理器允许重复消费；</li>
+<li>使用 <code>messageId</code> 幂等；</li>
+<li>网关和客户端去重；</li>
+<li>顺序以 <code>roomSeq</code> 为准；</li>
+<li>重要消息使用业务流水和持久化补偿。</li>
+</ul>
+<p>Exactly Once 往往只是把复杂性转移到了事务、状态和边界定义中。对于普通弹幕，少量重复比大幅降低吞吐更容易处理。</p>
+<hr>
+<h2 id="十二、房间与网关路由"><a href="#十二、房间与网关路由" class="headerlink" title="十二、房间与网关路由"></a>十二、房间与网关路由</h2><h3 id="12-1-不要在中心存储每个用户的连接"><a href="#12-1-不要在中心存储每个用户的连接" class="headerlink" title="12.1 不要在中心存储每个用户的连接"></a>12.1 不要在中心存储每个用户的连接</h3><p>一种直觉设计是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">roomId -&gt; userId 列表<br>userId -&gt; connectionId<br>connectionId -&gt; gatewayId<br></code></pre></td></tr></table></figure>
+
+<p>当房间有几十万用户时，每条消息都遍历用户列表，中心路由系统会成为瓶颈。</p>
+<p>更好的模型是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">roomId -&gt; gatewayId 集合<br>gatewayId + roomId -&gt; 本机 connection 集合<br></code></pre></td></tr></table></figure>
+
+<p>全局只记录“哪些网关有这个房间的用户”，具体用户连接由网关本地维护。</p>
+<pre><code class=" mermaid">flowchart TB
+    R[Room 9527]
+    REG[(全局路由表)]
+    G1[Gateway A&lt;br/&gt;本地 12000 用户]
+    G2[Gateway B&lt;br/&gt;本地 9500 用户]
+    G3[Gateway C&lt;br/&gt;本地 11300 用户]
+
+    R --&gt; REG
+    REG --&gt; G1
+    REG --&gt; G2
+    REG --&gt; G3
+
+    G1 --&gt; U1[本机连接集合]
+    G2 --&gt; U2[本机连接集合]
+    G3 --&gt; U3[本机连接集合]
+</code></pre>
+
+<h3 id="12-2-注册规则"><a href="#12-2-注册规则" class="headerlink" title="12.2 注册规则"></a>12.2 注册规则</h3><ul>
+<li>某网关第一个本地用户加入房间时，注册 <code>(roomId, gatewayId)</code>；</li>
+<li>后续用户加入只修改本地计数；</li>
+<li>最后一个本地用户离开时，注销；</li>
+<li>网关定期发送心跳；</li>
+<li>路由记录设置 TTL；</li>
+<li>网关宕机后，由 TTL 自动清除脏路由；</li>
+<li>Fanout Router 缓存热点房间路由，但必须支持版本或短 TTL 更新。</li>
+</ul>
+<p>路由记录示例：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;roomId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;live-9527&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;gateways&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;gatewayId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;gw-sg-az1-001&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;region&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;sg&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;az&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;az1&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;localSubscribers&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">12000</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;expireAt&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1785297660000</span><br>    <span class="hljs-punctuation">&#125;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;version&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">381</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="12-3-路由存储选型"><a href="#12-3-路由存储选型" class="headerlink" title="12.3 路由存储选型"></a>12.3 路由存储选型</h3><p>可选方案包括：</p>
+<ul>
+<li>Redis Set &#x2F; Hash；</li>
+<li>etcd；</li>
+<li>服务注册中心；</li>
+<li>专用路由服务；</li>
+<li>网关主动订阅 Fanout Router；</li>
+<li>基于 Gossip 的节点状态同步。</li>
+</ul>
+<p>需要注意：etcd 更适合低频配置和服务发现，不适合每个用户进出房间都直接写。通过“首个用户注册、最后一个用户注销”可以把写入频率从用户级降低到网关级。</p>
+<hr>
+<h2 id="十三、避免广播风暴：两级与三级扇出"><a href="#十三、避免广播风暴：两级与三级扇出" class="headerlink" title="十三、避免广播风暴：两级与三级扇出"></a>十三、避免广播风暴：两级与三级扇出</h2><h3 id="13-1-两级扇出"><a href="#13-1-两级扇出" class="headerlink" title="13.1 两级扇出"></a>13.1 两级扇出</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Room Processor<br>→ Fanout Router<br>→ 目标 Gateway<br>→ Gateway 本机连接<br></code></pre></td></tr></table></figure>
+
+<p>中心层按网关发送，网关按本地连接发送。</p>
+<h3 id="13-2-三级扇出"><a href="#13-2-三级扇出" class="headerlink" title="13.2 三级扇出"></a>13.2 三级扇出</h3><p>跨地域或超热门直播间可以增加区域中继：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Global Fanout<br>→ Region Relay<br>→ Gateway<br>→ Client<br></code></pre></td></tr></table></figure>
+
+<pre><code class=" mermaid">flowchart TB
+    F[Global Fanout Router]
+    R1[Singapore Relay]
+    R2[Tokyo Relay]
+    R3[Frankfurt Relay]
+
+    F --&gt; R1
+    F --&gt; R2
+    F --&gt; R3
+
+    R1 --&gt; G11[SG Gateway 1]
+    R1 --&gt; G12[SG Gateway 2]
+    R2 --&gt; G21[Tokyo Gateway 1]
+    R2 --&gt; G22[Tokyo Gateway 2]
+    R3 --&gt; G31[Frankfurt Gateway 1]
+
+    G11 --&gt; C11[Clients]
+    G12 --&gt; C12[Clients]
+    G21 --&gt; C21[Clients]
+    G22 --&gt; C22[Clients]
+    G31 --&gt; C31[Clients]
+</code></pre>
+
+<p>这样跨地域只发送一份消息，由区域内完成二次扩散，减少跨地域带宽。</p>
+<h3 id="13-3-为什么不能让所有网关直接消费同一个-Kafka-Topic"><a href="#13-3-为什么不能让所有网关直接消费同一个-Kafka-Topic" class="headerlink" title="13.3 为什么不能让所有网关直接消费同一个 Kafka Topic"></a>13.3 为什么不能让所有网关直接消费同一个 Kafka Topic</h3><p>如果所有网关属于同一个 Consumer Group，一条消息只会被其中一个网关消费，不满足广播需求。</p>
+<p>如果每个网关使用独立 Consumer Group，那么每个网关都会消费全站消息：</p>
+<ul>
+<li>消费组数量巨大；</li>
+<li>网关收到大量自己没有订阅者的房间消息；</li>
+<li>Broker 出口带宽快速增长；</li>
+<li>网关需要过滤几乎全部无关消息；</li>
+<li>节点扩缩容会带来频繁重平衡。</li>
+</ul>
+<p>因此，更合理的方式是：</p>
+<ul>
+<li>Kafka 负责可靠顺序日志；</li>
+<li>Room Processor &#x2F; Fanout Router 消费一次；</li>
+<li>路由层只把消息发给真正订阅了该房间的网关。</li>
+</ul>
+<hr>
+<h2 id="十四、热门直播间设计"><a href="#十四、热门直播间设计" class="headerlink" title="十四、热门直播间设计"></a>十四、热门直播间设计</h2><p>普通直播间和热门直播间不应完全使用同一套参数。</p>
+<h3 id="14-1-热门房间识别"><a href="#14-1-热门房间识别" class="headerlink" title="14.1 热门房间识别"></a>14.1 热门房间识别</h3><p>可以综合以下指标：</p>
+<ul>
+<li>当前在线人数；</li>
+<li>最近 1 分钟进入速率；</li>
+<li>最近 10 秒弹幕写入 QPS；</li>
+<li>推送带宽；</li>
+<li>房间增长率；</li>
+<li>是否为赛事、发布会、抽奖或平台活动；</li>
+<li>主播等级和历史峰值；</li>
+<li>网关分布数量；</li>
+<li>消息积压和客户端丢弃率。</li>
+</ul>
+<p>不要只使用粉丝数判断。一个粉丝很多但未开播的主播并不是热点；一个临时赛事房间可能在几十秒内从普通房间变成超级热点。</p>
+<h3 id="14-2-热门房间分级"><a href="#14-2-热门房间分级" class="headerlink" title="14.2 热门房间分级"></a>14.2 热门房间分级</h3><table>
+<thead>
+<tr>
+<th>等级</th>
+<th align="right">在线人数示例</th>
+<th>策略</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Normal</td>
+<td align="right">小于 1 万</td>
+<td>公共集群</td>
+</tr>
+<tr>
+<td>Hot</td>
+<td align="right">1 万～10 万</td>
+<td>提高缓存、独立限流、批量推送</td>
+</tr>
+<tr>
+<td>Super Hot</td>
+<td align="right">10 万～50 万</td>
+<td>专用分区、区域中继、动态采样</td>
+</tr>
+<tr>
+<td>Mega Event</td>
+<td align="right">50 万以上</td>
+<td>独立集群、预热、专项容量保障</td>
+</tr>
+</tbody></table>
+<h3 id="14-3-房间消息分片"><a href="#14-3-房间消息分片" class="headerlink" title="14.3 房间消息分片"></a>14.3 房间消息分片</h3><p>单个房间固定进入一个 MQ 分区可以保证顺序，但超级热门房间可能把该分区打满。</p>
+<p>有三种处理思路：</p>
+<h4 id="方案一：继续单分区，但为热点房间独占分区"><a href="#方案一：继续单分区，但为热点房间独占分区" class="headerlink" title="方案一：继续单分区，但为热点房间独占分区"></a>方案一：继续单分区，但为热点房间独占分区</h4><p>适合消息写入量仍可由一个分区承载的情况。实现最简单，顺序最好。</p>
+<h4 id="方案二：放松严格顺序，拆分多个子分区"><a href="#方案二：放松严格顺序，拆分多个子分区" class="headerlink" title="方案二：放松严格顺序，拆分多个子分区"></a>方案二：放松严格顺序，拆分多个子分区</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">subPartition = hash(messageId) % N<br></code></pre></td></tr></table></figure>
+
+<p>客户端按到达顺序展示，或在 50～100 毫秒的小窗口内按服务端时间重排。</p>
+<p>弹幕对绝对顺序并不敏感，通常比强行保持全序更划算。</p>
+<h4 id="方案三：先统一排序，再并行广播"><a href="#方案三：先统一排序，再并行广播" class="headerlink" title="方案三：先统一排序，再并行广播"></a>方案三：先统一排序，再并行广播</h4><p>使用一个轻量 Sequencer 先分配 <code>roomSeq</code>，随后按消息 ID 拆到多个广播分区。网关收到后进行小窗口合并。</p>
+<pre><code class=" mermaid">flowchart LR
+    I[热门房间入口] --&gt; S[Room Sequencer]
+    S --&gt; P1[Broadcast Lane 1]
+    S --&gt; P2[Broadcast Lane 2]
+    S --&gt; P3[Broadcast Lane N]
+    P1 --&gt; M[Gateway Merge Buffer]
+    P2 --&gt; M
+    P3 --&gt; M
+    M --&gt; C[Clients]
+</code></pre>
+
+<p>该方案吞吐高，但实现复杂，需要处理：</p>
+<ul>
+<li>某条消息延迟导致重排等待；</li>
+<li>缺口超时；</li>
+<li>重复消息；</li>
+<li>Lane 扩缩容；</li>
+<li>Epoch 切换；</li>
+<li>客户端最终显示顺序。</li>
+</ul>
+<h3 id="14-4-自适应采样"><a href="#14-4-自适应采样" class="headerlink" title="14.4 自适应采样"></a>14.4 自适应采样</h3><p>热门房间每秒产生 5000 条弹幕，但客户端屏幕可能只展示 30 条。把 5000 条全部推到客户端既浪费带宽，也会导致客户端主线程和渲染卡顿。</p>
+<p>服务端可以做：</p>
+<ul>
+<li>按用户等级加权；</li>
+<li>付费和礼物消息优先；</li>
+<li>同文案聚合为“× 128”；</li>
+<li>重复字符压缩；</li>
+<li>低质量消息随机采样；</li>
+<li>按区域或用户分组采样；</li>
+<li>按客户端性能下发不同速率；</li>
+<li>对后台播放、弱网用户降低速率；</li>
+<li>对系统消息保留独立高优先级通道。</li>
+</ul>
+<p>采样不一定要求所有用户看到完全相同的普通弹幕。直播产品更关心整体氛围，而不是普通弹幕的强一致广播。</p>
+<hr>
+<h2 id="十五、流控、背压与慢消费者"><a href="#十五、流控、背压与慢消费者" class="headerlink" title="十五、流控、背压与慢消费者"></a>十五、流控、背压与慢消费者</h2><p>大型长连接系统一定会遇到慢客户端：</p>
+<ul>
+<li>用户网络弱；</li>
+<li>手机进入后台；</li>
+<li>客户端卡顿；</li>
+<li>TCP 发送窗口变小；</li>
+<li>网关发送队列持续增长；</li>
+<li>某些连接长时间无法写出。</li>
+</ul>
+<p>如果网关无限缓存，最终会耗尽内存。</p>
+<h3 id="15-1-每连接发送队列"><a href="#15-1-每连接发送队列" class="headerlink" title="15.1 每连接发送队列"></a>15.1 每连接发送队列</h3><p>每个连接设置：</p>
+<ul>
+<li>最大消息数量；</li>
+<li>最大字节数；</li>
+<li>最大等待时间；</li>
+<li>不同优先级队列；</li>
+<li>丢弃和断开策略。</li>
+</ul>
+<p>示例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">High Priority Queue:<br>  系统指令、付费消息、禁言、房间关闭<br><br>Normal Priority Queue:<br>  普通弹幕、点赞聚合<br><br>Threshold:<br>  最大 256 条或 512 KB<br></code></pre></td></tr></table></figure>
+
+<h3 id="15-2-丢弃策略"><a href="#15-2-丢弃策略" class="headerlink" title="15.2 丢弃策略"></a>15.2 丢弃策略</h3><p>当连接拥塞时：</p>
+<ol>
+<li>优先丢弃过期普通弹幕；</li>
+<li>丢弃重复、低权重弹幕；</li>
+<li>合并点赞和同文案消息；</li>
+<li>降低普通弹幕推送频率；</li>
+<li>保留系统、礼物和付费消息；</li>
+<li>队列持续增长时断开连接，让客户端指数退避后重连。</li>
+</ol>
+<h3 id="15-3-背压传播"><a href="#15-3-背压传播" class="headerlink" title="15.3 背压传播"></a>15.3 背压传播</h3><pre><code class=" mermaid">flowchart RL
+    C[慢客户端] --&gt; G[Gateway 发送队列上涨]
+    G --&gt; R[区域 Relay]
+    R --&gt; F[Fanout Router]
+    F --&gt; P[Room Processor]
+
+    G -.拥塞指标.-&gt; R
+    R -.区域负载.-&gt; F
+    F -.动态采样/降速.-&gt; P
+</code></pre>
+
+<p>网关应把以下指标反馈给上游：</p>
+<ul>
+<li>当前连接数；</li>
+<li>发送队列 P95&#x2F;P99；</li>
+<li>每秒发送字节；</li>
+<li>丢弃消息数；</li>
+<li>慢连接比例；</li>
+<li>Event Loop 延迟；</li>
+<li>Direct Memory 使用量。</li>
+</ul>
+<p>上游根据这些指标调整采样率，而不是等到节点 OOM 后再处理。</p>
+<hr>
+<h2 id="十六、可靠性与断线重连"><a href="#十六、可靠性与断线重连" class="headerlink" title="十六、可靠性与断线重连"></a>十六、可靠性与断线重连</h2><h3 id="16-1-普通弹幕是否可以丢"><a href="#16-1-普通弹幕是否可以丢" class="headerlink" title="16.1 普通弹幕是否可以丢"></a>16.1 普通弹幕是否可以丢</h3><p>从产品体验看，普通弹幕允许极少量丢失，但系统不能以此为借口完全不做可靠性。</p>
+<p>建议分层：</p>
+<table>
+<thead>
+<tr>
+<th>等级</th>
+<th>策略</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>普通弹幕</td>
+<td>MQ 持久化、至少一次、客户端去重，可在过载时采样</td>
+</tr>
+<tr>
+<td>系统消息</td>
+<td>重试、补拉、优先队列</td>
+</tr>
+<tr>
+<td>礼物&#x2F;付费消息</td>
+<td>业务数据库流水、Outbox、幂等、补偿、审计</td>
+</tr>
+<tr>
+<td>风控命令</td>
+<td>高优先级、ACK、超时重试、状态兜底</td>
+</tr>
+</tbody></table>
+<h3 id="16-2-断线恢复"><a href="#16-2-断线恢复" class="headerlink" title="16.2 断线恢复"></a>16.2 断线恢复</h3><p>客户端保存：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">roomId<br>lastReceivedSeq<br>lastAckedClientMsgId<br>sessionId<br></code></pre></td></tr></table></figure>
+
+<p>重连后发送：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;RESUME&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;roomId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;live-9527&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;lastSeq&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">928381</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>服务端处理：</p>
+<ol>
+<li>检查最近消息缓存是否仍包含 <code>lastSeq</code> 之后的数据；</li>
+<li>如果缺口较小，返回增量消息；</li>
+<li>如果缺口太大，只返回最新窗口；</li>
+<li>重要状态通过房间快照重新同步；</li>
+<li>客户端按 <code>messageId</code> 去重；</li>
+<li>如果 <code>roomSeq</code> 发生 Epoch 变化，客户端清空旧重排窗口。</li>
+</ol>
+<pre><code class=" mermaid">sequenceDiagram
+    participant C as Client
+    participant G as Gateway
+    participant H as Recent History Cache
+    participant R as Room State Service
+
+    C-xG: 网络中断
+    C-&gt;&gt;G: 重连并发送 RESUME(lastSeq=928381)
+    G-&gt;&gt;H: 查询 seq &gt; 928381
+    alt 最近缓存仍存在
+        H--&gt;&gt;G: 返回缺失消息
+        G--&gt;&gt;C: RESUME_OK + missingMessages
+    else 缺口超出缓存窗口
+        G-&gt;&gt;R: 获取房间当前快照
+        R--&gt;&gt;G: currentSeq / roomState
+        G--&gt;&gt;C: RESUME_RESET + latestWindow
+    end
+</code></pre>
+
+<h3 id="16-3-重连风暴"><a href="#16-3-重连风暴" class="headerlink" title="16.3 重连风暴"></a>16.3 重连风暴</h3><p>节点故障可能导致几十万客户端同时重连，形成二次事故。</p>
+<p>客户端必须使用：</p>
+<ul>
+<li>指数退避；</li>
+<li>随机抖动；</li>
+<li>服务端下发建议重连时间；</li>
+<li>DNS 或负载均衡多入口；</li>
+<li>最大重试频率；</li>
+<li>前后台差异化重连。</li>
+</ul>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">1s + random(0~500ms)<br>2s + random(0~1s)<br>4s + random(0~2s)<br>...<br>最大 30s<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十七、存储设计"><a href="#十七、存储设计" class="headerlink" title="十七、存储设计"></a>十七、存储设计</h2><h3 id="17-1-分层存储"><a href="#17-1-分层存储" class="headerlink" title="17.1 分层存储"></a>17.1 分层存储</h3><pre><code class=" mermaid">flowchart TB
+    M[实时弹幕流] --&gt; R[(Redis 最近消息&lt;br/&gt;秒级到分钟级)]
+    M --&gt; MQ[(Kafka / Pulsar&lt;br/&gt;小时到天)]
+    MQ --&gt; H[(历史消息存储&lt;br/&gt;天到月)]
+    H --&gt; O[(对象存储 / 数据湖&lt;br/&gt;长期归档)]
+    H --&gt; S[搜索与审核索引]
+</code></pre>
+
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>用途</th>
+<th>数据保留</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>网关内存</td>
+<td>即时批量与重发</td>
+<td>毫秒到秒</td>
+</tr>
+<tr>
+<td>Redis</td>
+<td>断线补拉、最近消息</td>
+<td>30 秒到几分钟</td>
+</tr>
+<tr>
+<td>MQ</td>
+<td>解耦、重放、削峰</td>
+<td>数小时到数天</td>
+</tr>
+<tr>
+<td>历史数据库</td>
+<td>回放、审核、查询</td>
+<td>数天到数月</td>
+</tr>
+<tr>
+<td>对象存储</td>
+<td>离线分析、低成本归档</td>
+<td>长期</td>
+</tr>
+</tbody></table>
+<h3 id="17-2-历史表设计"><a href="#17-2-历史表设计" class="headerlink" title="17.2 历史表设计"></a>17.2 历史表设计</h3><p>可以按 <code>roomId + 时间桶</code> 分区：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> live_danmaku (<br>    room_id        <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>)  <span class="hljs-keyword">NOT NULL</span>,<br>    bucket_date    <span class="hljs-type">DATE</span>         <span class="hljs-keyword">NOT NULL</span>,<br>    room_seq       <span class="hljs-type">BIGINT</span>       <span class="hljs-keyword">NOT NULL</span>,<br>    message_id     <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">32</span>)  <span class="hljs-keyword">NOT NULL</span>,<br>    user_id        <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>)  <span class="hljs-keyword">NOT NULL</span>,<br>    message_type   <span class="hljs-type">SMALLINT</span>     <span class="hljs-keyword">NOT NULL</span>,<br>    content        <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">500</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    server_time    <span class="hljs-type">TIMESTAMP</span>(<span class="hljs-number">3</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    video_pts      <span class="hljs-type">BIGINT</span>       <span class="hljs-keyword">NULL</span>,<br>    audit_status   <span class="hljs-type">SMALLINT</span>     <span class="hljs-keyword">NOT NULL</span>,<br>    extension      JSON         <span class="hljs-keyword">NULL</span>,<br>    <span class="hljs-keyword">PRIMARY KEY</span> (room_id, bucket_date, room_seq),<br>    <span class="hljs-keyword">UNIQUE</span> KEY uk_message_id (message_id)<br>);<br></code></pre></td></tr></table></figure>
+
+<p>单库 MySQL 适合中小规模或重要消息索引；大规模追加写可以考虑：</p>
+<ul>
+<li>分库分表；</li>
+<li>Cassandra &#x2F; ScyllaDB；</li>
+<li>HBase；</li>
+<li>ClickHouse 用于分析；</li>
+<li>对象存储保存压缩文件；</li>
+<li>Elasticsearch&#x2F;OpenSearch 只保存需要搜索和审核的索引，不要承担全量主存储。</li>
+</ul>
+<h3 id="17-3-Redis-Streams-能否替代-MQ"><a href="#17-3-Redis-Streams-能否替代-MQ" class="headerlink" title="17.3 Redis Streams 能否替代 MQ"></a>17.3 Redis Streams 能否替代 MQ</h3><p>Redis Streams 可以保存有序消息并支持消费者组，适合：</p>
+<ul>
+<li>中小规模；</li>
+<li>较短保留周期；</li>
+<li>Redis 已是核心基础设施；</li>
+<li>对跨地域、超大日志保留要求不高。</li>
+</ul>
+<p>但需要理解：</p>
+<ul>
+<li>Consumer Group 更适合组内分摊消费，不等于向所有网关广播；</li>
+<li>每房间一个 Stream 可能产生大量 Key；</li>
+<li>超热门房间仍会形成热点；</li>
+<li>长期保留、磁盘容量、故障恢复和跨机房能力需要单独评估。</li>
+</ul>
+<p>因此，Redis Streams 可以是 MVP 到中等规模的方案，但不能因为它名字里有“Stream”，就自动获得所有大型消息平台能力。</p>
+<h3 id="17-4-Redis-Pub-Sub-的定位"><a href="#17-4-Redis-Pub-Sub-的定位" class="headerlink" title="17.4 Redis Pub&#x2F;Sub 的定位"></a>17.4 Redis Pub&#x2F;Sub 的定位</h3><p>Redis Pub&#x2F;Sub 适合低延迟、临时广播，但它不应被当作可靠历史日志：</p>
+<ul>
+<li>订阅者离线期间无法自动补回普通 Pub&#x2F;Sub 消息；</li>
+<li>不适合承担重要付费消息的唯一传输；</li>
+<li>缺少持久重放语义；</li>
+<li>集群广播范围和带宽需要评估。</li>
+</ul>
+<p>可以把它用于：</p>
+<ul>
+<li>网关控制通知；</li>
+<li>非关键实时事件；</li>
+<li>小规模房间广播；</li>
+<li>可靠 MQ 之后的低延迟加速通道。</li>
+</ul>
+<hr>
+<h2 id="十八、内容安全与反作弊"><a href="#十八、内容安全与反作弊" class="headerlink" title="十八、内容安全与反作弊"></a>十八、内容安全与反作弊</h2><p>直播弹幕是公开内容，不能在消息广播后再慢慢审核。</p>
+<h3 id="18-1-多级审核链路"><a href="#18-1-多级审核链路" class="headerlink" title="18.1 多级审核链路"></a>18.1 多级审核链路</h3><pre><code class=" mermaid">flowchart LR
+    A[原始弹幕] --&gt; B[本地规则&lt;br/&gt;长度/字符/黑名单]
+    B --&gt; C[用户与设备风险]
+    C --&gt; D[快速内容模型]
+    D --&gt;|低风险| E[正常广播]
+    D --&gt;|中风险| F[降权/仅自己可见/抽样审核]
+    D --&gt;|高风险| G[拒绝/禁言/人工审核]
+    E --&gt; H[异步深度审核]
+    H --&gt;|发现违规| I[撤回/处罚/更新模型]
+</code></pre>
+
+<h3 id="18-2-快速路径与深度路径"><a href="#18-2-快速路径与深度路径" class="headerlink" title="18.2 快速路径与深度路径"></a>18.2 快速路径与深度路径</h3><p>主链路审核必须低延迟，可以包括：</p>
+<ul>
+<li>敏感词；</li>
+<li>URL、联系方式、广告模式；</li>
+<li>重复刷屏；</li>
+<li>Unicode 混淆；</li>
+<li>特殊字符轰炸；</li>
+<li>用户风险分；</li>
+<li>轻量文本模型。</li>
+</ul>
+<p>异步深度审核可以做：</p>
+<ul>
+<li>上下文语义；</li>
+<li>房间主题；</li>
+<li>多轮行为；</li>
+<li>群体攻击；</li>
+<li>账号关联；</li>
+<li>人工复核。</li>
+</ul>
+<h3 id="18-3-仅自己可见"><a href="#18-3-仅自己可见" class="headerlink" title="18.3 仅自己可见"></a>18.3 仅自己可见</h3><p>对于疑似垃圾消息，可以采用“Shadow Ban”：</p>
+<ul>
+<li>发送者本地看到；</li>
+<li>其他用户不收到；</li>
+<li>风控系统继续收集行为；</li>
+<li>避免攻击者立即感知策略。</li>
+</ul>
+<p>但该策略涉及产品和合规判断，不能仅由技术团队擅自决定。</p>
+<h3 id="18-4-安全注意事项"><a href="#18-4-安全注意事项" class="headerlink" title="18.4 安全注意事项"></a>18.4 安全注意事项</h3><ul>
+<li>必须使用 <code>wss://</code>；</li>
+<li>校验 WebSocket Origin；</li>
+<li>限制单帧和单消息大小；</li>
+<li>不允许客户端提交可执行 HTML；</li>
+<li>前端对内容做转义，防止 XSS；</li>
+<li>过滤控制字符和异常 Unicode；</li>
+<li>防止压缩炸弹；</li>
+<li>限制连接建立频率；</li>
+<li>防止 Ticket 重放；</li>
+<li>用户、设备、IP、ASN 多维限流；</li>
+<li>对管理指令做独立鉴权；</li>
+<li>所有付费消息关联支付流水。</li>
+</ul>
+<hr>
+<h2 id="十九、限流设计"><a href="#十九、限流设计" class="headerlink" title="十九、限流设计"></a>十九、限流设计</h2><h3 id="19-1-多维限流"><a href="#19-1-多维限流" class="headerlink" title="19.1 多维限流"></a>19.1 多维限流</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>用户</td>
+<td>每 2 秒最多 1 条普通弹幕</td>
+</tr>
+<tr>
+<td>设备</td>
+<td>单设备每分钟最多 60 条</td>
+</tr>
+<tr>
+<td>IP</td>
+<td>单 IP 建连速率和发送速率</td>
+</tr>
+<tr>
+<td>房间</td>
+<td>每秒最多接收 N 条，超出进入采样</td>
+</tr>
+<tr>
+<td>主播</td>
+<td>高风险主播房间使用更严格规则</td>
+</tr>
+<tr>
+<td>消息类型</td>
+<td>普通弹幕、礼物、系统消息分别限流</td>
+</tr>
+<tr>
+<td>网关</td>
+<td>保护单节点 CPU、内存和网络</td>
+</tr>
+<tr>
+<td>区域</td>
+<td>防止单区域流量打满跨区链路</td>
+</tr>
+</tbody></table>
+<h3 id="19-2-本地限流与全局限流"><a href="#19-2-本地限流与全局限流" class="headerlink" title="19.2 本地限流与全局限流"></a>19.2 本地限流与全局限流</h3><ul>
+<li>本地令牌桶：低延迟，保护单节点；</li>
+<li>Redis&#x2F;Lua：实现用户级或房间级共享限流；</li>
+<li>流式计算：用于秒级统计和动态调整；</li>
+<li>风控系统：用于长周期行为判断。</li>
+</ul>
+<p>不要让每条心跳、每条普通弹幕都同步访问远程 Redis 多次，否则限流系统本身会变成瓶颈。</p>
+<p>推荐：</p>
+<ol>
+<li>网关先做本地粗限流；</li>
+<li>接入服务做用户级共享限流；</li>
+<li>房间处理器做房间级总量控制；</li>
+<li>风控系统进行分钟级、小时级策略。</li>
+</ol>
+<hr>
+<h2 id="二十、缓存与热点-Key"><a href="#二十、缓存与热点-Key" class="headerlink" title="二十、缓存与热点 Key"></a>二十、缓存与热点 Key</h2><h3 id="20-1-热门房间-Redis-Key"><a href="#20-1-热门房间-Redis-Key" class="headerlink" title="20.1 热门房间 Redis Key"></a>20.1 热门房间 Redis Key</h3><p>单房间 ZSet、Seq、在线人数都可能成为热点 Key。</p>
+<p>常见应对方式：</p>
+<ul>
+<li>热门房间使用独立 Redis 分片；</li>
+<li>近期消息按时间桶切分；</li>
+<li>在线人数改为分片计数后聚合；</li>
+<li><code>roomSeq</code> 在房间处理器内生成；</li>
+<li>使用本地缓存和批量写；</li>
+<li>热门房间提前预热；</li>
+<li>不在主路径同步执行大范围删除；</li>
+<li>避免把超大消息正文重复存入多个结构。</li>
+</ul>
+<h3 id="20-2-在线人数不要求强一致"><a href="#20-2-在线人数不要求强一致" class="headerlink" title="20.2 在线人数不要求强一致"></a>20.2 在线人数不要求强一致</h3><p>直播间显示“30.2 万人观看”通常不要求精确到个位。</p>
+<p>可以使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">gateway local count<br>→ 周期上报<br>→ 区域聚合<br>→ 全局估算<br></code></pre></td></tr></table></figure>
+
+<p>而不是每个用户进出都对同一个 Redis Key 执行 <code>INCR/DECR</code>。</p>
+<hr>
+<h2 id="二十一、客户端渲染同样是系统的一部分"><a href="#二十一、客户端渲染同样是系统的一部分" class="headerlink" title="二十一、客户端渲染同样是系统的一部分"></a>二十一、客户端渲染同样是系统的一部分</h2><p>服务器成功推送 5000 条&#x2F;秒，不代表产品成功。客户端可能直接掉帧、发热或崩溃。</p>
+<p>客户端需要：</p>
+<ul>
+<li>消息去重；</li>
+<li>小窗口排序；</li>
+<li>最大待渲染队列；</li>
+<li>每帧创建对象上限；</li>
+<li>文本测量缓存；</li>
+<li>弹幕轨道复用；</li>
+<li>对重复文案聚合；</li>
+<li>根据帧率降低显示密度；</li>
+<li>后台状态暂停普通弹幕；</li>
+<li>弱网时请求低码率消息档位；</li>
+<li>重要消息使用独立图层；</li>
+<li>避免在主线程反复解析超大 JSON；</li>
+<li>使用对象池降低 GC 压力。</li>
+</ul>
+<pre><code class=" mermaid">flowchart LR
+    A[网络批量消息] --&gt; B[协议解码]
+    B --&gt; C[messageId 去重]
+    C --&gt; D[小窗口排序]
+    D --&gt; E[优先级与采样]
+    E --&gt; F[渲染队列]
+    F --&gt; G[轨道调度]
+    G --&gt; H[屏幕展示]
+</code></pre>
+
+<p>可以让客户端上报：</p>
+<ul>
+<li>FPS；</li>
+<li>待渲染队列长度；</li>
+<li>解码耗时；</li>
+<li>丢弃数量；</li>
+<li>网络 RTT；</li>
+<li>设备等级。</li>
+</ul>
+<p>服务端据此选择推送档位。</p>
+<hr>
+<h2 id="二十二、可观测性设计"><a href="#二十二、可观测性设计" class="headerlink" title="二十二、可观测性设计"></a>二十二、可观测性设计</h2><h3 id="22-1-核心指标"><a href="#22-1-核心指标" class="headerlink" title="22.1 核心指标"></a>22.1 核心指标</h3><h4 id="连接层"><a href="#连接层" class="headerlink" title="连接层"></a>连接层</h4><ul>
+<li>当前连接数；</li>
+<li>每秒建连数和断连数；</li>
+<li>鉴权失败率；</li>
+<li>心跳超时率；</li>
+<li>重连次数；</li>
+<li>每网关连接数；</li>
+<li>Event Loop 延迟；</li>
+<li>文件描述符使用率；</li>
+<li>Direct Memory；</li>
+<li>TLS 握手耗时。</li>
+</ul>
+<h4 id="消息层"><a href="#消息层" class="headerlink" title="消息层"></a>消息层</h4><ul>
+<li>发送 QPS；</li>
+<li>审核通过率、拒绝率；</li>
+<li>MQ 写入延迟；</li>
+<li>消费 Lag；</li>
+<li>Room Processor 处理延迟；</li>
+<li>每房间消息速率；</li>
+<li>批量大小；</li>
+<li>重复消息率；</li>
+<li>缺口恢复率。</li>
+</ul>
+<h4 id="推送层"><a href="#推送层" class="headerlink" title="推送层"></a>推送层</h4><ul>
+<li>Fanout 放大系数；</li>
+<li>每秒发送字节；</li>
+<li>每个房间目标网关数；</li>
+<li>网关发送队列；</li>
+<li>慢消费者比例；</li>
+<li>普通消息丢弃率；</li>
+<li>高优先级消息失败率；</li>
+<li>端到端 P50&#x2F;P95&#x2F;P99 延迟。</li>
+</ul>
+<h4 id="存储层"><a href="#存储层" class="headerlink" title="存储层"></a>存储层</h4><ul>
+<li>Redis 命中率；</li>
+<li>热 Key；</li>
+<li>ZSet&#x2F;Stream 长度；</li>
+<li>历史写入 Lag；</li>
+<li>数据库写入吞吐；</li>
+<li>分区大小；</li>
+<li>回放查询延迟。</li>
+</ul>
+<h3 id="22-2-端到端延迟"><a href="#22-2-端到端延迟" class="headerlink" title="22.2 端到端延迟"></a>22.2 端到端延迟</h3><p>每条抽样消息记录时间点：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">T1 客户端发送<br>T2 网关接收<br>T3 Ingress 接收<br>T4 MQ 写入成功<br>T5 Room Processor 处理<br>T6 Fanout Router 发出<br>T7 目标网关写 Socket<br>T8 客户端接收<br>T9 客户端渲染<br></code></pre></td></tr></table></figure>
+
+<p>最终可以拆出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">上行网络<br>+ 接入处理<br>+ 审核<br>+ MQ<br>+ 房间处理<br>+ 路由<br>+ 下行网络<br>+ 客户端渲染<br></code></pre></td></tr></table></figure>
+
+<p>只看服务端接口耗时，会遗漏真正影响用户体验的网络和客户端阶段。</p>
+<h3 id="22-3-日志与追踪"><a href="#22-3-日志与追踪" class="headerlink" title="22.3 日志与追踪"></a>22.3 日志与追踪</h3><p>建议统一字段：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs text">traceId<br>messageId<br>clientMsgId<br>roomId<br>userId<br>gatewayId<br>region<br>partition<br>offset<br>roomSeq<br>messageType<br>priority<br>moderationStatus<br>costMs<br>dropReason<br></code></pre></td></tr></table></figure>
+
+<p>普通弹幕量巨大，不能全量打印 INFO 日志。应使用：</p>
+<ul>
+<li>指标聚合；</li>
+<li>按比例采样；</li>
+<li>错误消息全量；</li>
+<li>重要消息全链路；</li>
+<li>热门房间动态采样；</li>
+<li>离线日志分析。</li>
+</ul>
+<hr>
+<h2 id="二十三、高可用与容灾"><a href="#二十三、高可用与容灾" class="headerlink" title="二十三、高可用与容灾"></a>二十三、高可用与容灾</h2><h3 id="23-1-单节点故障"><a href="#23-1-单节点故障" class="headerlink" title="23.1 单节点故障"></a>23.1 单节点故障</h3><p>Connection Gateway 无需保存不可恢复业务状态。节点故障后：</p>
+<ol>
+<li>TCP 连接断开；</li>
+<li>客户端指数退避重连；</li>
+<li>新网关重新鉴权；</li>
+<li>恢复房间订阅；</li>
+<li>使用 <code>lastSeq</code> 补最近消息。</li>
+</ol>
+<h3 id="23-2-Redis-故障"><a href="#23-2-Redis-故障" class="headerlink" title="23.2 Redis 故障"></a>23.2 Redis 故障</h3><ul>
+<li>最近弹幕补拉暂时不可用；</li>
+<li>主推送链路继续依赖 MQ；</li>
+<li>路由表可使用本地缓存和 TTL；</li>
+<li>在线人数展示降级为估算值；</li>
+<li>不允许 Redis 故障阻断重要消息写入。</li>
+</ul>
+<h3 id="23-3-MQ-故障"><a href="#23-3-MQ-故障" class="headerlink" title="23.3 MQ 故障"></a>23.3 MQ 故障</h3><ul>
+<li>Ingress 快速失败或进入有限本地缓冲；</li>
+<li>不应无限堆积在应用内存；</li>
+<li>普通弹幕可提示发送失败；</li>
+<li>付费消息走业务事务和补偿通道；</li>
+<li>Broker 恢复后按业务规则重放；</li>
+<li>监控 Producer 错误率和 ISR&#x2F;副本状态。</li>
+</ul>
+<h3 id="23-4-数据库故障"><a href="#23-4-数据库故障" class="headerlink" title="23.4 数据库故障"></a>23.4 数据库故障</h3><p>历史写入消费者停止提交 Offset，消息继续保留在 MQ；数据库恢复后继续消费。</p>
+<p>如果 MQ 保留时间不足，应该先写对象存储或增加临时落盘，避免历史数据永久丢失。</p>
+<h3 id="23-5-多机房"><a href="#23-5-多机房" class="headerlink" title="23.5 多机房"></a>23.5 多机房</h3><pre><code class=" mermaid">flowchart TB
+    DNS[Global DNS / Anycast]
+    DNS --&gt; R1[Region A]
+    DNS --&gt; R2[Region B]
+
+    subgraph A[Region A]
+        G1[Gateway Cluster]
+        F1[Regional Fanout]
+        M1[(Regional MQ)]
+    end
+
+    subgraph B[Region B]
+        G2[Gateway Cluster]
+        F2[Regional Fanout]
+        M2[(Regional MQ)]
+    end
+
+    C[Global Room Event Backbone]
+    M1 --&gt; C
+    M2 --&gt; C
+    C --&gt; F1
+    C --&gt; F2
+</code></pre>
+
+<p>多机房需要回答：</p>
+<ul>
+<li>用户优先接入最近区域；</li>
+<li>房间主处理器位于哪个区域；</li>
+<li>跨区域消息如何复制；</li>
+<li>区域间网络中断时是否允许局部弹幕；</li>
+<li>恢复后是否合并；</li>
+<li>付费消息如何保证全局幂等；</li>
+<li>房间顺序是全局顺序还是区域内顺序。</li>
+</ul>
+<p>普通弹幕可以接受区域级最终一致；支付和礼物流水则需要独立的强一致业务系统。</p>
+<hr>
+<h2 id="二十四、部署与发布"><a href="#二十四、部署与发布" class="headerlink" title="二十四、部署与发布"></a>二十四、部署与发布</h2><h3 id="24-1-网关滚动发布"><a href="#24-1-网关滚动发布" class="headerlink" title="24.1 网关滚动发布"></a>24.1 网关滚动发布</h3><p>长连接服务不能像普通 HTTP 服务一样直接杀 Pod。</p>
+<p>正确流程：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant O as Orchestrator
+    participant G as Old Gateway
+    participant L as Load Balancer
+    participant C as Clients
+
+    O-&gt;&gt;G: 标记 Draining
+    G-&gt;&gt;L: Readiness = false
+    L--&gt;&gt;G: 不再分配新连接
+    G-&gt;&gt;C: 可选：下发迁移/重连提示
+    G-&gt;&gt;G: 等待连接自然退出
+    G-&gt;&gt;C: 超时后优雅关闭
+    O-&gt;&gt;G: 终止实例
+</code></pre>
+
+<p>需要配置：</p>
+<ul>
+<li>足够长的 <code>terminationGracePeriodSeconds</code>；</li>
+<li><code>preStop</code> 钩子；</li>
+<li>停止接收新连接；</li>
+<li>路由表及时注销；</li>
+<li>连接排空超时；</li>
+<li>客户端重连抖动；</li>
+<li>发布期间限制同时下线节点比例。</li>
+</ul>
+<h3 id="24-2-HPA-指标"><a href="#24-2-HPA-指标" class="headerlink" title="24.2 HPA 指标"></a>24.2 HPA 指标</h3><p>长连接网关不能只根据 CPU 扩容，还应考虑：</p>
+<ul>
+<li>活跃连接数；</li>
+<li>每秒发送字节；</li>
+<li>Event Loop 延迟；</li>
+<li>出站队列长度；</li>
+<li>Direct Memory；</li>
+<li>新建连接速率；</li>
+<li>网卡利用率；</li>
+<li>慢消费者比例。</li>
+</ul>
+<p>CPU 很低不代表网关有余量，网卡和内存可能早已接近极限。</p>
+<h3 id="24-3-反向代理参数"><a href="#24-3-反向代理参数" class="headerlink" title="24.3 反向代理参数"></a>24.3 反向代理参数</h3><p>以 Nginx 类反向代理为例，需要正确处理：</p>
+<ul>
+<li>HTTP Upgrade；</li>
+<li><code>Connection</code> 头；</li>
+<li>空闲读取超时；</li>
+<li>上游连接超时；</li>
+<li>最大连接数；</li>
+<li>TLS；</li>
+<li>日志采样。</li>
+</ul>
+<p>WebSocket 是长连接，代理默认 60 秒无数据关闭连接会导致周期性断线，因此心跳和代理超时必须配套设计。</p>
+<hr>
+<h2 id="二十五、容量规划"><a href="#二十五、容量规划" class="headerlink" title="二十五、容量规划"></a>二十五、容量规划</h2><h3 id="25-1-单网关连接数"><a href="#25-1-单网关连接数" class="headerlink" title="25.1 单网关连接数"></a>25.1 单网关连接数</h3><p>不要直接相信“单机可以支持百万连接”之类的宣传数字。真实容量取决于：</p>
+<ul>
+<li>操作系统；</li>
+<li>文件描述符；</li>
+<li>Event Loop 实现；</li>
+<li>TLS；</li>
+<li>每连接内存；</li>
+<li>心跳频率；</li>
+<li>消息速率；</li>
+<li>出站带宽；</li>
+<li>GC；</li>
+<li>客户端网络质量；</li>
+<li>消息编码；</li>
+<li>是否启用压缩。</li>
+</ul>
+<p>假设每连接综合占用 20 KB：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">100000 连接 × 20 KB ≈ 2 GB<br></code></pre></td></tr></table></figure>
+
+<p>这只是连接对象，不包含发送队列、Direct Buffer、线程栈、JVM、日志和系统页缓存。</p>
+<p>生产容量应通过压测确定，并保留至少 30%～50% 安全余量。</p>
+<h3 id="25-2-网关数量估算"><a href="#25-2-网关数量估算" class="headerlink" title="25.2 网关数量估算"></a>25.2 网关数量估算</h3><p>假设：</p>
+<ul>
+<li>峰值连接 200 万；</li>
+<li>单网关安全承载 5 万连接；</li>
+<li>预留 40% 余量。</li>
+</ul>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">基础节点数 = 2000000 / 50000 = 40<br>考虑余量后 ≈ 56～60 台<br></code></pre></td></tr></table></figure>
+
+<p>还要按区域、可用区和故障域分散，不能全部集中在一个节点池。</p>
+<h3 id="25-3-带宽比连接数更容易成为瓶颈"><a href="#25-3-带宽比连接数更容易成为瓶颈" class="headerlink" title="25.3 带宽比连接数更容易成为瓶颈"></a>25.3 带宽比连接数更容易成为瓶颈</h3><p>假设单台网关 1 万名热门房间用户，每人平均收到 20 条&#x2F;秒，每条线上的平均大小 220 字节：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">10000 × 20 × 220 B<br>≈ 44 MB/s<br>≈ 352 Mbps<br></code></pre></td></tr></table></figure>
+
+<p>加上协议、TLS、重传和其他消息，可能很快接近 1 Gbps 网卡的安全上限。</p>
+<p>因此：</p>
+<ul>
+<li>批量；</li>
+<li>二进制协议；</li>
+<li>采样；</li>
+<li>聚合；</li>
+<li>区域就近推送；</li>
+<li>合理压缩；</li>
+<li>控制单机热门房间用户数；</li>
+</ul>
+<p>往往比单纯增加 CPU 更重要。</p>
+<hr>
+<h2 id="二十六、压测与故障演练"><a href="#二十六、压测与故障演练" class="headerlink" title="二十六、压测与故障演练"></a>二十六、压测与故障演练</h2><h3 id="26-1-压测场景"><a href="#26-1-压测场景" class="headerlink" title="26.1 压测场景"></a>26.1 压测场景</h3><p>不能只测试平均流量，应至少覆盖：</p>
+<ol>
+<li>200 万长连接稳定在线；</li>
+<li>10 分钟内快速建立 100 万连接；</li>
+<li>单热门房间 30 万在线；</li>
+<li>热门房间 5000 条&#x2F;秒；</li>
+<li>100 个热点房间同时爆发；</li>
+<li>50% 客户端为慢消费者；</li>
+<li>网关节点随机下线；</li>
+<li>Redis 主从切换；</li>
+<li>MQ 消费延迟；</li>
+<li>历史数据库写入暂停；</li>
+<li>跨区域网络延迟和丢包；</li>
+<li>大规模客户端同时重连；</li>
+<li>内容审核服务超时；</li>
+<li>滚动发布期间流量峰值。</li>
+</ol>
+<h3 id="26-2-验证指标"><a href="#26-2-验证指标" class="headerlink" title="26.2 验证指标"></a>26.2 验证指标</h3><ul>
+<li>是否出现 OOM；</li>
+<li>Event Loop 是否阻塞；</li>
+<li>P99 延迟是否失控；</li>
+<li>普通消息丢弃是否符合策略；</li>
+<li>高优先级消息是否仍可到达；</li>
+<li>重连是否出现雪崩；</li>
+<li>MQ Lag 是否可恢复；</li>
+<li>Redis 热 Key 是否打满；</li>
+<li>单网关是否流量不均；</li>
+<li>路由记录是否泄漏；</li>
+<li>发布后连接是否正确迁移。</li>
+</ul>
+<hr>
+<h2 id="二十七、架构演进路线"><a href="#二十七、架构演进路线" class="headerlink" title="二十七、架构演进路线"></a>二十七、架构演进路线</h2><h3 id="阶段一：MVP"><a href="#阶段一：MVP" class="headerlink" title="阶段一：MVP"></a>阶段一：MVP</h3><p>适用规模：</p>
+<ul>
+<li>几千到几万在线；</li>
+<li>弹幕量较低；</li>
+<li>团队较小；</li>
+<li>快速验证产品。</li>
+</ul>
+<p>组件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP API + Redis ZSet + 定时轮询 + MySQL 异步落库<br></code></pre></td></tr></table></figure>
+
+<h3 id="阶段二：WebSocket-化"><a href="#阶段二：WebSocket-化" class="headerlink" title="阶段二：WebSocket 化"></a>阶段二：WebSocket 化</h3><p>适用规模：</p>
+<ul>
+<li>实时性要求提高；</li>
+<li>轮询成本明显；</li>
+<li>需要主动控制消息。</li>
+</ul>
+<p>组件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">WebSocket Gateway + Redis 最近消息 + 简单 Pub/Sub + 数据库<br></code></pre></td></tr></table></figure>
+
+<h3 id="阶段三：可靠消息与网关路由"><a href="#阶段三：可靠消息与网关路由" class="headerlink" title="阶段三：可靠消息与网关路由"></a>阶段三：可靠消息与网关路由</h3><p>适用规模：</p>
+<ul>
+<li>百万级连接；</li>
+<li>多个热门房间；</li>
+<li>需要稳定扩容和回放。</li>
+</ul>
+<p>组件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">WebSocket Gateway<br>+ Kafka/Pulsar<br>+ Room Processor<br>+ Fanout Router<br>+ Room-Gateway Registry<br>+ 分层存储<br></code></pre></td></tr></table></figure>
+
+<h3 id="阶段四：超级热点与多地域"><a href="#阶段四：超级热点与多地域" class="headerlink" title="阶段四：超级热点与多地域"></a>阶段四：超级热点与多地域</h3><p>适用规模：</p>
+<ul>
+<li>大型赛事；</li>
+<li>大促；</li>
+<li>跨国直播；</li>
+<li>单房间数十万以上在线。</li>
+</ul>
+<p>组件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">独立热点房间集群<br>+ 区域 Relay<br>+ 分层广播<br>+ 动态采样<br>+ 多 Lane 并行<br>+ 多地域容灾<br></code></pre></td></tr></table></figure>
+
+<pre><code class=" mermaid">flowchart LR
+    A[MVP&lt;br/&gt;轮询 + Redis] --&gt; B[WebSocket&lt;br/&gt;长连接推送]
+    B --&gt; C[MQ + 房间处理器&lt;br/&gt;可靠解耦]
+    C --&gt; D[网关级广播&lt;br/&gt;路由表]
+    D --&gt; E[热门房间专属集群&lt;br/&gt;动态采样]
+    E --&gt; F[多地域 Relay&lt;br/&gt;分层扇出]
+</code></pre>
+
+<p>演进原则是：</p>
+<blockquote>
+<p>先解决当前规模下最贵的问题，不要为了想象中的千万并发，把第一版做成一座没人敢改的分布式博物馆。</p>
+</blockquote>
+<hr>
+<h2 id="二十八、常见设计误区"><a href="#二十八、常见设计误区" class="headerlink" title="二十八、常见设计误区"></a>二十八、常见设计误区</h2><h3 id="误区一：每条消息直接循环所有用户"><a href="#误区一：每条消息直接循环所有用户" class="headerlink" title="误区一：每条消息直接循环所有用户"></a>误区一：每条消息直接循环所有用户</h3><p>会造成用户级写扩散。应改为“中心到网关、网关到本机连接”的两级广播。</p>
+<h3 id="误区二：所有消息都必须严格不丢"><a href="#误区二：所有消息都必须严格不丢" class="headerlink" title="误区二：所有消息都必须严格不丢"></a>误区二：所有消息都必须严格不丢</h3><p>普通弹幕、系统通知、付费消息的可靠性等级不同。统一最高可靠性会显著增加成本和延迟。</p>
+<h3 id="误区三：使用客户端时间排序"><a href="#误区三：使用客户端时间排序" class="headerlink" title="误区三：使用客户端时间排序"></a>误区三：使用客户端时间排序</h3><p>客户端时间可能错误、漂移或被篡改。应使用服务端时间和房间序号。</p>
+<h3 id="误区四：用时间戳当唯一-ZSet-member"><a href="#误区四：用时间戳当唯一-ZSet-member" class="headerlink" title="误区四：用时间戳当唯一 ZSet member"></a>误区四：用时间戳当唯一 ZSet member</h3><p>ZSet member 必须唯一，相同正文会覆盖。应加入消息 ID。</p>
+<h3 id="误区五：Kafka-一个-Consumer-Group-可以广播给所有网关"><a href="#误区五：Kafka-一个-Consumer-Group-可以广播给所有网关" class="headerlink" title="误区五：Kafka 一个 Consumer Group 可以广播给所有网关"></a>误区五：Kafka 一个 Consumer Group 可以广播给所有网关</h3><p>Consumer Group 是负载均衡消费，不是广播。需要 Fanout Router 或独立发布订阅层。</p>
+<h3 id="误区六：长连接服务完全无状态"><a href="#误区六：长连接服务完全无状态" class="headerlink" title="误区六：长连接服务完全无状态"></a>误区六：长连接服务完全无状态</h3><p>连接本身天然有状态。正确目标是业务状态可恢复，而不是假装连接不存在。</p>
+<h3 id="误区七：只按-CPU-做扩容"><a href="#误区七：只按-CPU-做扩容" class="headerlink" title="误区七：只按 CPU 做扩容"></a>误区七：只按 CPU 做扩容</h3><p>长连接服务常常先碰到带宽、文件描述符、内存、发送队列和 Event Loop 延迟。</p>
+<h3 id="误区八：所有用户必须看到完全相同的普通弹幕"><a href="#误区八：所有用户必须看到完全相同的普通弹幕" class="headerlink" title="误区八：所有用户必须看到完全相同的普通弹幕"></a>误区八：所有用户必须看到完全相同的普通弹幕</h3><p>热门房间中，客户端根本无法展示全部消息。合理采样比追求无意义的一致更重要。</p>
+<h3 id="误区九：Redis-是唯一持久化存储"><a href="#误区九：Redis-是唯一持久化存储" class="headerlink" title="误区九：Redis 是唯一持久化存储"></a>误区九：Redis 是唯一持久化存储</h3><p>Redis 可以承担最近消息和快速恢复，但重要消息、回放和审计需要可靠日志或数据库。</p>
+<h3 id="误区十：服务端推送成功就代表用户看到了"><a href="#误区十：服务端推送成功就代表用户看到了" class="headerlink" title="误区十：服务端推送成功就代表用户看到了"></a>误区十：服务端推送成功就代表用户看到了</h3><p>客户端可能排队、丢弃或渲染失败。真正的用户体验指标应覆盖客户端接收和展示阶段。</p>
+<hr>
+<h2 id="二十九、一套推荐的最终方案"><a href="#二十九、一套推荐的最终方案" class="headerlink" title="二十九、一套推荐的最终方案"></a>二十九、一套推荐的最终方案</h2><p>综合前面的讨论，一套可落地的中大型直播弹幕架构如下：</p>
+<pre><code class=" mermaid">flowchart TB
+    subgraph Clients[客户端层]
+        APP[App / Web / TV]
+    end
+
+    subgraph Access[接入层]
+        GLB[Global LB]
+        WS[WebSocket Gateway Cluster]
+    end
+
+    subgraph WritePath[写入链路]
+        ING[Danmaku Ingress]
+        RL[Rate Limit &amp; Risk]
+        MOD[Content Moderation]
+        K1[(Kafka Ingress Topic)]
+        RP[Room Processor]
+        K2[(Kafka Fanout Topic)]
+    end
+
+    subgraph PushPath[推送链路]
+        FR[Global Fanout Router]
+        RR[Regional Relay]
+        GW[Target Gateways]
+    end
+
+    subgraph State[状态与缓存]
+        REG[(Room-Gateway Registry)]
+        REC[(Redis Recent Messages)]
+        ROOM[(Room State)]
+    end
+
+    subgraph Storage[存储与分析]
+        HW[History Writer]
+        DB[(History DB)]
+        OS[(Object Storage)]
+        RT[Realtime Analytics]
+        MON[Metrics / Logs / Traces]
+    end
+
+    APP --&gt; GLB --&gt; WS
+    WS --&gt; ING
+    ING --&gt; RL --&gt; MOD --&gt; K1
+    K1 --&gt; RP
+    RP --&gt; K2
+    RP --&gt; REC
+    RP --&gt; ROOM
+
+    K2 --&gt; FR
+    FR --&gt; REG
+    FR --&gt; RR
+    RR --&gt; GW
+    GW --&gt; APP
+
+    K1 --&gt; HW --&gt; DB --&gt; OS
+    K1 --&gt; RT
+    WS --&gt; MON
+    ING --&gt; MON
+    RP --&gt; MON
+    FR --&gt; MON
+</code></pre>
+
+<p>关键决策：</p>
+<ol>
+<li>WebSocket 负责双向实时通信；</li>
+<li>网关只维护连接和本机订阅；</li>
+<li>写入先经过限流和快速审核；</li>
+<li>MQ 按 <code>roomId</code> 分区；</li>
+<li>Room Processor 维护房间内顺序；</li>
+<li>全局路由只记录房间到网关；</li>
+<li>每条消息对每个目标网关发送一份；</li>
+<li>网关在本机批量广播；</li>
+<li>Redis 只保存最近窗口和可恢复状态；</li>
+<li>历史存储异步写入；</li>
+<li>热门房间使用独立分区、区域 Relay 和动态采样；</li>
+<li>普通消息允许降级，重要消息使用独立可靠通道；</li>
+<li>慢消费者必须有明确的丢弃和断开策略；</li>
+<li>HPA 同时关注连接、带宽、内存和发送队列；</li>
+<li>客户端渲染能力纳入整体系统设计。</li>
+</ol>
+<hr>
+<h2 id="三十、面试中的精简回答"><a href="#三十、面试中的精简回答" class="headerlink" title="三十、面试中的精简回答"></a>三十、面试中的精简回答</h2><p>如果在系统设计面试中只有几分钟，可以这样概括：</p>
+<blockquote>
+<p>直播弹幕本质是一个以直播间为会话空间的高扇出消息系统。早期可以使用 HTTP 轮询配合 Redis ZSet 保存最近消息，通过时间和序号游标增量拉取；规模增长后切换到 WebSocket 长连接。</p>
+<p>写入链路先做鉴权、限流和内容审核，再按 roomId 写入 Kafka，同一房间进入同一分区以保证房间内顺序。Room Processor 分配 roomSeq，Fanout Router 查询 roomId 对应的网关集合，每条消息只向有该房间用户的网关发送一份，网关再向本机连接广播，从而避免中心服务对用户级写扩散。</p>
+<p>Redis 保存最近几十秒消息，用于断线补拉；数据库或分布式存储异步保存回放和审计数据。热门房间要使用独立分区、批量推送、动态采样、重复消息聚合和区域级 Relay。网关对慢客户端设置有界发送队列，优先保留系统、礼物和付费消息，普通弹幕在过载时允许丢弃。</p>
+<p>最终需要重点监控连接数、建连速率、端到端延迟、MQ Lag、路由放大系数、网关发送队列、丢弃率和出口带宽，并通过指数退避避免故障后的重连风暴。</p>
+</blockquote>
+<hr>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ol>
+<li><p>王帅真：《直播弹幕系统设计》<br><a target="_blank" rel="noopener" href="https://blog.qizong007.top/article/live-streaming-bullet-system">https://blog.qizong007.top/article/live-streaming-bullet-system</a></p>
+</li>
+<li><p>IETF RFC 6455：The WebSocket Protocol<br><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc6455">https://www.rfc-editor.org/rfc/rfc6455</a></p>
+</li>
+<li><p>IETF RFC 8441：Bootstrapping WebSockets with HTTP&#x2F;2<br><a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/html/rfc8441">https://datatracker.ietf.org/doc/html/rfc8441</a></p>
+</li>
+<li><p>Redis Documentation：ZADD<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/commands/zadd/">https://redis.io/docs/latest/commands/zadd/</a></p>
+</li>
+<li><p>Redis Documentation：Redis Streams<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/develop/data-types/streams/">https://redis.io/docs/latest/develop/data-types/streams/</a></p>
+</li>
+<li><p>Redis Documentation：Pub&#x2F;Sub<br><a target="_blank" rel="noopener" href="https://redis.io/docs/latest/develop/interact/pubsub/">https://redis.io/docs/latest/develop/interact/pubsub/</a></p>
+</li>
+<li><p>Apache Kafka Documentation<br><a target="_blank" rel="noopener" href="https://kafka.apache.org/documentation/">https://kafka.apache.org/documentation/</a></p>
+</li>
+<li><p>WHATWG HTML Standard：Server-sent events<br><a target="_blank" rel="noopener" href="https://html.spec.whatwg.org/multipage/server-sent-events.html">https://html.spec.whatwg.org/multipage/server-sent-events.html</a></p>
+</li>
+<li><p>Nginx Documentation：WebSocket proxying<br><a target="_blank" rel="noopener" href="https://nginx.org/en/docs/http/websocket.html">https://nginx.org/en/docs/http/websocket.html</a></p>
+</li>
+</ol>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>直播弹幕系统不是简单的“WebSocket + Redis”。</p>
+<p>真正决定系统能否扛住热点流量的，是以下几件事：</p>
+<ul>
+<li>是否完成用户级广播到网关级广播的转换；</li>
+<li>是否把消息写入、顺序处理、推送和历史存储解耦；</li>
+<li>是否承认客户端不可能展示全部消息；</li>
+<li>是否针对热门房间实施独立容量和降级策略；</li>
+<li>是否给慢消费者设置明确边界；</li>
+<li>是否区分普通弹幕和重要业务消息的可靠性；</li>
+<li>是否能在节点故障和大规模重连时保持稳定；</li>
+<li>是否把出口带宽和客户端渲染纳入容量设计。</li>
+</ul>
+<p>一个成熟的弹幕系统，并不是保证每一条“666”都以最高等级的可靠性抵达世界尽头，而是在流量洪峰中仍能保证直播可用、重要消息可靠、普通弹幕足够实时，并让系统有能力持续演进。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" class="category-chain-item">系统设计</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Redis/" class="print-no-link">#Redis</a>
+      
+        <a href="/tags/%E9%AB%98%E5%B9%B6%E5%8F%91/" class="print-no-link">#高并发</a>
+      
+        <a href="/tags/Kafka/" class="print-no-link">#Kafka</a>
+      
+        <a href="/tags/WebSocket/" class="print-no-link">#WebSocket</a>
+      
+        <a href="/tags/%E7%9B%B4%E6%92%AD/" class="print-no-link">#直播</a>
+      
+        <a href="/tags/%E5%BC%B9%E5%B9%95/" class="print-no-link">#弹幕</a>
+      
+        <a href="/tags/%E6%B6%88%E6%81%AF%E7%B3%BB%E7%BB%9F/" class="print-no-link">#消息系统</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>从 MVP 到百万并发：直播弹幕系统完整设计</div>
+      <div>https://allendericdalexander.github.io/2026/07/29/archtect/design/live-streaming-danmaku-system-design/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年7月29日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/07/29/archtect/examples/01-nearby-merchants-within-1km/" title="场景设计：美团/饿了么如何找出附近 1km 的商家">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">场景设计：美团/饿了么如何找出附近 1km 的商家</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/07/29/java/java-core-mechanisms-deep-dive/" title="Java 核心机制深度解析：泛型、反射、动态代理、SPI、枚举、注解、Lambda、equals/hashCode 与表达式引擎">
+                        <span class="hidden-mobile">Java 核心机制深度解析：泛型、反射、动态代理、SPI、枚举、注解、Lambda、equals/hashCode 与表达式引擎</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

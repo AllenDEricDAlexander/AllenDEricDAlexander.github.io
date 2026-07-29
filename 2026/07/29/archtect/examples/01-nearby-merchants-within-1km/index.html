@@ -1,0 +1,1112 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="从经纬度计算、空间索引、候选集过滤、商家排序到高并发缓存，系统分析“附近 1km 商家”功能的完整后端设计。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="场景设计：美团&#x2F;饿了么如何找出附近 1km 的商家">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/07/29/archtect/examples/01-nearby-merchants-within-1km/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="从经纬度计算、空间索引、候选集过滤、商家排序到高并发缓存，系统分析“附近 1km 商家”功能的完整后端设计。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-29T05:10:00.000Z">
+<meta property="article:modified_time" content="2026-07-29T05:07:12.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Elasticsearch">
+<meta property="article:tag" content="H3">
+<meta property="article:tag" content="LBS">
+<meta property="article:tag" content="PostGIS">
+<meta property="article:tag" content="Redis GEO">
+<meta property="article:tag" content="系统设计">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>场景设计：美团/饿了么如何找出附近 1km 的商家 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="场景设计：美团/饿了么如何找出附近 1km 的商家"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-07-29 13:10" pubdate>
+          2026年7月29日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          3.9k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          33 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">场景设计：美团/饿了么如何找出附近 1km 的商家</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <blockquote>
+<p>本文讨论通用外卖 LBS 场景，不代表美团或饿了么真实内部实现。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-面试官真正想考什么"><a href="#1-面试官真正想考什么" class="headerlink" title="1. 面试官真正想考什么"></a>1. 面试官真正想考什么</h2><p>“找出附近 1km 的商家”看起来只是一个距离计算题，实际会连续考察以下能力：</p>
+<ol>
+<li>是否能定义清楚“附近”和“1km”；</li>
+<li>是否理解经纬度不能直接当平面坐标计算；</li>
+<li>是否知道空间索引的作用，而不是全表扫描后逐个算距离；</li>
+<li>是否能把地理候选集、营业状态、配送范围、库存、排序拆成不同阶段；</li>
+<li>是否能处理热点区域、高并发、分页和数据实时性；</li>
+<li>是否知道直线距离不等于道路距离，更不等于配送时间。</li>
+</ol>
+<p>一个成熟回答不能停留在一句：</p>
+<blockquote>
+<p>把商家经纬度放进 Redis GEO，然后使用 GEOSEARCH 查询。</p>
+</blockquote>
+<p>Redis GEO 只是候选召回组件，完整系统还包括数据更新、精确过滤、业务排序、缓存和降级。</p>
+<h2 id="2-先明确需求边界"><a href="#2-先明确需求边界" class="headerlink" title="2. 先明确需求边界"></a>2. 先明确需求边界</h2><h3 id="2-1-“1km”到底是哪一种距离"><a href="#2-1-“1km”到底是哪一种距离" class="headerlink" title="2.1 “1km”到底是哪一种距离"></a>2.1 “1km”到底是哪一种距离</h3><p>常见距离口径有三种：</p>
+<table>
+<thead>
+<tr>
+<th>距离口径</th>
+<th>含义</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>球面直线距离</td>
+<td>地球表面两点之间的大圆距离</td>
+<td>首轮附近候选召回</td>
+</tr>
+<tr>
+<td>道路距离</td>
+<td>沿道路网络实际行驶的距离</td>
+<td>配送费、可达性判断</td>
+</tr>
+<tr>
+<td>预计配送时间</td>
+<td>路径、路况、运力、楼宇等综合估算</td>
+<td>最终排序和履约承诺</td>
+</tr>
+</tbody></table>
+<p>面试题中的“附近 1km”一般先按球面直线距离理解，但生产系统往往采用两阶段甚至三阶段模型：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">空间索引粗召回 -&gt; 球面距离精确过滤 -&gt; 路网/ETA 二次评估<br></code></pre></td></tr></table></figure>
+
+<p>如果一开始就对所有商家调用地图路径规划服务，成本和延迟都会失控。</p>
+<h3 id="2-2-查询对象是商家还是门店"><a href="#2-2-查询对象是商家还是门店" class="headerlink" title="2.2 查询对象是商家还是门店"></a>2.2 查询对象是商家还是门店</h3><p>同一个品牌可能有数百家门店。真正参与地理检索的通常不是品牌，而是可履约的门店实体：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">brand -&gt; merchant -&gt; store -&gt; delivery zone<br></code></pre></td></tr></table></figure>
+
+<p>因此空间索引的 member 应使用 <code>store_id</code>，而不是品牌 ID。</p>
+<h3 id="2-3-不能只看圆形半径"><a href="#2-3-不能只看圆形半径" class="headerlink" title="2.3 不能只看圆形半径"></a>2.3 不能只看圆形半径</h3><p>即使门店距离用户只有 800 米，也可能出现：</p>
+<ul>
+<li>门店未营业；</li>
+<li>超出门店自定义配送多边形；</li>
+<li>隔着河流、高速或封闭园区；</li>
+<li>门店爆单暂停接单；</li>
+<li>用户地址不在该门店服务城市；</li>
+<li>店铺被风控、下线或商品不可售。</li>
+</ul>
+<p>所以“1km”只是空间候选条件，不是最终可下单条件。</p>
+<h2 id="3-总体架构"><a href="#3-总体架构" class="headerlink" title="3. 总体架构"></a>3. 总体架构</h2><pre><code class=" mermaid">flowchart LR
+    U[用户 App] --&gt; GW[API Gateway]
+    GW --&gt; LBS[LBS 查询服务]
+
+    LBS --&gt; LOC[位置标准化服务]
+    LOC --&gt; GEO[(空间索引&lt;br/&gt;Redis GEO / ES / PostGIS / H3)]
+
+    LBS --&gt; CACHE[(门店摘要缓存)]
+    LBS --&gt; STORE[门店服务]
+    LBS --&gt; DELIVERY[配送范围与 ETA 服务]
+    LBS --&gt; RANK[排序服务]
+
+    STORE --&gt; DB[(门店主库)]
+    DELIVERY --&gt; MAP[地图与路网服务]
+
+    LBS --&gt; RESULT[分页结果]
+    RESULT --&gt; U
+
+    CDC[门店变更 CDC / MQ] --&gt; INDEXER[空间索引更新器]
+    INDEXER --&gt; GEO
+    CDC --&gt; CACHE
+</code></pre>
+
+<p>一次查询可以拆成五步：</p>
+<ol>
+<li>校验并标准化用户坐标；</li>
+<li>从空间索引召回 1km 内的候选门店 ID；</li>
+<li>批量获取门店营业、类目、评分等摘要；</li>
+<li>执行业务过滤和可配送校验；</li>
+<li>按综合策略排序并游标分页。</li>
+</ol>
+<h2 id="4-经纬度为什么不能直接相减"><a href="#4-经纬度为什么不能直接相减" class="headerlink" title="4. 经纬度为什么不能直接相减"></a>4. 经纬度为什么不能直接相减</h2><p>经纬度是球面坐标，不是简单的二维平面坐标。纬度差一度和经度差一度代表的实际距离不同，而且经度对应的距离会随纬度变化。</p>
+<h3 id="4-1-Haversine-公式"><a href="#4-1-Haversine-公式" class="headerlink" title="4.1 Haversine 公式"></a>4.1 Haversine 公式</h3><p>对于两点：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">P1(lat1, lon1)<br>P2(lat2, lon2)<br></code></pre></td></tr></table></figure>
+
+<p>可使用 Haversine 公式估算球面距离：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">a = sin²(Δlat / 2)<br>  + cos(lat1) × cos(lat2) × sin²(Δlon / 2)<br><br>c = 2 × atan2(√a, √(1-a))<br><br>d = R × c<br></code></pre></td></tr></table></figure>
+
+<p>其中 <code>R</code> 为地球平均半径，约 6371km。</p>
+<p>问题在于：即使单次计算很快，对数百万门店逐条计算仍然不可接受。真正的关键不是距离公式，而是如何先利用索引缩小候选集。</p>
+<h2 id="5-方案一：Redis-GEO"><a href="#5-方案一：Redis-GEO" class="headerlink" title="5. 方案一：Redis GEO"></a>5. 方案一：Redis GEO</h2><h3 id="5-1-数据写入"><a href="#5-1-数据写入" class="headerlink" title="5.1 数据写入"></a>5.1 数据写入</h3><p>Redis GEO 底层使用有序集合保存地理位置编码，适合快速查询附近点位。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs redis">GEOADD geo:store:shanghai 121.4737 31.2304 100001<br>GEOADD geo:store:shanghai 121.4800 31.2250 100002<br></code></pre></td></tr></table></figure>
+
+<p>建议按城市或区域拆 Key：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">geo:store:&#123;city_id&#125;<br></code></pre></td></tr></table></figure>
+
+<p>不要把全国所有门店塞进一个 Key。城市拆分可以降低单 Key 规模，也方便数据治理和故障隔离。</p>
+<h3 id="5-2-半径查询"><a href="#5-2-半径查询" class="headerlink" title="5.2 半径查询"></a>5.2 半径查询</h3><p>新系统应优先使用 <code>GEOSEARCH</code>，而不是已被 Redis 标记为旧式接口的 <code>GEORADIUS</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs redis">GEOSEARCH geo:store:shanghai<br>  FROMLONLAT 121.4750 31.2280<br>  BYRADIUS 1 km<br>  ASC<br>  WITHDIST<br>  COUNT 200<br></code></pre></td></tr></table></figure>
+
+<p>返回结果通常只包含：</p>
+<ul>
+<li>门店 ID；</li>
+<li>距离；</li>
+<li>可选经纬度。</li>
+</ul>
+<p>门店名称、营业状态、评分等业务字段不应全部塞进 GEO Key，而应通过批量缓存查询获取。</p>
+<h3 id="5-3-Redis-GEO-的优缺点"><a href="#5-3-Redis-GEO-的优缺点" class="headerlink" title="5.3 Redis GEO 的优缺点"></a>5.3 Redis GEO 的优缺点</h3><p>优点：</p>
+<ul>
+<li>延迟低，适合在线查询；</li>
+<li>接入简单；</li>
+<li>支持按距离排序和限制数量；</li>
+<li>适合门店坐标相对稳定的场景。</li>
+</ul>
+<p>局限：</p>
+<ul>
+<li>复杂过滤能力较弱；</li>
+<li>不适合直接表达复杂配送多边形；</li>
+<li>数据以内存为主，规模和成本需要评估；</li>
+<li>空间索引与门店数据库之间存在最终一致性问题。</li>
+</ul>
+<p>所以 Redis GEO 更适合做“地理候选召回层”，不是完整门店检索引擎。</p>
+<h2 id="6-方案二：PostGIS"><a href="#6-方案二：PostGIS" class="headerlink" title="6. 方案二：PostGIS"></a>6. 方案二：PostGIS</h2><p>如果系统使用 PostgreSQL，可以使用 PostGIS 的 <code>geography</code> 类型和 GiST 索引。</p>
+<h3 id="6-1-表结构"><a href="#6-1-表结构" class="headerlink" title="6.1 表结构"></a>6.1 表结构</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> store_location (<br>    store_id      <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">PRIMARY KEY</span>,<br>    city_id       <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    location      GEOGRAPHY(POINT, <span class="hljs-number">4326</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    status        <span class="hljs-type">SMALLINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    updated_at    TIMESTAMPTZ <span class="hljs-keyword">NOT NULL</span><br>);<br><br><span class="hljs-keyword">CREATE</span> INDEX idx_store_location_gist<br><span class="hljs-keyword">ON</span> store_location <span class="hljs-keyword">USING</span> GIST (location);<br><br><span class="hljs-keyword">CREATE</span> INDEX idx_store_city_status<br><span class="hljs-keyword">ON</span> store_location (city_id, status);<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-2-1km-查询"><a href="#6-2-1km-查询" class="headerlink" title="6.2 1km 查询"></a>6.2 1km 查询</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span><br>    store_id,<br>    ST_Distance(<br>        location,<br>        ST_SetSRID(ST_MakePoint(:lon, :lat), <span class="hljs-number">4326</span>)::geography<br>    ) <span class="hljs-keyword">AS</span> distance_m<br><span class="hljs-keyword">FROM</span> store_location<br><span class="hljs-keyword">WHERE</span> city_id <span class="hljs-operator">=</span> :cityId<br>  <span class="hljs-keyword">AND</span> status <span class="hljs-operator">=</span> <span class="hljs-number">1</span><br>  <span class="hljs-keyword">AND</span> ST_DWithin(<br>        location,<br>        ST_SetSRID(ST_MakePoint(:lon, :lat), <span class="hljs-number">4326</span>)::geography,<br>        <span class="hljs-number">1000</span><br>      )<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> distance_m, store_id<br>LIMIT <span class="hljs-number">100</span>;<br></code></pre></td></tr></table></figure>
+
+<p>关键点是使用 <code>ST_DWithin</code> 先走空间索引缩小候选集，再使用 <code>ST_Distance</code> 排序。直接写：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> ST_Distance(location, point) <span class="hljs-operator">&lt;=</span> <span class="hljs-number">1000</span><br></code></pre></td></tr></table></figure>
+
+<p>可能更难有效利用空间索引。</p>
+<h3 id="6-3-适用场景"><a href="#6-3-适用场景" class="headerlink" title="6.3 适用场景"></a>6.3 适用场景</h3><p>PostGIS 更适合：</p>
+<ul>
+<li>数据量中等，但过滤逻辑复杂；</li>
+<li>需要多边形、行政区、配送围栏等空间运算；</li>
+<li>希望空间数据与业务事务保持更强一致性；</li>
+<li>不想维护独立搜索集群。</li>
+</ul>
+<h2 id="7-方案三：Elasticsearch-Geo-查询"><a href="#7-方案三：Elasticsearch-Geo-查询" class="headerlink" title="7. 方案三：Elasticsearch Geo 查询"></a>7. 方案三：Elasticsearch Geo 查询</h2><p>如果门店搜索还需要同时支持：</p>
+<ul>
+<li>菜品和店名全文检索；</li>
+<li>类目过滤；</li>
+<li>品牌、评分、销量筛选；</li>
+<li>地理距离排序；</li>
+<li>多维相关性评分；</li>
+</ul>
+<p>那么 Elasticsearch 更自然。</p>
+<p>示例查询：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;query&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>    <span class="hljs-attr">&quot;bool&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;filter&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>        <span class="hljs-punctuation">&#123;</span><br>          <span class="hljs-attr">&quot;geo_distance&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>            <span class="hljs-attr">&quot;distance&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;1km&quot;</span><span class="hljs-punctuation">,</span><br>            <span class="hljs-attr">&quot;location&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>              <span class="hljs-attr">&quot;lat&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">31.228</span><span class="hljs-punctuation">,</span><br>              <span class="hljs-attr">&quot;lon&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">121.475</span><br>            <span class="hljs-punctuation">&#125;</span><br>          <span class="hljs-punctuation">&#125;</span><br>        <span class="hljs-punctuation">&#125;</span><span class="hljs-punctuation">,</span><br>        <span class="hljs-punctuation">&#123;</span> <span class="hljs-attr">&quot;term&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span> <span class="hljs-attr">&quot;city_id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">310100</span> <span class="hljs-punctuation">&#125;</span> <span class="hljs-punctuation">&#125;</span><span class="hljs-punctuation">,</span><br>        <span class="hljs-punctuation">&#123;</span> <span class="hljs-attr">&quot;term&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span> <span class="hljs-attr">&quot;open&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">true</span></span> <span class="hljs-punctuation">&#125;</span> <span class="hljs-punctuation">&#125;</span><br>      <span class="hljs-punctuation">]</span><br>    <span class="hljs-punctuation">&#125;</span><br>  <span class="hljs-punctuation">&#125;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;sort&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;_geo_distance&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>        <span class="hljs-attr">&quot;location&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-number">121.475</span><span class="hljs-punctuation">,</span> <span class="hljs-number">31.228</span><span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>        <span class="hljs-attr">&quot;order&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;asc&quot;</span><span class="hljs-punctuation">,</span><br>        <span class="hljs-attr">&quot;unit&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;m&quot;</span><br>      <span class="hljs-punctuation">&#125;</span><br>    <span class="hljs-punctuation">&#125;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-punctuation">&#123;</span> <span class="hljs-attr">&quot;store_id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;asc&quot;</span> <span class="hljs-punctuation">&#125;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;size&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">100</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>缺点是索引存在刷新延迟，不能把它当作订单接单状态的绝对事实来源。搜索结果返回后，仍应由门店&#x2F;交易域做关键状态校验。</p>
+<h2 id="8-方案四：Geohash-或-H3-网格"><a href="#8-方案四：Geohash-或-H3-网格" class="headerlink" title="8. 方案四：Geohash 或 H3 网格"></a>8. 方案四：Geohash 或 H3 网格</h2><p>当业务规模扩展到城市级调度、热力分析、骑手匹配和区域聚合时，可以把经纬度映射为网格 ID。</p>
+<h3 id="8-1-基本思路"><a href="#8-1-基本思路" class="headerlink" title="8.1 基本思路"></a>8.1 基本思路</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">用户坐标 -&gt; 所属网格 -&gt; 当前网格及邻接网格 -&gt; 候选门店 -&gt; 精确距离过滤<br></code></pre></td></tr></table></figure>
+
+<pre><code class=" mermaid">flowchart TB
+    C0[用户所在中心网格]
+    C0 --- C1[邻格 1]
+    C0 --- C2[邻格 2]
+    C0 --- C3[邻格 3]
+    C0 --- C4[邻格 4]
+    C0 --- C5[邻格 5]
+    C0 --- C6[邻格 6]
+
+    C0 --&gt; F[合并网格内门店]
+    C1 --&gt; F
+    C2 --&gt; F
+    C3 --&gt; F
+    C4 --&gt; F
+    C5 --&gt; F
+    C6 --&gt; F
+    F --&gt; D[精确距离过滤]
+</code></pre>
+
+<p>不能只查用户所在的一个网格，因为用户可能位于网格边缘，距离很近的门店却位于相邻网格。</p>
+<h3 id="8-2-网格方案的价值"><a href="#8-2-网格方案的价值" class="headerlink" title="8.2 网格方案的价值"></a>8.2 网格方案的价值</h3><ul>
+<li>分片键天然明确；</li>
+<li>易做热力统计和区域聚合；</li>
+<li>可用于骑手、订单、门店的统一空间表达；</li>
+<li>支持提前计算邻接网格；</li>
+<li>对海量动态对象更容易水平扩展。</li>
+</ul>
+<p>但网格只能做近似召回，最终仍要进行真实距离或配送范围判断。</p>
+<h2 id="9-推荐的生产级查询流程"><a href="#9-推荐的生产级查询流程" class="headerlink" title="9. 推荐的生产级查询流程"></a>9. 推荐的生产级查询流程</h2><pre><code class=" mermaid">sequenceDiagram
+    participant App as 用户 App
+    participant API as LBS API
+    participant Geo as 空间索引
+    participant Cache as 门店摘要缓存
+    participant Store as 门店服务
+    participant ETA as 配送/ETA 服务
+    participant Rank as 排序服务
+
+    App-&gt;&gt;API: 查询附近 1km 门店(lat, lon, filters, cursor)
+    API-&gt;&gt;API: 坐标校验、城市识别、参数归一化
+    API-&gt;&gt;Geo: 召回 Top 200~500 候选门店
+    Geo--&gt;&gt;API: storeId + straightDistance
+    API-&gt;&gt;Cache: MGET 门店摘要
+    Cache--&gt;&gt;API: 状态、类目、评分、活动等
+    API-&gt;&gt;API: 营业/风控/类目等快速过滤
+    API-&gt;&gt;Store: 批量回源缺失或关键状态
+    Store--&gt;&gt;API: 最新门店状态
+    API-&gt;&gt;ETA: 对 Top N 计算配送可达性/ETA
+    ETA--&gt;&gt;API: 可配送、道路距离、预计时间
+    API-&gt;&gt;Rank: 综合排序
+    Rank--&gt;&gt;API: 排序结果
+    API--&gt;&gt;App: 数据 + nextCursor
+</code></pre>
+
+<h3 id="9-1-为什么先召回-200-500-个，而不是直接返回-20-个"><a href="#9-1-为什么先召回-200-500-个，而不是直接返回-20-个" class="headerlink" title="9.1 为什么先召回 200~500 个，而不是直接返回 20 个"></a>9.1 为什么先召回 200~500 个，而不是直接返回 20 个</h3><p>因为空间索引只知道距离，不知道后续有多少门店会因以下原因被过滤：</p>
+<ul>
+<li>休息中；</li>
+<li>超配送范围；</li>
+<li>风控下线；</li>
+<li>类目不匹配；</li>
+<li>没有可售商品；</li>
+<li>不满足会员或活动条件。</li>
+</ul>
+<p>如果只召回 20 个，过滤后可能只剩 3 个。候选集应预留一定过召回比例，但也不能无限放大。</p>
+<h2 id="10-配送范围不能只用圆"><a href="#10-配送范围不能只用圆" class="headerlink" title="10. 配送范围不能只用圆"></a>10. 配送范围不能只用圆</h2><p>很多门店的真实配送范围是多边形，甚至包含多个不连续区域。</p>
+<pre><code class=" mermaid">flowchart LR
+    P[用户坐标] --&gt; B&#123;是否落入门店配送多边形&#125;
+    B -- 否 --&gt; X[过滤门店]
+    B -- 是 --&gt; R&#123;道路是否可达&#125;
+    R -- 否 --&gt; X
+    R -- 是 --&gt; E[计算 ETA 与配送费]
+</code></pre>
+
+<p>可采用：</p>
+<ul>
+<li>PostGIS <code>ST_Contains</code> &#x2F; <code>ST_Intersects</code>；</li>
+<li>地图供应商的围栏能力；</li>
+<li>将配送多边形预切分为 H3 网格集合；</li>
+<li>先用包围盒过滤，再做精确点在多边形内判断。</li>
+</ul>
+<h2 id="11-排序设计"><a href="#11-排序设计" class="headerlink" title="11. 排序设计"></a>11. 排序设计</h2><p>用户说“附近”，不一定意味着只按距离升序。</p>
+<p>一个简化综合分可以写成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">score = w1 × 距离衰减<br>      + w2 × 预计送达速度<br>      + w3 × 评分<br>      + w4 × 销量与转化率<br>      + w5 × 个性化偏好<br>      + w6 × 活动与商业策略<br>      - w7 × 爆单惩罚<br>      - w8 × 取消风险<br></code></pre></td></tr></table></figure>
+
+<p>面试时应强调两点：</p>
+<ol>
+<li>过滤和排序必须分开，不能让商业排序突破“不可配送”等硬约束；</li>
+<li>首页可以综合排序，但用户选择“距离最近”时必须遵守明确的排序语义。</li>
+</ol>
+<h2 id="12-游标分页，而不是深分页"><a href="#12-游标分页，而不是深分页" class="headerlink" title="12. 游标分页，而不是深分页"></a>12. 游标分页，而不是深分页</h2><p>如果排序字段是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">rank_score DESC, distance ASC, store_id ASC<br></code></pre></td></tr></table></figure>
+
+<p>游标应携带上一条记录的完整排序键：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;rankScore&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">0.8732</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;distance&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">642.8</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;storeId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">100023</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>下一页通过 <code>search_after</code> 或等价条件继续查。不要依赖大 OFFSET，因为：</p>
+<ul>
+<li>深分页成本高；</li>
+<li>门店状态动态变化时容易重复或遗漏；</li>
+<li>排序分数实时变化，页码语义不稳定。</li>
+</ul>
+<p>如果要求一次滚动期间结果稳定，可以生成短时有效的 <code>query_snapshot_id</code>，冻结一部分候选或排序版本。</p>
+<h2 id="13-数据更新与一致性"><a href="#13-数据更新与一致性" class="headerlink" title="13. 数据更新与一致性"></a>13. 数据更新与一致性</h2><h3 id="13-1-哪些数据进入空间索引"><a href="#13-1-哪些数据进入空间索引" class="headerlink" title="13.1 哪些数据进入空间索引"></a>13.1 哪些数据进入空间索引</h3><p>适合进入地理索引的字段：</p>
+<ul>
+<li><code>store_id</code>；</li>
+<li>经纬度；</li>
+<li>城市或分片信息。</li>
+</ul>
+<p>营业状态、评分、库存等高频字段可以进入门店摘要缓存或搜索索引，但要避免把所有业务状态耦合进一个超大 Redis GEO Key。</p>
+<h3 id="13-2-更新链路"><a href="#13-2-更新链路" class="headerlink" title="13.2 更新链路"></a>13.2 更新链路</h3><pre><code class=" mermaid">flowchart LR
+    Admin[商家后台修改门店] --&gt; DB[(门店数据库)]
+    DB --&gt; OUTBOX[(Outbox / CDC)]
+    OUTBOX --&gt; MQ[消息队列]
+    MQ --&gt; GEO[更新空间索引]
+    MQ --&gt; CACHE[失效门店缓存]
+    MQ --&gt; SEARCH[更新搜索索引]
+    MQ --&gt; AUDIT[审计与重放日志]
+</code></pre>
+
+<p>推荐数据库为事实源，空间索引为派生数据。通过 CDC 或 Outbox 事件更新索引，并提供：</p>
+<ul>
+<li>消费幂等；</li>
+<li>失败重试；</li>
+<li>死信队列；</li>
+<li>全量重建；</li>
+<li>数据对账。</li>
+</ul>
+<p>对于门店关停这类关键状态，查询结果返回前还可做一次批量状态校验。</p>
+<h2 id="14-热点与高并发优化"><a href="#14-热点与高并发优化" class="headerlink" title="14. 热点与高并发优化"></a>14. 热点与高并发优化</h2><h3 id="14-1-热点区域"><a href="#14-1-热点区域" class="headerlink" title="14.1 热点区域"></a>14.1 热点区域</h3><p>商圈、车站、办公园区会形成热点坐标。可采用：</p>
+<ul>
+<li>按城市&#x2F;区域拆分空间 Key；</li>
+<li>对近似坐标做网格级短缓存；</li>
+<li>只缓存候选门店 ID，不缓存强个性化最终结果；</li>
+<li>热点 Key 本地缓存 + Redis 二级缓存；</li>
+<li>异步预热热门商圈。</li>
+</ul>
+<h3 id="14-2-坐标归一化缓存"><a href="#14-2-坐标归一化缓存" class="headerlink" title="14.2 坐标归一化缓存"></a>14.2 坐标归一化缓存</h3><p>把经纬度映射到一个较小网格，例如 100~200 米网格：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">nearby:&#123;cityId&#125;:&#123;gridId&#125;:&#123;filterHash&#125;<br></code></pre></td></tr></table></figure>
+
+<p>同一网格中的用户可复用初始候选集，再根据用户精确坐标重算距离和排序。</p>
+<p>注意：网格缓存不能直接返回精确距离，否则会出现用户移动几十米但距离不变的问题。</p>
+<h3 id="14-3-批量查询"><a href="#14-3-批量查询" class="headerlink" title="14.3 批量查询"></a>14.3 批量查询</h3><p>避免对每个门店调用一次 RPC：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">错误：N 个候选 -&gt; N 次门店 RPC -&gt; N 次活动 RPC<br>正确：N 个候选 -&gt; 批量门店摘要 -&gt; 批量活动 -&gt; 批量 ETA<br></code></pre></td></tr></table></figure>
+
+<h2 id="15-容量估算示例"><a href="#15-容量估算示例" class="headerlink" title="15. 容量估算示例"></a>15. 容量估算示例</h2><p>假设：</p>
+<ul>
+<li>1000 万日活；</li>
+<li>每个用户每天触发 20 次附近查询；</li>
+<li>峰值系数为平均值的 10 倍；</li>
+</ul>
+<p>平均 QPS：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">10,000,000 × 20 / 86,400 ≈ 2,315 QPS<br></code></pre></td></tr></table></figure>
+
+<p>峰值约：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">2,315 × 10 ≈ 23,150 QPS<br></code></pre></td></tr></table></figure>
+
+<p>如果每次召回 300 个候选，门店摘要查询和排序链路必须批量化，且需要控制 ETA 服务只处理最终 Top N，否则下游调用量会被候选数放大。</p>
+<h2 id="16-常见错误回答"><a href="#16-常见错误回答" class="headerlink" title="16. 常见错误回答"></a>16. 常见错误回答</h2><h3 id="错误一：直接用-SQL-比较经纬度差"><a href="#错误一：直接用-SQL-比较经纬度差" class="headerlink" title="错误一：直接用 SQL 比较经纬度差"></a>错误一：直接用 SQL 比较经纬度差</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> <span class="hljs-built_in">ABS</span>(lat <span class="hljs-operator">-</span> :lat) <span class="hljs-operator">&lt;</span> <span class="hljs-number">0.01</span><br>  <span class="hljs-keyword">AND</span> <span class="hljs-built_in">ABS</span>(lon <span class="hljs-operator">-</span> :lon) <span class="hljs-operator">&lt;</span> <span class="hljs-number">0.01</span><br></code></pre></td></tr></table></figure>
+
+<p>它只能得到近似矩形，而且不同纬度误差不同，不能代表精确 1km。</p>
+<h3 id="错误二：全表执行距离公式"><a href="#错误二：全表执行距离公式" class="headerlink" title="错误二：全表执行距离公式"></a>错误二：全表执行距离公式</h3><p>距离公式本身没有问题，问题是没有空间索引和候选集裁剪。</p>
+<h3 id="错误三：只按直线距离判断可配送"><a href="#错误三：只按直线距离判断可配送" class="headerlink" title="错误三：只按直线距离判断可配送"></a>错误三：只按直线距离判断可配送</h3><p>直线距离适合召回，不适合直接承诺配送。</p>
+<h3 id="错误四：把-Redis-当唯一事实源"><a href="#错误四：把-Redis-当唯一事实源" class="headerlink" title="错误四：把 Redis 当唯一事实源"></a>错误四：把 Redis 当唯一事实源</h3><p>空间索引丢失或延迟时，应能从数据库&#x2F;搜索索引重建。关键交易状态不能只依赖派生缓存。</p>
+<h3 id="错误五：忽略分页稳定性"><a href="#错误五：忽略分页稳定性" class="headerlink" title="错误五：忽略分页稳定性"></a>错误五：忽略分页稳定性</h3><p>动态排序下，普通页码很容易出现重复和漏项，应使用稳定排序键和游标。</p>
+<h2 id="17-面试时可以这样总结"><a href="#17-面试时可以这样总结" class="headerlink" title="17. 面试时可以这样总结"></a>17. 面试时可以这样总结</h2><blockquote>
+<p>我会先明确 1km 是球面直线距离，实际配送还需要道路和配送范围校验。查询链路采用空间索引粗召回，再批量获取门店摘要，执行营业、风控、配送围栏等硬过滤，最后计算 ETA 并综合排序。中小规模可以用 PostGIS，低延迟高并发候选召回可用 Redis GEO，搜索过滤复杂时可用 Elasticsearch，超大规模区域计算可引入 H3。数据库是事实源，空间索引通过 CDC 或 Outbox 最终一致更新，并提供重建和对账能力。分页使用复合排序游标，不使用深 OFFSET。</p>
+</blockquote>
+<h2 id="18-延伸追问"><a href="#18-延伸追问" class="headerlink" title="18. 延伸追问"></a>18. 延伸追问</h2><ol>
+<li>如果用户定位漂移 500 米，如何避免结果频繁跳动？</li>
+<li>如果门店坐标批量修正，如何无停机重建索引？</li>
+<li>如何设计跨城市边界的附近查询？</li>
+<li>如何处理一个门店多个取餐点？</li>
+<li>如果 Redis GEO 故障，降级到什么程度？</li>
+<li>如何证明“附近结果为空”不是索引漏数据？</li>
+<li>地理位置属于敏感信息，日志和埋点如何脱敏？</li>
+</ol>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>Redis Geospatial: <a target="_blank" rel="noopener" href="https://redis.io/docs/latest/develop/data-types/geospatial/">https://redis.io/docs/latest/develop/data-types/geospatial/</a></li>
+<li>Redis GEOSEARCH: <a target="_blank" rel="noopener" href="https://redis.io/docs/latest/commands/geosearch/">https://redis.io/docs/latest/commands/geosearch/</a></li>
+<li>PostGIS ST_DWithin: <a target="_blank" rel="noopener" href="https://postgis.net/docs/ST_DWithin.html">https://postgis.net/docs/ST_DWithin.html</a></li>
+<li>Elasticsearch Geo Queries: <a target="_blank" rel="noopener" href="https://www.elastic.co/guide/en/elasticsearch/reference/current/geo-queries.html">https://www.elastic.co/guide/en/elasticsearch/reference/current/geo-queries.html</a></li>
+<li>H3 Documentation: <a target="_blank" rel="noopener" href="https://h3geo.org/docs/">https://h3geo.org/docs/</a></li>
+</ul>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E5%90%8E%E7%AB%AF%E6%9E%B6%E6%9E%84/" class="category-chain-item">后端架构</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/%E5%90%8E%E7%AB%AF%E6%9E%B6%E6%9E%84/%E5%9C%BA%E6%99%AF%E8%AE%BE%E8%AE%A1/" class="category-chain-item">场景设计</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/LBS/" class="print-no-link">#LBS</a>
+      
+        <a href="/tags/Redis-GEO/" class="print-no-link">#Redis GEO</a>
+      
+        <a href="/tags/PostGIS/" class="print-no-link">#PostGIS</a>
+      
+        <a href="/tags/Elasticsearch/" class="print-no-link">#Elasticsearch</a>
+      
+        <a href="/tags/H3/" class="print-no-link">#H3</a>
+      
+        <a href="/tags/%E7%B3%BB%E7%BB%9F%E8%AE%BE%E8%AE%A1/" class="print-no-link">#系统设计</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>场景设计：美团/饿了么如何找出附近 1km 的商家</div>
+      <div>https://allendericdalexander.github.io/2026/07/29/archtect/examples/01-nearby-merchants-within-1km/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年7月29日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/07/29/archtect/examples/02-food-delivery-rider-order-grabbing/" title="场景设计：美团/饿了么外卖骑手抢单系统">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">场景设计：美团/饿了么外卖骑手抢单系统</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/07/29/archtect/design/live-streaming-danmaku-system-design/" title="从 MVP 到百万并发：直播弹幕系统完整设计">
+                        <span class="hidden-mobile">从 MVP 到百万并发：直播弹幕系统完整设计</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

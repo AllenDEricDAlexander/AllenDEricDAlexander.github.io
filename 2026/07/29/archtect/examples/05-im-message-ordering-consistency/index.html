@@ -1,0 +1,1223 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="从顺序语义、会话分片、服务端序列号、Kafka 分区、重试幂等、缺口补拉和多端同步等角度设计类微信 IM 消息顺序机制。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="场景设计：类微信 IM 系统如何保证消息顺序一致性">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/07/29/archtect/examples/05-im-message-ordering-consistency/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="从顺序语义、会话分片、服务端序列号、Kafka 分区、重试幂等、缺口补拉和多端同步等角度设计类微信 IM 消息顺序机制。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-29T05:50:00.000Z">
+<meta property="article:modified_time" content="2026-07-29T05:18:32.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="IM">
+<meta property="article:tag" content="Kafka">
+<meta property="article:tag" content="多端同步">
+<meta property="article:tag" content="幂等">
+<meta property="article:tag" content="序列号">
+<meta property="article:tag" content="消息顺序">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>场景设计：类微信 IM 系统如何保证消息顺序一致性 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="场景设计：类微信 IM 系统如何保证消息顺序一致性"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-07-29 13:50" pubdate>
+          2026年7月29日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          5k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          42 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">场景设计：类微信 IM 系统如何保证消息顺序一致性</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <blockquote>
+<p>本文讨论通用即时通信系统设计，不代表微信真实内部实现。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-“保证消息顺序”首先要问：保证哪一种顺序"><a href="#1-“保证消息顺序”首先要问：保证哪一种顺序" class="headerlink" title="1. “保证消息顺序”首先要问：保证哪一种顺序"></a>1. “保证消息顺序”首先要问：保证哪一种顺序</h2><p>面试中最容易犯的错误，是直接回答“使用 Kafka 单分区”或“用消息时间戳排序”。</p>
+<p>顺序有多个层级：</p>
+<table>
+<thead>
+<tr>
+<th>顺序范围</th>
+<th>示例</th>
+<th>是否通常需要</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>单客户端发送顺序</td>
+<td>用户 A 连续发送 M1、M2</td>
+<td>需要</td>
+</tr>
+<tr>
+<td>单会话顺序</td>
+<td>A、B 在同一聊天中的所有消息</td>
+<td>通常需要</td>
+</tr>
+<tr>
+<td>单用户收件箱顺序</td>
+<td>用户所有会话的消息全序</td>
+<td>一般不需要严格全序</td>
+</tr>
+<tr>
+<td>全系统消息顺序</td>
+<td>所有用户所有消息统一排序</td>
+<td>几乎不需要，代价极高</td>
+</tr>
+<tr>
+<td>因果顺序</td>
+<td>回复消息不能先于被回复消息出现</td>
+<td>需要通过引用和补拉处理</td>
+</tr>
+</tbody></table>
+<p>类微信 IM 更合理的目标是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">同一个 conversationId 内，服务端为成功落库的消息分配唯一、单调递增的 msgSeq；客户端最终按 msgSeq 展示。<br></code></pre></td></tr></table></figure>
+
+<p>不必为了一个会话内的顺序，构造全世界唯一的中心序列器。</p>
+<h2 id="2-为什么客户端时间戳不可靠"><a href="#2-为什么客户端时间戳不可靠" class="headerlink" title="2. 为什么客户端时间戳不可靠"></a>2. 为什么客户端时间戳不可靠</h2><p>用 <code>sendTime</code> 排序存在以下问题：</p>
+<ul>
+<li>用户可以修改设备时间；</li>
+<li>不同设备时钟有漂移；</li>
+<li>移动网络延迟差异很大；</li>
+<li>消息离线缓存后延迟发送；</li>
+<li>服务端重试和跨机房转发会改变到达顺序；</li>
+<li>同一毫秒可产生多条消息；</li>
+<li>多端同时发送无法形成稳定全序。</li>
+</ul>
+<p>客户端时间可以作为展示信息或排查字段，但不应作为最终会话顺序依据。</p>
+<h2 id="3-需求拆解"><a href="#3-需求拆解" class="headerlink" title="3. 需求拆解"></a>3. 需求拆解</h2><h3 id="3-1-功能需求"><a href="#3-1-功能需求" class="headerlink" title="3.1 功能需求"></a>3.1 功能需求</h3><ul>
+<li>单聊、群聊；</li>
+<li>文本、图片、语音、文件、系统消息；</li>
+<li>在线实时推送；</li>
+<li>离线消息同步；</li>
+<li>多设备登录；</li>
+<li>发送重试和幂等；</li>
+<li>已送达、已读状态；</li>
+<li>撤回、编辑、删除；</li>
+<li>历史消息分页；</li>
+<li>断线重连后补齐缺失消息。</li>
+</ul>
+<h3 id="3-2-顺序相关非功能需求"><a href="#3-2-顺序相关非功能需求" class="headerlink" title="3.2 顺序相关非功能需求"></a>3.2 顺序相关非功能需求</h3><ul>
+<li>同会话内最终顺序一致；</li>
+<li>网络抖动不会产生重复消息；</li>
+<li>消息暂时乱序到达时客户端可重排；</li>
+<li>检测消息缺口并主动补拉；</li>
+<li>服务端横向扩容后顺序不失效；</li>
+<li>单个热点群不能拖垮整个集群；</li>
+<li>不要求不必要的全局强一致。</li>
+</ul>
+<h2 id="4-总体架构"><a href="#4-总体架构" class="headerlink" title="4. 总体架构"></a>4. 总体架构</h2><pre><code class=" mermaid">flowchart LR
+    A[发送端 App] --&gt; CONN[长连接网关]
+    CONN --&gt; ROUTER[消息路由服务]
+    ROUTER --&gt; SHARD[会话分片/Leader]
+    SHARD --&gt; SEQ[会话序列分配器]
+    SHARD --&gt; MSGDB[(消息存储)]
+    SHARD --&gt; OUTBOX[(Outbox/事件日志)]
+
+    OUTBOX --&gt; MQ[消息队列]
+    MQ --&gt; FANOUT[收件箱/推送分发]
+    FANOUT --&gt; ONLINE[在线连接路由]
+    FANOUT --&gt; INBOX[(用户同步游标/收件箱)]
+
+    ONLINE --&gt; B[接收端 App]
+    B --&gt; SYNC[消息同步服务]
+    SYNC --&gt; MSGDB
+    SYNC --&gt; INBOX
+</code></pre>
+
+<p>核心原则：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">同一 conversationId 的所有写请求必须进入同一个有序写入域。<br></code></pre></td></tr></table></figure>
+
+<p>这个有序域可以是：</p>
+<ul>
+<li>固定分片的单 Leader；</li>
+<li>Kafka 同一分区；</li>
+<li>Actor&#x2F;Virtual Actor；</li>
+<li>数据库分片上的串行序列分配器；</li>
+<li>Raft Group 中的状态机。</li>
+</ul>
+<h2 id="5-消息标识要分层"><a href="#5-消息标识要分层" class="headerlink" title="5. 消息标识要分层"></a>5. 消息标识要分层</h2><p>建议至少有三类 ID。</p>
+<h3 id="5-1-client-msg-id"><a href="#5-1-client-msg-id" class="headerlink" title="5.1 client_msg_id"></a>5.1 <code>client_msg_id</code></h3><p>由客户端生成，用于发送幂等。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">clientMsgId = deviceId + localSequence / UUIDv7 / ULID<br></code></pre></td></tr></table></figure>
+
+<p>同一条消息因超时重试时，<code>client_msg_id</code> 不变。</p>
+<h3 id="5-2-message-id"><a href="#5-2-message-id" class="headerlink" title="5.2 message_id"></a>5.2 <code>message_id</code></h3><p>服务端全局唯一消息 ID，用于定位、存储、引用、撤回和审计。</p>
+<p>它可以趋势递增，但不必承担严格会话顺序。</p>
+<h3 id="5-3-msg-seq"><a href="#5-3-msg-seq" class="headerlink" title="5.3 msg_seq"></a>5.3 <code>msg_seq</code></h3><p>会话内单调递增序列：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">(conversation_id, msg_seq) 唯一<br></code></pre></td></tr></table></figure>
+
+<p>客户端最终按 <code>msg_seq</code> 排序。</p>
+<p>示例：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;conversationId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;c_10001_10002&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;clientMsgId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;devA-20381&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;messageId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;msg_01K...&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;msgSeq&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">10528</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;senderId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">10001</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;serverTime&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1785303000123</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;TEXT&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;content&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;你好&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<h2 id="6-会话分片"><a href="#6-会话分片" class="headerlink" title="6. 会话分片"></a>6. 会话分片</h2><h3 id="6-1-按-conversation-id-路由"><a href="#6-1-按-conversation-id-路由" class="headerlink" title="6.1 按 conversation_id 路由"></a>6.1 按 <code>conversation_id</code> 路由</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">shard = hash(conversationId) % shardCount<br></code></pre></td></tr></table></figure>
+
+<p>同一会话的消息进入同一分片，分片内部有一个明确 Leader 负责写入。</p>
+<pre><code class=" mermaid">flowchart TD
+    M1[会话 C1 的消息] --&gt; H&#123;hash conversationId&#125;
+    M2[会话 C2 的消息] --&gt; H
+    M3[会话 C1 的另一条消息] --&gt; H
+
+    H --&gt; S1[Shard 1 Leader]
+    H --&gt; S2[Shard 2 Leader]
+    H --&gt; S3[Shard 3 Leader]
+
+    S1 --&gt; Q1[有序日志]
+    S2 --&gt; Q2[有序日志]
+    S3 --&gt; Q3[有序日志]
+</code></pre>
+
+<p>C1 的所有消息始终进入同一有序域，C1 与 C2 可以并行处理。</p>
+<h3 id="6-2-为什么不能随机负载均衡"><a href="#6-2-为什么不能随机负载均衡" class="headerlink" title="6.2 为什么不能随机负载均衡"></a>6.2 为什么不能随机负载均衡</h3><p>若 A 的 M1 请求进入节点 X，M2 进入节点 Y：</p>
+<ul>
+<li>X 和 Y 的处理速度不同；</li>
+<li>M2 可能先落库；</li>
+<li>两个节点可能各自分配相同序列；</li>
+<li>跨节点协调会变得复杂。</li>
+</ul>
+<p>入口网关可以随机接收连接，但消息路由层必须按会话键确定写入分片。</p>
+<h2 id="7-服务端序列号怎么生成"><a href="#7-服务端序列号怎么生成" class="headerlink" title="7. 服务端序列号怎么生成"></a>7. 服务端序列号怎么生成</h2><h3 id="7-1-方案一：数据库行锁-条件更新"><a href="#7-1-方案一：数据库行锁-条件更新" class="headerlink" title="7.1 方案一：数据库行锁&#x2F;条件更新"></a>7.1 方案一：数据库行锁&#x2F;条件更新</h3><p>维护会话序列表：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> conversation_sequence (<br>    conversation_id <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">PRIMARY KEY</span>,<br>    current_seq     <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    version         <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span><br>);<br></code></pre></td></tr></table></figure>
+
+<p>在事务中：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> conversation_sequence<br><span class="hljs-keyword">SET</span> current_seq <span class="hljs-operator">=</span> current_seq <span class="hljs-operator">+</span> <span class="hljs-number">1</span>,<br>    version <span class="hljs-operator">=</span> version <span class="hljs-operator">+</span> <span class="hljs-number">1</span><br><span class="hljs-keyword">WHERE</span> conversation_id <span class="hljs-operator">=</span> :conversationId;<br></code></pre></td></tr></table></figure>
+
+<p>然后读取新值或使用数据库 <code>RETURNING</code> 能力。</p>
+<p>优点：实现直观、强一致；缺点：热点群会集中竞争同一行。</p>
+<h3 id="7-2-方案二：Redis-INCR"><a href="#7-2-方案二：Redis-INCR" class="headerlink" title="7.2 方案二：Redis INCR"></a>7.2 方案二：Redis INCR</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs redis">INCR im:seq:&#123;conversationId&#125;<br></code></pre></td></tr></table></figure>
+
+<p>优点：快、原子；缺点：</p>
+<ul>
+<li>Redis 故障切换时如何保证序列不回退；</li>
+<li>序列分配成功但消息落库失败会产生空洞；</li>
+<li>Redis 与消息库一致性复杂；</li>
+<li>不能简单把 Redis 当不可丢失的唯一序列事实源。</li>
+</ul>
+<p>序列空洞通常是可接受的，回退和重复不可接受。</p>
+<h3 id="7-3-方案三：分段号段"><a href="#7-3-方案三：分段号段" class="headerlink" title="7.3 方案三：分段号段"></a>7.3 方案三：分段号段</h3><p>每个会话分片 Leader 一次从数据库申请一段：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">[10001, 11000]<br></code></pre></td></tr></table></figure>
+
+<p>之后在内存中分配，耗尽再申请。</p>
+<p>优点：减少中心存储访问；缺点：节点宕机会产生较大空洞。</p>
+<p>对 IM 而言，空洞通常可以接受，只要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">唯一 + 单调 + 不重复<br></code></pre></td></tr></table></figure>
+
+<p>但号段如果被多个并发 Leader 同时持有，就会出问题。因此会话分片本身需要单 Leader 或 fencing token。</p>
+<h3 id="7-4-方案四：分片有序日志的-Offset"><a href="#7-4-方案四：分片有序日志的-Offset" class="headerlink" title="7.4 方案四：分片有序日志的 Offset"></a>7.4 方案四：分片有序日志的 Offset</h3><p>将同一 <code>conversationId</code> 固定写入同一个 Kafka Partition，使用分区 offset 作为有序位置或辅助序列。</p>
+<p>Kafka 只保证分区内部顺序，不保证跨分区全局顺序。这个特性正好匹配“同会话有序、不同会话并行”。</p>
+<p>但直接把 Kafka offset 当 <code>msg_seq</code> 也有问题：</p>
+<ul>
+<li>同一分区包含多个会话，offset 在各会话内有间隔；</li>
+<li>分区迁移和消息存储映射要处理；</li>
+<li>业务查询通常仍希望有会话级序列；</li>
+<li>如果生产消息前后还有数据库事务，顺序边界需统一。</li>
+</ul>
+<p>更常见做法是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">会话分片 Leader 分配 msgSeq -&gt; 持久化消息和 Outbox -&gt; Kafka 负责按会话键有序分发<br></code></pre></td></tr></table></figure>
+
+<h2 id="8-推荐写入流程"><a href="#8-推荐写入流程" class="headerlink" title="8. 推荐写入流程"></a>8. 推荐写入流程</h2><pre><code class=" mermaid">sequenceDiagram
+    autonumber
+    participant App as 发送端
+    participant Gateway as 长连接网关
+    participant Router as 会话路由
+    participant Leader as 会话分片 Leader
+    participant DB as 消息数据库
+    participant MQ as 有序事件流
+    participant Receiver as 接收端
+
+    App-&gt;&gt;Gateway: Send(clientMsgId, conversationId, content)
+    Gateway-&gt;&gt;Router: 鉴权后的消息命令
+    Router-&gt;&gt;Leader: 按 conversationId 路由
+    Leader-&gt;&gt;DB: 查询 clientMsgId 是否已存在
+
+    alt 已处理过
+        DB--&gt;&gt;Leader: 返回原 messageId/msgSeq
+        Leader--&gt;&gt;App: 原成功结果
+    else 新消息
+        Leader-&gt;&gt;Leader: 分配 msgSeq
+        Leader-&gt;&gt;DB: 事务写 message + sender ack + outbox
+        DB--&gt;&gt;Leader: 提交成功
+        Leader--&gt;&gt;App: ACK(messageId, msgSeq)
+        DB-&gt;&gt;MQ: CDC/Outbox 发布
+        MQ-&gt;&gt;Receiver: 推送 message(msgSeq)
+    end
+</code></pre>
+
+<p>关键顺序：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">先持久化成功，再向发送端确认成功。<br></code></pre></td></tr></table></figure>
+
+<p>如果先 ACK 再落库，服务宕机会出现“发送端认为成功，但服务端没有消息”。</p>
+<h2 id="9-数据模型"><a href="#9-数据模型" class="headerlink" title="9. 数据模型"></a>9. 数据模型</h2><h3 id="9-1-消息表"><a href="#9-1-消息表" class="headerlink" title="9.1 消息表"></a>9.1 消息表</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> im_message (<br>    conversation_id <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    msg_seq         <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    message_id      <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    client_msg_id   <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">128</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    sender_id       <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    sender_device_id <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">128</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    message_type    <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">32</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    payload         JSON <span class="hljs-keyword">NOT NULL</span>,<br>    status          <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">16</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    server_time     <span class="hljs-type">TIMESTAMP</span> <span class="hljs-keyword">NOT NULL</span>,<br>    created_at      <span class="hljs-type">TIMESTAMP</span> <span class="hljs-keyword">NOT NULL</span>,<br>    <span class="hljs-keyword">PRIMARY KEY</span>(conversation_id, msg_seq),<br>    <span class="hljs-keyword">UNIQUE</span>(sender_id, client_msg_id),<br>    <span class="hljs-keyword">UNIQUE</span>(message_id)<br>);<br></code></pre></td></tr></table></figure>
+
+<p>主查询路径是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">conversationId + msgSeq 范围<br></code></pre></td></tr></table></figure>
+
+<h3 id="9-2-用户会话同步状态"><a href="#9-2-用户会话同步状态" class="headerlink" title="9.2 用户会话同步状态"></a>9.2 用户会话同步状态</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> user_conversation_cursor (<br>    user_id          <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    conversation_id  <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    last_delivered_seq <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    last_read_seq      <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    updated_at       <span class="hljs-type">TIMESTAMP</span> <span class="hljs-keyword">NOT NULL</span>,<br>    <span class="hljs-keyword">PRIMARY KEY</span>(user_id, conversation_id)<br>);<br></code></pre></td></tr></table></figure>
+
+<h3 id="9-3-客户端本地状态"><a href="#9-3-客户端本地状态" class="headerlink" title="9.3 客户端本地状态"></a>9.3 客户端本地状态</h3><p>客户端对每个会话维护：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">max_contiguous_seq：当前已连续拥有的最大序列<br>max_seen_seq：看到过的最大序列<br>pending_buffer：暂存的乱序消息<br></code></pre></td></tr></table></figure>
+
+<h2 id="10-消息乱序到达怎么办"><a href="#10-消息乱序到达怎么办" class="headerlink" title="10. 消息乱序到达怎么办"></a>10. 消息乱序到达怎么办</h2><p>即使服务端写入有序，网络推送仍可能乱序：</p>
+<ul>
+<li>消息经过不同网关；</li>
+<li>重连前后的连接并存；</li>
+<li>推送重试；</li>
+<li>大消息上传较慢；</li>
+<li>多设备同步；</li>
+<li>某条消息消费延迟。</li>
+</ul>
+<p>假设客户端当前连续收到到 <code>seq=100</code>，随后先收到 <code>102</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">发现 101 缺失<br>-&gt; 暂存 102<br>-&gt; 调用同步接口拉取 afterSeq=100<br>-&gt; 获得 101、102<br>-&gt; 去重后按序提交 UI<br></code></pre></td></tr></table></figure>
+
+<pre><code class=" mermaid">sequenceDiagram
+    participant Server as 服务端
+    participant Client as 客户端
+
+    Server--&gt;&gt;Client: message seq=100
+    Server--&gt;&gt;Client: message seq=102
+    Client-&gt;&gt;Client: 检测到缺口 101
+    Client-&gt;&gt;Server: sync(conversationId, afterSeq=100)
+    Server--&gt;&gt;Client: seq=101, seq=102
+    Client-&gt;&gt;Client: 按 seq 去重并重排
+</code></pre>
+
+<p>客户端不能因为先收到 102 就永久把它显示在 101 前面。</p>
+<h2 id="11-空洞和缺口不是同一个概念"><a href="#11-空洞和缺口不是同一个概念" class="headerlink" title="11. 空洞和缺口不是同一个概念"></a>11. 空洞和缺口不是同一个概念</h2><h3 id="11-1-序列分配空洞"><a href="#11-1-序列分配空洞" class="headerlink" title="11.1 序列分配空洞"></a>11.1 序列分配空洞</h3><p>服务端分配了 <code>seq=101</code>，但事务失败，最终没有 101。这是号段或先分配后持久化常见现象。</p>
+<h3 id="11-2-传输缺口"><a href="#11-2-传输缺口" class="headerlink" title="11.2 传输缺口"></a>11.2 传输缺口</h3><p>服务端确实存在 101，但客户端没有收到。</p>
+<p>客户端仅凭看到 100 和 102 无法立即知道是哪一种。</p>
+<p>解决方案有两种：</p>
+<ol>
+<li>序列分配与消息提交在同一状态机中，尽量不产生空洞；</li>
+<li>同步接口返回权威信息，例如消息列表和 <code>committedMaxSeq</code>，必要时返回跳号标记。</li>
+</ol>
+<p>很多系统允许服务端序列存在空洞，但客户端同步协议必须能前进，不能永远等待不存在的 101。</p>
+<p>可以提供：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;messages&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span>...<span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;nextSeq&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">105</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;committedMaxSeq&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">110</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;hasMore&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">true</span></span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>或者使用连续日志位置作为同步游标，而业务 <code>msgSeq</code> 只负责排序。</p>
+<h2 id="12-客户端发送顺序"><a href="#12-客户端发送顺序" class="headerlink" title="12. 客户端发送顺序"></a>12. 客户端发送顺序</h2><p>用户在同一设备连续发送 M1、M2，客户端可以维护 <code>client_seq</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">M1.clientSeq = 100<br>M2.clientSeq = 101<br></code></pre></td></tr></table></figure>
+
+<p>如果 M1 上传图片较慢，M2 文本先到服务端，产品需要选择：</p>
+<h3 id="方案-A：按服务端收到顺序"><a href="#方案-A：按服务端收到顺序" class="headerlink" title="方案 A：按服务端收到顺序"></a>方案 A：按服务端收到顺序</h3><p>简单、延迟低，但可能与用户点击顺序不同。</p>
+<h3 id="方案-B：同设备按-clientSeq-串行发送"><a href="#方案-B：同设备按-clientSeq-串行发送" class="headerlink" title="方案 B：同设备按 clientSeq 串行发送"></a>方案 B：同设备按 clientSeq 串行发送</h3><p>客户端等 M1 获得 ACK 后再发送 M2，能保持本机点击顺序，但大文件会阻塞后续文本。</p>
+<h3 id="方案-C：媒体先预上传，消息提交轻量化"><a href="#方案-C：媒体先预上传，消息提交轻量化" class="headerlink" title="方案 C：媒体先预上传，消息提交轻量化"></a>方案 C：媒体先预上传，消息提交轻量化</h3><p>先把图片上传到对象存储，获得 objectKey，再发送消息元数据。这样消息提交本身很快，可以减少顺序反转。</p>
+<p>生产系统通常将大文件上传与聊天消息提交分开，并允许产品定义“发送动作完成”的时点。</p>
+<h2 id="13-多设备同时发送"><a href="#13-多设备同时发送" class="headerlink" title="13. 多设备同时发送"></a>13. 多设备同时发送</h2><p>同一账号在手机和电脑同时发送时，没有天然的客户端全序。</p>
+<p>正确做法：</p>
+<ul>
+<li>两端各自生成 <code>client_msg_id</code>；</li>
+<li>所有消息进入同一会话分片；</li>
+<li>服务端按该分片接收&#x2F;提交顺序分配 <code>msg_seq</code>；</li>
+<li>所有设备最终按服务端 <code>msg_seq</code> 对齐。</li>
+</ul>
+<p>不要尝试依靠手机和电脑的本地时间排序。</p>
+<h2 id="14-Kafka-如何使用才不会破坏顺序"><a href="#14-Kafka-如何使用才不会破坏顺序" class="headerlink" title="14. Kafka 如何使用才不会破坏顺序"></a>14. Kafka 如何使用才不会破坏顺序</h2><h3 id="14-1-Partition-Key"><a href="#14-1-Partition-Key" class="headerlink" title="14.1 Partition Key"></a>14.1 Partition Key</h3><p>生产事件时使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">key = conversationId<br></code></pre></td></tr></table></figure>
+
+<p>同一会话进入同一 Partition。</p>
+<h3 id="14-2-消费并发"><a href="#14-2-消费并发" class="headerlink" title="14.2 消费并发"></a>14.2 消费并发</h3><p>一个 Partition 在同一 Consumer Group 内同一时刻只由一个消费者实例处理，但消费者内部如果把消息扔进无序线程池，仍可能完成乱序。</p>
+<p>错误示例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">poll M1, M2<br>-&gt; submit 到线程池<br>-&gt; M2 先完成并推送<br></code></pre></td></tr></table></figure>
+
+<p>修复方式：</p>
+<ul>
+<li>每分区串行消费；</li>
+<li>按 conversationId 再次做 keyed executor；</li>
+<li>异步处理时维护 per-key chain；</li>
+<li>提交 offset 与处理结果严格对应。</li>
+</ul>
+<p>Kafka 保证的是读取顺序，不自动保证你的业务处理完成顺序。</p>
+<h3 id="14-3-Producer-重试"><a href="#14-3-Producer-重试" class="headerlink" title="14.3 Producer 重试"></a>14.3 Producer 重试</h3><p>生产者应启用幂等能力并合理配置重试。业务层仍应携带 <code>message_id</code> 或事件 ID，让消费者幂等。</p>
+<p>不要把“Kafka exactly-once”理解成整个 IM 链路天然只处理一次。数据库、推送网关、客户端都需要自己的幂等边界。</p>
+<h2 id="15-“Exactly-Once”在-IM-中通常是用户体验目标"><a href="#15-“Exactly-Once”在-IM-中通常是用户体验目标" class="headerlink" title="15. “Exactly Once”在 IM 中通常是用户体验目标"></a>15. “Exactly Once”在 IM 中通常是用户体验目标</h2><p>网络系统中更实际的实现是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">至少一次传输 + 服务端幂等 + 客户端去重 = 用户看来只出现一次<br></code></pre></td></tr></table></figure>
+
+<p>去重键：</p>
+<ul>
+<li>服务端发送幂等：<code>senderId + clientMsgId</code>；</li>
+<li>消息存储唯一：<code>messageId</code>；</li>
+<li>会话顺序唯一：<code>conversationId + msgSeq</code>；</li>
+<li>客户端展示去重：<code>messageId</code>。</li>
+</ul>
+<p>服务端可能重复推送，客户端必须安全忽略重复消息。</p>
+<h2 id="16-ACK-设计"><a href="#16-ACK-设计" class="headerlink" title="16. ACK 设计"></a>16. ACK 设计</h2><p>可以区分：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">SENT：服务端已持久化<br>DELIVERED：至少一个接收设备已接收/同步<br>READ：用户已读到某序列<br></code></pre></td></tr></table></figure>
+
+<h3 id="16-1-已读回执不要逐条写"><a href="#16-1-已读回执不要逐条写" class="headerlink" title="16.1 已读回执不要逐条写"></a>16.1 已读回执不要逐条写</h3><p>对一个会话维护：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">last_read_seq<br></code></pre></td></tr></table></figure>
+
+<p>当用户读到 108：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> user_conversation_cursor<br><span class="hljs-keyword">SET</span> last_read_seq <span class="hljs-operator">=</span> GREATEST(last_read_seq, <span class="hljs-number">108</span>)<br><span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> :userId<br>  <span class="hljs-keyword">AND</span> conversation_id <span class="hljs-operator">=</span> :conversationId;<br></code></pre></td></tr></table></figure>
+
+<p>这比对每条消息写一条已读记录更高效。</p>
+<p>群聊是否展示每个人的已读状态，要根据产品和规模单独设计。</p>
+<h2 id="17-撤回和编辑顺序"><a href="#17-撤回和编辑顺序" class="headerlink" title="17. 撤回和编辑顺序"></a>17. 撤回和编辑顺序</h2><p>撤回不是删除原消息并让序列消失，而应当作状态变更事件：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;MESSAGE_RECALLED&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;targetMessageId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;msg_001&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;operatorId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">10001</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;eventSeq&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">109</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>客户端先收到撤回事件但缺少原消息时：</p>
+<ul>
+<li>先保存 tombstone；</li>
+<li>后续原消息到达时直接展示“消息已撤回”；</li>
+<li>同步服务按事件序列恢复最终状态。</li>
+</ul>
+<p>编辑同理，应有版本号：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">message_version = 1, 2, 3...<br></code></pre></td></tr></table></figure>
+
+<p>不能让旧编辑事件覆盖新版本。</p>
+<h2 id="18-单聊和群聊的差异"><a href="#18-单聊和群聊的差异" class="headerlink" title="18. 单聊和群聊的差异"></a>18. 单聊和群聊的差异</h2><h3 id="18-1-单聊"><a href="#18-1-单聊" class="headerlink" title="18.1 单聊"></a>18.1 单聊</h3><ul>
+<li>会话参与者少；</li>
+<li>每条消息扇出目标少；</li>
+<li>会话热点通常有限；</li>
+<li>每用户同步状态较简单。</li>
+</ul>
+<h3 id="18-2-大群"><a href="#18-2-大群" class="headerlink" title="18.2 大群"></a>18.2 大群</h3><ul>
+<li>单会话写热点明显；</li>
+<li>一条消息可能扇出给数十万成员；</li>
+<li>不能同步写每个成员 Inbox 后才 ACK；</li>
+<li>需要“写一次消息日志 + 用户按游标拉取”或分层扇出；</li>
+<li>群成员变更和历史可见性需要定义；</li>
+<li>单会话严格序列器可能成为瓶颈。</li>
+</ul>
+<p>大型群聊可采用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">消息写入群日志<br>-&gt; 只通知在线成员有新 seq<br>-&gt; 客户端按 groupSeq 拉取<br></code></pre></td></tr></table></figure>
+
+<p>而不是为每个成员复制完整消息。</p>
+<h2 id="19-热点会话"><a href="#19-热点会话" class="headerlink" title="19. 热点会话"></a>19. 热点会话</h2><p>一个超大直播群或万人群会让单会话有序域变成热点。因为严格单会话顺序天然限制并行写入。</p>
+<p>优化方向：</p>
+<ul>
+<li>明确是否真的需要所有消息严格全序；</li>
+<li>将控制消息和普通聊天消息分流；</li>
+<li>对弹幕类消息允许弱顺序或分区顺序；</li>
+<li>限流和合并系统通知；</li>
+<li>使用专门的热点会话分片；</li>
+<li>批量写日志；</li>
+<li>客户端按小窗口排序。</li>
+</ul>
+<p>这是不可逃避的权衡：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">顺序范围越大，串行化范围越大，可扩展性越差。<br></code></pre></td></tr></table></figure>
+
+<h2 id="20-历史消息分页"><a href="#20-历史消息分页" class="headerlink" title="20. 历史消息分页"></a>20. 历史消息分页</h2><p>查询接口：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs http">GET /conversations/&#123;id&#125;/messages?beforeSeq=10528&amp;limit=50<br></code></pre></td></tr></table></figure>
+
+<p>SQL：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> im_message<br><span class="hljs-keyword">WHERE</span> conversation_id <span class="hljs-operator">=</span> :conversationId<br>  <span class="hljs-keyword">AND</span> msg_seq <span class="hljs-operator">&lt;</span> :beforeSeq<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> msg_seq <span class="hljs-keyword">DESC</span><br>LIMIT <span class="hljs-number">50</span>;<br></code></pre></td></tr></table></figure>
+
+<p>首次读取可以从会话最新序列开始。向前翻历史时使用 <code>beforeSeq</code>，不使用 OFFSET。</p>
+<p>断线补拉：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs http">GET /conversations/&#123;id&#125;/messages?afterSeq=100&amp;limit=500<br></code></pre></td></tr></table></figure>
+
+<h2 id="21-多端同步"><a href="#21-多端同步" class="headerlink" title="21. 多端同步"></a>21. 多端同步</h2><p>每台设备维护自己的设备游标：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">user_device_sync_cursor(userId, deviceId, globalSyncSeq)<br></code></pre></td></tr></table></figure>
+
+<p>服务端可以维护用户级同步事件流：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">会话 C1 新消息 seq=105<br>会话 C2 已读推进到 88<br>会话 C3 被删除<br>联系人关系变化<br></code></pre></td></tr></table></figure>
+
+<p>设备断线重连后按 <code>globalSyncSeq</code> 拉取变化，再按各会话的 <code>msgSeq</code> 补齐正文。</p>
+<pre><code class=" mermaid">flowchart LR
+    D1[手机游标 500] --&gt; SYNC[用户同步日志]
+    D2[电脑游标 470] --&gt; SYNC
+    D3[平板游标 520] --&gt; SYNC
+    SYNC --&gt; C1[会话 C1 增量]
+    SYNC --&gt; C2[会话 C2 增量]
+    SYNC --&gt; STATE[已读/撤回/关系状态]
+</code></pre>
+
+<p>用户级同步序列和会话内消息序列解决的是不同问题，不能混为一个 ID。</p>
+<h2 id="22-跨机房设计"><a href="#22-跨机房设计" class="headerlink" title="22. 跨机房设计"></a>22. 跨机房设计</h2><h3 id="22-1-同一会话单写地域"><a href="#22-1-同一会话单写地域" class="headerlink" title="22.1 同一会话单写地域"></a>22.1 同一会话单写地域</h3><p>最简单可靠：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">conversationId -&gt; homeRegion -&gt; shardLeader<br></code></pre></td></tr></table></figure>
+
+<p>其他地域收到发送请求后转发到 homeRegion。</p>
+<p>优点：顺序清晰；缺点：跨地域延迟。</p>
+<h3 id="22-2-多地域同时写"><a href="#22-2-多地域同时写" class="headerlink" title="22.2 多地域同时写"></a>22.2 多地域同时写</h3><p>如果同一会话允许多个地域同时写，要解决：</p>
+<ul>
+<li>Leader 选举；</li>
+<li>冲突排序；</li>
+<li>网络分区；</li>
+<li>脑裂；</li>
+<li>一致的 fencing；</li>
+<li>用户看到的临时顺序是否允许重排。</li>
+</ul>
+<p>可使用共识协议或全局排序服务，但成本高。多数普通 IM 会优先选择会话级单写主域，而不是追求无条件多主。</p>
+<h2 id="23-故障场景"><a href="#23-故障场景" class="headerlink" title="23. 故障场景"></a>23. 故障场景</h2><h3 id="23-1-服务端落库成功，ACK-丢失"><a href="#23-1-服务端落库成功，ACK-丢失" class="headerlink" title="23.1 服务端落库成功，ACK 丢失"></a>23.1 服务端落库成功，ACK 丢失</h3><p>客户端使用相同 <code>clientMsgId</code> 重试，服务端返回原 <code>messageId/msgSeq</code>。</p>
+<h3 id="23-2-序列分配成功，落库失败"><a href="#23-2-序列分配成功，落库失败" class="headerlink" title="23.2 序列分配成功，落库失败"></a>23.2 序列分配成功，落库失败</h3><p>允许产生空洞，或把序列分配和日志提交放进同一复制状态机。绝不能复用已暴露的旧序列给另一条消息。</p>
+<h3 id="23-3-Kafka-重复投递"><a href="#23-3-Kafka-重复投递" class="headerlink" title="23.3 Kafka 重复投递"></a>23.3 Kafka 重复投递</h3><p>下游以 <code>eventId/messageId</code> 幂等，推送可重复，客户端按 <code>messageId</code> 去重。</p>
+<h3 id="23-4-客户端先收到-102-后收到-101"><a href="#23-4-客户端先收到-102-后收到-101" class="headerlink" title="23.4 客户端先收到 102 后收到 101"></a>23.4 客户端先收到 102 后收到 101</h3><p>客户端按 <code>msgSeq</code> 缓冲重排，并触发缺口补拉。</p>
+<h3 id="23-5-分片-Leader-切换"><a href="#23-5-分片-Leader-切换" class="headerlink" title="23.5 分片 Leader 切换"></a>23.5 分片 Leader 切换</h3><p>新 Leader 必须拿到更高 epoch&#x2F;fencing token，旧 Leader 即使恢复也不能继续写。序列状态从复制日志或可靠存储恢复，不能回退。</p>
+<h3 id="23-6-消息存储已成功但推送系统不可用"><a href="#23-6-消息存储已成功但推送系统不可用" class="headerlink" title="23.6 消息存储已成功但推送系统不可用"></a>23.6 消息存储已成功但推送系统不可用</h3><p>发送端仍可得到 SENT；接收端恢复连接后通过同步游标拉取，不依赖实时推送完整可靠。</p>
+<h2 id="24-监控指标"><a href="#24-监控指标" class="headerlink" title="24. 监控指标"></a>24. 监控指标</h2><ul>
+<li>消息发送 QPS、成功率、P99；</li>
+<li>发送重试和幂等命中率；</li>
+<li>同会话序列重复数；</li>
+<li>序列回退检测；</li>
+<li>序列空洞率；</li>
+<li>客户端缺口补拉率；</li>
+<li>重复推送率；</li>
+<li>Kafka 分区积压；</li>
+<li>热点会话 QPS；</li>
+<li>分片 Leader 切换次数；</li>
+<li>从持久化到在线送达延迟；</li>
+<li>离线同步成功率；</li>
+<li>多端游标落后量。</li>
+</ul>
+<p>应建立不变量报警：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">同 conversationId 的 msgSeq 不得重复<br>新提交 msgSeq 不得小于已提交最大值<br>同 senderId + clientMsgId 不得映射到两条不同消息<br></code></pre></td></tr></table></figure>
+
+<h2 id="25-常见错误回答"><a href="#25-常见错误回答" class="headerlink" title="25. 常见错误回答"></a>25. 常见错误回答</h2><h3 id="错误一：按消息时间戳排序"><a href="#错误一：按消息时间戳排序" class="headerlink" title="错误一：按消息时间戳排序"></a>错误一：按消息时间戳排序</h3><p>设备时间和网络延迟都不可靠。</p>
+<h3 id="错误二：使用全局单序列器"><a href="#错误二：使用全局单序列器" class="headerlink" title="错误二：使用全局单序列器"></a>错误二：使用全局单序列器</h3><p>可以保证顺序，但很可能制造不必要的系统瓶颈。业务通常只需要会话内有序。</p>
+<h3 id="错误三：Kafka-能自动保证整个系统顺序"><a href="#错误三：Kafka-能自动保证整个系统顺序" class="headerlink" title="错误三：Kafka 能自动保证整个系统顺序"></a>错误三：Kafka 能自动保证整个系统顺序</h3><p>Kafka 只保证分区内读取顺序，业务线程池、数据库提交和推送仍可能乱序。</p>
+<h3 id="错误四：追求整个链路物理-Exactly-Once"><a href="#错误四：追求整个链路物理-Exactly-Once" class="headerlink" title="错误四：追求整个链路物理 Exactly Once"></a>错误四：追求整个链路物理 Exactly Once</h3><p>更现实的是至少一次传输与端到端幂等去重。</p>
+<h3 id="错误五：发现-seq-缺口就永久等待"><a href="#错误五：发现-seq-缺口就永久等待" class="headerlink" title="错误五：发现 seq 缺口就永久等待"></a>错误五：发现 seq 缺口就永久等待</h3><p>服务端号段可能存在合法空洞，同步协议必须能确认权威进度。</p>
+<h3 id="错误六：实时推送丢了就丢了"><a href="#错误六：实时推送丢了就丢了" class="headerlink" title="错误六：实时推送丢了就丢了"></a>错误六：实时推送丢了就丢了</h3><p>IM 必须有离线同步和游标补拉，推送只是低延迟通道。</p>
+<h2 id="26-面试总结话术"><a href="#26-面试总结话术" class="headerlink" title="26. 面试总结话术"></a>26. 面试总结话术</h2><blockquote>
+<p>我不会追求全系统全局顺序，而是定义同 conversationId 内的稳定顺序。入口连接可以任意接入，但消息路由必须按 conversationId 进入同一个分片 Leader 或 Kafka 分区。客户端使用 clientMsgId 保证重试幂等，服务端为落库消息分配 messageId 和会话内单调递增 msgSeq，并在持久化成功后 ACK。Kafka 事件也以 conversationId 为 key，消费者内部按 key 串行处理。接收端即使乱序收到消息，也按 msgSeq 缓冲、去重并检测缺口，通过 afterSeq 接口补拉。多端同步再维护独立的用户&#x2F;设备同步游标。系统接受序列空洞，但绝不接受重复和回退。</p>
+</blockquote>
+<h2 id="27-延伸追问"><a href="#27-延伸追问" class="headerlink" title="27. 延伸追问"></a>27. 延伸追问</h2><ol>
+<li>为什么 Snowflake ID 不能直接等价于会话顺序？</li>
+<li>一个十万人群如何避免单会话序列器成为瓶颈？</li>
+<li>Kafka 扩分区后，key 到分区映射变化怎么办？</li>
+<li>消息先落库还是先写 Kafka？</li>
+<li>如何实现消息撤回在多端一致？</li>
+<li>服务端序列出现空洞，客户端怎样确认不是丢消息？</li>
+<li>两地多活同时发送如何排序？</li>
+<li>图片上传失败是否应该阻塞后续文本消息？</li>
+</ol>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>Apache Kafka Documentation: <a target="_blank" rel="noopener" href="https://kafka.apache.org/documentation/">https://kafka.apache.org/documentation/</a></li>
+<li>Kafka Message Delivery Semantics: <a target="_blank" rel="noopener" href="https://docs.confluent.io/kafka/design/delivery-semantics.html">https://docs.confluent.io/kafka/design/delivery-semantics.html</a></li>
+<li>Redis INCR: <a target="_blank" rel="noopener" href="https://redis.io/docs/latest/commands/incr/">https://redis.io/docs/latest/commands/incr/</a></li>
+<li>Transactional Outbox: <a target="_blank" rel="noopener" href="https://microservices.io/patterns/data/transactional-outbox.html">https://microservices.io/patterns/data/transactional-outbox.html</a></li>
+</ul>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E5%90%8E%E7%AB%AF%E6%9E%B6%E6%9E%84/" class="category-chain-item">后端架构</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/%E5%90%8E%E7%AB%AF%E6%9E%B6%E6%9E%84/%E5%9C%BA%E6%99%AF%E8%AE%BE%E8%AE%A1/" class="category-chain-item">场景设计</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/IM/" class="print-no-link">#IM</a>
+      
+        <a href="/tags/%E6%B6%88%E6%81%AF%E9%A1%BA%E5%BA%8F/" class="print-no-link">#消息顺序</a>
+      
+        <a href="/tags/Kafka/" class="print-no-link">#Kafka</a>
+      
+        <a href="/tags/%E5%BA%8F%E5%88%97%E5%8F%B7/" class="print-no-link">#序列号</a>
+      
+        <a href="/tags/%E5%B9%82%E7%AD%89/" class="print-no-link">#幂等</a>
+      
+        <a href="/tags/%E5%A4%9A%E7%AB%AF%E5%90%8C%E6%AD%A5/" class="print-no-link">#多端同步</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>场景设计：类微信 IM 系统如何保证消息顺序一致性</div>
+      <div>https://allendericdalexander.github.io/2026/07/29/archtect/examples/05-im-message-ordering-consistency/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年7月29日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/07/29/archtect/examples/06-thinking-about-anti-software-engineering-architecture/" title="后端场景：对“反软件工程范式”架构设计的思考">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">后端场景：对“反软件工程范式”架构设计的思考</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/07/29/archtect/examples/04-qr-code-scan-login/" title="场景设计：二维码扫码登录系统">
+                        <span class="hidden-mobile">场景设计：二维码扫码登录系统</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
