@@ -1,0 +1,3207 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="PostgreSQL,PGSQL,数据库架构,MVCC,WAL,进程模型,存储引擎,索引,备份,PITR">
+  
+    <meta name="description" content="从一次 SQL 的完整执行链路出发，系统讲解 PostgreSQL 18 的多进程架构、内存模型、表访问方法、物理存储、MVCC、WAL、事务隔离、索引体系、VACUUM 以及备份与时间点恢复。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="PostgreSQL 架构原理详解：进程、存储、MVCC、WAL、索引与备份恢复">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/07/28/archtect/db/postgresql-architecture-deep-dive/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="从一次 SQL 的完整执行链路出发，系统讲解 PostgreSQL 18 的多进程架构、内存模型、表访问方法、物理存储、MVCC、WAL、事务隔离、索引体系、VACUUM 以及备份与时间点恢复。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-28T03:30:00.000Z">
+<meta property="article:modified_time" content="2026-07-28T03:30:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="MVCC">
+<meta property="article:tag" content="Mermaid">
+<meta property="article:tag" content="PGSQL">
+<meta property="article:tag" content="PostgreSQL">
+<meta property="article:tag" content="WAL">
+<meta property="article:tag" content="备份恢复">
+<meta property="article:tag" content="数据库架构">
+<meta property="article:tag" content="索引">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>PostgreSQL 架构原理详解：进程、存储、MVCC、WAL、索引与备份恢复 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="PostgreSQL 架构原理详解：进程、存储、MVCC、WAL、索引与备份恢复"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-07-28 11:30" pubdate>
+          2026年7月28日 中午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          18k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          150 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">PostgreSQL 架构原理详解：进程、存储、MVCC、WAL、索引与备份恢复</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <blockquote>
+<p>本文版本基线：<strong>PostgreSQL 18 当前稳定系列</strong>，撰写日期为 2026-07-28。PostgreSQL 19 此时仍处于 Beta 阶段，因此正文不以 19 的实验特性作为生产结论。</p>
+<p>本文中的“PG”“PostgreSQL”“pgsql”均指 PostgreSQL。</p>
+</blockquote>
+<p>PostgreSQL 并不是一个“收到 SQL 后直接读写文件”的程序。它更像一套由多个独立进程、共享内存、查询执行器、事务可见性规则、缓存管理器、WAL 日志与后台维护进程共同组成的数据库操作系统。</p>
+<p>理解 PostgreSQL，最好抓住三条主线：</p>
+<ol>
+<li><strong>SQL 如何被解析、优化并执行；</strong></li>
+<li><strong>一行数据如何被组织、缓存、修改并持久化；</strong></li>
+<li><strong>多个事务如何在并发下看到彼此的数据，同时保证崩溃后可恢复。</strong></li>
+</ol>
+<p>本文会沿着这三条主线，把 PostgreSQL 的整体架构、进程架构、存储引擎、备份恢复、事务、索引和内部数据结构串成一张完整地图。</p>
+<span id="more"></span>
+
+<h2 id="1-先建立一张-PostgreSQL-全景图"><a href="#1-先建立一张-PostgreSQL-全景图" class="headerlink" title="1. 先建立一张 PostgreSQL 全景图"></a>1. 先建立一张 PostgreSQL 全景图</h2><p>从宏观上看，PostgreSQL 可以拆成六层：</p>
+<ul>
+<li>客户端与协议层；</li>
+<li>主进程与后端进程层；</li>
+<li>SQL 编译与执行层；</li>
+<li>事务、锁与并发控制层；</li>
+<li>缓冲区、WAL 与存储访问层；</li>
+<li>文件系统与持久化介质层。</li>
+</ul>
+<pre><code class=" mermaid">flowchart TB
+    subgraph Client[客户端层]
+        APP[业务应用]
+        PSQL[psql / 管理工具]
+        DRIVER[JDBC / libpq / ORM]
+        POOL[连接池]
+    end
+
+    subgraph Server[PostgreSQL 服务端]
+        PM[Postmaster 主进程&lt;br/&gt;监听、认证入口、进程监管]
+
+        subgraph Processes[服务端进程层]
+            BE1[Client Backend 1]
+            BE2[Client Backend 2]
+            BG[后台维护进程]
+            REP[复制相关进程]
+            PW[并行查询 Worker]
+            AIO[PG18 I/O Worker]
+        end
+
+        subgraph Query[SQL 处理层]
+            PARSE[Parser / Analyzer]
+            REWRITE[Rewriter]
+            PLAN[Planner / Optimizer]
+            EXEC[Executor]
+        end
+
+        subgraph Tx[事务与并发控制]
+            MVCC[MVCC / Snapshot]
+            LOCK[Lock Manager]
+            SSI[Serializable SSI]
+            XACT[Transaction Status]
+        end
+
+        subgraph Memory[共享内存与缓存]
+            SB[Shared Buffers]
+            WB[WAL Buffers]
+            PROC[ProcArray / Lock Tables]
+        end
+
+        subgraph Storage[存储访问层]
+            TAM[Table Access Method]
+            IAM[Index Access Method]
+            BUF[Buffer Manager]
+            SMGR[Storage Manager]
+            WAL[WAL Manager]
+        end
+    end
+
+    subgraph Disk[持久化层]
+        DATA[数据文件 / 表空间]
+        WALFILE[pg_wal]
+        XACTFILE[pg_xact / pg_multixact]
+        ARCHIVE[WAL Archive / Backup]
+    end
+
+    APP --&gt; POOL
+    PSQL --&gt; PM
+    DRIVER --&gt; POOL --&gt; PM
+    PM --&gt; BE1
+    PM --&gt; BE2
+    PM --&gt; BG
+    PM --&gt; REP
+    BE1 --&gt; PARSE --&gt; REWRITE --&gt; PLAN --&gt; EXEC
+    BE2 --&gt; PARSE
+    EXEC --&gt; MVCC
+    EXEC --&gt; LOCK
+    EXEC --&gt; TAM
+    EXEC --&gt; IAM
+    TAM --&gt; BUF
+    IAM --&gt; BUF
+    BUF &lt;--&gt; SB
+    BUF --&gt; SMGR --&gt; DATA
+    WAL &lt;--&gt; WB
+    WAL --&gt; WALFILE
+    XACT --&gt; XACTFILE
+    WALFILE --&gt; ARCHIVE
+    AIO --&gt; BUF
+</code></pre>
+
+<p>可以把一次请求简化为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">客户端连接<br>  -&gt; Postmaster 接受连接并创建 Backend 进程<br>  -&gt; Backend 解析 SQL<br>  -&gt; 重写查询<br>  -&gt; 优化器生成执行计划<br>  -&gt; Executor 按计划请求元组<br>  -&gt; MVCC 判断元组是否可见<br>  -&gt; Buffer Manager 从 Shared Buffers 或磁盘取得页面<br>  -&gt; 修改时先生成 WAL<br>  -&gt; 提交时确保必要 WAL 已持久化<br>  -&gt; 后台进程随后将脏页写入数据文件<br></code></pre></td></tr></table></figure>
+
+<p>其中最容易误解的一点是：<strong>PostgreSQL 的核心服务器不是“一个进程里开很多业务线程”，而是典型的多进程架构。</strong></p>
+<hr>
+<h2 id="2-PostgreSQL-的“线程架构”：准确说是多进程架构"><a href="#2-PostgreSQL-的“线程架构”：准确说是多进程架构" class="headerlink" title="2. PostgreSQL 的“线程架构”：准确说是多进程架构"></a>2. PostgreSQL 的“线程架构”：准确说是多进程架构</h2><h3 id="2-1-Process-per-connection"><a href="#2-1-Process-per-connection" class="headerlink" title="2.1 Process per connection"></a>2.1 Process per connection</h3><p>PostgreSQL 采用客户端&#x2F;服务器模型。服务器启动后，首先存在一个主进程，通常称为：</p>
+<ul>
+<li><code>postgres</code>；</li>
+<li>postmaster；</li>
+<li>server supervisor process。</li>
+</ul>
+<p>它负责：</p>
+<ul>
+<li>监听 TCP 或 Unix Domain Socket；</li>
+<li>接受新连接；</li>
+<li>启动认证流程；</li>
+<li>为客户端连接创建独立 Backend 进程；</li>
+<li>启动和监管各种后台进程；</li>
+<li>在子进程异常退出时执行恢复或整体重启策略。</li>
+</ul>
+<p>每个普通客户端连接通常对应一个独立的 <strong>client backend process</strong>。这个 Backend 在连接生命周期内完成：</p>
+<ul>
+<li>协议解析；</li>
+<li>SQL 解析、重写和规划；</li>
+<li>执行计划；</li>
+<li>事务管理；</li>
+<li>访问共享缓存；</li>
+<li>与客户端传输结果。</li>
+</ul>
+<pre><code class=" mermaid">flowchart LR
+    C1[Client 1] --&gt; PM[Postmaster]
+    C2[Client 2] --&gt; PM
+    C3[Client 3] --&gt; PM
+
+    PM --&gt; B1[Backend Process 1]
+    PM --&gt; B2[Backend Process 2]
+    PM --&gt; B3[Backend Process 3]
+
+    B1 --&gt; SHM[(Shared Memory)]
+    B2 --&gt; SHM
+    B3 --&gt; SHM
+
+    SHM --&gt; SB[Shared Buffers]
+    SHM --&gt; LOCKS[Lock Tables]
+    SHM --&gt; PROC[ProcArray]
+    SHM --&gt; WALBUF[WAL Buffers]
+</code></pre>
+
+<p>这与 MySQL 常见的“一个服务器进程中为连接分配线程”并不相同。</p>
+<h3 id="2-2-为什么采用多进程"><a href="#2-2-为什么采用多进程" class="headerlink" title="2.2 为什么采用多进程"></a>2.2 为什么采用多进程</h3><p>多进程模型有几个明显特征：</p>
+<h4 id="隔离性较强"><a href="#隔离性较强" class="headerlink" title="隔离性较强"></a>隔离性较强</h4><p>单个 Backend 发生普通进程级错误，不会直接破坏其他 Backend 的私有地址空间。</p>
+<p>但要注意：各 Backend 仍共享数据库共享内存。PostgreSQL 将某些异常视为可能污染共享状态，因此一个 Backend 出现严重崩溃时，Postmaster 可能终止其他子进程，并通过 crash recovery 重建一致状态。不能简单理解为“某个进程崩了，其他进程一定完全不受影响”。</p>
+<h4 id="利用操作系统进程调度"><a href="#利用操作系统进程调度" class="headerlink" title="利用操作系统进程调度"></a>利用操作系统进程调度</h4><p>每个连接由操作系统独立调度。进程之间通过以下机制协作：</p>
+<ul>
+<li>共享内存；</li>
+<li>信号；</li>
+<li>信号量；</li>
+<li>latch；</li>
+<li>pipe；</li>
+<li>lightweight lock；</li>
+<li>heavyweight lock。</li>
+</ul>
+<h4 id="连接成本更值得关注"><a href="#连接成本更值得关注" class="headerlink" title="连接成本更值得关注"></a>连接成本更值得关注</h4><p>连接不只是一个 socket，还会带来：</p>
+<ul>
+<li>Backend 进程；</li>
+<li>事务和锁管理槽位；</li>
+<li>本地内存上下文；</li>
+<li>catalog cache；</li>
+<li>可能被并行放大的 <code>work_mem</code>；</li>
+<li>进程切换与调度成本。</li>
+</ul>
+<p>所以 PostgreSQL 的常规生产架构通常不会让数千个应用请求直接等价为数千条长期数据库连接，而是通过应用连接池或外部连接池控制活跃 Backend 数量。</p>
+<blockquote>
+<p><code>max_connections</code> 不是“越大吞吐越高”的旋钮。超过 CPU、内存和存储能力后，更多 Backend 往往只会制造排队、上下文切换与内存压力。</p>
+</blockquote>
+<h3 id="2-3-PostgreSQL-主要后台进程"><a href="#2-3-PostgreSQL-主要后台进程" class="headerlink" title="2.3 PostgreSQL 主要后台进程"></a>2.3 PostgreSQL 主要后台进程</h3><p>不同配置和版本下进程会变化。PostgreSQL 18 常见进程如下：</p>
+<table>
+<thead>
+<tr>
+<th>进程</th>
+<th>主要职责</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Postmaster</td>
+<td>监听连接，创建并监管子进程</td>
+</tr>
+<tr>
+<td>Client Backend</td>
+<td>为一个客户端连接执行 SQL 与事务</td>
+</tr>
+<tr>
+<td>Checkpointer</td>
+<td>在检查点过程中将脏页刷入数据文件并写检查点记录</td>
+</tr>
+<tr>
+<td>Background Writer</td>
+<td>提前写出部分脏缓冲页，降低前台请求寻找可用缓冲区时的突发写入</td>
+</tr>
+<tr>
+<td>WAL Writer</td>
+<td>将 WAL Buffers 中的日志逐步写入 WAL 文件</td>
+</tr>
+<tr>
+<td>Autovacuum Launcher</td>
+<td>调度自动清理任务</td>
+</tr>
+<tr>
+<td>Autovacuum Worker</td>
+<td>执行 VACUUM、ANALYZE、冻结等维护工作</td>
+</tr>
+<tr>
+<td>Archiver</td>
+<td>将完成的 WAL 段归档到外部位置</td>
+</tr>
+<tr>
+<td>Startup Process</td>
+<td>启动恢复、崩溃恢复或备库回放 WAL</td>
+</tr>
+<tr>
+<td>WAL Sender</td>
+<td>主库向备库或逻辑订阅端发送 WAL</td>
+</tr>
+<tr>
+<td>WAL Receiver</td>
+<td>备库从上游接收 WAL</td>
+</tr>
+<tr>
+<td>Logical Replication Launcher&#x2F;Worker</td>
+<td>逻辑复制调度与应用</td>
+</tr>
+<tr>
+<td>Parallel Worker</td>
+<td>执行并行扫描、连接、聚合等计划片段</td>
+</tr>
+<tr>
+<td>WAL Summarizer</td>
+<td>生成 WAL 摘要，为增量物理备份等能力提供基础</td>
+</tr>
+<tr>
+<td>I&#x2F;O Worker</td>
+<td>PostgreSQL 18 的 worker 异步 I&#x2F;O 后端</td>
+</tr>
+</tbody></table>
+<pre><code class=" mermaid">flowchart TB
+    PM[Postmaster]
+
+    PM --&gt; CLIENT[Client Backends]
+    PM --&gt; CKPT[Checkpointer]
+    PM --&gt; BGW[Background Writer]
+    PM --&gt; WALW[WAL Writer]
+    PM --&gt; AVL[Autovacuum Launcher]
+    AVL --&gt; AVW1[Autovacuum Worker]
+    AVL --&gt; AVW2[Autovacuum Worker]
+    PM --&gt; ARC[Archiver]
+    PM --&gt; STARTUP[Startup Process]
+    PM --&gt; WALS[WAL Sender]
+    PM --&gt; WALR[WAL Receiver]
+    PM --&gt; LRL[Logical Replication Launcher]
+    LRL --&gt; LRW[Logical Replication Worker]
+    CLIENT --&gt; PARALLEL[Parallel Workers]
+    PM --&gt; SUM[WAL Summarizer]
+    PM --&gt; IOW[I/O Workers]
+</code></pre>
+
+<h3 id="2-4-PG18-的异步-I-O-是否意味着-PostgreSQL-变成多线程"><a href="#2-4-PG18-的异步-I-O-是否意味着-PostgreSQL-变成多线程" class="headerlink" title="2.4 PG18 的异步 I&#x2F;O 是否意味着 PostgreSQL 变成多线程"></a>2.4 PG18 的异步 I&#x2F;O 是否意味着 PostgreSQL 变成多线程</h3><p>不是。</p>
+<p>PostgreSQL 18 引入了新的异步 I&#x2F;O 基础设施，并可以选择不同 I&#x2F;O 方法，例如：</p>
+<ul>
+<li><code>worker</code>：由专用 I&#x2F;O worker <strong>进程</strong>执行异步操作；</li>
+<li><code>io_uring</code>：在支持的平台上使用 Linux <code>io_uring</code>；</li>
+<li><code>sync</code>：同步 I&#x2F;O。</li>
+</ul>
+<p>这改变了部分读取、预取和后台处理的 I&#x2F;O 调度方式，但 PostgreSQL 的连接处理、查询执行、事务管理仍然建立在多进程架构上。</p>
+<p>更准确的表达是：</p>
+<blockquote>
+<p>PostgreSQL 18 是“多进程架构 + 共享内存 + 可并行执行 + 新异步 I&#x2F;O 基础设施”，而不是传统意义上的“单进程多线程数据库”。</p>
+</blockquote>
+<hr>
+<h2 id="3-连接建立与-SQL-执行链路"><a href="#3-连接建立与-SQL-执行链路" class="headerlink" title="3. 连接建立与 SQL 执行链路"></a>3. 连接建立与 SQL 执行链路</h2><h3 id="3-1-建立连接"><a href="#3-1-建立连接" class="headerlink" title="3.1 建立连接"></a>3.1 建立连接</h3><p>连接建立大致经历：</p>
+<ol>
+<li>客户端向监听地址发起连接；</li>
+<li>Postmaster 接受连接；</li>
+<li>服务端建立 Backend；</li>
+<li>根据 <code>pg_hba.conf</code> 等规则选择认证方式；</li>
+<li>Backend 初始化用户、数据库、搜索路径、GUC 等会话状态；</li>
+<li>开始处理 PostgreSQL 前后端协议消息。</li>
+</ol>
+<p>客户端可以使用：</p>
+<ul>
+<li>Simple Query Protocol：一次发送一段 SQL 文本；</li>
+<li>Extended Query Protocol：拆分为 Parse、Bind、Describe、Execute、Sync 等阶段；</li>
+<li>Prepared Statement：复用已解析或已规划的信息，并在通用计划与定制计划之间选择。</li>
+</ul>
+<h3 id="3-2-一条-SELECT-的内部阶段"><a href="#3-2-一条-SELECT-的内部阶段" class="headerlink" title="3.2 一条 SELECT 的内部阶段"></a>3.2 一条 SELECT 的内部阶段</h3><pre><code class=" mermaid">sequenceDiagram
+    participant C as Client
+    participant B as Backend
+    participant P as Parser/Analyzer
+    participant R as Rewriter
+    participant O as Planner/Optimizer
+    participant E as Executor
+    participant M as MVCC
+    participant BM as Buffer Manager
+    participant D as Data/Index Files
+
+    C-&gt;&gt;B: SELECT ...
+    B-&gt;&gt;P: 词法、语法、语义分析
+    P--&gt;&gt;B: Parse Tree / Query Tree
+    B-&gt;&gt;R: 应用规则、视图展开
+    R--&gt;&gt;B: Rewritten Query Tree
+    B-&gt;&gt;O: 枚举路径并估算成本
+    O--&gt;&gt;B: Chosen Plan Tree
+    B-&gt;&gt;E: 初始化执行器
+    loop 拉取下一批元组
+        E-&gt;&gt;BM: 请求表页或索引页
+        alt Shared Buffers 命中
+            BM--&gt;&gt;E: 返回缓存页面
+        else 未命中
+            BM-&gt;&gt;D: 读取页面
+            D--&gt;&gt;BM: 页面数据
+            BM--&gt;&gt;E: 返回缓存页面
+        end
+        E-&gt;&gt;M: 判断元组对当前快照是否可见
+        M--&gt;&gt;E: 可见 / 不可见
+    end
+    E--&gt;&gt;B: Result Tuples
+    B--&gt;&gt;C: RowDescription / DataRow / CommandComplete
+</code></pre>
+
+<h4 id="Parser-与-Analyzer"><a href="#Parser-与-Analyzer" class="headerlink" title="Parser 与 Analyzer"></a>Parser 与 Analyzer</h4><p>Parser 负责把 SQL 文本转成语法树，Analyzer 在数据库目录中解析：</p>
+<ul>
+<li>表和列；</li>
+<li>数据类型；</li>
+<li>函数和操作符；</li>
+<li>隐式类型转换；</li>
+<li>权限与语义合法性。</li>
+</ul>
+<p>结果不再只是字符串，而是带有数据库对象标识和类型信息的 Query Tree。</p>
+<h4 id="Rewriter"><a href="#Rewriter" class="headerlink" title="Rewriter"></a>Rewriter</h4><p>重写器会处理：</p>
+<ul>
+<li>视图展开；</li>
+<li>rule system；</li>
+<li>某些行级安全策略；</li>
+<li>将一个原始查询变为一个或多个重写后的 Query Tree。</li>
+</ul>
+<p>PostgreSQL 的视图通常不是在 Executor 里临时“打开”，而是在重写阶段将视图定义展开到查询树中。</p>
+<h4 id="Planner-Optimizer"><a href="#Planner-Optimizer" class="headerlink" title="Planner &#x2F; Optimizer"></a>Planner &#x2F; Optimizer</h4><p>优化器不会直接选择“看起来最短”的 SQL 写法，而是生成多种 Path，并根据统计信息估算：</p>
+<ul>
+<li>顺序扫描还是索引扫描；</li>
+<li>Index Scan、Index Only Scan 还是 Bitmap Heap Scan；</li>
+<li>Nested Loop、Hash Join 还是 Merge Join；</li>
+<li>连接顺序；</li>
+<li>排序、聚合和去重方式；</li>
+<li>是否并行；</li>
+<li>预计行数、I&#x2F;O 成本、CPU 成本和内存成本。</li>
+</ul>
+<p>典型内部对象可以概括为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Query Tree<br>  -&gt; RelOptInfo<br>      -&gt; Path / IndexPath / JoinPath / AggPath ...<br>  -&gt; cheapest path<br>  -&gt; Plan Tree<br></code></pre></td></tr></table></figure>
+
+<p>当连接表数量非常多时，穷举连接顺序会呈组合爆炸，PostgreSQL 可在达到阈值后使用 GEQO 遗传算法搜索近似优解。</p>
+<h4 id="Executor"><a href="#Executor" class="headerlink" title="Executor"></a>Executor</h4><p>Executor 初始化 Plan Tree 后，通常按火山模型式的 <code>next tuple</code> 接口驱动各计划节点：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">Limit<br>  -&gt; Sort<br>      -&gt; Hash Join<br>          -&gt; Seq Scan orders<br>          -&gt; Hash<br>              -&gt; Index Scan customers<br></code></pre></td></tr></table></figure>
+
+<p>上层节点向下层节点请求元组，下层节点返回一条或一批结果。不同节点维护各自的执行状态，例如：</p>
+<ul>
+<li>扫描游标；</li>
+<li>Hash Table；</li>
+<li>Sort State；</li>
+<li>Aggregate State；</li>
+<li>Tuple Slot；</li>
+<li>参数与表达式上下文。</li>
+</ul>
+<h3 id="3-3-优化器只相信统计信息，不会读懂业务愿望"><a href="#3-3-优化器只相信统计信息，不会读懂业务愿望" class="headerlink" title="3.3 优化器只相信统计信息，不会读懂业务愿望"></a>3.3 优化器只相信统计信息，不会读懂业务愿望</h3><p>优化器的估算主要来自：</p>
+<ul>
+<li><code>pg_class</code> 的行数、页数估计；</li>
+<li><code>pg_statistic</code> &#x2F; <code>pg_stats</code>；</li>
+<li>空值比例；</li>
+<li>distinct 值数量；</li>
+<li>Most Common Values；</li>
+<li>Histogram Bounds；</li>
+<li>列相关性；</li>
+<li>扩展统计信息中的多列依赖、MCV 和 ndistinct。</li>
+</ul>
+<p>当统计信息过旧或无法表达数据分布时，常见结果是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">估算 100 行，实际 1,000,000 行<br>  -&gt; 选择 Nested Loop<br>  -&gt; 内层被执行大量次数<br>  -&gt; 查询突然从毫秒级变成分钟级<br></code></pre></td></tr></table></figure>
+
+<p>因此 <code>EXPLAIN (ANALYZE, BUFFERS, WAL)</code> 的第一要务不是只看“有没有走索引”，而是比较每个节点的：</p>
+<ul>
+<li>estimated rows；</li>
+<li>actual rows；</li>
+<li>loops；</li>
+<li>shared hit&#x2F;read&#x2F;dirtied&#x2F;written；</li>
+<li>temp read&#x2F;write；</li>
+<li>WAL records&#x2F;bytes；</li>
+<li>实际执行时间。</li>
+</ul>
+<hr>
+<h2 id="4-PostgreSQL-内存架构"><a href="#4-PostgreSQL-内存架构" class="headerlink" title="4. PostgreSQL 内存架构"></a>4. PostgreSQL 内存架构</h2><p>PostgreSQL 的内存不能只看 <code>shared_buffers</code>。它至少分为：</p>
+<ol>
+<li>数据库共享内存；</li>
+<li>每个 Backend 的私有内存；</li>
+<li>操作系统页缓存；</li>
+<li>临时文件与内存映射区域。</li>
+</ol>
+<pre><code class=" mermaid">flowchart TB
+    subgraph SHARED[PostgreSQL 共享内存]
+        SB[Shared Buffers&lt;br/&gt;缓存表页和索引页]
+        WB[WAL Buffers&lt;br/&gt;缓存 WAL 记录]
+        LT[Lock Tables]
+        PA[ProcArray / PGPROC]
+        SI[Shared Invalidation]
+        ST[统计与控制结构]
+    end
+
+    subgraph LOCAL[每个 Backend 的私有内存]
+        MC[Memory Contexts]
+        WM[work_mem&lt;br/&gt;每个排序、Hash 等操作]
+        MW[maintenance_work_mem]
+        TB[temp_buffers&lt;br/&gt;临时表页面]
+        CACHE[Catalog / Relation Cache]
+        PLAN[Parser / Planner / Executor State]
+    end
+
+    subgraph OS[操作系统]
+        PC[OS Page Cache]
+        VM[Virtual Memory]
+        FS[File System]
+    end
+
+    LOCAL &lt;--&gt; SHARED
+    SB &lt;--&gt; PC
+    WB --&gt; FS
+    PC &lt;--&gt; FS
+</code></pre>
+
+<h3 id="4-1-Shared-Buffers"><a href="#4-1-Shared-Buffers" class="headerlink" title="4.1 Shared Buffers"></a>4.1 Shared Buffers</h3><p><code>shared_buffers</code> 是 PostgreSQL 自己管理的数据页缓存。表页和索引页进入共享缓冲池后，不同 Backend 可以复用。</p>
+<p>一个 Buffer 大致包含两类信息：</p>
+<ul>
+<li><strong>Buffer Descriptor</strong>：标签、引用计数、使用次数、脏页标记、锁状态；</li>
+<li><strong>Buffer Page</strong>：实际 8KB 页面内容。</li>
+</ul>
+<p>页面通过类似以下 BufferTag 定位：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">tablespace OID<br>+ database OID<br>+ relation file node<br>+ fork number<br>+ block number<br></code></pre></td></tr></table></figure>
+
+<p>缓冲区替换使用近似 clock-sweep 机制，而不是简单 LRU。一个页面被频繁使用时会提高 usage count；扫描器寻找可淘汰 Buffer 时逐步降低 usage count，最终选择无引用且使用次数为零的页面。</p>
+<h3 id="4-2-WAL-Buffers"><a href="#4-2-WAL-Buffers" class="headerlink" title="4.2 WAL Buffers"></a>4.2 WAL Buffers</h3><p>WAL Buffers 暂存 Backend 生成的 WAL record。提交时，事务通常只要求与自身提交有关的 WAL 被刷到持久介质，而不要求对应数据页立即写入表文件。</p>
+<p>这正是 WAL 能降低随机数据页同步写压力的基础。</p>
+<h3 id="4-3-work-mem-不是“每连接只分配一次”"><a href="#4-3-work-mem-不是“每连接只分配一次”" class="headerlink" title="4.3 work_mem 不是“每连接只分配一次”"></a>4.3 work_mem 不是“每连接只分配一次”</h3><p><code>work_mem</code> 的危险点在于：它是<strong>每个可能使用工作内存的执行节点</strong>的上限，不是每个连接的一次性总额。</p>
+<p>例如一个查询可能同时存在：</p>
+<ul>
+<li>两个 Hash Join；</li>
+<li>一个 Hash Aggregate；</li>
+<li>三个 Sort；</li>
+<li>并行查询的多个 worker。</li>
+</ul>
+<p>粗略风险模型是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">潜在内存压力<br>≈ 活跃查询数<br>× 每个查询的内存型节点数<br>× 并行进程数<br>× work_mem<br></code></pre></td></tr></table></figure>
+
+<p>实际分配是按需发生，并非每次都触顶，但把 <code>work_mem</code> 全局设置得过大，仍可能在并发峰值时造成内存雪崩。</p>
+<h3 id="4-4-Memory-Context"><a href="#4-4-Memory-Context" class="headerlink" title="4.4 Memory Context"></a>4.4 Memory Context</h3><p>PostgreSQL 不倾向于在每个代码路径上手工逐块释放内存，而是使用层次化 Memory Context：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">TopMemoryContext<br>  -&gt; CacheMemoryContext<br>  -&gt; MessageContext<br>  -&gt; PortalContext<br>      -&gt; QueryContext<br>          -&gt; ExecutorState<br>          -&gt; ExprContext<br></code></pre></td></tr></table></figure>
+
+<p>一个语句或事务结束时，可以整体释放所属 Context。优点是：</p>
+<ul>
+<li>生命周期清晰；</li>
+<li>异常跳转时容易统一清理；</li>
+<li>减少复杂执行路径中的零散内存管理错误。</li>
+</ul>
+<h3 id="4-5-为什么-PostgreSQL-与-OS-会“双重缓存”"><a href="#4-5-为什么-PostgreSQL-与-OS-会“双重缓存”" class="headerlink" title="4.5 为什么 PostgreSQL 与 OS 会“双重缓存”"></a>4.5 为什么 PostgreSQL 与 OS 会“双重缓存”</h3><p>一个数据页可能同时存在于：</p>
+<ul>
+<li>PostgreSQL Shared Buffers；</li>
+<li>操作系统 Page Cache。</li>
+</ul>
+<p>这不完全是浪费。PostgreSQL 负责数据库语义层的页面状态、锁、脏页与替换策略；OS 负责文件系统缓存、预读、写回和设备调度。现代 PostgreSQL 仍依赖操作系统缓存，不应把机器全部内存都分给 <code>shared_buffers</code>。</p>
+<hr>
+<h2 id="5-PostgreSQL-的存储引擎与访问方法"><a href="#5-PostgreSQL-的存储引擎与访问方法" class="headerlink" title="5. PostgreSQL 的存储引擎与访问方法"></a>5. PostgreSQL 的存储引擎与访问方法</h2><h3 id="5-1-PostgreSQL-有没有“存储引擎”"><a href="#5-1-PostgreSQL-有没有“存储引擎”" class="headerlink" title="5.1 PostgreSQL 有没有“存储引擎”"></a>5.1 PostgreSQL 有没有“存储引擎”</h3><p>答案不能简单说“有”或“没有”。</p>
+<p>与 MySQL 通过 InnoDB、MyISAM 等引擎进行明显产品级切换不同，PostgreSQL 长期以来默认使用自身的 heap table、WAL、MVCC 和 buffer manager，用户日常不会在多个内置事务型存储引擎间选择。</p>
+<p>但从内核扩展架构看，PostgreSQL 已经提供：</p>
+<ul>
+<li><strong>Table Access Method，表访问方法；</strong></li>
+<li><strong>Index Access Method，索引访问方法。</strong></li>
+</ul>
+<p>表访问方法定义关系如何完成：</p>
+<ul>
+<li>顺序扫描；</li>
+<li>并行扫描；</li>
+<li>元组插入、更新和删除；</li>
+<li>锁元组；</li>
+<li>VACUUM；</li>
+<li>ANALYZE 采样；</li>
+<li>表重写；</li>
+<li>TID 访问。</li>
+</ul>
+<p>索引访问方法则定义：</p>
+<ul>
+<li>如何构建索引；</li>
+<li>如何插入和扫描索引项；</li>
+<li>支持哪些操作符策略；</li>
+<li>是否支持有序扫描、唯一性、并行扫描、Index Only Scan 等能力。</li>
+</ul>
+<p>默认表访问方法是 <code>heap</code>。扩展可以注册新的访问方法，但这不意味着第三方 Table AM 能自动绕开 PostgreSQL 的所有事务、WAL、快照和执行器约束。</p>
+<h3 id="5-2-存储访问调用链"><a href="#5-2-存储访问调用链" class="headerlink" title="5.2 存储访问调用链"></a>5.2 存储访问调用链</h3><pre><code class=" mermaid">flowchart TB
+    SQL[Executor]
+    TAM[Table Access Method API]
+    IAM[Index Access Method API]
+    HEAP[heapam]
+    BTREE[nbtree / gin / gist / brin ...]
+    BUF[Buffer Manager]
+    SMGR[Storage Manager]
+    FD[File Descriptor / VFS Layer]
+    FS[File System]
+    DEV[SSD / NVMe / SAN]
+
+    SQL --&gt; TAM --&gt; HEAP --&gt; BUF
+    SQL --&gt; IAM --&gt; BTREE --&gt; BUF
+    BUF --&gt; SMGR --&gt; FD --&gt; FS --&gt; DEV
+</code></pre>
+
+<p>从职责上看：</p>
+<ul>
+<li>Executor 关心“扫描或修改元组”；</li>
+<li>Table AM 关心“表以何种方式提供元组”；</li>
+<li>Index AM 关心“索引如何定位 TID”；</li>
+<li>Buffer Manager 关心“数据库页面是否在缓存、是否脏、如何锁定”；</li>
+<li>Storage Manager 关心“关系文件和 block I&#x2F;O”；</li>
+<li>文件系统和块设备负责最终持久化。</li>
+</ul>
+<h3 id="5-3-Heap-不是堆数据结构"><a href="#5-3-Heap-不是堆数据结构" class="headerlink" title="5.3 Heap 不是堆数据结构"></a>5.3 Heap 不是堆数据结构</h3><p>PostgreSQL 的 heap table 中，“heap”表示数据行不按某个键永久排序存放，而不是算法课中的二叉堆。</p>
+<p>表中的元组大致按插入和页面空间情况放入 heap page。索引中的叶子项保存键值和指向 heap tuple 的 TID。</p>
+<p>所以 PostgreSQL 的普通索引是<strong>二级索引</strong>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">index key<br>  -&gt; heap TID: (block number, item offset)<br>  -&gt; heap page<br>  -&gt; heap tuple<br>  -&gt; MVCC visibility check<br></code></pre></td></tr></table></figure>
+
+<p>索引本身通常不能完全决定元组对当前事务是否可见，因为 MVCC 信息主要在 heap tuple header 中。Index Only Scan 能减少 heap 访问，但它仍依赖 Visibility Map 判断某个 heap page 是否已全部可见。</p>
+<hr>
+<h2 id="6-物理存储架构：从集群到元组"><a href="#6-物理存储架构：从集群到元组" class="headerlink" title="6. 物理存储架构：从集群到元组"></a>6. 物理存储架构：从集群到元组</h2><h3 id="6-1-Cluster、Database、Schema、Relation-的关系"><a href="#6-1-Cluster、Database、Schema、Relation-的关系" class="headerlink" title="6.1 Cluster、Database、Schema、Relation 的关系"></a>6.1 Cluster、Database、Schema、Relation 的关系</h3><p>PostgreSQL 术语中的 database cluster，不是分布式集群，而是由一个 PostgreSQL 实例管理的一整套数据库集合，通常对应一个 <code>PGDATA</code> 数据目录。</p>
+<p>逻辑层次可以理解为：</p>
+<pre><code class=" mermaid">flowchart TB
+    CLUSTER[Database Cluster / PGDATA]
+    CLUSTER --&gt; DB1[Database A]
+    CLUSTER --&gt; DB2[Database B]
+    DB1 --&gt; S1[Schema public]
+    DB1 --&gt; S2[Schema finance]
+    S2 --&gt; T1[Table]
+    S2 --&gt; I1[Index]
+    S2 --&gt; SEQ[Sequence]
+    S2 --&gt; MV[Materialized View]
+</code></pre>
+
+<ul>
+<li>一个 PostgreSQL 实例管理一个 database cluster；</li>
+<li>一个 cluster 可以包含多个 database；</li>
+<li>database 之间通常不能在普通 SQL 中直接跨库 JOIN；</li>
+<li>schema 是 database 内的命名空间；</li>
+<li>table、index、sequence、materialized view 等都属于 relation 或与 relation 机制密切相关。</li>
+</ul>
+<h3 id="6-2-PGDATA-中的关键目录"><a href="#6-2-PGDATA-中的关键目录" class="headerlink" title="6.2 PGDATA 中的关键目录"></a>6.2 PGDATA 中的关键目录</h3><p>常见目录和文件如下：</p>
+<table>
+<thead>
+<tr>
+<th>目录或文件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>base/</code></td>
+<td>默认表空间中各数据库的数据文件</td>
+</tr>
+<tr>
+<td><code>global/</code></td>
+<td>集群级系统表，例如与整个 cluster 相关的 catalog</td>
+</tr>
+<tr>
+<td><code>pg_wal/</code></td>
+<td>WAL 段文件</td>
+</tr>
+<tr>
+<td><code>pg_xact/</code></td>
+<td>事务提交、回滚状态</td>
+</tr>
+<tr>
+<td><code>pg_multixact/</code></td>
+<td>MultiXact 成员与偏移信息，常用于多个事务共享行锁状态</td>
+</tr>
+<tr>
+<td><code>pg_tblspc/</code></td>
+<td>指向用户表空间目录的符号链接</td>
+</tr>
+<tr>
+<td><code>pg_replslot/</code></td>
+<td>复制槽持久化状态</td>
+</tr>
+<tr>
+<td><code>pg_logical/</code></td>
+<td>逻辑解码相关状态</td>
+</tr>
+<tr>
+<td><code>pg_stat/</code></td>
+<td>永久统计文件</td>
+</tr>
+<tr>
+<td><code>pg_stat_tmp/</code></td>
+<td>临时统计信息</td>
+</tr>
+<tr>
+<td><code>pg_subtrans/</code></td>
+<td>子事务状态</td>
+</tr>
+<tr>
+<td><code>pg_commit_ts/</code></td>
+<td>可选的事务提交时间戳</td>
+</tr>
+<tr>
+<td><code>pg_twophase/</code></td>
+<td>两阶段提交的 prepared transaction 状态</td>
+</tr>
+<tr>
+<td><code>postgresql.conf</code></td>
+<td>主要配置文件，实际位置也可外置</td>
+</tr>
+<tr>
+<td><code>pg_hba.conf</code></td>
+<td>客户端认证规则</td>
+</tr>
+<tr>
+<td><code>PG_VERSION</code></td>
+<td>数据目录主版本标识</td>
+</tr>
+<tr>
+<td><code>global/pg_control</code></td>
+<td>检查点、系统标识、恢复所需的关键控制信息</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>不要在 PostgreSQL 运行时手工修改、复制或删除这些内部文件。数据库文件不是普通业务文件，绕过数据库内核操作，很容易制造无法恢复的一致性问题。</p>
+</blockquote>
+<h3 id="6-3-Relation、Fork、Segment、Page"><a href="#6-3-Relation、Fork、Segment、Page" class="headerlink" title="6.3 Relation、Fork、Segment、Page"></a>6.3 Relation、Fork、Segment、Page</h3><p>一张表不是永远只对应一个文件。更准确的物理层级是：</p>
+<pre><code class=" mermaid">flowchart TB
+    R[Relation]
+    R --&gt; MAIN[Main Fork&lt;br/&gt;实际表或索引页面]
+    R --&gt; FSM[Free Space Map Fork&lt;br/&gt;_fsm]
+    R --&gt; VM[Visibility Map Fork&lt;br/&gt;_vm]
+    R --&gt; INIT[Initialization Fork&lt;br/&gt;_init，仅 unlogged 关系]
+
+    MAIN --&gt; S0[Segment 0]
+    MAIN --&gt; S1[Segment 1]
+    MAIN --&gt; SN[Segment N]
+
+    S0 --&gt; P0[Page 0]
+    S0 --&gt; P1[Page 1]
+    S0 --&gt; PX[Page ...]
+
+    P1 --&gt; LP[Line Pointers]
+    P1 --&gt; TUPLE[Heap Tuples]
+</code></pre>
+
+<h4 id="Fork"><a href="#Fork" class="headerlink" title="Fork"></a>Fork</h4><p>一张普通 heap 表通常可能拥有：</p>
+<ul>
+<li>main fork：保存真实 heap page；</li>
+<li>FSM fork：保存页面剩余空间的近似信息；</li>
+<li>VM fork：保存页面 all-visible 和 all-frozen 标志。</li>
+</ul>
+<p>Unlogged relation 还会有 init fork，用于崩溃后重新初始化，因为 unlogged relation 不依靠完整 WAL 保证数据恢复。</p>
+<h4 id="Segment"><a href="#Segment" class="headerlink" title="Segment"></a>Segment</h4><p>关系超过单个文件大小阈值后，会被拆分为多个 segment。默认情况下，关系文件常按约 1GB 分段：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">16384<br>16384.1<br>16384.2<br>...<br></code></pre></td></tr></table></figure>
+
+<p>这里的数字通常是 relfilenode，而不是业务表名。表经过 <code>VACUUM FULL</code>、<code>CLUSTER</code>、某些 <code>ALTER TABLE</code> 或重写操作后，relfilenode 可能变化。</p>
+<p>可以通过以下方式查看关系文件路径：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> pg_relation_filepath(<span class="hljs-string">&#x27;public.orders&#x27;</span>);<br></code></pre></td></tr></table></figure>
+
+<h4 id="Page-Block"><a href="#Page-Block" class="headerlink" title="Page &#x2F; Block"></a>Page &#x2F; Block</h4><p>PostgreSQL 默认数据库页大小通常为 <strong>8KB</strong>，页是 Buffer Manager、WAL full-page image 和磁盘 block 访问的核心单位。</p>
+<p>页大小是编译期参数，绝大多数发行版和生产部署使用 8KB。</p>
+<h3 id="6-4-Heap-Page-的内部布局"><a href="#6-4-Heap-Page-的内部布局" class="headerlink" title="6.4 Heap Page 的内部布局"></a>6.4 Heap Page 的内部布局</h3><p>一个普通 heap page 可以抽象为：</p>
+<pre><code class=" mermaid">flowchart TB
+    PAGE[8KB Heap Page]
+    PAGE --&gt; HDR[PageHeaderData&lt;br/&gt;LSN、校验和、lower、upper、special 等]
+    PAGE --&gt; LP[ItemIdData 数组&lt;br/&gt;Line Pointer 1..N]
+    PAGE --&gt; FREE[Free Space]
+    PAGE --&gt; ITEMS[Tuple Data&lt;br/&gt;从页尾向前增长]
+    PAGE --&gt; SPECIAL[Special Space&lt;br/&gt;Heap 页通常为空，索引页可使用]
+
+    LP --&gt; I1[Offset + Length + Flags]
+    I1 --&gt; T1[HeapTupleHeader + Null Bitmap + User Data]
+</code></pre>
+
+<p>页面两端会向中间增长：</p>
+<ul>
+<li>页头后面的 line pointer 数组向后增长；</li>
+<li>tuple data 从页尾向前增长；</li>
+<li>两者之间是可用空间。</li>
+</ul>
+<p>这种布局有一个重要好处：<strong>元组在页内移动时，索引所指向的 line pointer 位置可以保持稳定。</strong></p>
+<h4 id="PageHeaderData"><a href="#PageHeaderData" class="headerlink" title="PageHeaderData"></a>PageHeaderData</h4><p>页头包含的核心信息包括：</p>
+<ul>
+<li><code>pd_lsn</code>：最后修改该页面的 WAL LSN；</li>
+<li><code>pd_checksum</code>：启用数据校验和时的页面校验值；</li>
+<li><code>pd_lower</code>：line pointer 数组末尾；</li>
+<li><code>pd_upper</code>：tuple data 起点；</li>
+<li><code>pd_special</code>：特殊区域起点；</li>
+<li>页面大小与版本信息；</li>
+<li>剪枝提示等标志。</li>
+</ul>
+<p><code>pd_lsn</code> 对 WAL 的 write-ahead 约束非常关键：在数据页刷盘前，相关 WAL 必须先持久化到至少对应 LSN。</p>
+<h4 id="ItemIdData-Line-Pointer"><a href="#ItemIdData-Line-Pointer" class="headerlink" title="ItemIdData &#x2F; Line Pointer"></a>ItemIdData &#x2F; Line Pointer</h4><p>每个 line pointer 通常只有少量字节，记录：</p>
+<ul>
+<li>元组在页内的偏移；</li>
+<li>元组长度；</li>
+<li>状态，例如 normal、redirect、dead、unused。</li>
+</ul>
+<p>TID 中的 offset number 指向的不是“第 N 行业务数据”，而是 page 内第 N 个 line pointer。</p>
+<h3 id="6-5-Heap-Tuple-Header"><a href="#6-5-Heap-Tuple-Header" class="headerlink" title="6.5 Heap Tuple Header"></a>6.5 Heap Tuple Header</h3><p>每个 heap tuple 都带有 MVCC 和物理定位所需的头部信息，常见字段包括：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>t_xmin</code></td>
+<td>创建该元组版本的事务 ID</td>
+</tr>
+<tr>
+<td><code>t_xmax</code></td>
+<td>删除、更新或锁定该元组版本的事务或 MultiXact ID</td>
+</tr>
+<tr>
+<td><code>t_cid</code></td>
+<td>同一事务内部的 command ID 相关信息</td>
+</tr>
+<tr>
+<td><code>t_ctid</code></td>
+<td>当前元组位置，或更新后指向新版本的 TID</td>
+</tr>
+<tr>
+<td><code>t_infomask</code></td>
+<td>null、锁状态、事务状态 hint 等标志</td>
+</tr>
+<tr>
+<td><code>t_hoff</code></td>
+<td>用户数据在元组中的起始位置</td>
+</tr>
+<tr>
+<td>Null Bitmap</td>
+<td>标记哪些列为 NULL</td>
+</tr>
+</tbody></table>
+<p>因此一行逻辑记录可能有多个物理版本：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">订单 1001 的旧版本<br>  xmin = 500<br>  xmax = 620<br>  ctid = (42, 9)<br><br>订单 1001 的新版本<br>  xmin = 620<br>  xmax = 0<br>  ctid = (42, 9)<br></code></pre></td></tr></table></figure>
+
+<p><code>ctid</code> 可以用于诊断，但不能当作稳定业务主键，因为 UPDATE、表重写和 VACUUM FULL 都可能改变物理位置。</p>
+<h3 id="6-6-一条记录不能跨普通数据页：TOAST-如何处理大字段"><a href="#6-6-一条记录不能跨普通数据页：TOAST-如何处理大字段" class="headerlink" title="6.6 一条记录不能跨普通数据页：TOAST 如何处理大字段"></a>6.6 一条记录不能跨普通数据页：TOAST 如何处理大字段</h3><p>PostgreSQL 普通 heap tuple 不能直接跨越多个 heap page。当一行包含大文本、JSONB、数组、bytea 等变长字段时，会使用 TOAST：</p>
+<ul>
+<li>压缩字段；</li>
+<li>将大字段移到该表对应的 TOAST 表；</li>
+<li>在主表元组中保存 TOAST pointer；</li>
+<li>将外置值切成约 2KB 的 chunk 存储。</li>
+</ul>
+<pre><code class=" mermaid">flowchart LR
+    ROW[主表 Heap Tuple]
+    ROW --&gt; SMALL[id / status / small columns]
+    ROW --&gt; PTR[TOAST Pointer]
+    PTR --&gt; TT[TOAST Table]
+    TT --&gt; C1[Chunk 0]
+    TT --&gt; C2[Chunk 1]
+    TT --&gt; C3[Chunk 2]
+</code></pre>
+
+<p>列的 storage strategy 常见有：</p>
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>PLAIN</code></td>
+<td>不压缩、不外置，适合固定长度或必须内联的类型</td>
+</tr>
+<tr>
+<td><code>EXTENDED</code></td>
+<td>允许压缩和外置，常见默认策略</td>
+</tr>
+<tr>
+<td><code>EXTERNAL</code></td>
+<td>允许外置，但避免压缩，可能有利于某些子串访问</td>
+</tr>
+<tr>
+<td><code>MAIN</code></td>
+<td>优先压缩并尽量留在主表，必要时仍可能外置</td>
+</tr>
+</tbody></table>
+<p>TOAST 对业务是透明的，但并非没有成本：</p>
+<ul>
+<li>读取大字段可能产生额外 TOAST 表访问；</li>
+<li>更新小列时是否重写大字段取决于元组和 TOAST 值复用情况；</li>
+<li>宽表会降低每页元组数量；</li>
+<li><code>SELECT *</code> 可能无意中触发大量大字段反 TOAST。</li>
+</ul>
+<h3 id="6-7-Free-Space-Map"><a href="#6-7-Free-Space-Map" class="headerlink" title="6.7 Free Space Map"></a>6.7 Free Space Map</h3><p>FSM 用于近似记录各 heap page 的剩余空间，帮助 INSERT 或 UPDATE 快速找到可能放得下新元组的页面。</p>
+<p>它不是每次都精确记录字节数，而是采用紧凑的树状结构和分级值：</p>
+<pre><code class=" mermaid">flowchart TB
+    ROOT[FSM Root&lt;br/&gt;子树最大空闲空间]
+    ROOT --&gt; N1[Internal Node]
+    ROOT --&gt; N2[Internal Node]
+    N1 --&gt; P0[Heap Page 0 的空间类别]
+    N1 --&gt; P1[Heap Page 1 的空间类别]
+    N2 --&gt; P2[Heap Page 2 的空间类别]
+    N2 --&gt; P3[Heap Page 3 的空间类别]
+</code></pre>
+
+<p>查询“至少需要 X 空间的页面”时，可以沿树寻找满足条件的叶子项，而不必扫描整张表。</p>
+<h3 id="6-8-Visibility-Map"><a href="#6-8-Visibility-Map" class="headerlink" title="6.8 Visibility Map"></a>6.8 Visibility Map</h3><p>VM 为每个 heap page 维护两个关键 bit：</p>
+<ul>
+<li>all-visible：该页所有元组对所有当前和未来事务都可见；</li>
+<li>all-frozen：该页所有元组已不再需要未来 anti-wraparound vacuum 冻结处理。</li>
+</ul>
+<p>它的作用包括：</p>
+<ul>
+<li>VACUUM 跳过不需要处理的页面；</li>
+<li>Index Only Scan 判断是否可以不访问 heap page；</li>
+<li>冻结与反事务 ID 回卷维护。</li>
+</ul>
+<p>DML 会保守地清除相应 VM bit，VACUUM 在确认安全后设置 bit。</p>
+<h3 id="6-9-Buffer、Page、Tuple-与-TID-的关系"><a href="#6-9-Buffer、Page、Tuple-与-TID-的关系" class="headerlink" title="6.9 Buffer、Page、Tuple 与 TID 的关系"></a>6.9 Buffer、Page、Tuple 与 TID 的关系</h3><pre><code class=" mermaid">flowchart LR
+    REL[Relation]
+    REL --&gt; BLOCK[Block Number]
+    BLOCK --&gt; TAG[BufferTag]
+    TAG --&gt; BUF[Shared Buffer]
+    BUF --&gt; PAGE[Page]
+    PAGE --&gt; LP[ItemId / Offset Number]
+    LP --&gt; TUPLE[Heap Tuple]
+    TID[TID = Block Number + Offset Number] --&gt; BLOCK
+    TID --&gt; LP
+</code></pre>
+
+<p>这组结构是理解 PostgreSQL 的核心：</p>
+<ul>
+<li>Relation 确定对象；</li>
+<li>Block Number 确定对象中的页面；</li>
+<li>BufferTag 在共享缓存中定位页面；</li>
+<li>Offset Number 定位 page 中的 line pointer；</li>
+<li>TID 将 block 和 offset 组合起来；</li>
+<li>索引叶子项通常最终指向 TID。</li>
+</ul>
+<hr>
+<h2 id="7-事务系统：ACID、MVCC、锁与可见性"><a href="#7-事务系统：ACID、MVCC、锁与可见性" class="headerlink" title="7. 事务系统：ACID、MVCC、锁与可见性"></a>7. 事务系统：ACID、MVCC、锁与可见性</h2><h3 id="7-1-PostgreSQL-如何实现-ACID"><a href="#7-1-PostgreSQL-如何实现-ACID" class="headerlink" title="7.1 PostgreSQL 如何实现 ACID"></a>7.1 PostgreSQL 如何实现 ACID</h3><table>
+<thead>
+<tr>
+<th>属性</th>
+<th>PostgreSQL 的主要实现机制</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Atomicity 原子性</td>
+<td>事务状态、WAL、回滚可见性、子事务与恢复机制</td>
+</tr>
+<tr>
+<td>Consistency 一致性</td>
+<td>数据类型、约束、触发器、外键、应用规则以及事务原子性共同保证</td>
+</tr>
+<tr>
+<td>Isolation 隔离性</td>
+<td>MVCC Snapshot、行锁、表锁、Predicate Lock、SSI</td>
+</tr>
+<tr>
+<td>Durability 持久性</td>
+<td>WAL、fsync、检查点、崩溃恢复、复制与归档策略</td>
+</tr>
+</tbody></table>
+<p>需要注意：数据库的一致性不是数据库自动理解所有业务规则。数据库能保证的是已声明约束和事务语义，不会自动知道“账户余额不能为负”之类未建模的业务条件。</p>
+<h3 id="7-2-MVCC-的核心：逻辑行与物理版本分离"><a href="#7-2-MVCC-的核心：逻辑行与物理版本分离" class="headerlink" title="7.2 MVCC 的核心：逻辑行与物理版本分离"></a>7.2 MVCC 的核心：逻辑行与物理版本分离</h3><p>在 PostgreSQL 中，UPDATE 通常不是原地覆盖旧元组，而是：</p>
+<ol>
+<li>创建一个新元组版本；</li>
+<li>将旧版本的 <code>xmax</code> 标记为更新事务；</li>
+<li>让旧版本的 <code>t_ctid</code> 指向新版本；</li>
+<li>不同快照根据事务状态决定看哪个版本；</li>
+<li>未来由 VACUUM 回收不再可能被任何事务看到的旧版本。</li>
+</ol>
+<pre><code class=" mermaid">flowchart LR
+    T1[旧版本&lt;br/&gt;xmin=100&lt;br/&gt;xmax=220&lt;br/&gt;ctid 指向新版本]
+    T2[新版本&lt;br/&gt;xmin=220&lt;br/&gt;xmax=0]
+    T1 --&gt;|t_ctid| T2
+
+    S1[旧快照&lt;br/&gt;看不到事务 220 提交结果] --&gt; T1
+    S2[新快照&lt;br/&gt;事务 220 已提交] --&gt; T2
+</code></pre>
+
+<p>DELETE 也通常不是立即从页面抹掉数据，而是设置删除事务信息。只要仍有旧快照可能需要该版本，就不能物理回收。</p>
+<p>这解释了很多 PostgreSQL 现象：</p>
+<ul>
+<li>UPDATE 会产生 dead tuple；</li>
+<li>长事务会阻止垃圾版本回收；</li>
+<li>大量 UPDATE&#x2F;DELETE 后表文件不一定立即缩小；</li>
+<li>VACUUM 通常只是让空间可重用，不会把文件主动还给操作系统；</li>
+<li>VACUUM FULL 会重写表并需要更强锁，但可收缩物理文件。</li>
+</ul>
+<h3 id="7-3-Snapshot-如何判断元组是否可见"><a href="#7-3-Snapshot-如何判断元组是否可见" class="headerlink" title="7.3 Snapshot 如何判断元组是否可见"></a>7.3 Snapshot 如何判断元组是否可见</h3><p>一个快照会记录某个逻辑时刻的事务边界和活跃事务集合。概念上可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">xmin：仍可能处于活跃状态的最老事务边界<br>xmax：创建快照时尚未分配的事务上界<br>xip：xmin 与 xmax 之间当时仍活跃的事务集合<br></code></pre></td></tr></table></figure>
+
+<p>判断元组可见性时，需要结合：</p>
+<ul>
+<li>tuple <code>xmin</code> 是否已提交；</li>
+<li>创建事务在快照时是否仍活跃；</li>
+<li>tuple <code>xmax</code> 是否有效；</li>
+<li>删除或更新事务是否已提交；</li>
+<li>当前事务自身 command ID；</li>
+<li>hint bits 与 <code>pg_xact</code> 中的事务状态。</li>
+</ul>
+<p>简化规则如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">创建事务已提交且对快照可见<br>AND<br>删除/更新事务不存在、未提交，或对快照尚不可见<br>=&gt; 元组版本对当前快照可见<br></code></pre></td></tr></table></figure>
+
+<p>实际源码的可见性判断需要处理当前事务、子事务、MultiXact、冻结 XID、hint bit 等情况，比上述公式更复杂。</p>
+<h3 id="7-4-为什么-PostgreSQL-读通常不阻塞写"><a href="#7-4-为什么-PostgreSQL-读通常不阻塞写" class="headerlink" title="7.4 为什么 PostgreSQL 读通常不阻塞写"></a>7.4 为什么 PostgreSQL 读通常不阻塞写</h3><p>普通 SELECT 通过快照选择合适版本，而不是要求 UPDATE 必须等待所有读者离开，所以：</p>
+<ul>
+<li>读通常不阻塞普通写；</li>
+<li>写通常不阻塞普通读；</li>
+<li>读者可以看到更新前的旧版本；</li>
+<li>两个事务若修改同一行，仍然可能发生行锁等待；</li>
+<li>DDL、显式锁、外键检查等仍可能造成阻塞。</li>
+</ul>
+<p>“读写不互相阻塞”是便于理解 MVCC 的概括，不应被误读为 PostgreSQL 没有锁等待。</p>
+<h3 id="7-5-隔离级别"><a href="#7-5-隔离级别" class="headerlink" title="7.5 隔离级别"></a>7.5 隔离级别</h3><p>PostgreSQL 支持 SQL 标准名称中的四个隔离级别，但 Read Uncommitted 在 PostgreSQL 中按 Read Committed 行为执行。</p>
+<table>
+<thead>
+<tr>
+<th>隔离级别</th>
+<th>快照范围</th>
+<th>PostgreSQL 行为重点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Read Uncommitted</td>
+<td>语句级</td>
+<td>实际等同 Read Committed，不提供脏读</td>
+</tr>
+<tr>
+<td>Read Committed</td>
+<td>每条语句重新取得快照</td>
+<td>默认级别；同一事务的两条 SELECT 可能看到不同已提交结果</td>
+</tr>
+<tr>
+<td>Repeatable Read</td>
+<td>事务级稳定快照</td>
+<td>同一事务重复读取一致；可能因并发更新产生 serialization failure</td>
+</tr>
+<tr>
+<td>Serializable</td>
+<td>事务级快照 + SSI</td>
+<td>检测危险依赖，保证结果等价于某种串行顺序；应用必须支持重试</td>
+</tr>
+</tbody></table>
+<h4 id="Read-Committed"><a href="#Read-Committed" class="headerlink" title="Read Committed"></a>Read Committed</h4><pre><code class=" mermaid">sequenceDiagram
+    participant A as Transaction A
+    participant B as Transaction B
+
+    A-&gt;&gt;A: BEGIN
+    A-&gt;&gt;A: SELECT balance = 100&lt;br/&gt;Snapshot S1
+    B-&gt;&gt;B: UPDATE balance = 80
+    B-&gt;&gt;B: COMMIT
+    A-&gt;&gt;A: SELECT balance = 80&lt;br/&gt;新 Snapshot S2
+    A-&gt;&gt;A: COMMIT
+</code></pre>
+
+<p>每条语句看到语句开始前已提交的数据，因此事务内部两次查询结果可能不同。</p>
+<h4 id="Repeatable-Read"><a href="#Repeatable-Read" class="headerlink" title="Repeatable Read"></a>Repeatable Read</h4><pre><code class=" mermaid">sequenceDiagram
+    participant A as Transaction A
+    participant B as Transaction B
+
+    A-&gt;&gt;A: BEGIN ISOLATION LEVEL REPEATABLE READ
+    A-&gt;&gt;A: SELECT balance = 100&lt;br/&gt;固定 Snapshot S1
+    B-&gt;&gt;B: UPDATE balance = 80
+    B-&gt;&gt;B: COMMIT
+    A-&gt;&gt;A: SELECT balance = 100&lt;br/&gt;仍使用 S1
+    A-&gt;&gt;A: COMMIT
+</code></pre>
+
+<h4 id="Serializable-与-SSI"><a href="#Serializable-与-SSI" class="headerlink" title="Serializable 与 SSI"></a>Serializable 与 SSI</h4><p>Serializable Snapshot Isolation 不会简单把所有读都变成互斥锁。它跟踪读写依赖，通过 predicate lock 等结构识别可能形成非串行化结果的危险结构，并中止其中一个事务。</p>
+<p>应用层必须把以下错误视为可重试的事务级事件：</p>
+<ul>
+<li>serialization failure；</li>
+<li>某些死锁错误；</li>
+<li>乐观并发条件失败。</li>
+</ul>
+<p>重试必须覆盖<strong>整个事务逻辑</strong>，而不是只重放最后一条 SQL。</p>
+<h3 id="7-6-锁体系"><a href="#7-6-锁体系" class="headerlink" title="7.6 锁体系"></a>7.6 锁体系</h3><p>PostgreSQL 内部有多层同步机制：</p>
+<h4 id="Heavyweight-Lock"><a href="#Heavyweight-Lock" class="headerlink" title="Heavyweight Lock"></a>Heavyweight Lock</h4><p>用于数据库对象和事务级等待，可在 <code>pg_locks</code> 中观察，例如：</p>
+<ul>
+<li>表锁；</li>
+<li>页锁或元组相关等待；</li>
+<li>transaction ID lock；</li>
+<li>advisory lock；</li>
+<li>relation extension lock。</li>
+</ul>
+<p>表锁模式从 Access Share 到 Access Exclusive 具有冲突矩阵。普通 SELECT 通常取得 Access Share，许多 DDL 需要更强的锁。</p>
+<h4 id="Row-level-Lock"><a href="#Row-level-Lock" class="headerlink" title="Row-level Lock"></a>Row-level Lock</h4><p>行锁信息主要编码在 heap tuple header 的 <code>xmax</code> 和 MultiXact 中，而不是为每一行永久建立一个独立共享内存锁对象。</p>
+<p>常见模式包括：</p>
+<ul>
+<li><code>FOR KEY SHARE</code>；</li>
+<li><code>FOR SHARE</code>；</li>
+<li><code>FOR NO KEY UPDATE</code>；</li>
+<li><code>FOR UPDATE</code>。</li>
+</ul>
+<h4 id="Lightweight-Lock"><a href="#Lightweight-Lock" class="headerlink" title="Lightweight Lock"></a>Lightweight Lock</h4><p>LWLock 用于保护共享内存中的内部结构，例如 Buffer、WAL、锁表分区等。它不是 SQL 层的表锁。</p>
+<h4 id="Spinlock-与原子操作"><a href="#Spinlock-与原子操作" class="headerlink" title="Spinlock 与原子操作"></a>Spinlock 与原子操作</h4><p>用于极短临界区。若持有时间过长，会浪费 CPU，因此只保护非常小的状态更新。</p>
+<h4 id="Predicate-Lock"><a href="#Predicate-Lock" class="headerlink" title="Predicate Lock"></a>Predicate Lock</h4><p>Serializable SSI 用它跟踪“事务读取过哪些逻辑范围”，以发现并发事务之间可能导致序列化异常的读写依赖。它不等于普通阻塞式范围锁。</p>
+<h3 id="7-7-死锁检测"><a href="#7-7-死锁检测" class="headerlink" title="7.7 死锁检测"></a>7.7 死锁检测</h3><p>两个事务可能形成等待环：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[Transaction A&lt;br/&gt;持有 Row 1] --&gt;|等待 Row 2| B[Transaction B&lt;br/&gt;持有 Row 2]
+    B --&gt;|等待 Row 1| A
+</code></pre>
+
+<p>PostgreSQL 在等待超过 <code>deadlock_timeout</code> 等条件后构建等待关系并检测环，选择一个事务终止，以打破死锁。</p>
+<p>降低死锁的方法不是无限增大超时，而是：</p>
+<ul>
+<li>以一致顺序访问资源；</li>
+<li>缩短事务；</li>
+<li>避免在事务中等待用户输入或外部网络；</li>
+<li>一次锁定所需对象；</li>
+<li>对可重试错误做完整事务重试。</li>
+</ul>
+<h3 id="7-8-事务-ID、回卷与冻结"><a href="#7-8-事务-ID、回卷与冻结" class="headerlink" title="7.8 事务 ID、回卷与冻结"></a>7.8 事务 ID、回卷与冻结</h3><p>PostgreSQL 普通 TransactionId 本质上是有限宽度的循环编号。新旧判断依赖模运算，因此不能让极老元组的 <code>xmin</code> 永久不处理。</p>
+<p>VACUUM 会把足够老且已提交的创建事务信息冻结，使元组在未来仍被视为有效。若长期不 VACUUM，数据库可能为避免事务 ID wraparound 风险而限制写入。</p>
+<p>需要同时关注：</p>
+<ul>
+<li>普通 XID 年龄；</li>
+<li>MultiXact 年龄；</li>
+<li>replication slot 保留的 xmin；</li>
+<li>长事务；</li>
+<li>prepared transaction；</li>
+<li>逻辑复制槽；</li>
+<li>备库反馈。</li>
+</ul>
+<p>这些对象都可能延长旧版本必须保留的时间。</p>
+<hr>
+<h2 id="8-WAL、提交、检查点与崩溃恢复"><a href="#8-WAL、提交、检查点与崩溃恢复" class="headerlink" title="8. WAL、提交、检查点与崩溃恢复"></a>8. WAL、提交、检查点与崩溃恢复</h2><h3 id="8-1-WAL-的基本原则"><a href="#8-1-WAL-的基本原则" class="headerlink" title="8.1 WAL 的基本原则"></a>8.1 WAL 的基本原则</h3><p>WAL 即 Write-Ahead Logging，核心规则是：</p>
+<blockquote>
+<p>在修改后的数据页写入持久存储之前，描述该修改的 WAL 必须先持久化。</p>
+</blockquote>
+<p>因此事务提交时通常不需要同步写完所有随机数据页，只需要把提交记录及其之前必要 WAL 刷到可靠存储。</p>
+<h3 id="8-2-一次-UPDATE-COMMIT-的写入链路"><a href="#8-2-一次-UPDATE-COMMIT-的写入链路" class="headerlink" title="8.2 一次 UPDATE + COMMIT 的写入链路"></a>8.2 一次 UPDATE + COMMIT 的写入链路</h3><pre><code class=" mermaid">sequenceDiagram
+    participant C as Client
+    participant B as Backend
+    participant SB as Shared Buffers
+    participant WB as WAL Buffers
+    participant WAL as pg_wal
+    participant D as Data Files
+    participant CK as Checkpointer/Background Writer
+
+    C-&gt;&gt;B: UPDATE orders ...
+    B-&gt;&gt;SB: 锁定并修改 Heap Page&lt;br/&gt;产生新元组版本，页面标脏
+    B-&gt;&gt;WB: 写入 WAL Record
+    C-&gt;&gt;B: COMMIT
+    B-&gt;&gt;WB: 追加 Commit Record
+    B-&gt;&gt;WAL: Flush 到 Commit LSN
+    WAL--&gt;&gt;B: 持久化完成
+    B--&gt;&gt;C: COMMIT 成功
+    Note over SB,D: 此时数据页可能仍只在 Shared Buffers
+    CK-&gt;&gt;SB: 选择脏页
+    CK-&gt;&gt;D: 稍后写入数据文件
+</code></pre>
+
+<p>这就是为什么：</p>
+<ul>
+<li>COMMIT 成功不等于相关表页已经全部写入表文件；</li>
+<li>COMMIT 成功意味着恢复所需 WAL 已达到配置要求的持久性边界；</li>
+<li>崩溃后可以使用 WAL 重做尚未反映到数据文件的已提交修改。</li>
+</ul>
+<h3 id="8-3-WAL-Record、LSN-与-WAL-Segment"><a href="#8-3-WAL-Record、LSN-与-WAL-Segment" class="headerlink" title="8.3 WAL Record、LSN 与 WAL Segment"></a>8.3 WAL Record、LSN 与 WAL Segment</h3><h4 id="WAL-Record"><a href="#WAL-Record" class="headerlink" title="WAL Record"></a>WAL Record</h4><p>每条 WAL record 描述某个资源管理器的状态变化，例如：</p>
+<ul>
+<li>heap insert&#x2F;update&#x2F;delete；</li>
+<li>B-tree page split；</li>
+<li>transaction commit；</li>
+<li>checkpoint；</li>
+<li>relation truncate；</li>
+<li>visibility map 更新。</li>
+</ul>
+<h4 id="LSN"><a href="#LSN" class="headerlink" title="LSN"></a>LSN</h4><p>LSN，即 Log Sequence Number，表示 WAL 字节流中的位置，具有单调前进性质。常见格式类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">0/16B6C50<br></code></pre></td></tr></table></figure>
+
+<p>LSN 用于：</p>
+<ul>
+<li>判断页面修改对应的 WAL 是否已刷盘；</li>
+<li>复制进度；</li>
+<li>恢复位置；</li>
+<li>归档和备份边界；</li>
+<li>逻辑解码确认位置。</li>
+</ul>
+<h4 id="WAL-Segment"><a href="#WAL-Segment" class="headerlink" title="WAL Segment"></a>WAL Segment</h4><p>WAL 字节流被切分为固定大小段文件，常见默认段大小为 16MB。段大小可在初始化 cluster 时确定。</p>
+<p><code>pg_wal</code> 中的文件名编码 timeline、log 和 segment 信息。文件可能被循环复用，不应把 <code>pg_wal</code> 当成永久历史仓库；永久保留应交给 archive、备份系统或复制槽策略。</p>
+<h3 id="8-4-Full-Page-Write"><a href="#8-4-Full-Page-Write" class="headerlink" title="8.4 Full Page Write"></a>8.4 Full Page Write</h3><p>检查点之后某页第一次被修改时，PostgreSQL 可能把完整页面镜像写入 WAL，以防数据库崩溃时数据文件出现 torn page：页面的一部分已写入，另一部分仍是旧内容。</p>
+<p>代价是检查点后的一段时间 WAL 量可能明显上升。</p>
+<p>这解释了为什么过于频繁的检查点可能造成：</p>
+<ul>
+<li>full-page image 增多；</li>
+<li>WAL 放大；</li>
+<li>I&#x2F;O 抖动；</li>
+<li>后台写压力增加。</li>
+</ul>
+<h3 id="8-5-Checkpoint-做什么"><a href="#8-5-Checkpoint-做什么" class="headerlink" title="8.5 Checkpoint 做什么"></a>8.5 Checkpoint 做什么</h3><p>Checkpoint 的主要工作是：</p>
+<ol>
+<li>记录检查点开始和恢复边界；</li>
+<li>将检查点要求范围内的脏页逐步写回数据文件；</li>
+<li>更新控制信息；</li>
+<li>建立新的 redo point；</li>
+<li>允许旧 WAL 在不再被归档、复制槽或备份需要时回收或复用。</li>
+</ol>
+<pre><code class=" mermaid">flowchart LR
+    DIRTY[Shared Buffers 中的脏页]
+    WAL[已持久化 WAL]
+    CKPT[Checkpoint]
+    DATA[一致的数据文件基线]
+    REDO[Redo Point]
+
+    WAL --&gt; CKPT
+    DIRTY --&gt; CKPT
+    CKPT --&gt; DATA
+    CKPT --&gt; REDO
+</code></pre>
+
+<p>Checkpoint 不应被理解为“每个事务的数据落盘动作”。事务提交和检查点是两个不同时间尺度：</p>
+<ul>
+<li>commit 主要保证 WAL 持久性；</li>
+<li>checkpoint 周期性推进数据文件的一致基线。</li>
+</ul>
+<h3 id="8-6-崩溃恢复"><a href="#8-6-崩溃恢复" class="headerlink" title="8.6 崩溃恢复"></a>8.6 崩溃恢复</h3><p>数据库异常终止后，启动恢复大致是：</p>
+<pre><code class=" mermaid">flowchart TB
+    START[服务器启动]
+    CTRL[读取 pg_control]
+    CK[定位最近有效 Checkpoint / Redo Point]
+    SCAN[从 Redo Point 扫描 WAL]
+    REDO[重做需要的页面修改]
+    ENDREC[到达一致结束位置]
+    READY[接受连接]
+
+    START --&gt; CTRL --&gt; CK --&gt; SCAN --&gt; REDO --&gt; ENDREC --&gt; READY
+</code></pre>
+
+<p>恢复不是简单“重放所有 SQL”，而是根据 WAL record 对页面和内部结构执行 redo。</p>
+<p>由于 MVCC 和事务状态的设计，未提交事务产生的物理版本可以留在页面中，但对正常快照不可见，之后再由 VACUUM 清理。PostgreSQL 不一定需要像某些引擎那样在恢复阶段逐行执行独立 undo 日志回滚。</p>
+<h3 id="8-7-Group-Commit"><a href="#8-7-Group-Commit" class="headerlink" title="8.7 Group Commit"></a>8.7 Group Commit</h3><p>多个事务在相近时间提交时，可以共享一次 WAL flush：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Transaction A commit record ┐<br>Transaction B commit record ├─ 一次 fsync / flush 到更后 LSN<br>Transaction C commit record ┘<br></code></pre></td></tr></table></figure>
+
+<p>这使得存储设备一次持久化操作可以确认多个事务，提高高并发小事务吞吐。</p>
+<h3 id="8-8-synchronous-commit-的边界"><a href="#8-8-synchronous-commit-的边界" class="headerlink" title="8.8 synchronous_commit 的边界"></a>8.8 synchronous_commit 的边界</h3><p>降低 <code>synchronous_commit</code> 可以减少单个事务等待 WAL 持久化的延迟，但会扩大“数据库进程或操作系统崩溃时，客户端已收到成功、事务却可能丢失”的窗口。</p>
+<p>它通常不会破坏数据库物理一致性，但会改变业务持久性承诺。是否允许，应由业务 RPO 决定，而不是只看 TPS。</p>
+<hr>
+<h2 id="9-VACUUM、HOT-与表膨胀"><a href="#9-VACUUM、HOT-与表膨胀" class="headerlink" title="9. VACUUM、HOT 与表膨胀"></a>9. VACUUM、HOT 与表膨胀</h2><h3 id="9-1-为什么-PostgreSQL-必须-VACUUM"><a href="#9-1-为什么-PostgreSQL-必须-VACUUM" class="headerlink" title="9.1 为什么 PostgreSQL 必须 VACUUM"></a>9.1 为什么 PostgreSQL 必须 VACUUM</h3><p>MVCC 通过保留旧版本降低读写冲突，但旧版本不会自动从物理页面消失。VACUUM 负责：</p>
+<ul>
+<li>找出不再可能被任何事务看到的 dead tuple；</li>
+<li>将对应 line pointer 和空间标记为可重用；</li>
+<li>清理无效索引项；</li>
+<li>更新 FSM；</li>
+<li>设置 Visibility Map；</li>
+<li>冻结老事务 ID；</li>
+<li>防止 XID 和 MultiXact wraparound；</li>
+<li>为 planner 更新部分统计信息，通常 ANALYZE 负责更完整统计采样。</li>
+</ul>
+<pre><code class=" mermaid">stateDiagram-v2
+    [*] --&gt; Live: INSERT
+    Live --&gt; OldVersion: UPDATE
+    Live --&gt; DeadCandidate: DELETE
+    OldVersion --&gt; DeadCandidate: 新版本已提交
+    DeadCandidate --&gt; Reclaimable: 最老快照不再需要
+    Reclaimable --&gt; ReusedSpace: VACUUM 清理
+    ReusedSpace --&gt; Live: 后续 INSERT/UPDATE 复用
+</code></pre>
+
+<h3 id="9-2-VACUUM-为什么通常不缩小文件"><a href="#9-2-VACUUM-为什么通常不缩小文件" class="headerlink" title="9.2 VACUUM 为什么通常不缩小文件"></a>9.2 VACUUM 为什么通常不缩小文件</h3><p>普通 VACUUM 主要把空间交还给<strong>同一张表内部复用</strong>，而不是把中间的空洞直接归还操作系统。</p>
+<p>若表尾部存在完整空闲页，并且满足截断条件，VACUUM 可能回收部分尾部空间；但大量随机 dead tuple 分布在文件内部时，文件大小一般不会明显下降。</p>
+<p>真正重写并压缩表的方式包括：</p>
+<ul>
+<li><code>VACUUM FULL</code>；</li>
+<li><code>CLUSTER</code>；</li>
+<li>某些表重写型 <code>ALTER TABLE</code>；</li>
+<li>在线重组工具。</li>
+</ul>
+<p>它们通常需要额外磁盘空间、较强锁或复杂运维，不应把 <code>VACUUM FULL</code> 当作日常 autovacuum 的替代品。</p>
+<h3 id="9-3-Autovacuum-的调度逻辑"><a href="#9-3-Autovacuum-的调度逻辑" class="headerlink" title="9.3 Autovacuum 的调度逻辑"></a>9.3 Autovacuum 的调度逻辑</h3><p>Autovacuum Launcher 周期性检查数据库，再由 worker 对表执行维护。是否触发通常与以下因素有关：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">需要清理的变化量<br>&gt; autovacuum_vacuum_threshold<br>  + autovacuum_vacuum_scale_factor × 表规模<br></code></pre></td></tr></table></figure>
+
+<p>ANALYZE 也有类似 threshold + scale factor 逻辑。</p>
+<p>对超大表而言，即使 scale factor 看起来很小，乘以数亿行后仍可能意味着积累大量 dead tuple 才触发。因此生产中经常需要为热点大表单独配置：</p>
+<ul>
+<li>更低的 vacuum scale factor；</li>
+<li>更低的 analyze scale factor；</li>
+<li>合理的 cost limit &#x2F; cost delay；</li>
+<li>更积极的 freeze 参数；</li>
+<li>更高的 autovacuum worker 资源，但要结合 I&#x2F;O 能力。</li>
+</ul>
+<h3 id="9-4-HOT：减少-UPDATE-的索引放大"><a href="#9-4-HOT：减少-UPDATE-的索引放大" class="headerlink" title="9.4 HOT：减少 UPDATE 的索引放大"></a>9.4 HOT：减少 UPDATE 的索引放大</h3><p>HOT，即 Heap-Only Tuple，是 PostgreSQL 对特定 UPDATE 的重要优化。</p>
+<p>通常需要同时满足：</p>
+<ol>
+<li>本次 UPDATE 没有修改任何需要维护的索引列；</li>
+<li>原 heap page 上有足够空间容纳新版本。</li>
+</ol>
+<p>满足后，新版本仍放在同一 heap page，并形成 HOT chain。原索引项可以继续指向链头，不必为每个新版本新增所有索引项。</p>
+<pre><code class=" mermaid">flowchart LR
+    IDX[Index Entry&lt;br/&gt;key -&gt; TID A]
+    A[Tuple A&lt;br/&gt;旧版本]
+    B[Tuple B&lt;br/&gt;HOT 新版本]
+    C[Tuple C&lt;br/&gt;HOT 新版本]
+
+    IDX --&gt; A
+    A --&gt;|t_ctid| B
+    B --&gt;|t_ctid| C
+</code></pre>
+
+<p>HOT 的收益包括：</p>
+<ul>
+<li>减少索引写入；</li>
+<li>减少 WAL；</li>
+<li>降低索引膨胀；</li>
+<li>页面内可执行 HOT pruning；</li>
+<li>提高高频更新表的吞吐。</li>
+</ul>
+<p><code>fillfactor</code> 可以在页面中预留空间，从而提高未来 UPDATE 在原页生成 HOT 版本的机会。但预留过多会增加表尺寸和读取页数，需要针对读写比例权衡。</p>
+<p>可以观察：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span><br>    relname,<br>    n_tup_upd,<br>    n_tup_hot_upd,<br>    <span class="hljs-keyword">CASE</span><br>        <span class="hljs-keyword">WHEN</span> n_tup_upd <span class="hljs-operator">=</span> <span class="hljs-number">0</span> <span class="hljs-keyword">THEN</span> <span class="hljs-number">0</span><br>        <span class="hljs-keyword">ELSE</span> round(<span class="hljs-number">100.0</span> <span class="hljs-operator">*</span> n_tup_hot_upd <span class="hljs-operator">/</span> n_tup_upd, <span class="hljs-number">2</span>)<br>    <span class="hljs-keyword">END</span> <span class="hljs-keyword">AS</span> hot_update_pct,<br>    n_dead_tup,<br>    last_autovacuum<br><span class="hljs-keyword">FROM</span> pg_stat_user_tables<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> n_tup_upd <span class="hljs-keyword">DESC</span>;<br></code></pre></td></tr></table></figure>
+
+<h3 id="9-5-长事务为何是-MVCC-系统的“隐形钉子户”"><a href="#9-5-长事务为何是-MVCC-系统的“隐形钉子户”" class="headerlink" title="9.5 长事务为何是 MVCC 系统的“隐形钉子户”"></a>9.5 长事务为何是 MVCC 系统的“隐形钉子户”</h3><p>一个很老的活跃快照可能迫使数据库继续保留大量旧版本。常见来源包括：</p>
+<ul>
+<li>应用开启事务后长时间空闲；</li>
+<li>大查询运行数小时；</li>
+<li>未结束的导出事务；</li>
+<li>逻辑复制槽消费停滞；</li>
+<li>prepared transaction 长时间不提交；</li>
+<li>备库开启 feedback 且回放或查询长期滞后。</li>
+</ul>
+<p>后果可能是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">旧快照无法前进<br>  -&gt; global xmin 无法前进<br>  -&gt; dead tuple 无法回收<br>  -&gt; 表与索引膨胀<br>  -&gt; WAL 被复制槽保留<br>  -&gt; pg_wal 持续增长<br>  -&gt; VACUUM 做了很多工作却收效很小<br></code></pre></td></tr></table></figure>
+
+<p>因此排查膨胀时，不能只调 autovacuum，还要先找谁在阻止清理边界推进。</p>
+<hr>
+<h2 id="10-PostgreSQL-索引体系"><a href="#10-PostgreSQL-索引体系" class="headerlink" title="10. PostgreSQL 索引体系"></a>10. PostgreSQL 索引体系</h2><h3 id="10-1-所有普通索引都是二级索引"><a href="#10-1-所有普通索引都是二级索引" class="headerlink" title="10.1 所有普通索引都是二级索引"></a>10.1 所有普通索引都是二级索引</h3><p>PostgreSQL heap table 本身不按主键组织。即使声明了 PRIMARY KEY，也只是自动创建唯一 B-tree 索引和约束。</p>
+<p>典型访问链路是：</p>
+<pre><code class=" mermaid">flowchart LR
+    Q[查询条件]
+    IDX[Index Access Method]
+    ENTRY[Index Entry&lt;br/&gt;key + TID]
+    HEAP[Heap Page]
+    TUPLE[Heap Tuple]
+    MVCC[Visibility Check]
+
+    Q --&gt; IDX --&gt; ENTRY --&gt; HEAP --&gt; TUPLE --&gt; MVCC
+</code></pre>
+
+<p>因此“索引命中”仍可能伴随大量 heap 随机访问。优化器需要在以下成本之间选择：</p>
+<ul>
+<li>扫描多少索引页；</li>
+<li>返回多少 TID；</li>
+<li>访问多少 heap page；</li>
+<li>heap page 的物理相关性；</li>
+<li>是否可以使用 bitmap 合并访问；</li>
+<li>是否满足 index-only 条件。</li>
+</ul>
+<h3 id="10-2-B-tree"><a href="#10-2-B-tree" class="headerlink" title="10.2 B-tree"></a>10.2 B-tree</h3><p>B-tree 是 PostgreSQL 最常用的索引类型，适用于：</p>
+<ul>
+<li><code>=</code>；</li>
+<li><code>&lt;</code>、<code>&lt;=</code>、<code>&gt;</code>、<code>&gt;=</code>；</li>
+<li><code>BETWEEN</code>；</li>
+<li><code>IN</code>；</li>
+<li><code>IS NULL</code> &#x2F; <code>IS NOT NULL</code> 的部分场景；</li>
+<li>前缀可转换为范围的模式匹配；</li>
+<li>ORDER BY；</li>
+<li>MIN&#x2F;MAX；</li>
+<li>唯一约束。</li>
+</ul>
+<h4 id="B-tree-页面结构"><a href="#B-tree-页面结构" class="headerlink" title="B-tree 页面结构"></a>B-tree 页面结构</h4><pre><code class=" mermaid">flowchart TB
+    META[Metapage&lt;br/&gt;root、level 等元数据]
+    ROOT[Root Page]
+    I1[Internal Page]
+    I2[Internal Page]
+    L1[Leaf Page]
+    L2[Leaf Page]
+    L3[Leaf Page]
+    L4[Leaf Page]
+
+    META --&gt; ROOT
+    ROOT --&gt; I1
+    ROOT --&gt; I2
+    I1 --&gt; L1
+    I1 --&gt; L2
+    I2 --&gt; L3
+    I2 --&gt; L4
+    L1 &lt;--&gt; L2
+    L2 &lt;--&gt; L3
+    L3 &lt;--&gt; L4
+</code></pre>
+
+<p>内部页保存分隔键和下层页面指针；叶子页保存可搜索键和 heap TID。页面存在左右兄弟关系，支持并发页面分裂期间继续正确导航。</p>
+<h4 id="B-tree-查找"><a href="#B-tree-查找" class="headerlink" title="B-tree 查找"></a>B-tree 查找</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">从 Root 比较 key<br>  -&gt; 选择一个子页面<br>  -&gt; 逐层进入 Internal Page<br>  -&gt; 到达 Leaf Page<br>  -&gt; 二分查找目标 key<br>  -&gt; 返回一个或多个 TID<br></code></pre></td></tr></table></figure>
+
+<p>复杂度通常近似 <code>O(log N)</code>，但数据库性能还受页缓存、随机 I&#x2F;O、重复值数量和 heap 回表影响。</p>
+<h4 id="页面分裂"><a href="#页面分裂" class="headerlink" title="页面分裂"></a>页面分裂</h4><p>叶子页无空间时，会发生 split：</p>
+<ol>
+<li>分配新页面；</li>
+<li>将部分 index tuple 移到新页；</li>
+<li>更新兄弟链接和边界信息；</li>
+<li>将分隔键插入父页面；</li>
+<li>父页面也满时继续向上分裂；</li>
+<li>根分裂时树高增加。</li>
+</ol>
+<p>随机 UUID、时间有序 ID、单调序列等键分布会带来不同写入热点与分裂行为，不能只用“随机一定差、递增一定好”一刀切：</p>
+<ul>
+<li>递增键容易集中写最右叶子页；</li>
+<li>随机键使写入分散，但可能降低局部性并增加分裂；</li>
+<li>高并发、缓存容量、页面填充率和数据类型大小都会改变结果。</li>
+</ul>
+<h4 id="多列-B-tree"><a href="#多列-B-tree" class="headerlink" title="多列 B-tree"></a>多列 B-tree</h4><p>索引 <code>(a, b, c)</code> 的传统直觉是“最左前缀”，但 PostgreSQL 优化器还可能利用：</p>
+<ul>
+<li>对前导列的等值条件；</li>
+<li>对后续列的范围条件；</li>
+<li>只在索引内部过滤后续列；</li>
+<li>在合适分布和成本条件下使用 skip scan；</li>
+<li>Bitmap Scan 组合多个索引。</li>
+</ul>
+<p>仍需牢记：列顺序直接影响可缩小的索引范围、排序能力和索引尺寸，不能因为存在 skip scan 就忽略索引设计。</p>
+<h3 id="10-3-Hash-Index"><a href="#10-3-Hash-Index" class="headerlink" title="10.3 Hash Index"></a>10.3 Hash Index</h3><p>Hash 索引把键哈希到 bucket，主要支持等值查询：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">WHERE token = $1<br></code></pre></td></tr></table></figure>
+
+<p>不支持范围排序语义。现代 PostgreSQL 的 Hash 索引具备 WAL 和崩溃恢复支持，但在很多场景下 B-tree 同样能高效处理等值条件，并提供更丰富能力。因此选择 Hash 前应通过真实负载验证，而不是因为代码中出现 <code>=</code> 就默认采用 Hash。</p>
+<h3 id="10-4-GiST"><a href="#10-4-GiST" class="headerlink" title="10.4 GiST"></a>10.4 GiST</h3><p>GiST，即 Generalized Search Tree，是一种可扩展索引框架，而不是只为单一数据类型固定实现的树。</p>
+<p>它允许操作符类定义：</p>
+<ul>
+<li>一致性判断；</li>
+<li>如何把条目压缩成索引键；</li>
+<li>如何把新条目分配到页面；</li>
+<li>页面分裂策略；</li>
+<li>距离计算。</li>
+</ul>
+<p>常见用途包括：</p>
+<ul>
+<li>几何对象；</li>
+<li>range type；</li>
+<li>网络地址；</li>
+<li>全文搜索的部分实现；</li>
+<li>KNN nearest-neighbor 查询；</li>
+<li>PostGIS 空间索引。</li>
+</ul>
+<p>GiST 的内部条目经常保存一个“覆盖其子树内容的近似边界”，搜索时先排除不可能的子树，再对候选项执行 recheck。</p>
+<h3 id="10-5-SP-GiST"><a href="#10-5-SP-GiST" class="headerlink" title="10.5 SP-GiST"></a>10.5 SP-GiST</h3><p>SP-GiST，即 Space-Partitioned GiST，适合自然形成非平衡分区结构的数据：</p>
+<ul>
+<li>trie；</li>
+<li>radix tree；</li>
+<li>quadtree；</li>
+<li>k-d tree 类空间划分。</li>
+</ul>
+<pre><code class=" mermaid">flowchart TB
+    ROOT[空间或前缀根]
+    ROOT --&gt; A[分区 A]
+    ROOT --&gt; B[分区 B]
+    ROOT --&gt; C[分区 C]
+    A --&gt; A1[更细分区]
+    A --&gt; A2[更细分区]
+    B --&gt; B1[更细分区]
+</code></pre>
+
+<p>它强调按空间或前缀规则分区，不要求像 B-tree 那样保持全局有序和平衡。</p>
+<h3 id="10-6-GIN"><a href="#10-6-GIN" class="headerlink" title="10.6 GIN"></a>10.6 GIN</h3><p>GIN，即 Generalized Inverted Index，是倒排索引。它适合“一行包含多个可检索元素”的数据：</p>
+<ul>
+<li>数组中的元素；</li>
+<li>JSONB 中的键和值；</li>
+<li>全文搜索 token；</li>
+<li>trigram 扩展产生的片段。</li>
+</ul>
+<pre><code class=" mermaid">flowchart LR
+    D1[Row TID 10&lt;br/&gt;java postgres ai]
+    D2[Row TID 20&lt;br/&gt;postgres mvcc]
+    D3[Row TID 30&lt;br/&gt;java spring]
+
+    JAVA[java] --&gt; PJ[Posting List&lt;br/&gt;10, 30]
+    PG[postgres] --&gt; PP[Posting List&lt;br/&gt;10, 20]
+    MVCC[mvcc] --&gt; PM[Posting List&lt;br/&gt;20]
+
+    D1 -.拆分 token.-&gt; JAVA
+    D1 -.拆分 token.-&gt; PG
+    D2 -.拆分 token.-&gt; PG
+    D2 -.拆分 token.-&gt; MVCC
+</code></pre>
+
+<p>GIN 的基本思想是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">元素或 token<br>  -&gt; 出现该元素的 TID 列表或 posting tree<br></code></pre></td></tr></table></figure>
+
+<p>优点是包含查询非常强；代价通常包括：</p>
+<ul>
+<li>写入和更新成本较高；</li>
+<li>索引可能较大；</li>
+<li>fastupdate 会先进入 pending list，需要后续合并；</li>
+<li>不同 JSONB operator class 对支持操作和索引体积影响很大。</li>
+</ul>
+<p>例如 JSONB 常见 operator class：</p>
+<ul>
+<li><code>jsonb_ops</code>：支持更广泛操作符，条目更多；</li>
+<li><code>jsonb_path_ops</code>：针对部分包含和 jsonpath 场景更紧凑，但能力范围不同。</li>
+</ul>
+<h3 id="10-7-BRIN"><a href="#10-7-BRIN" class="headerlink" title="10.7 BRIN"></a>10.7 BRIN</h3><p>BRIN，即 Block Range Index，不为每行保存完整索引项，而是为一段连续 heap block 保存摘要。</p>
+<pre><code class=" mermaid">flowchart TB
+    H[Heap Blocks]
+    H --&gt; R1[Range 0: blocks 0-127&lt;br/&gt;min=2026-01-01&lt;br/&gt;max=2026-01-03]
+    H --&gt; R2[Range 1: blocks 128-255&lt;br/&gt;min=2026-01-03&lt;br/&gt;max=2026-01-05]
+    H --&gt; R3[Range 2: blocks 256-383&lt;br/&gt;min=2026-01-05&lt;br/&gt;max=2026-01-08]
+
+    Q[WHERE created_at = 2026-01-06] --&gt; R3
+    R3 --&gt; RECHECK[读取候选 Heap Pages 并 Recheck]
+</code></pre>
+
+<p>BRIN 特别适合：</p>
+<ul>
+<li>超大表；</li>
+<li>列值与物理插入顺序高度相关；</li>
+<li>时间序列、日志、流水数据；</li>
+<li>可以接受 lossy 候选范围再回表复核。</li>
+</ul>
+<p>优势：</p>
+<ul>
+<li>索引极小；</li>
+<li>构建和维护成本低；</li>
+<li>对顺序相关数据可跳过大量不相关 block range。</li>
+</ul>
+<p>不适合：</p>
+<ul>
+<li>数据物理分布完全随机；</li>
+<li>查询要求极高点查选择性；</li>
+<li>范围摘要重叠严重。</li>
+</ul>
+<h3 id="10-8-Bitmap-Index-Scan-不是一种持久索引"><a href="#10-8-Bitmap-Index-Scan-不是一种持久索引" class="headerlink" title="10.8 Bitmap Index Scan 不是一种持久索引"></a>10.8 Bitmap Index Scan 不是一种持久索引</h3><p>执行计划中的 Bitmap Index Scan 并不表示 PostgreSQL 创建了“位图索引”文件。</p>
+<p>它会：</p>
+<ol>
+<li>从一个或多个普通索引取得 TID；</li>
+<li>在内存中建立 TIDBitmap；</li>
+<li>使用 BitmapAnd 或 BitmapOr 合并；</li>
+<li>按 heap block 顺序批量访问；</li>
+<li>内存不足时从 exact page 降级为 lossy page；</li>
+<li>对 lossy page 重新检查条件。</li>
+</ol>
+<pre><code class=" mermaid">flowchart TB
+    I1[Index on status]
+    I2[Index on created_at]
+    B1[Bitmap 1]
+    B2[Bitmap 2]
+    AND[BitmapAnd]
+    HEAP[Bitmap Heap Scan&lt;br/&gt;按 Block 顺序读取]
+
+    I1 --&gt; B1
+    I2 --&gt; B2
+    B1 --&gt; AND
+    B2 --&gt; AND
+    AND --&gt; HEAP
+</code></pre>
+
+<p>它在“结果不是极少，但也没多到值得全表扫描”时很有价值。</p>
+<h3 id="10-9-Index-Only-Scan-与-INCLUDE"><a href="#10-9-Index-Only-Scan-与-INCLUDE" class="headerlink" title="10.9 Index Only Scan 与 INCLUDE"></a>10.9 Index Only Scan 与 INCLUDE</h3><p>Index Only Scan 要同时满足：</p>
+<ol>
+<li>查询需要的列都能从索引取得；</li>
+<li>对应 heap page 在 Visibility Map 中是 all-visible，或少量情况下仍需回表确认。</li>
+</ol>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> INDEX idx_orders_customer_created<br><span class="hljs-keyword">ON</span> orders (customer_id, created_at <span class="hljs-keyword">DESC</span>)<br>INCLUDE (status, amount);<br></code></pre></td></tr></table></figure>
+
+<p>这里：</p>
+<ul>
+<li><code>customer_id, created_at</code> 是搜索和排序键；</li>
+<li><code>status, amount</code> 是 payload，不参与 B-tree 排序语义；</li>
+<li>INCLUDE 可能提高覆盖能力，也会增大索引和写入成本；</li>
+<li>高频更新 INCLUDE 列仍会让索引需要维护，从而降低 HOT 机会。</li>
+</ul>
+<h3 id="10-10-Partial-Index-与-Expression-Index"><a href="#10-10-Partial-Index-与-Expression-Index" class="headerlink" title="10.10 Partial Index 与 Expression Index"></a>10.10 Partial Index 与 Expression Index</h3><h4 id="Partial-Index"><a href="#Partial-Index" class="headerlink" title="Partial Index"></a>Partial Index</h4><p>只索引满足谓词的行：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> INDEX idx_orders_unpaid<br><span class="hljs-keyword">ON</span> orders (customer_id, created_at)<br><span class="hljs-keyword">WHERE</span> status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;UNPAID&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<p>适合小而高频的活跃子集。查询谓词必须能被优化器证明与索引谓词相容。</p>
+<h4 id="Expression-Index"><a href="#Expression-Index" class="headerlink" title="Expression Index"></a>Expression Index</h4><p>对表达式结果建立索引：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> INDEX idx_users_lower_email<br><span class="hljs-keyword">ON</span> users (<span class="hljs-built_in">lower</span>(email));<br></code></pre></td></tr></table></figure>
+
+<p>适合大小写归一、日期截断、JSON 字段提取等，但表达式更新会增加写成本，且查询表达式要与索引定义匹配。</p>
+<h3 id="10-11-索引选型速查"><a href="#10-11-索引选型速查" class="headerlink" title="10.11 索引选型速查"></a>10.11 索引选型速查</h3><table>
+<thead>
+<tr>
+<th>需求</th>
+<th>优先考虑</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>等值、范围、排序、唯一</td>
+<td>B-tree</td>
+</tr>
+<tr>
+<td>单纯等值且已验证收益</td>
+<td>Hash</td>
+</tr>
+<tr>
+<td>空间、范围、近邻、可扩展搜索</td>
+<td>GiST</td>
+</tr>
+<tr>
+<td>前缀树或空间分区结构</td>
+<td>SP-GiST</td>
+</tr>
+<tr>
+<td>JSONB、数组、全文 token、包含关系</td>
+<td>GIN</td>
+</tr>
+<tr>
+<td>超大顺序相关表的块范围过滤</td>
+<td>BRIN</td>
+</tr>
+<tr>
+<td>多个条件中等选择性组合</td>
+<td>多个索引 + Bitmap Scan</td>
+</tr>
+<tr>
+<td>查询列可被索引覆盖</td>
+<td>B-tree + INCLUDE + Index Only Scan</td>
+</tr>
+<tr>
+<td>仅索引活跃小子集</td>
+<td>Partial Index</td>
+</tr>
+<tr>
+<td>按计算结果查找</td>
+<td>Expression Index</td>
+</tr>
+</tbody></table>
+<h3 id="10-12-索引不是免费午餐"><a href="#10-12-索引不是免费午餐" class="headerlink" title="10.12 索引不是免费午餐"></a>10.12 索引不是免费午餐</h3><p>每增加一个索引，都可能增加：</p>
+<ul>
+<li>INSERT 的索引写入；</li>
+<li>DELETE 后的垃圾索引项；</li>
+<li>UPDATE 的索引维护；</li>
+<li>WAL 体积；</li>
+<li>autovacuum 清理成本；</li>
+<li>cache 占用；</li>
+<li>planner 枚举成本；</li>
+<li>备份与恢复体积。</li>
+</ul>
+<p>判断索引是否值得保留，要同时看：</p>
+<ul>
+<li>是否被使用；</li>
+<li>是否与其他索引高度重复；</li>
+<li>是否真正改善关键 SQL；</li>
+<li>表写入频率；</li>
+<li>索引大小；</li>
+<li>扫描返回行比例；</li>
+<li>业务峰值时延，而不是只看测试环境单次执行。</li>
+</ul>
+<hr>
+<h2 id="11-PostgreSQL-备份与恢复体系"><a href="#11-PostgreSQL-备份与恢复体系" class="headerlink" title="11. PostgreSQL 备份与恢复体系"></a>11. PostgreSQL 备份与恢复体系</h2><p>PostgreSQL 官方将备份路线概括为三大类：</p>
+<ol>
+<li>SQL dump；</li>
+<li>文件系统级物理备份；</li>
+<li>连续 WAL 归档与时间点恢复。</li>
+</ol>
+<p>在 PostgreSQL 18 中，还应把<strong>增量物理备份</strong>纳入整体设计。</p>
+<h3 id="11-1-先区分-HA、备份与容灾"><a href="#11-1-先区分-HA、备份与容灾" class="headerlink" title="11.1 先区分 HA、备份与容灾"></a>11.1 先区分 HA、备份与容灾</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">流复制：解决实例故障后的快速接管<br>备份：解决误删、逻辑破坏、历史恢复和长期留存<br>WAL 归档：解决连续恢复与 PITR<br>异地副本：解决机房或区域级灾难<br></code></pre></td></tr></table></figure>
+
+<p>复制不是备份：</p>
+<ul>
+<li>主库误删，删除会复制到备库；</li>
+<li>错误 DDL 会复制；</li>
+<li>勒索、凭据泄露或运维脚本可能同时影响主备；</li>
+<li>复制槽和 WAL 不能代替长期、隔离、不可变的备份副本。</li>
+</ul>
+<h3 id="11-2-备份路线对比"><a href="#11-2-备份路线对比" class="headerlink" title="11.2 备份路线对比"></a>11.2 备份路线对比</h3><table>
+<thead>
+<tr>
+<th>方式</th>
+<th>粒度</th>
+<th align="right">跨版本能力</th>
+<th align="right">是否支持 PITR</th>
+<th>主要优点</th>
+<th>主要限制</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>pg_dump</code> &#x2F; <code>pg_dumpall</code></td>
+<td>数据库、schema、表等逻辑对象</td>
+<td align="right">较好</td>
+<td align="right">否</td>
+<td>可选择对象，便于迁移和审计</td>
+<td>大库恢复较慢，不保留物理布局</td>
+</tr>
+<tr>
+<td>冷文件系统备份</td>
+<td>整个 cluster</td>
+<td align="right">通常要求兼容二进制格式</td>
+<td align="right">否或需配合 WAL</td>
+<td>简单直接</td>
+<td>一致性要求严格，不能只复制单表文件</td>
+</tr>
+<tr>
+<td>文件系统一致性快照</td>
+<td>整个 cluster</td>
+<td align="right">同上</td>
+<td align="right">配合 WAL 可支持</td>
+<td>快照速度快</td>
+<td>必须保证所有相关卷在同一一致点</td>
+</tr>
+<tr>
+<td><code>pg_basebackup</code> 全量物理备份</td>
+<td>整个 cluster</td>
+<td align="right">同主版本物理兼容边界</td>
+<td align="right">配合 WAL 支持</td>
+<td>标准化、可在线执行、适合主备和 PITR</td>
+<td>不能选择单表恢复</td>
+</tr>
+<tr>
+<td>增量物理备份</td>
+<td>整个 cluster 的变化块</td>
+<td align="right">物理兼容边界</td>
+<td align="right">配合 WAL 支持</td>
+<td>降低传输和备份量</td>
+<td>恢复前需组合依赖链，必须保留 manifest 与 WAL</td>
+</tr>
+<tr>
+<td>WAL Archive</td>
+<td>连续日志</td>
+<td align="right">依赖物理基线</td>
+<td align="right">是</td>
+<td>可恢复到指定时间或 LSN</td>
+<td>没有 base backup 无法独立恢复完整 cluster</td>
+</tr>
+</tbody></table>
+<h3 id="11-3-逻辑备份：pg-dump"><a href="#11-3-逻辑备份：pg-dump" class="headerlink" title="11.3 逻辑备份：pg_dump"></a>11.3 逻辑备份：pg_dump</h3><p>常见格式：</p>
+<ul>
+<li>plain SQL：直接生成 SQL 文本；</li>
+<li>custom：供 <code>pg_restore</code> 灵活选择和并行恢复；</li>
+<li>directory：适合并行 dump 和 restore；</li>
+<li>tar：归档格式之一。</li>
+</ul>
+<p>示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 自定义格式备份单个数据库</span><br>pg_dump \<br>  --format=custom \<br>  --file=appdb.dump \<br>  --dbname=appdb<br><br><span class="hljs-comment"># 查看归档内容</span><br>pg_restore --list appdb.dump<br><br><span class="hljs-comment"># 创建目标库后并行恢复</span><br>pg_restore \<br>  --<span class="hljs-built_in">jobs</span>=8 \<br>  --dbname=appdb_restore \<br>  appdb.dump<br></code></pre></td></tr></table></figure>
+
+<p>逻辑备份的关键特征：</p>
+<ul>
+<li><code>pg_dump</code> 使用一致性快照，不需要长时间锁住普通读写；</li>
+<li>只导出一个数据库时，集群级角色和表空间定义不一定包含在内；</li>
+<li>可用 <code>pg_dumpall --globals-only</code> 备份角色、表空间等全局对象；</li>
+<li>恢复顺序、扩展、所有者、权限和依赖需要验证；</li>
+<li>大库逻辑恢复往往受建表、COPY、索引创建、约束验证和 WAL 写入影响。</li>
+</ul>
+<p>逻辑备份非常适合：</p>
+<ul>
+<li>跨环境迁移；</li>
+<li>选择性恢复；</li>
+<li>版本升级辅助；</li>
+<li>schema 审计；</li>
+<li>小中型数据库日常备份。</li>
+</ul>
+<p>但它不能替代大型生产库的低 RTO 物理恢复方案。</p>
+<h3 id="11-4-文件系统级备份"><a href="#11-4-文件系统级备份" class="headerlink" title="11.4 文件系统级备份"></a>11.4 文件系统级备份</h3><p>直接复制 <code>PGDATA</code> 时必须获得一致性视图。简单地在数据库运行期间递归复制文件，可能复制到：</p>
+<ul>
+<li>不同时间点的数据页；</li>
+<li>与控制文件不匹配的状态；</li>
+<li>不完整 WAL；</li>
+<li>表空间缺失；</li>
+<li>正在变更或删除的 relation segment。</li>
+</ul>
+<p>安全路线通常是：</p>
+<ul>
+<li>停库后冷复制；</li>
+<li>使用数据库支持的在线 base backup；</li>
+<li>使用能够对全部相关卷做原子一致快照的存储快照，并结合 WAL；</li>
+<li>确保 <code>PGDATA</code>、外部 tablespace 和所需 WAL 都纳入一致性设计。</li>
+</ul>
+<p>不能通过复制某张表对应的几个 relfilenode 文件来恢复单表，因为数据库目录、事务状态、TOAST、索引、FSM&#x2F;VM、WAL 与 catalog 元数据必须协调一致。</p>
+<h3 id="11-5-全量物理备份：pg-basebackup"><a href="#11-5-全量物理备份：pg-basebackup" class="headerlink" title="11.5 全量物理备份：pg_basebackup"></a>11.5 全量物理备份：pg_basebackup</h3><p><code>pg_basebackup</code> 通过复制协议从运行中的 PostgreSQL 取得整个 cluster 的物理基线。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs bash">pg_basebackup \<br>  --host=primary-db \<br>  --username=replicator \<br>  --pgdata=/backup/base/2026-07-28 \<br>  --format=plain \<br>  --wal-method=stream \<br>  --checkpoint=fast \<br>  --progress \<br>  --write-recovery-conf<br></code></pre></td></tr></table></figure>
+
+<p>需要理解几个点：</p>
+<ul>
+<li>它备份整个 cluster，而不是单个 database；</li>
+<li>需要复制权限和合适的 <code>pg_hba.conf</code>；</li>
+<li>WAL 必须足以覆盖备份起止区间；</li>
+<li><code>--wal-method=stream</code> 会并行流式接收所需 WAL；</li>
+<li><code>--write-recovery-conf</code> 可生成连接上游所需配置并创建 standby signal；</li>
+<li><code>--checkpoint=fast</code> 会加速开始备份，但可能带来瞬时 I&#x2F;O 压力；</li>
+<li>恢复前必须核验备份 manifest 和实际可启动性。</li>
+</ul>
+<h3 id="11-6-增量物理备份"><a href="#11-6-增量物理备份" class="headerlink" title="11.6 增量物理备份"></a>11.6 增量物理备份</h3><p>PostgreSQL 的增量物理备份以先前备份的 manifest 为基准，只传输自该基线后发生变化的 block，并依赖 WAL summary 判断变化范围。</p>
+<p>概念流程：</p>
+<pre><code class=" mermaid">flowchart LR
+    FULL[Full Base Backup&lt;br/&gt;Manifest F0]
+    INC1[Incremental Backup 1&lt;br/&gt;参考 F0]
+    INC2[Incremental Backup 2&lt;br/&gt;参考 I1 Manifest]
+    COMBINE[pg_combinebackup]
+    READY[可恢复的合成全量目录]
+    WAL[恢复所需 WAL]
+
+    FULL --&gt; INC1 --&gt; INC2
+    FULL --&gt; COMBINE
+    INC1 --&gt; COMBINE
+    INC2 --&gt; COMBINE
+    COMBINE --&gt; READY
+    WAL --&gt; READY
+</code></pre>
+
+<p>示例思路：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 先有全量备份及其 backup_manifest</span><br>pg_basebackup \<br>  --pgdata=/backup/full-001 \<br>  --format=plain \<br>  --wal-method=stream<br><br><span class="hljs-comment"># 以后以先前 manifest 为基准执行增量备份</span><br>pg_basebackup \<br>  --pgdata=/backup/inc-002 \<br>  --incremental=/backup/full-001/backup_manifest \<br>  --format=plain \<br>  --wal-method=stream<br><br><span class="hljs-comment"># 恢复前将全量与增量链组合为完整备份</span><br>pg_combinebackup \<br>  --output=/restore/combined \<br>  /backup/full-001 \<br>  /backup/inc-002<br></code></pre></td></tr></table></figure>
+
+<p>实际命令应按部署版本和备份链设计校验。关键不是“增量文件存在”，而是：</p>
+<ul>
+<li>依赖链所有备份均可用；</li>
+<li>manifest 完整；</li>
+<li>所需 WAL 可用；</li>
+<li><code>pg_combinebackup</code> 能成功生成完整恢复目录；</li>
+<li>组合后的目录经过 <code>pg_verifybackup</code> 和启动恢复演练。</li>
+</ul>
+<p>增量备份降低了备份窗口和传输量，但会增加恢复链管理复杂度。链过长会放大恢复失败面，通常需要周期性重新做全量基线。</p>
+<h3 id="11-7-WAL-Archive-与-PITR"><a href="#11-7-WAL-Archive-与-PITR" class="headerlink" title="11.7 WAL Archive 与 PITR"></a>11.7 WAL Archive 与 PITR</h3><p>PITR，即 Point-in-Time Recovery，需要：</p>
+<ul>
+<li>一个物理 base backup；</li>
+<li>从 base backup 开始直到目标位置的连续 WAL；</li>
+<li>restore&#x2F;recovery 配置；</li>
+<li>明确的 target time、target LSN、target name 或 target XID。</li>
+</ul>
+<pre><code class=" mermaid">flowchart LR
+    BASE[Base Backup&lt;br/&gt;T0]
+    W1[WAL T0-T1]
+    W2[WAL T1-T2]
+    W3[WAL T2-T3]
+    TARGET[目标时间&lt;br/&gt;T2 + 30s]
+    RECOVERY[Restore + Replay]
+    DB[恢复后的独立实例]
+
+    BASE --&gt; RECOVERY
+    W1 --&gt; RECOVERY
+    W2 --&gt; RECOVERY
+    W3 --&gt; RECOVERY
+    TARGET --&gt; RECOVERY
+    RECOVERY --&gt; DB
+</code></pre>
+
+<p>归档配置概念示例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs conf">archive_mode = on<br>archive_command = &#x27;your-idempotent-archive-command %p %f&#x27;<br></code></pre></td></tr></table></figure>
+
+<p><code>archive_command</code> 必须做到：</p>
+<ul>
+<li>成功后才返回 0；</li>
+<li>可重复执行；</li>
+<li>不静默覆盖错误文件；</li>
+<li>校验目标文件；</li>
+<li>对网络或对象存储失败可重试；</li>
+<li>有监控和积压告警。</li>
+</ul>
+<p>恢复配置概念示例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs conf">restore_command = &#x27;your-restore-command %f %p&#x27;<br>recovery_target_time = &#x27;2026-07-28 10:15:30+08&#x27;<br>recovery_target_action = &#x27;promote&#x27;<br></code></pre></td></tr></table></figure>
+
+<p>然后在数据目录创建：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">recovery.signal<br></code></pre></td></tr></table></figure>
+
+<p>启动后，Startup Process 会从 base backup 的一致点开始拉取并回放 WAL，达到目标后停止或提升为可写主库。</p>
+<h3 id="11-8-Timeline"><a href="#11-8-Timeline" class="headerlink" title="11.8 Timeline"></a>11.8 Timeline</h3><p>当一个历史恢复实例被 promote 后，会产生新 timeline。它表示 WAL 历史在某个位置发生分叉：</p>
+<pre><code class=" mermaid">flowchart LR
+    T1A[Timeline 1] --&gt; P[Promote Point]
+    P --&gt; T1B[原 Timeline 1 后续]
+    P --&gt; T2[新 Timeline 2]
+</code></pre>
+
+<p>Timeline 允许保留旧历史，同时在恢复分叉后生成新 WAL 序列。PITR 系统必须保存 <code>.history</code> 文件并正确选择目标 timeline，否则可能沿错误历史恢复。</p>
+<h3 id="11-9-RPO-与-RTO-设计"><a href="#11-9-RPO-与-RTO-设计" class="headerlink" title="11.9 RPO 与 RTO 设计"></a>11.9 RPO 与 RTO 设计</h3><ul>
+<li><strong>RPO</strong>：最多能接受丢失多少数据；</li>
+<li><strong>RTO</strong>：从故障到恢复服务最多能接受多久。</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>目标</th>
+<th>典型设计倾向</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>RPO 为天级</td>
+<td>每日逻辑备份可能足够，但仍需验证恢复时间</td>
+</tr>
+<tr>
+<td>RPO 为小时级</td>
+<td>更高频备份或物理基线 + WAL 归档</td>
+</tr>
+<tr>
+<td>RPO 接近零</td>
+<td>同步复制、可靠 WAL 归档、故障切换与备份结合</td>
+</tr>
+<tr>
+<td>RTO 很短</td>
+<td>热备、自动化切换、预热、容量冗余</td>
+</tr>
+<tr>
+<td>需要恢复误删前一分钟</td>
+<td>PITR，恢复到隔离实例后提取正确数据</td>
+</tr>
+<tr>
+<td>需要恢复单表</td>
+<td>逻辑备份，或先做 cluster PITR 到旁路实例再导出单表</td>
+</tr>
+</tbody></table>
+<h3 id="11-10-一套可信备份必须回答的问题"><a href="#11-10-一套可信备份必须回答的问题" class="headerlink" title="11.10 一套可信备份必须回答的问题"></a>11.10 一套可信备份必须回答的问题</h3><p>备份方案至少应回答：</p>
+<ol>
+<li>备份了哪些 cluster、数据库、角色、表空间和扩展？</li>
+<li>base backup 与 WAL 是否形成连续链？</li>
+<li>备份是否加密、异地、隔离并具备不可变性？</li>
+<li>保留策略是否覆盖业务审计周期？</li>
+<li>谁能删除备份？是否与生产管理员权限隔离？</li>
+<li>最近一次 <code>pg_verifybackup</code> 何时成功？</li>
+<li>最近一次真实恢复演练何时完成？</li>
+<li>实测 RTO 和理论 RTO 差多少？</li>
+<li>恢复后的应用密钥、DNS、连接串和权限如何切换？</li>
+<li>备份系统自身故障时如何告警？</li>
+</ol>
+<blockquote>
+<p>没有做过恢复演练的备份，只能叫“希望”。数据库不会被希望恢复，最多被 runbook 恢复。</p>
+</blockquote>
+<hr>
+<h2 id="12-把所有模块串起来：读路径与写路径"><a href="#12-把所有模块串起来：读路径与写路径" class="headerlink" title="12. 把所有模块串起来：读路径与写路径"></a>12. 把所有模块串起来：读路径与写路径</h2><h3 id="12-1-SELECT-读路径"><a href="#12-1-SELECT-读路径" class="headerlink" title="12.1 SELECT 读路径"></a>12.1 SELECT 读路径</h3><pre><code class=" mermaid">flowchart TB
+    C[Client SELECT]
+    B[Backend]
+    Q[Parse / Rewrite / Plan]
+    E[Executor]
+    IM&#123;访问方式&#125;
+    SEQ[Seq Scan]
+    IDX[Index Scan / Bitmap Scan]
+    BUF&#123;Shared Buffers 命中?&#125;
+    DISK[读取 Data / Index Page]
+    SNAP[MVCC Snapshot Visibility]
+    FILTER[Filter / Join / Aggregate / Sort]
+    RESULT[返回结果]
+
+    C --&gt; B --&gt; Q --&gt; E --&gt; IM
+    IM --&gt; SEQ --&gt; BUF
+    IM --&gt; IDX --&gt; BUF
+    BUF --&gt;|是| SNAP
+    BUF --&gt;|否| DISK --&gt; BUF
+    SNAP --&gt; FILTER --&gt; RESULT
+</code></pre>
+
+<p>读路径的性能瓶颈可能出现在完全不同的层：</p>
+<ul>
+<li>连接排队；</li>
+<li>parse&#x2F;plan 频率过高；</li>
+<li>统计信息错误导致计划错误；</li>
+<li>索引选择性低；</li>
+<li>Shared Buffers 和 OS Cache 未命中；</li>
+<li>heap 回表随机 I&#x2F;O；</li>
+<li>MVCC dead tuple 过多；</li>
+<li>Hash 或 Sort 溢写临时文件；</li>
+<li>并行度不足或并行启动成本过高；</li>
+<li>客户端取数或网络成为瓶颈。</li>
+</ul>
+<p>因此“SQL 慢”不等于“一定缺索引”。</p>
+<h3 id="12-2-INSERT-写路径"><a href="#12-2-INSERT-写路径" class="headerlink" title="12.2 INSERT 写路径"></a>12.2 INSERT 写路径</h3><pre><code class=" mermaid">flowchart TB
+    INS[INSERT]
+    XID[取得事务上下文 / XID]
+    FSM[从 FSM 找候选页面]
+    BUF[将 Heap Page 放入 Shared Buffers]
+    TUP[构造 Heap Tuple&lt;br/&gt;xmin、null bitmap、用户数据]
+    IDX[维护每个相关索引]
+    WAL[生成 Heap 和 Index WAL]
+    DIRTY[页面标记为 Dirty]
+    COMMIT[写 Commit WAL 并 Flush]
+    ACK[向客户端确认]
+    LATER[Checkpoint / Writer 稍后写数据页]
+
+    INS --&gt; XID --&gt; FSM --&gt; BUF --&gt; TUP --&gt; IDX --&gt; WAL --&gt; DIRTY --&gt; COMMIT --&gt; ACK
+    DIRTY --&gt; LATER
+</code></pre>
+
+<p>写入放大的来源包括：</p>
+<ul>
+<li>heap page；</li>
+<li>每个二级索引；</li>
+<li>WAL；</li>
+<li>full-page image；</li>
+<li>TOAST 表及其索引；</li>
+<li>replica 传输；</li>
+<li>archive；</li>
+<li>备份存储；</li>
+<li>后续 VACUUM 和 ANALYZE。</li>
+</ul>
+<p>所以一行 1KB 数据的业务写入，最终产生的系统 I&#x2F;O 可能远大于 1KB。</p>
+<h3 id="12-3-UPDATE-写路径"><a href="#12-3-UPDATE-写路径" class="headerlink" title="12.3 UPDATE 写路径"></a>12.3 UPDATE 写路径</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">定位旧元组<br>  -&gt; 获取行级锁<br>  -&gt; 判断并发更新状态<br>  -&gt; 构造新元组版本<br>  -&gt; 若满足条件则尝试 HOT<br>  -&gt; 否则维护所有受影响索引<br>  -&gt; 标记旧版本 xmax / ctid<br>  -&gt; 写 WAL<br>  -&gt; 脏页留在 Shared Buffers<br>  -&gt; COMMIT 刷 WAL<br>  -&gt; 未来 VACUUM 回收旧版本<br></code></pre></td></tr></table></figure>
+
+<p>UPDATE 性能与以下设计高度相关：</p>
+<ul>
+<li>是否更新索引列；</li>
+<li>索引数量；</li>
+<li>行宽；</li>
+<li>page fillfactor；</li>
+<li>是否有大 TOAST 字段；</li>
+<li>热点行竞争；</li>
+<li>外键检查；</li>
+<li>触发器；</li>
+<li>复制与归档能力；</li>
+<li>autovacuum 是否跟得上。</li>
+</ul>
+<h3 id="12-4-DELETE-写路径"><a href="#12-4-DELETE-写路径" class="headerlink" title="12.4 DELETE 写路径"></a>12.4 DELETE 写路径</h3><p>DELETE 主要标记旧元组的删除事务，并维护必要的锁和 WAL。空间回收发生在以后：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">DELETE 提交<br>  ≠ 元组立即从文件消失<br>  ≠ 文件立即缩小<br>  = 新快照不再看到该版本<br>  + 等待旧快照结束<br>  + VACUUM 回收空间<br></code></pre></td></tr></table></figure>
+
+<h3 id="12-5-COMMIT-为什么可以很快"><a href="#12-5-COMMIT-为什么可以很快" class="headerlink" title="12.5 COMMIT 为什么可以很快"></a>12.5 COMMIT 为什么可以很快</h3><p>在正常持久性配置下，COMMIT 的关键路径通常是顺序追加 WAL 并 flush，而不是把本事务改过的所有表页、索引页随机写回。</p>
+<p>这是一种经典转换：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">大量随机数据页同步写<br>  -&gt; 顺序 WAL 同步写<br>  + 后台批量数据页写回<br></code></pre></td></tr></table></figure>
+
+<p>WAL、Shared Buffers、Checkpoint 和 MVCC 共同构成了这个转换，而不是某一个参数单独完成。</p>
+<hr>
+<h2 id="13-PostgreSQL-核心内部数据结构地图"><a href="#13-PostgreSQL-核心内部数据结构地图" class="headerlink" title="13. PostgreSQL 核心内部数据结构地图"></a>13. PostgreSQL 核心内部数据结构地图</h2><p>下面列出的名称用于理解内核，不承诺跨版本源码字段完全不变。</p>
+<h3 id="13-1-查询处理数据结构"><a href="#13-1-查询处理数据结构" class="headerlink" title="13.1 查询处理数据结构"></a>13.1 查询处理数据结构</h3><table>
+<thead>
+<tr>
+<th>数据结构或概念</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Raw Parse Tree</td>
+<td>由 SQL 语法解析得到，尚未完全绑定数据库对象</td>
+</tr>
+<tr>
+<td>Query Tree</td>
+<td>完成语义分析和对象绑定后的查询表示</td>
+</tr>
+<tr>
+<td>RangeTblEntry</td>
+<td>表、子查询、函数、JOIN 等 FROM 项的描述</td>
+</tr>
+<tr>
+<td>RelOptInfo</td>
+<td>优化器对一个 base relation 或 join relation 的内部表示</td>
+</tr>
+<tr>
+<td>Path</td>
+<td>一种可能的访问或连接路线，带成本和行数估计</td>
+</tr>
+<tr>
+<td>Plan</td>
+<td>被选中的可执行计划节点树</td>
+</tr>
+<tr>
+<td>PlanState</td>
+<td>Executor 运行时状态</td>
+</tr>
+<tr>
+<td>TupleTableSlot</td>
+<td>Executor 节点之间传递元组的抽象容器</td>
+</tr>
+<tr>
+<td>ExprState</td>
+<td>已初始化表达式的执行状态</td>
+</tr>
+<tr>
+<td>EState</td>
+<td>整个查询执行器的全局运行上下文</td>
+</tr>
+</tbody></table>
+<pre><code class=" mermaid">flowchart LR
+    SQL[SQL Text]
+    RAW[Raw Parse Tree]
+    QUERY[Query Tree]
+    REL[RelOptInfo]
+    PATHS[Paths]
+    PLAN[Plan Tree]
+    STATE[PlanState Tree]
+    SLOT[TupleTableSlot]
+
+    SQL --&gt; RAW --&gt; QUERY --&gt; REL --&gt; PATHS --&gt; PLAN --&gt; STATE --&gt; SLOT
+</code></pre>
+
+<h3 id="13-2-进程与事务数据结构"><a href="#13-2-进程与事务数据结构" class="headerlink" title="13.2 进程与事务数据结构"></a>13.2 进程与事务数据结构</h3><table>
+<thead>
+<tr>
+<th>数据结构或概念</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>PGPROC</code></td>
+<td>一个 Backend 或辅助进程在共享内存中的进程状态</td>
+</tr>
+<tr>
+<td><code>PGXACT</code> &#x2F; 相关事务数组信息</td>
+<td>进程的事务 ID、xmin 等并发可见性信息</td>
+</tr>
+<tr>
+<td>ProcArray</td>
+<td>收集活跃事务信息，支持快照和 global xmin 计算</td>
+</tr>
+<tr>
+<td><code>TransactionId</code></td>
+<td>普通事务 ID</td>
+</tr>
+<tr>
+<td><code>SubTransactionId</code></td>
+<td>子事务标识</td>
+</tr>
+<tr>
+<td><code>MultiXactId</code></td>
+<td>多个事务共同持有某行锁时的组合标识</td>
+</tr>
+<tr>
+<td><code>SnapshotData</code></td>
+<td>快照边界与活跃事务集合</td>
+</tr>
+<tr>
+<td>Transaction Status</td>
+<td><code>pg_xact</code> 中提交、回滚、进行中等状态</td>
+</tr>
+<tr>
+<td>Two-phase State</td>
+<td>prepared transaction 的持久状态</td>
+</tr>
+</tbody></table>
+<h3 id="13-3-锁与同步结构"><a href="#13-3-锁与同步结构" class="headerlink" title="13.3 锁与同步结构"></a>13.3 锁与同步结构</h3><table>
+<thead>
+<tr>
+<th>结构</th>
+<th>层级与用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Lock Method &#x2F; LOCK &#x2F; PROCLOCK</td>
+<td>Heavyweight lock 表与持有者关系</td>
+</tr>
+<tr>
+<td>Wait Queue</td>
+<td>锁等待队列</td>
+</tr>
+<tr>
+<td>LWLock</td>
+<td>共享内存内部结构的轻量同步</td>
+</tr>
+<tr>
+<td>Spinlock</td>
+<td>极短临界区的忙等锁</td>
+</tr>
+<tr>
+<td>Latch</td>
+<td>进程等待事件并被其他进程唤醒</td>
+</tr>
+<tr>
+<td>Predicate Lock</td>
+<td>Serializable SSI 的读依赖跟踪</td>
+</tr>
+<tr>
+<td>Fast-path Lock</td>
+<td>某些常见 relation lock 的快速路径</td>
+</tr>
+</tbody></table>
+<h3 id="13-4-缓冲与存储结构"><a href="#13-4-缓冲与存储结构" class="headerlink" title="13.4 缓冲与存储结构"></a>13.4 缓冲与存储结构</h3><table>
+<thead>
+<tr>
+<th>数据结构或概念</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Relation</td>
+<td>已打开关系的缓存描述，包括 catalog、AM、锁等信息</td>
+</tr>
+<tr>
+<td>RelFileLocator</td>
+<td>物理关系文件定位信息</td>
+</tr>
+<tr>
+<td>ForkNumber</td>
+<td>main、fsm、vm、init 等 fork</td>
+</tr>
+<tr>
+<td>BlockNumber</td>
+<td>relation fork 内的页面编号</td>
+</tr>
+<tr>
+<td>BufferTag</td>
+<td>Shared Buffers 中页面的完整键</td>
+</tr>
+<tr>
+<td>BufferDesc</td>
+<td>缓冲区元数据、状态、引用计数和 usage count</td>
+</tr>
+<tr>
+<td>PageHeaderData</td>
+<td>页面头部</td>
+</tr>
+<tr>
+<td>ItemIdData</td>
+<td>line pointer</td>
+</tr>
+<tr>
+<td>HeapTupleHeaderData</td>
+<td>heap tuple 的 MVCC 和布局头部</td>
+</tr>
+<tr>
+<td>ItemPointerData &#x2F; TID</td>
+<td>block number + offset number</td>
+</tr>
+<tr>
+<td>SMgrRelation</td>
+<td>Storage Manager 对关系文件的抽象</td>
+</tr>
+<tr>
+<td>FSM</td>
+<td>页面可用空间索引</td>
+</tr>
+<tr>
+<td>VM</td>
+<td>all-visible &#x2F; all-frozen 位图</td>
+</tr>
+<tr>
+<td>TOAST Pointer</td>
+<td>外置变长值定位信息</td>
+</tr>
+</tbody></table>
+<h3 id="13-5-WAL-结构"><a href="#13-5-WAL-结构" class="headerlink" title="13.5 WAL 结构"></a>13.5 WAL 结构</h3><table>
+<thead>
+<tr>
+<th>结构</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>XLogRecPtr &#x2F; LSN</td>
+<td>WAL 流中的位置</td>
+</tr>
+<tr>
+<td>WAL Record Header</td>
+<td>总长度、前一记录位置、资源管理器、校验等元信息</td>
+</tr>
+<tr>
+<td>Resource Manager</td>
+<td>heap、btree、xact 等模块的 WAL redo 处理器</td>
+</tr>
+<tr>
+<td>WAL Buffer</td>
+<td>共享内存中的 WAL 暂存区域</td>
+</tr>
+<tr>
+<td>WAL Segment</td>
+<td>磁盘上的固定大小 WAL 文件</td>
+</tr>
+<tr>
+<td>Timeline ID</td>
+<td>WAL 历史分支标识</td>
+</tr>
+<tr>
+<td>Replication Slot LSN</td>
+<td>消费者确认和必须保留 WAL 的边界</td>
+</tr>
+</tbody></table>
+<h3 id="13-6-索引相关结构"><a href="#13-6-索引相关结构" class="headerlink" title="13.6 索引相关结构"></a>13.6 索引相关结构</h3><table>
+<thead>
+<tr>
+<th>结构</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>IndexTuple</td>
+<td>普通索引项，包含索引键和 heap TID 等信息</td>
+</tr>
+<tr>
+<td>B-tree Metapage</td>
+<td>根页面与层级等元数据</td>
+</tr>
+<tr>
+<td>B-tree Internal Tuple</td>
+<td>分隔键和下层 block 指针</td>
+</tr>
+<tr>
+<td>B-tree Leaf Tuple</td>
+<td>索引键与 heap TID &#x2F; posting list</td>
+</tr>
+<tr>
+<td>GIN Entry</td>
+<td>token 或可检索元素</td>
+</tr>
+<tr>
+<td>GIN Posting List&#x2F;Tree</td>
+<td>token 对应的 TID 集合</td>
+</tr>
+<tr>
+<td>BRIN Revmap</td>
+<td>heap range 到 BRIN summary tuple 的映射</td>
+</tr>
+<tr>
+<td>BRIN Summary Tuple</td>
+<td>一个 block range 的 min&#x2F;max 等摘要</td>
+</tr>
+<tr>
+<td>TIDBitmap</td>
+<td>Bitmap Heap Scan 的内存位图，支持 exact&#x2F;lossy page</td>
+</tr>
+</tbody></table>
+<h3 id="13-7-统计信息结构"><a href="#13-7-统计信息结构" class="headerlink" title="13.7 统计信息结构"></a>13.7 统计信息结构</h3><p>优化器统计与运行统计是两套不同概念：</p>
+<ul>
+<li>planner statistics：用于估算查询，主要来自 ANALYZE；</li>
+<li>cumulative statistics：用于观察运行状态，例如 <code>pg_stat_*</code> 视图。</li>
+</ul>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">ANALYZE<br>  -&gt; 采样表数据<br>  -&gt; 更新 pg_statistic<br>  -&gt; Planner 估算基数和选择率<br><br>运行时事件<br>  -&gt; 累积统计系统<br>  -&gt; pg_stat_activity / pg_stat_io / pg_stat_user_tables ...<br>  -&gt; DBA 观察真实负载<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="14-常用诊断-SQL"><a href="#14-常用诊断-SQL" class="headerlink" title="14. 常用诊断 SQL"></a>14. 常用诊断 SQL</h2><h3 id="14-1-查看当前-Backend-与后台进程"><a href="#14-1-查看当前-Backend-与后台进程" class="headerlink" title="14.1 查看当前 Backend 与后台进程"></a>14.1 查看当前 Backend 与后台进程</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span><br>    pid,<br>    backend_type,<br>    usename,<br>    datname,<br>    application_name,<br>    client_addr,<br>    state,<br>    wait_event_type,<br>    wait_event,<br>    xact_start,<br>    query_start,<br>    <span class="hljs-keyword">left</span>(query, <span class="hljs-number">200</span>) <span class="hljs-keyword">AS</span> query<br><span class="hljs-keyword">FROM</span> pg_stat_activity<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> backend_type, query_start <span class="hljs-keyword">NULLS LAST</span>;<br></code></pre></td></tr></table></figure>
+
+<p>重点看：</p>
+<ul>
+<li>是否存在 <code>idle in transaction</code>；</li>
+<li>事务是否持续过久；</li>
+<li>当前等待 CPU、Lock、IO、Client 还是 IPC；</li>
+<li>是否出现大量短连接；</li>
+<li>Backend 数量是否明显高于实际活跃并发。</li>
+</ul>
+<h3 id="14-2-查找长事务"><a href="#14-2-查找长事务" class="headerlink" title="14.2 查找长事务"></a>14.2 查找长事务</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span><br>    pid,<br>    usename,<br>    datname,<br>    state,<br>    now() <span class="hljs-operator">-</span> xact_start <span class="hljs-keyword">AS</span> xact_age,<br>    now() <span class="hljs-operator">-</span> query_start <span class="hljs-keyword">AS</span> query_age,<br>    wait_event_type,<br>    wait_event,<br>    <span class="hljs-keyword">left</span>(query, <span class="hljs-number">300</span>) <span class="hljs-keyword">AS</span> query<br><span class="hljs-keyword">FROM</span> pg_stat_activity<br><span class="hljs-keyword">WHERE</span> xact_start <span class="hljs-keyword">IS</span> <span class="hljs-keyword">NOT NULL</span><br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> xact_start;<br></code></pre></td></tr></table></figure>
+
+<h3 id="14-3-查看阻塞链"><a href="#14-3-查看阻塞链" class="headerlink" title="14.3 查看阻塞链"></a>14.3 查看阻塞链</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span><br>    blocked.pid <span class="hljs-keyword">AS</span> blocked_pid,<br>    blocked.usename <span class="hljs-keyword">AS</span> blocked_user,<br>    blocking.pid <span class="hljs-keyword">AS</span> blocking_pid,<br>    blocking.usename <span class="hljs-keyword">AS</span> blocking_user,<br>    blocked.wait_event_type,<br>    blocked.wait_event,<br>    <span class="hljs-keyword">left</span>(blocked.query, <span class="hljs-number">200</span>) <span class="hljs-keyword">AS</span> blocked_query,<br>    <span class="hljs-keyword">left</span>(blocking.query, <span class="hljs-number">200</span>) <span class="hljs-keyword">AS</span> blocking_query<br><span class="hljs-keyword">FROM</span> pg_stat_activity <span class="hljs-keyword">AS</span> blocked<br><span class="hljs-keyword">CROSS</span> <span class="hljs-keyword">JOIN</span> <span class="hljs-keyword">LATERAL</span> <span class="hljs-built_in">unnest</span>(pg_blocking_pids(blocked.pid)) <span class="hljs-keyword">AS</span> p(blocking_pid)<br><span class="hljs-keyword">JOIN</span> pg_stat_activity <span class="hljs-keyword">AS</span> blocking<br>  <span class="hljs-keyword">ON</span> blocking.pid <span class="hljs-operator">=</span> p.blocking_pid<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> blocked.query_start;<br></code></pre></td></tr></table></figure>
+
+<h3 id="14-4-查看表级-VACUUM-与-dead-tuple"><a href="#14-4-查看表级-VACUUM-与-dead-tuple" class="headerlink" title="14.4 查看表级 VACUUM 与 dead tuple"></a>14.4 查看表级 VACUUM 与 dead tuple</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span><br>    schemaname,<br>    relname,<br>    n_live_tup,<br>    n_dead_tup,<br>    n_tup_ins,<br>    n_tup_upd,<br>    n_tup_del,<br>    n_tup_hot_upd,<br>    last_vacuum,<br>    last_autovacuum,<br>    last_analyze,<br>    last_autoanalyze,<br>    vacuum_count,<br>    autovacuum_count<br><span class="hljs-keyword">FROM</span> pg_stat_user_tables<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> n_dead_tup <span class="hljs-keyword">DESC</span>;<br></code></pre></td></tr></table></figure>
+
+<p>统计值是估计和累计观测，不应把 <code>n_dead_tup</code> 当作字节级精确测量。评估膨胀还需要结合 relation size、页面检查和业务写入模式。</p>
+<h3 id="14-5-查看表与索引大小"><a href="#14-5-查看表与索引大小" class="headerlink" title="14.5 查看表与索引大小"></a>14.5 查看表与索引大小</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span><br>    n.nspname <span class="hljs-keyword">AS</span> schema_name,<br>    c.relname,<br>    pg_size_pretty(pg_relation_size(c.oid)) <span class="hljs-keyword">AS</span> main_size,<br>    pg_size_pretty(pg_table_size(c.oid)) <span class="hljs-keyword">AS</span> table_total,<br>    pg_size_pretty(pg_indexes_size(c.oid)) <span class="hljs-keyword">AS</span> indexes_total,<br>    pg_size_pretty(pg_total_relation_size(c.oid)) <span class="hljs-keyword">AS</span> relation_total<br><span class="hljs-keyword">FROM</span> pg_class c<br><span class="hljs-keyword">JOIN</span> pg_namespace n <span class="hljs-keyword">ON</span> n.oid <span class="hljs-operator">=</span> c.relnamespace<br><span class="hljs-keyword">WHERE</span> c.relkind <span class="hljs-keyword">IN</span> (<span class="hljs-string">&#x27;r&#x27;</span>, <span class="hljs-string">&#x27;m&#x27;</span>, <span class="hljs-string">&#x27;p&#x27;</span>)<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> pg_total_relation_size(c.oid) <span class="hljs-keyword">DESC</span><br>LIMIT <span class="hljs-number">50</span>;<br></code></pre></td></tr></table></figure>
+
+<p>这些函数的口径不同：</p>
+<ul>
+<li><code>pg_relation_size</code>：指定 relation 的一个 fork，默认 main；</li>
+<li><code>pg_table_size</code>：表、TOAST、FSM、VM 等，不含普通索引；</li>
+<li><code>pg_indexes_size</code>：该表所有索引；</li>
+<li><code>pg_total_relation_size</code>：表相关总量。</li>
+</ul>
+<h3 id="14-6-查看索引使用情况"><a href="#14-6-查看索引使用情况" class="headerlink" title="14.6 查看索引使用情况"></a>14.6 查看索引使用情况</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span><br>    schemaname,<br>    relname <span class="hljs-keyword">AS</span> table_name,<br>    indexrelname <span class="hljs-keyword">AS</span> index_name,<br>    idx_scan,<br>    idx_tup_read,<br>    idx_tup_fetch,<br>    pg_size_pretty(pg_relation_size(indexrelid)) <span class="hljs-keyword">AS</span> index_size<br><span class="hljs-keyword">FROM</span> pg_stat_user_indexes<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> pg_relation_size(indexrelid) <span class="hljs-keyword">DESC</span>;<br></code></pre></td></tr></table></figure>
+
+<p><code>idx_scan = 0</code> 不一定可以立即删索引，因为：</p>
+<ul>
+<li>统计可能刚重置；</li>
+<li>索引用于约束；</li>
+<li>只在月末或故障场景使用；</li>
+<li>备库与主库负载不同；</li>
+<li>执行计划可能通过 bitmap 或其他路径计数；</li>
+<li>观察窗口可能不覆盖完整业务周期。</li>
+</ul>
+<h3 id="14-7-查看数据库-I-O"><a href="#14-7-查看数据库-I-O" class="headerlink" title="14.7 查看数据库 I&#x2F;O"></a>14.7 查看数据库 I&#x2F;O</h3><p>PostgreSQL 18 可通过 <code>pg_stat_io</code> 观察不同 backend type、object 和 context 的 I&#x2F;O 行为：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span><br>    backend_type,<br>    object,<br>    context,<br>    <span class="hljs-keyword">reads</span>,<br>    read_bytes,<br>    read_time,<br>    writes,<br>    write_bytes,<br>    write_time,<br>    writebacks,<br>    extends,<br>    fsyncs<br><span class="hljs-keyword">FROM</span> pg_stat_io<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> backend_type, object, context;<br></code></pre></td></tr></table></figure>
+
+<p>具体列会受版本和 <code>track_io_timing</code> 等配置影响。重点是区分：</p>
+<ul>
+<li>client backend 读取；</li>
+<li>vacuum I&#x2F;O；</li>
+<li>bulk read &#x2F; bulk write；</li>
+<li>normal context；</li>
+<li>checkpointer 和 background writer 的写回；</li>
+<li>relation 与 temp relation。</li>
+</ul>
+<h3 id="14-8-查看-WAL-产生量"><a href="#14-8-查看-WAL-产生量" class="headerlink" title="14.8 查看 WAL 产生量"></a>14.8 查看 WAL 产生量</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span><br>    wal_records,<br>    wal_fpi,<br>    pg_size_pretty(wal_bytes) <span class="hljs-keyword">AS</span> wal_bytes,<br>    wal_buffers_full,<br>    stats_reset<br><span class="hljs-keyword">FROM</span> pg_stat_wal;<br></code></pre></td></tr></table></figure>
+
+<p>若 <code>wal_fpi</code> 很高，需要结合：</p>
+<ul>
+<li>checkpoint 频率；</li>
+<li>full_page_writes；</li>
+<li>工作集页面修改分布；</li>
+<li>批量写入；</li>
+<li>relation rewrite；</li>
+<li>page compression 或存储层行为。</li>
+</ul>
+<h3 id="14-9-查看-Checkpoint"><a href="#14-9-查看-Checkpoint" class="headerlink" title="14.9 查看 Checkpoint"></a>14.9 查看 Checkpoint</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> pg_stat_checkpointer;<br></code></pre></td></tr></table></figure>
+
+<p>同时结合：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> pg_stat_bgwriter;<br></code></pre></td></tr></table></figure>
+
+<p>观察 checkpoint 次数、写页、同步耗时、前台 Backend 自己写 buffer 等指标。字段以实际 PostgreSQL 18 小版本为准。</p>
+<h3 id="14-10-查看复制槽对-WAL-的保留"><a href="#14-10-查看复制槽对-WAL-的保留" class="headerlink" title="14.10 查看复制槽对 WAL 的保留"></a>14.10 查看复制槽对 WAL 的保留</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span><br>    slot_name,<br>    slot_type,<br>    active,<br>    active_pid,<br>    restart_lsn,<br>    confirmed_flush_lsn,<br>    wal_status,<br>    safe_wal_size,<br>    xmin,<br>    catalog_xmin<br><span class="hljs-keyword">FROM</span> pg_replication_slots;<br></code></pre></td></tr></table></figure>
+
+<p>复制槽会保证消费者需要的 WAL 或行版本不被过早回收，但停滞的槽也可能导致：</p>
+<ul>
+<li><code>pg_wal</code> 持续增长；</li>
+<li>catalog tuple 无法清理；</li>
+<li>磁盘被写满。</li>
+</ul>
+<h3 id="14-11-看真实执行计划"><a href="#14-11-看真实执行计划" class="headerlink" title="14.11 看真实执行计划"></a>14.11 看真实执行计划</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs sql">EXPLAIN (<br>    ANALYZE,<br>    BUFFERS,<br>    WAL,<br>    VERBOSE,<br>    SETTINGS,<br>    SUMMARY<br>)<br><span class="hljs-keyword">SELECT</span> ...;<br></code></pre></td></tr></table></figure>
+
+<p>注意：<code>ANALYZE</code> 会真实执行 SQL。对 UPDATE、DELETE、INSERT 或可能锁表的语句，应在安全环境中执行，或放在显式事务中验证后回滚；即便回滚，查询造成的锁、WAL、序列变化或外部副作用仍需要评估。</p>
+<h3 id="14-12-观察查询计划时的阅读顺序"><a href="#14-12-观察查询计划时的阅读顺序" class="headerlink" title="14.12 观察查询计划时的阅读顺序"></a>14.12 观察查询计划时的阅读顺序</h3><p>推荐按以下顺序：</p>
+<ol>
+<li>从最深层、实际最先执行的节点开始；</li>
+<li>比较 estimated rows 与 actual rows；</li>
+<li>将 actual time 与 loops 结合；</li>
+<li>看过滤掉多少行；</li>
+<li>看 Shared hit&#x2F;read 和 temp I&#x2F;O；</li>
+<li>看 join 内侧是否被重复执行；</li>
+<li>看排序、Hash 是否分批或落盘；</li>
+<li>最后再判断索引与参数调整。</li>
+</ol>
+<p>不要只盯着最上方的总时间，也不要把“出现 Seq Scan”自动判为错误。小表、返回大比例数据、物理顺序读取和并行扫描时，Seq Scan 可能就是正确计划。</p>
+<hr>
+<h2 id="15-架构层面的生产实践"><a href="#15-架构层面的生产实践" class="headerlink" title="15. 架构层面的生产实践"></a>15. 架构层面的生产实践</h2><h3 id="15-1-连接管理"><a href="#15-1-连接管理" class="headerlink" title="15.1 连接管理"></a>15.1 连接管理</h3><p>建议：</p>
+<ul>
+<li>使用连接池限制活跃数据库连接；</li>
+<li>区分 API、任务、报表和管理连接池；</li>
+<li>为不同负载设置合理 statement timeout；</li>
+<li>限制 idle-in-transaction；</li>
+<li>避免每个请求创建新物理连接；</li>
+<li>不把 <code>max_connections</code> 当吞吐参数；</li>
+<li>观察 CPU 核数、活跃 Backend 和平均 runnable queue。</li>
+</ul>
+<h3 id="15-2-内存配置"><a href="#15-2-内存配置" class="headerlink" title="15.2 内存配置"></a>15.2 内存配置</h3><p>重点原则：</p>
+<ul>
+<li><code>shared_buffers</code> 只是数据库缓存，不是数据库全部内存；</li>
+<li><code>work_mem</code> 会被操作节点和并行 worker 放大；</li>
+<li><code>maintenance_work_mem</code> 影响 VACUUM、CREATE INDEX 等维护操作；</li>
+<li>autovacuum worker 有自己的内存配置边界；</li>
+<li>需要为 Backend 私有内存、OS Page Cache、WAL、扩展和监控代理留空间；</li>
+<li>以压力测试和峰值并发模型配置，不照抄固定百分比。</li>
+</ul>
+<h3 id="15-3-Checkpoint-与-WAL"><a href="#15-3-Checkpoint-与-WAL" class="headerlink" title="15.3 Checkpoint 与 WAL"></a>15.3 Checkpoint 与 WAL</h3><p>建议关注：</p>
+<ul>
+<li>checkpoint 是否过于频繁；</li>
+<li>checkpoint 写入是否平滑；</li>
+<li><code>max_wal_size</code> 是否导致被迫频繁 checkpoint；</li>
+<li>archive 是否持续成功；</li>
+<li>replication slot 是否导致 WAL 堆积；</li>
+<li>存储 flush 延迟；</li>
+<li>WAL 与数据文件是否争用同一受限设备；</li>
+<li>full-page image 比例。</li>
+</ul>
+<p>不要通过关闭 <code>fsync</code>、<code>full_page_writes</code> 等关键安全机制来“优化”生产数据库，除非明确接受数据库崩溃后不可恢复甚至物理损坏的风险。</p>
+<h3 id="15-4-Autovacuum"><a href="#15-4-Autovacuum" class="headerlink" title="15.4 Autovacuum"></a>15.4 Autovacuum</h3><p>建议：</p>
+<ul>
+<li>不要全局关闭 autovacuum；</li>
+<li>为高更新大表设置表级参数；</li>
+<li>监控 oldest xid、MultiXact、dead tuple、vacuum progress；</li>
+<li>处理长事务和复制槽，而不是只加 worker；</li>
+<li>定期 ANALYZE 偏斜明显的列；</li>
+<li>使用扩展统计描述多列相关性；</li>
+<li>把 vacuum 看作持续生产负载的一部分，而不是夜间补救任务。</li>
+</ul>
+<h3 id="15-5-表与索引设计"><a href="#15-5-表与索引设计" class="headerlink" title="15.5 表与索引设计"></a>15.5 表与索引设计</h3><p>建议：</p>
+<ul>
+<li>主键以业务稳定性和分布为优先，不迷信某一种 ID；</li>
+<li>控制不必要索引；</li>
+<li>高频 UPDATE 表避免把经常变化的列放入太多索引；</li>
+<li>对 append-only 大表考虑分区与 BRIN；</li>
+<li>对 JSONB 根据实际操作符选择 GIN operator class；</li>
+<li>使用 partial index 聚焦活跃子集；</li>
+<li>使用 INCLUDE 前计算索引体积和 HOT 损失；</li>
+<li>让查询条件数据类型与索引列类型一致；</li>
+<li>定期重审重复和长期无效索引。</li>
+</ul>
+<h3 id="15-6-备份"><a href="#15-6-备份" class="headerlink" title="15.6 备份"></a>15.6 备份</h3><p>建议至少具备：</p>
+<ul>
+<li>定期物理 base backup；</li>
+<li>连续 WAL archive；</li>
+<li>角色与全局对象备份；</li>
+<li>关键表额外逻辑备份；</li>
+<li>异地与不可变副本；</li>
+<li>自动校验；</li>
+<li>周期性恢复演练；</li>
+<li>记录实测 RPO&#x2F;RTO；</li>
+<li>恢复 runbook 与责任人。</li>
+</ul>
+<h3 id="15-7-PostgreSQL-18-异步-I-O"><a href="#15-7-PostgreSQL-18-异步-I-O" class="headerlink" title="15.7 PostgreSQL 18 异步 I&#x2F;O"></a>15.7 PostgreSQL 18 异步 I&#x2F;O</h3><p>PG18 的异步 I&#x2F;O 能降低某些场景下同步等待和提升并发 I&#x2F;O 能力，但它不是“打开后所有 SQL 自动变快”。评估时应关注：</p>
+<ul>
+<li>平台是否支持所选 I&#x2F;O method；</li>
+<li>worker 数量与存储并发能力；</li>
+<li>顺序扫描和预取行为；</li>
+<li>buffer hit ratio 与真实物理读取；</li>
+<li>CPU 是否成为新瓶颈；</li>
+<li>查询计划是否本来就错误；</li>
+<li>底层云盘或 SAN 的队列深度与限流。</li>
+</ul>
+<p>先修复错误计划和不合理数据访问，再评估 I&#x2F;O 并发，通常比盲目调高 worker 更有效。</p>
+<hr>
+<h2 id="16-常见误区"><a href="#16-常见误区" class="headerlink" title="16. 常见误区"></a>16. 常见误区</h2><h3 id="误区一：PostgreSQL-是多线程数据库"><a href="#误区一：PostgreSQL-是多线程数据库" class="headerlink" title="误区一：PostgreSQL 是多线程数据库"></a>误区一：PostgreSQL 是多线程数据库</h3><p>更准确：核心是多进程架构。并行 worker、后台 worker 和 PG18 I&#x2F;O worker 也主要表现为独立进程。</p>
+<h3 id="误区二：COMMIT-后数据页一定已写入表文件"><a href="#误区二：COMMIT-后数据页一定已写入表文件" class="headerlink" title="误区二：COMMIT 后数据页一定已写入表文件"></a>误区二：COMMIT 后数据页一定已写入表文件</h3><p>更准确：通常先保证 WAL 达到持久性边界，数据页可由后台稍后写入，崩溃后通过 WAL redo 恢复。</p>
+<h3 id="误区三：UPDATE-是原地覆盖"><a href="#误区三：UPDATE-是原地覆盖" class="headerlink" title="误区三：UPDATE 是原地覆盖"></a>误区三：UPDATE 是原地覆盖</h3><p>更准确：MVCC 下通常创建新版本并标记旧版本，之后由 VACUUM 回收。</p>
+<h3 id="误区四：VACUUM-会立即缩小表文件"><a href="#误区四：VACUUM-会立即缩小表文件" class="headerlink" title="误区四：VACUUM 会立即缩小表文件"></a>误区四：VACUUM 会立即缩小表文件</h3><p>更准确：普通 VACUUM 主要让空间可内部复用；重写型操作才更可能显著收缩文件。</p>
+<h3 id="误区五：有索引就一定快"><a href="#误区五：有索引就一定快" class="headerlink" title="误区五：有索引就一定快"></a>误区五：有索引就一定快</h3><p>更准确：若返回大量行、随机回表昂贵、统计错误或索引相关性低，Seq Scan 可能更优。</p>
+<h3 id="误区六：主键就是聚簇索引"><a href="#误区六：主键就是聚簇索引" class="headerlink" title="误区六：主键就是聚簇索引"></a>误区六：主键就是聚簇索引</h3><p>更准确：PostgreSQL heap table 不按主键永久组织。PRIMARY KEY 通常是唯一 B-tree + 约束。<code>CLUSTER</code> 也不是持续自动维护的聚簇存储。</p>
+<h3 id="误区七：复制等于备份"><a href="#误区七：复制等于备份" class="headerlink" title="误区七：复制等于备份"></a>误区七：复制等于备份</h3><p>更准确：复制会同步误操作。备份必须提供历史点、权限隔离、保留策略和恢复验证。</p>
+<h3 id="误区八：提高-max-connections-就能提高吞吐"><a href="#误区八：提高-max-connections-就能提高吞吐" class="headerlink" title="误区八：提高 max_connections 就能提高吞吐"></a>误区八：提高 max_connections 就能提高吞吐</h3><p>更准确：超过资源能力后，更多 Backend 只会增加内存、调度、锁和 I&#x2F;O 竞争。</p>
+<h3 id="误区九：shared-buffers-命中率越接近-100-越好"><a href="#误区九：shared-buffers-命中率越接近-100-越好" class="headerlink" title="误区九：shared_buffers 命中率越接近 100% 越好"></a>误区九：shared_buffers 命中率越接近 100% 越好</h3><p>更准确：命中率需要结合工作负载。大规模顺序扫描、数据仓库或 OS Cache 行为可能使单一命中率失去解释力。</p>
+<h3 id="误区十：只要-autovacuum-在运行就不会膨胀"><a href="#误区十：只要-autovacuum-在运行就不会膨胀" class="headerlink" title="误区十：只要 autovacuum 在运行就不会膨胀"></a>误区十：只要 autovacuum 在运行就不会膨胀</h3><p>更准确：长事务、复制槽、写入速度、索引结构、vacuum 配额和表级阈值都可能让清理跟不上。</p>
+<hr>
+<h2 id="17-最终心智模型"><a href="#17-最终心智模型" class="headerlink" title="17. 最终心智模型"></a>17. 最终心智模型</h2><p>把 PostgreSQL 压缩成一张图：</p>
+<pre><code class=" mermaid">flowchart TB
+    SQL[SQL]
+    PROC[Backend Process]
+    PLAN[Parser + Rewriter + Planner]
+    EXEC[Executor]
+    SNAP[MVCC Snapshot]
+    AM[Table / Index Access Method]
+    CACHE[Shared Buffers]
+    PAGE[Page + Tuple + TID]
+    WAL[WAL + LSN]
+    COMMIT[Commit]
+    BG[Checkpoint / Writer / Vacuum]
+    DISK[Data Files + pg_wal]
+    BACKUP[Base Backup + WAL Archive + PITR]
+
+    SQL --&gt; PROC --&gt; PLAN --&gt; EXEC
+    EXEC --&gt; SNAP --&gt; AM --&gt; CACHE --&gt; PAGE
+    EXEC --&gt; WAL --&gt; COMMIT
+    CACHE --&gt; BG --&gt; DISK
+    WAL --&gt; DISK
+    DISK --&gt; BACKUP
+    BG --&gt; SNAP
+</code></pre>
+
+<p>可以记成下面这段话：</p>
+<blockquote>
+<p>PostgreSQL 由 Postmaster 管理多个 Backend 和后台进程。每条 SQL 在 Backend 中经过解析、重写、优化和执行；Executor 通过表与索引访问方法取得页面和元组；Shared Buffers 缓存数据页，MVCC Snapshot 决定元组版本是否可见；写操作先生成 WAL，COMMIT 主要等待必要 WAL 持久化，脏页由后台逐步写入数据文件；UPDATE&#x2F;DELETE 产生的旧版本由 VACUUM 清理；索引保存搜索键到 heap TID 的映射；物理 base backup 与连续 WAL 共同提供崩溃恢复和时间点恢复能力。</p>
+</blockquote>
+<p>真正掌握 PostgreSQL，不是记住几十个参数，而是能回答四个问题：</p>
+<ol>
+<li><strong>这个查询为什么选择了当前执行计划？</strong></li>
+<li><strong>这个事务当前能看到哪个元组版本？</strong></li>
+<li><strong>这次提交依赖哪些 WAL 和页面状态？</strong></li>
+<li><strong>发生误删或崩溃后，准备从哪份基线和哪段 WAL 恢复？</strong></li>
+</ol>
+<p>能把这四个问题讲清楚，PostgreSQL 的核心架构就不再是零散名词，而是一套完整、可推演的系统。</p>
+<hr>
+<h2 id="18-官方资料"><a href="#18-官方资料" class="headerlink" title="18. 官方资料"></a>18. 官方资料</h2><p>本文主要依据 PostgreSQL 18 官方文档整理。建议继续阅读以下章节：</p>
+<ul>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/">PostgreSQL 18 Documentation</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/connect-estab.html">PostgreSQL Processes</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/query-path.html">The Path of a Query</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/planner-optimizer.html">Planner&#x2F;Optimizer</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/runtime-config-resource.html">Resource Consumption &#x2F; Memory</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/tableam.html">Table Access Method Interface Definition</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/indexam.html">Index Access Method Interface Definition</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/storage.html">Database Physical Storage</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/storage-page-layout.html">Database Page Layout</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/storage-toast.html">TOAST</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/storage-fsm.html">Free Space Map</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/storage-vm.html">Visibility Map</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/storage-hot.html">Heap-Only Tuples</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/mvcc.html">Concurrency Control</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/transaction-iso.html">Transaction Isolation</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/explicit-locking.html">Explicit Locking</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/wal-intro.html">Write-Ahead Logging</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/wal-configuration.html">WAL Configuration</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/btree.html">B-tree Implementation</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/indexes-types.html">Index Types</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/routine-vacuuming.html">Routine Vacuuming</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/backup.html">Backup and Restore</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/backup-dump.html">SQL Dump</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/backup-file.html">File System Level Backup</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/continuous-archiving.html">Continuous Archiving and PITR</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/app-pgbasebackup.html">pg_basebackup</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/backup-incremental-backup.html">Incremental Backup</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/monitoring.html">Monitoring Database Activity</a></li>
+</ul>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/" class="category-chain-item">数据库</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/PostgreSQL/" class="category-chain-item">PostgreSQL</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/PostgreSQL/" class="print-no-link">#PostgreSQL</a>
+      
+        <a href="/tags/%E5%A4%87%E4%BB%BD%E6%81%A2%E5%A4%8D/" class="print-no-link">#备份恢复</a>
+      
+        <a href="/tags/PGSQL/" class="print-no-link">#PGSQL</a>
+      
+        <a href="/tags/%E6%95%B0%E6%8D%AE%E5%BA%93%E6%9E%B6%E6%9E%84/" class="print-no-link">#数据库架构</a>
+      
+        <a href="/tags/MVCC/" class="print-no-link">#MVCC</a>
+      
+        <a href="/tags/WAL/" class="print-no-link">#WAL</a>
+      
+        <a href="/tags/%E7%B4%A2%E5%BC%95/" class="print-no-link">#索引</a>
+      
+        <a href="/tags/Mermaid/" class="print-no-link">#Mermaid</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>PostgreSQL 架构原理详解：进程、存储、MVCC、WAL、索引与备份恢复</div>
+      <div>https://allendericdalexander.github.io/2026/07/28/archtect/db/postgresql-architecture-deep-dive/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年7月28日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/07/28/java/java-testing-powermock-mockmvc-mockito-junit/" title="Java 测试体系实战：JUnit、Mockito、MockMvc 与 PowerMock">
+                        <span class="hidden-mobile">Java 测试体系实战：JUnit、Mockito、MockMvc 与 PowerMock</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
