@@ -1,0 +1,1365 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="在 Rocky Linux 10 上部署 GitLab Self-Managed 18.x，集成 OpenLDAP 用户目录，并通过 Apereo CAS 的 SAML IdP 能力实现单点登录，覆盖 HTTPS、用户自动关联、权限、安全、备份、升级与故障排查。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Rocky Linux 10 搭建 GitLab Self-Managed 并集成 OpenLDAP 与 CAS 单点登录">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/01/devops/linux/rocky/rocky-linux-10-gitlab-ldap-cas/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="在 Rocky Linux 10 上部署 GitLab Self-Managed 18.x，集成 OpenLDAP 用户目录，并通过 Apereo CAS 的 SAML IdP 能力实现单点登录，覆盖 HTTPS、用户自动关联、权限、安全、备份、升级与故障排查。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-01T05:20:00.000Z">
+<meta property="article:modified_time" content="2026-08-01T05:20:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="CAS">
+<meta property="article:tag" content="DevOps">
+<meta property="article:tag" content="GitLab">
+<meta property="article:tag" content="OpenLDAP">
+<meta property="article:tag" content="Rocky Linux 10">
+<meta property="article:tag" content="SAML">
+<meta property="article:tag" content="SSO">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Rocky Linux 10 搭建 GitLab Self-Managed 并集成 OpenLDAP 与 CAS 单点登录 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Rocky Linux 10 搭建 GitLab Self-Managed 并集成 OpenLDAP 与 CAS 单点登录"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-01 13:20" pubdate>
+          2026年8月1日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          3.6k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          31 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Rocky Linux 10 搭建 GitLab Self-Managed 并集成 OpenLDAP 与 CAS 单点登录</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>GitLab Self-Managed 是集代码仓库、Merge Request、CI&#x2F;CD、Package Registry、Container Registry、Issue、Wiki 和安全能力于一体的 DevSecOps 平台。企业部署 GitLab 后，通常希望复用现有 LDAP 目录和 CAS 单点登录，而不是再维护一套独立账号。</p>
+<p>推荐身份架构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">OpenLDAP：保存用户、组织、用户组和账号状态<br>Apereo CAS：使用 LDAP 验证用户，并作为 SAML 2.0 IdP 提供 SSO<br>GitLab：通过 LDAP 同步/认证用户，通过 SAML 接入 CAS 单点登录<br></code></pre></td></tr></table></figure>
+
+<p>这里有一个关键事实：</p>
+<blockquote>
+<p>GitLab 过去使用 <code>omniauth-cas3</code> 直接支持 CAS，但该 Provider 已在 GitLab 16.0 移除。现代 GitLab 不应再配置直接 CAS OmniAuth，而应让 CAS 暴露 SAML 2.0 或 OIDC，再使用 GitLab 官方支持的 SAML&#x2F;OIDC 集成。</p>
+</blockquote>
+<p>本文使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">GitLab Self-Managed 18.x<br>OpenLDAP LDAPS<br>Apereo CAS 7.3.x SAML IdP<br>Rocky Linux 10<br></code></pre></td></tr></table></figure>
+
+<span id="more"></span>
+
+<h2 id="一、整体架构"><a href="#一、整体架构" class="headerlink" title="一、整体架构"></a>一、整体架构</h2><table>
+<thead>
+<tr>
+<th>组件</th>
+<th>地址</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GitLab</td>
+<td><code>https://gitlab.example.com</code></td>
+<td>GitLab Self-Managed</td>
+</tr>
+<tr>
+<td>OpenLDAP</td>
+<td><code>ldaps://ldap.example.com:636</code></td>
+<td>用户目录</td>
+</tr>
+<tr>
+<td>CAS</td>
+<td><code>https://sso.example.com/cas</code></td>
+<td>认证中心与 SAML IdP</td>
+</tr>
+<tr>
+<td>GitLab Server</td>
+<td><code>192.168.9.30</code></td>
+<td>Rocky Linux 10</td>
+</tr>
+<tr>
+<td>LDAP Base DN</td>
+<td><code>dc=example,dc=com</code></td>
+<td>目录根节点</td>
+</tr>
+</tbody></table>
+<pre><code class=" mermaid">sequenceDiagram
+    participant U as 用户浏览器
+    participant G as GitLab
+    participant C as CAS SAML IdP
+    participant L as OpenLDAP
+
+    U-&gt;&gt;G: 访问 GitLab
+    G--&gt;&gt;U: 跳转 CAS SAML IdP
+    U-&gt;&gt;C: 登录
+    C-&gt;&gt;L: LDAP Bind 验证
+    L--&gt;&gt;C: 认证成功并返回属性
+    C--&gt;&gt;U: 返回 SAML Response
+    U-&gt;&gt;G: POST SAML Assertion
+    G-&gt;&gt;G: 按 NameID/邮箱关联 LDAP 用户
+    G--&gt;&gt;U: 建立 GitLab 会话
+</code></pre>
+
+<p>用户生命周期：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">LDAP 创建/禁用用户<br>-&gt; GitLab LDAP 同步或登录创建用户<br>-&gt; CAS 通过 SAML 登录并关联同一 GitLab 用户<br>-&gt; GitLab 组和项目决定权限<br></code></pre></td></tr></table></figure>
+
+<h2 id="二、资源规划"><a href="#二、资源规划" class="headerlink" title="二、资源规划"></a>二、资源规划</h2><h3 id="2-1-资源建议"><a href="#2-1-资源建议" class="headerlink" title="2.1 资源建议"></a>2.1 资源建议</h3><table>
+<thead>
+<tr>
+<th>用户&#x2F;规模</th>
+<th align="right">CPU</th>
+<th align="right">内存</th>
+<th align="right">数据盘</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>测试</td>
+<td align="right">4 核</td>
+<td align="right">8 GB</td>
+<td align="right">100 GB SSD</td>
+</tr>
+<tr>
+<td>小型团队</td>
+<td align="right">8 核</td>
+<td align="right">16 GB</td>
+<td align="right">500 GB SSD</td>
+</tr>
+<tr>
+<td>中型团队</td>
+<td align="right">16 核</td>
+<td align="right">32 GB</td>
+<td align="right">1 TB 以上 SSD</td>
+</tr>
+<tr>
+<td>大型环境</td>
+<td align="right">按官方 Reference Architecture</td>
+<td align="right">64 GB 以上</td>
+<td align="right">独立存储与多节点</td>
+</tr>
+</tbody></table>
+<p>GitLab 资源主要消耗于：</p>
+<ul>
+<li>Puma&#x2F;Rails；</li>
+<li>Sidekiq；</li>
+<li>Gitaly Git 操作；</li>
+<li>PostgreSQL；</li>
+<li>Redis；</li>
+<li>Repository、LFS、Artifacts、Packages；</li>
+<li>Container Registry；</li>
+<li>CI&#x2F;CD 并发和日志；</li>
+<li>备份与仓库打包。</li>
+</ul>
+<h3 id="2-2-端口"><a href="#2-2-端口" class="headerlink" title="2.2 端口"></a>2.2 端口</h3><table>
+<thead>
+<tr>
+<th align="right">端口</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">22</td>
+<td>Git SSH，建议与宿主机 SSH 区分</td>
+</tr>
+<tr>
+<td align="right">80</td>
+<td>HTTP 跳转 HTTPS</td>
+</tr>
+<tr>
+<td align="right">443</td>
+<td>GitLab Web、Git HTTPS、SAML 回调</td>
+</tr>
+<tr>
+<td align="right">636 出站</td>
+<td>LDAP</td>
+</tr>
+<tr>
+<td align="right">443 出站</td>
+<td>CAS SAML IdP</td>
+</tr>
+<tr>
+<td align="right">5050 可选</td>
+<td>GitLab Container Registry 独立端口</td>
+</tr>
+</tbody></table>
+<h2 id="三、Rocky-Linux-10-初始化"><a href="#三、Rocky-Linux-10-初始化" class="headerlink" title="三、Rocky Linux 10 初始化"></a>三、Rocky Linux 10 初始化</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/rocky-release<br><span class="hljs-built_in">uname</span> -r<br><span class="hljs-built_in">uname</span> -m<br>hostnamectl<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">hostnamectl set-hostname gitlab01.example.com<br>timedatectl set-timezone Asia/Shanghai<br>systemctl <span class="hljs-built_in">enable</span> --now chronyd<br>chronyc tracking<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs bash">dnf clean all<br>dnf makecache<br>dnf upgrade -y<br><br>dnf install -y \<br>  curl openssh-server openssh-clients \<br>  policycoreutils-python-utils postfix \<br>  firewalld vim jq bind-utils lsof<br></code></pre></td></tr></table></figure>
+
+<p>启动 SSH、Postfix 和防火墙：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl <span class="hljs-built_in">enable</span> --now sshd<br>systemctl <span class="hljs-built_in">enable</span> --now postfix<br>systemctl <span class="hljs-built_in">enable</span> --now firewalld<br></code></pre></td></tr></table></figure>
+
+<p>生产环境可将邮件改为企业 SMTP，而不是依赖本机 Postfix 直接投递。</p>
+<h2 id="四、安装-GitLab-Linux-Package"><a href="#四、安装-GitLab-Linux-Package" class="headerlink" title="四、安装 GitLab Linux Package"></a>四、安装 GitLab Linux Package</h2><h3 id="4-1-添加官方仓库"><a href="#4-1-添加官方仓库" class="headerlink" title="4.1 添加官方仓库"></a>4.1 添加官方仓库</h3><p>下载并检查仓库脚本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash">curl --location \<br>  <span class="hljs-string">&quot;https://packages.gitlab.com/install/repositories/gitlab/gitlab-ee/script.rpm.sh&quot;</span> \<br>  --output /tmp/gitlab-repo.sh<br><br>less /tmp/gitlab-repo.sh<br><span class="hljs-built_in">sudo</span> bash /tmp/gitlab-repo.sh<br></code></pre></td></tr></table></figure>
+
+<p>查看可用版本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">dnf list gitlab-ee --showduplicates \<br>  | <span class="hljs-built_in">sort</span> -Vr \<br>  | <span class="hljs-built_in">head</span> -20<br></code></pre></td></tr></table></figure>
+
+<p>生产环境应固定经过测试的 GitLab 18.x Patch 版本。GitLab EE 包在没有付费许可证时也可使用 Free Tier 能力；也可以安装 <code>gitlab-ce</code>。</p>
+<h3 id="4-2-安装"><a href="#4-2-安装" class="headerlink" title="4.2 安装"></a>4.2 安装</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> EXTERNAL_URL=<span class="hljs-string">&quot;https://gitlab.example.com&quot;</span> \<br>  dnf install -y gitlab-ee<br></code></pre></td></tr></table></figure>
+
+<p>安装完成后主要目录：</p>
+<table>
+<thead>
+<tr>
+<th>路径</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/etc/gitlab/gitlab.rb</code></td>
+<td>主配置</td>
+</tr>
+<tr>
+<td><code>/etc/gitlab/gitlab-secrets.json</code></td>
+<td>加密密钥</td>
+</tr>
+<tr>
+<td><code>/var/opt/gitlab</code></td>
+<td>数据目录</td>
+</tr>
+<tr>
+<td><code>/var/log/gitlab</code></td>
+<td>日志</td>
+</tr>
+<tr>
+<td><code>/opt/gitlab</code></td>
+<td>程序文件</td>
+</tr>
+</tbody></table>
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">gitlab-ctl status<br>gitlab-rake gitlab:<span class="hljs-built_in">env</span>:info<br></code></pre></td></tr></table></figure>
+
+<p>初始 Root 密码：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/gitlab/initial_root_password<br></code></pre></td></tr></table></figure>
+
+<p>该文件会自动过期清理。首次登录后立即修改密码并创建日常管理员。</p>
+<h2 id="五、配置-HTTPS"><a href="#五、配置-HTTPS" class="headerlink" title="五、配置 HTTPS"></a>五、配置 HTTPS</h2><h3 id="5-1-使用外部证书"><a href="#5-1-使用外部证书" class="headerlink" title="5.1 使用外部证书"></a>5.1 使用外部证书</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">mkdir</span> -p /etc/gitlab/ssl<br><span class="hljs-built_in">chmod</span> 0755 /etc/gitlab/ssl<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash">install -o root -g root -m 0644 \<br>  gitlab.example.com.fullchain.crt \<br>  /etc/gitlab/ssl/gitlab.example.com.crt<br><br>install -o root -g root -m 0600 \<br>  gitlab.example.com.key \<br>  /etc/gitlab/ssl/gitlab.example.com.key<br></code></pre></td></tr></table></figure>
+
+<p>编辑 <code>/etc/gitlab/gitlab.rb</code>：</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs ruby">external_url <span class="hljs-string">&#x27;https://gitlab.example.com&#x27;</span><br><br>nginx[<span class="hljs-string">&#x27;redirect_http_to_https&#x27;</span>] = <span class="hljs-literal">true</span><br>nginx[<span class="hljs-string">&#x27;ssl_certificate&#x27;</span>] = <span class="hljs-string">&#x27;/etc/gitlab/ssl/gitlab.example.com.crt&#x27;</span><br>nginx[<span class="hljs-string">&#x27;ssl_certificate_key&#x27;</span>] = <span class="hljs-string">&#x27;/etc/gitlab/ssl/gitlab.example.com.key&#x27;</span><br><br>nginx[<span class="hljs-string">&#x27;ssl_protocols&#x27;</span>] = <span class="hljs-string">&#x27;TLSv1.2 TLSv1.3&#x27;</span><br>nginx[<span class="hljs-string">&#x27;hsts_max_age&#x27;</span>] = <span class="hljs-number">31536000</span><br>nginx[<span class="hljs-string">&#x27;hsts_include_subdomains&#x27;</span>] = <span class="hljs-literal">false</span><br></code></pre></td></tr></table></figure>
+
+<p>应用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">gitlab-ctl reconfigure<br>gitlab-ctl restart<br></code></pre></td></tr></table></figure>
+
+<p>验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">curl -I https://gitlab.example.com/users/sign_in<br><br>gitlab-rake gitlab:check SANITIZE=<span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="5-2-防火墙"><a href="#5-2-防火墙" class="headerlink" title="5.2 防火墙"></a>5.2 防火墙</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">firewall-cmd --permanent --add-service=http<br>firewall-cmd --permanent --add-service=https<br>firewall-cmd --reload<br></code></pre></td></tr></table></figure>
+
+<p>Git SSH 如果使用 22，需要确保宿主机 SSH 不与 GitLab 冲突。推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">宿主机 SSH：2222，仅管理网<br>GitLab SSH：22<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">宿主机 SSH：22<br>GitLab SSH：2222<br></code></pre></td></tr></table></figure>
+
+<p>GitLab SSH 端口配置：</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ruby">gitlab_rails[<span class="hljs-string">&#x27;gitlab_shell_ssh_port&#x27;</span>] = <span class="hljs-number">2222</span><br></code></pre></td></tr></table></figure>
+
+<h2 id="六、准备-LDAP"><a href="#六、准备-LDAP" class="headerlink" title="六、准备 LDAP"></a>六、准备 LDAP</h2><p>LDAP 目录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">dc=example,dc=com<br>├── ou=people<br>├── ou=groups<br>│   ├── cn=gitlab-users<br>│   ├── cn=gitlab-admins<br>│   └── cn=gitlab-developers<br>└── ou=system<br>    └── cn=gitlab-reader<br></code></pre></td></tr></table></figure>
+
+<p>专用 Reader：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">cn=gitlab-reader,ou=system,dc=example,dc=com<br></code></pre></td></tr></table></figure>
+
+<p>Reader 只需搜索用户和组，不允许修改用户或读取 <code>userPassword</code>。</p>
+<p>测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs bash">ldapsearch \<br>  -x -LLL \<br>  -H ldaps://ldap.example.com:636 \<br>  -D <span class="hljs-string">&#x27;cn=gitlab-reader,ou=system,dc=example,dc=com&#x27;</span> \<br>  -W \<br>  -b <span class="hljs-string">&#x27;ou=people,dc=example,dc=com&#x27;</span> \<br>  <span class="hljs-string">&#x27;(&amp;(objectClass=inetOrgPerson)(uid=alice))&#x27;</span> \<br>  uid cn mail memberOf<br></code></pre></td></tr></table></figure>
+
+<h2 id="七、配置-GitLab-信任-LDAP-CA"><a href="#七、配置-GitLab-信任-LDAP-CA" class="headerlink" title="七、配置 GitLab 信任 LDAP CA"></a>七、配置 GitLab 信任 LDAP CA</h2><p>复制 CA 到 GitLab 信任目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">mkdir</span> -p /etc/gitlab/trusted-certs<br><br>install -o root -g root -m 0644 \<br>  company-root-ca.crt \<br>  /etc/gitlab/trusted-certs/company-root-ca.crt<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">gitlab-ctl reconfigure<br></code></pre></td></tr></table></figure>
+
+<p>GitLab Reconfigure 会更新内部信任链。</p>
+<p>验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">openssl s_client \<br>  -connect ldap.example.com:636 \<br>  -servername ldap.example.com \<br>  -CAfile /etc/gitlab/trusted-certs/company-root-ca.crt \<br>  -verify_return_error<br></code></pre></td></tr></table></figure>
+
+<p>不要配置 <code>verify_certificates: false</code> 长期绕过证书错误。</p>
+<h2 id="八、GitLab-集成-LDAP"><a href="#八、GitLab-集成-LDAP" class="headerlink" title="八、GitLab 集成 LDAP"></a>八、GitLab 集成 LDAP</h2><p>编辑 <code>/etc/gitlab/gitlab.rb</code>：</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><code class="hljs ruby">gitlab_rails[<span class="hljs-string">&#x27;ldap_enabled&#x27;</span>] = <span class="hljs-literal">true</span><br><br>gitlab_rails[<span class="hljs-string">&#x27;ldap_servers&#x27;</span>] = &#123;<br>  <span class="hljs-string">&#x27;main&#x27;</span> =&gt; &#123;<br>    <span class="hljs-string">&#x27;label&#x27;</span> =&gt; <span class="hljs-string">&#x27;Company LDAP&#x27;</span>,<br>    <span class="hljs-string">&#x27;host&#x27;</span> =&gt; <span class="hljs-string">&#x27;ldap.example.com&#x27;</span>,<br>    <span class="hljs-string">&#x27;port&#x27;</span> =&gt; <span class="hljs-number">636</span>,<br><br>    <span class="hljs-string">&#x27;uid&#x27;</span> =&gt; <span class="hljs-string">&#x27;uid&#x27;</span>,<br><br>    <span class="hljs-string">&#x27;bind_dn&#x27;</span> =&gt; <span class="hljs-string">&#x27;cn=gitlab-reader,ou=system,dc=example,dc=com&#x27;</span>,<br>    <span class="hljs-string">&#x27;password&#x27;</span> =&gt; <span class="hljs-string">&#x27;替换为LDAP Reader密码&#x27;</span>,<br><br>    <span class="hljs-string">&#x27;encryption&#x27;</span> =&gt; <span class="hljs-string">&#x27;simple_tls&#x27;</span>,<br>    <span class="hljs-string">&#x27;verify_certificates&#x27;</span> =&gt; <span class="hljs-literal">true</span>,<br><br>    <span class="hljs-string">&#x27;timeout&#x27;</span> =&gt; <span class="hljs-number">10</span>,<br>    <span class="hljs-string">&#x27;active_directory&#x27;</span> =&gt; <span class="hljs-literal">false</span>,<br><br>    <span class="hljs-string">&#x27;allow_username_or_email_login&#x27;</span> =&gt; <span class="hljs-literal">false</span>,<br>    <span class="hljs-string">&#x27;lowercase_usernames&#x27;</span> =&gt; <span class="hljs-literal">true</span>,<br>    <span class="hljs-string">&#x27;block_auto_created_users&#x27;</span> =&gt; <span class="hljs-literal">false</span>,<br><br>    <span class="hljs-string">&#x27;base&#x27;</span> =&gt; <span class="hljs-string">&#x27;ou=people,dc=example,dc=com&#x27;</span>,<br><br>    <span class="hljs-string">&#x27;user_filter&#x27;</span> =&gt; <span class="hljs-string">&#x27;(&amp;(objectClass=inetOrgPerson)(memberOf=cn=gitlab-users,ou=groups,dc=example,dc=com))&#x27;</span>,<br><br>    <span class="hljs-string">&#x27;attributes&#x27;</span> =&gt; &#123;<br>      <span class="hljs-string">&#x27;username&#x27;</span> =&gt; [<span class="hljs-string">&#x27;uid&#x27;</span>],<br>      <span class="hljs-string">&#x27;email&#x27;</span> =&gt; [<span class="hljs-string">&#x27;mail&#x27;</span>],<br>      <span class="hljs-string">&#x27;name&#x27;</span> =&gt; [<span class="hljs-string">&#x27;cn&#x27;</span>],<br>      <span class="hljs-string">&#x27;first_name&#x27;</span> =&gt; [<span class="hljs-string">&#x27;givenName&#x27;</span>],<br>      <span class="hljs-string">&#x27;last_name&#x27;</span> =&gt; [<span class="hljs-string">&#x27;sn&#x27;</span>]<br>    &#125;<br>  &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>保护配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">chown</span> root:root /etc/gitlab/gitlab.rb<br><span class="hljs-built_in">chmod</span> 0600 /etc/gitlab/gitlab.rb<br></code></pre></td></tr></table></figure>
+
+<p><code>gitlab.rb</code> 是 Ruby 代码，并由 Root 执行 <code>reconfigure</code>，不能让普通用户写入。</p>
+<p>应用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">gitlab-ctl reconfigure<br></code></pre></td></tr></table></figure>
+
+<p>检查 LDAP：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">gitlab-rake gitlab:ldap:check<br></code></pre></td></tr></table></figure>
+
+<p>输出会显示：</p>
+<ul>
+<li>LDAP 连接状态；</li>
+<li>用户样例；</li>
+<li>用户名和邮箱；</li>
+<li>是否能够搜索。</li>
+</ul>
+<h3 id="8-1-LDAP-登录策略"><a href="#8-1-LDAP-登录策略" class="headerlink" title="8.1 LDAP 登录策略"></a>8.1 LDAP 登录策略</h3><p>推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">uid：不可变用户名<br>mail：用户邮箱<br>cn：显示名称<br>memberOf：用户组过滤<br></code></pre></td></tr></table></figure>
+
+<p>不要允许邮箱和用户名混合登录，除非目录对两者唯一性有严格保证。</p>
+<h3 id="8-2-LDAP-用户禁用"><a href="#8-2-LDAP-用户禁用" class="headerlink" title="8.2 LDAP 用户禁用"></a>8.2 LDAP 用户禁用</h3><p>GitLab 会根据 LDAP 身份状态阻止或解除阻止用户，但具体同步行为取决于版本和登录&#x2F;同步任务。上线前必须测试：</p>
+<ol>
+<li>LDAP 用户正常；</li>
+<li>用户从 <code>gitlab-users</code> 移除；</li>
+<li>运行同步或重新登录；</li>
+<li>GitLab 用户被阻止；</li>
+<li>恢复组成员；</li>
+<li>用户恢复访问。</li>
+</ol>
+<h3 id="8-3-LDAP-组同步"><a href="#8-3-LDAP-组同步" class="headerlink" title="8.3 LDAP 组同步"></a>8.3 LDAP 组同步</h3><p>更高级的 LDAP Group Sync、角色映射等能力可能受 GitLab Tier 影响。基础 Free 环境可以：</p>
+<ul>
+<li>用 <code>user_filter</code> 控制是否允许登录；</li>
+<li>在 GitLab 中管理 Group&#x2F;Project Membership；</li>
+<li>通过 API 自动同步 LDAP 组到 GitLab 组；</li>
+<li>升级到支持原生 Group Sync 的 Tier。</li>
+</ul>
+<h2 id="九、为什么不直接配置-CAS-Provider"><a href="#九、为什么不直接配置-CAS-Provider" class="headerlink" title="九、为什么不直接配置 CAS Provider"></a>九、为什么不直接配置 CAS Provider</h2><p>旧文章可能存在：</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ruby"><span class="hljs-symbol">provider:</span> <span class="hljs-string">&#x27;cas3&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ruby">omniauth-cas3<br></code></pre></td></tr></table></figure>
+
+<p>该 Provider 已在 GitLab 16.0 移除。现代 GitLab 继续复制这些配置会出现：</p>
+<ul>
+<li>Provider 不存在；</li>
+<li>Bundle 缺少 Gem；</li>
+<li>Reconfigure 后登录按钮不出现；</li>
+<li>升级不可支持；</li>
+<li>自行修改 GitLab Bundle 导致后续升级失败。</li>
+</ul>
+<p>正确路线：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">CAS 使用 LDAP 认证<br>CAS 开启 SAML 2.0 IdP<br>GitLab 使用官方 SAML OmniAuth<br></code></pre></td></tr></table></figure>
+
+<h2 id="十、为-CAS-增加-SAML-IdP-能力"><a href="#十、为-CAS-增加-SAML-IdP-能力" class="headerlink" title="十、为 CAS 增加 SAML IdP 能力"></a>十、为 CAS 增加 SAML IdP 能力</h2><p>在 CAS Overlay 的 <code>build.gradle</code> 中增加与当前 CAS 版本匹配的 SAML IdP 模块：</p>
+<figure class="highlight gradle"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs gradle"><span class="hljs-keyword">dependencies</span> &#123;<br>    implementation <span class="hljs-string">&quot;org.apereo.cas:cas-server-support-saml-idp&quot;</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>重新构建并部署 CAS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">./gradlew clean build -x <span class="hljs-built_in">test</span> --no-daemon<br></code></pre></td></tr></table></figure>
+
+<p>CAS SAML IdP 通常需要：</p>
+<ul>
+<li>IdP Entity ID；</li>
+<li>签名证书和私钥；</li>
+<li>SAML Metadata 存储；</li>
+<li>SP Registered Service；</li>
+<li>属性释放策略；</li>
+<li>NameID 策略。</li>
+</ul>
+<p>示例配置方向：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">cas.authn.saml-idp.core.entity-id</span>=<span class="hljs-string">https://sso.example.com/cas/idp</span><br><span class="hljs-attr">cas.authn.saml-idp.metadata.file-system.location</span>=<span class="hljs-string">file:/etc/cas/saml</span><br></code></pre></td></tr></table></figure>
+
+<p>SAML IdP 属性必须来源于 LDAP：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">uid<br>mail<br>cn<br>memberOf<br></code></pre></td></tr></table></figure>
+
+<p>CAS 7.3.x 的具体属性名和模块配置可能随 Patch 调整，应使用当前 CAS 文档和启动日志核对。</p>
+<h2 id="十一、在-CAS-注册-GitLab-SAML-SP"><a href="#十一、在-CAS-注册-GitLab-SAML-SP" class="headerlink" title="十一、在 CAS 注册 GitLab SAML SP"></a>十一、在 CAS 注册 GitLab SAML SP</h2><p>GitLab SP Metadata：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">https://gitlab.example.com/users/auth/saml/metadata<br></code></pre></td></tr></table></figure>
+
+<p>GitLab ACS：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">https://gitlab.example.com/users/auth/saml/callback<br></code></pre></td></tr></table></figure>
+
+<p>GitLab Entity ID：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">https://gitlab.example.com<br></code></pre></td></tr></table></figure>
+
+<p>CAS <code>SamlRegisteredService</code> 示例：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;@class&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;org.apereo.cas.support.saml.services.SamlRegisteredService&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;serviceId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;https://gitlab.example.com&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;GitLab&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">30000001</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;evaluationOrder&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">10</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;metadataLocation&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;https://gitlab.example.com/users/auth/saml/metadata&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;attributeReleasePolicy&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>    <span class="hljs-attr">&quot;@class&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;org.apereo.cas.services.ReturnAllowedAttributeReleasePolicy&quot;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;allowedAttributes&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>      <span class="hljs-string">&quot;uid&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-string">&quot;mail&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-string">&quot;cn&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-string">&quot;memberOf&quot;</span><br>    <span class="hljs-punctuation">]</span><br>  <span class="hljs-punctuation">&#125;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>类名和 JSON 结构必须以当前 CAS 版本为准。</p>
+<p>NameID 推荐使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">稳定且不可变的 employeeId 或 uid<br></code></pre></td></tr></table></figure>
+
+<p>不要使用用户可自行修改的属性作为 NameID。</p>
+<h2 id="十二、GitLab-配置-SAML"><a href="#十二、GitLab-配置-SAML" class="headerlink" title="十二、GitLab 配置 SAML"></a>十二、GitLab 配置 SAML</h2><p>先获取 CAS IdP 签名证书 SHA-1 Fingerprint。GitLab 当前示例仍支持 Fingerprint 配置，也可按官方文档使用更完整的证书方式。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">openssl x509 \<br>  -<span class="hljs-keyword">in</span> cas-saml-signing.crt \<br>  -noout \<br>  -fingerprint \<br>  -sha1<br></code></pre></td></tr></table></figure>
+
+<p>编辑 <code>/etc/gitlab/gitlab.rb</code>：</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><code class="hljs ruby">gitlab_rails[<span class="hljs-string">&#x27;omniauth_enabled&#x27;</span>] = <span class="hljs-literal">true</span><br><br>gitlab_rails[<span class="hljs-string">&#x27;omniauth_allow_single_sign_on&#x27;</span>] = [<span class="hljs-string">&#x27;saml&#x27;</span>]<br>gitlab_rails[<span class="hljs-string">&#x27;omniauth_block_auto_created_users&#x27;</span>] = <span class="hljs-literal">false</span><br><br><span class="hljs-comment"># 只有确认 LDAP mail 与 SAML mail 完全一致且不可被冒用时才开启。</span><br>gitlab_rails[<span class="hljs-string">&#x27;omniauth_auto_link_saml_user&#x27;</span>] = <span class="hljs-literal">true</span><br><br>gitlab_rails[<span class="hljs-string">&#x27;omniauth_providers&#x27;</span>] = [<br>  &#123;<br>    <span class="hljs-symbol">name:</span> <span class="hljs-string">&#x27;saml&#x27;</span>,<br>    <span class="hljs-symbol">label:</span> <span class="hljs-string">&#x27;CAS SSO&#x27;</span>,<br>    <span class="hljs-symbol">args:</span> &#123;<br>      <span class="hljs-symbol">assertion_consumer_service_url:</span> <span class="hljs-string">&#x27;https://gitlab.example.com/users/auth/saml/callback&#x27;</span>,<br>      <span class="hljs-symbol">idp_cert_fingerprint:</span> <span class="hljs-string">&#x27;AA:BB:CC:DD:EE:FF:替换为真实指纹&#x27;</span>,<br>      <span class="hljs-symbol">idp_sso_target_url:</span> <span class="hljs-string">&#x27;https://sso.example.com/cas/idp/profile/SAML2/Redirect/SSO&#x27;</span>,<br>      <span class="hljs-symbol">issuer:</span> <span class="hljs-string">&#x27;https://gitlab.example.com&#x27;</span>,<br>      <span class="hljs-symbol">name_identifier_format:</span> <span class="hljs-string">&#x27;urn:oasis:names:tc:SAML:2.0:nameid-format:persistent&#x27;</span>,<br><br>      <span class="hljs-symbol">attribute_statements:</span> &#123;<br>        <span class="hljs-symbol">username:</span> [<span class="hljs-string">&#x27;uid&#x27;</span>],<br>        <span class="hljs-symbol">email:</span> [<span class="hljs-string">&#x27;mail&#x27;</span>],<br>        <span class="hljs-symbol">name:</span> [<span class="hljs-string">&#x27;cn&#x27;</span>],<br>        <span class="hljs-symbol">first_name:</span> [<span class="hljs-string">&#x27;givenName&#x27;</span>],<br>        <span class="hljs-symbol">last_name:</span> [<span class="hljs-string">&#x27;sn&#x27;</span>]<br>      &#125;<br>    &#125;<br>  &#125;<br>]<br></code></pre></td></tr></table></figure>
+
+<p>应用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">gitlab-ctl reconfigure<br>gitlab-ctl restart<br></code></pre></td></tr></table></figure>
+
+<p>查看日志：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">gitlab-ctl <span class="hljs-built_in">tail</span> gitlab-rails<br></code></pre></td></tr></table></figure>
+
+<h2 id="十三、LDAP-用户与-SAML-用户自动关联"><a href="#十三、LDAP-用户与-SAML-用户自动关联" class="headerlink" title="十三、LDAP 用户与 SAML 用户自动关联"></a>十三、LDAP 用户与 SAML 用户自动关联</h2><p>理想流程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">用户先通过 LDAP 登录 GitLab 或被 LDAP 同步创建<br>-&gt; GitLab 用户邮箱为 alice@example.com<br>-&gt; CAS SAML Assertion 返回同一 mail<br>-&gt; GitLab 自动关联 SAML Identity<br>-&gt; 后续使用 CAS SSO 登录同一个用户<br></code></pre></td></tr></table></figure>
+
+<h3 id="13-1-自动关联的安全条件"><a href="#13-1-自动关联的安全条件" class="headerlink" title="13.1 自动关联的安全条件"></a>13.1 自动关联的安全条件</h3><p>只有同时满足以下条件才开启：</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ruby">gitlab_rails[<span class="hljs-string">&#x27;omniauth_auto_link_saml_user&#x27;</span>] = <span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>条件：</p>
+<ul>
+<li>LDAP 邮箱唯一；</li>
+<li>CAS <code>mail</code> 来源于 LDAP；</li>
+<li>用户不能任意修改 IdP 邮箱；</li>
+<li>GitLab 现有用户邮箱已核对；</li>
+<li>未允许公共注册制造同邮箱账号；</li>
+<li>NameID 稳定不可变。</li>
+</ul>
+<p>如果不能保证，关闭自动关联，由管理员或用户在受控流程中绑定。</p>
+<h3 id="13-2-防止重复用户"><a href="#13-2-防止重复用户" class="headerlink" title="13.2 防止重复用户"></a>13.2 防止重复用户</h3><p>统一：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">LDAP uid<br>CAS uid<br>SAML NameID<br>GitLab username<br></code></pre></td></tr></table></figure>
+
+<p>如果 NameID 用随机值，而 LDAP 用户用 <code>uid</code>，GitLab 可能建立新身份或新用户。</p>
+<h2 id="十四、登录测试"><a href="#十四、登录测试" class="headerlink" title="十四、登录测试"></a>十四、登录测试</h2><p>访问：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">https://gitlab.example.com/users/sign_in<br></code></pre></td></tr></table></figure>
+
+<p>应看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">LDAP<br>CAS SSO<br>标准 GitLab 登录（保留应急管理员）<br></code></pre></td></tr></table></figure>
+
+<p>测试：</p>
+<ol>
+<li>LDAP 用户名密码登录；</li>
+<li>CAS SSO 登录；</li>
+<li>检查是否进入同一 GitLab User ID；</li>
+<li>检查项目和组权限；</li>
+<li>禁用 LDAP 用户；</li>
+<li>清理 CAS 会话后重试；</li>
+<li>验证 Break-Glass Root。</li>
+</ol>
+<p>查看用户 Identity：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Admin -&gt; Overview -&gt; Users -&gt; 用户 -&gt; Identities<br></code></pre></td></tr></table></figure>
+
+<h2 id="十五、权限模型"><a href="#十五、权限模型" class="headerlink" title="十五、权限模型"></a>十五、权限模型</h2><p>LDAP&#x2F;CAS 只处理身份，不决定项目权限。</p>
+<p>GitLab 权限仍由：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Instance Admin<br>Group Owner<br>Maintainer<br>Developer<br>Reporter<br>Guest/Planner<br>项目和组成员关系<br>Protected Branch/Tag<br>Approval Rules<br></code></pre></td></tr></table></figure>
+
+<p>控制。</p>
+<p>推荐：</p>
+<ul>
+<li>LDAP <code>gitlab-users</code> 只控制是否能登录；</li>
+<li>LDAP <code>gitlab-admins</code> 不直接自动变成 Instance Admin，除非有严格审批；</li>
+<li>项目权限由 GitLab Group 管理；</li>
+<li>CI 服务账号使用 Project&#x2F;Group Access Token；</li>
+<li>不让人员共享 Personal Access Token。</li>
+</ul>
+<h2 id="十六、安全加固"><a href="#十六、安全加固" class="headerlink" title="十六、安全加固"></a>十六、安全加固</h2><h3 id="16-1-关闭公共注册"><a href="#16-1-关闭公共注册" class="headerlink" title="16.1 关闭公共注册"></a>16.1 关闭公共注册</h3><figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ruby">gitlab_rails[<span class="hljs-string">&#x27;gitlab_signup_enabled&#x27;</span>] = <span class="hljs-literal">false</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="16-2-保留本地-Root"><a href="#16-2-保留本地-Root" class="headerlink" title="16.2 保留本地 Root"></a>16.2 保留本地 Root</h3><ul>
+<li>强密码；</li>
+<li>MFA；</li>
+<li>密码库托管；</li>
+<li>仅应急使用；</li>
+<li>定期测试；</li>
+<li>不强制走 CAS。</li>
+</ul>
+<h3 id="16-3-Token"><a href="#16-3-Token" class="headerlink" title="16.3 Token"></a>16.3 Token</h3><ul>
+<li>设置 PAT 过期；</li>
+<li>CI 使用 Project&#x2F;Group Token；</li>
+<li>Runner 使用 Runner Authentication Token；</li>
+<li>不把 Token 写入仓库；</li>
+<li>定期轮换；</li>
+<li>审计异常 Token 使用。</li>
+</ul>
+<h3 id="16-4-SSH"><a href="#16-4-SSH" class="headerlink" title="16.4 SSH"></a>16.4 SSH</h3><ul>
+<li>禁用密码 SSH；</li>
+<li>限制 Root SSH；</li>
+<li>只允许现代 Key；</li>
+<li>定期清理用户 SSH Key；</li>
+<li>配置 Host Key 备份。</li>
+</ul>
+<h3 id="16-5-SAML"><a href="#16-5-SAML" class="headerlink" title="16.5 SAML"></a>16.5 SAML</h3><ul>
+<li>Assertion 必须签名；</li>
+<li>校验证书；</li>
+<li>限制 ACS 和 Audience；</li>
+<li>NameID 不可变；</li>
+<li>CAS 只向 GitLab 释放必要属性；</li>
+<li>系统时间必须同步。</li>
+</ul>
+<h2 id="十七、性能调优"><a href="#十七、性能调优" class="headerlink" title="十七、性能调优"></a>十七、性能调优</h2><h3 id="17-1-数据盘"><a href="#17-1-数据盘" class="headerlink" title="17.1 数据盘"></a>17.1 数据盘</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">df</span> -hT /var/opt/gitlab<br><span class="hljs-built_in">df</span> -ih /var/opt/gitlab<br><span class="hljs-built_in">du</span> -sh /var/opt/gitlab/git-data<br></code></pre></td></tr></table></figure>
+
+<p>推荐：</p>
+<ul>
+<li>SSD&#x2F;NVMe；</li>
+<li>Git Data 与系统盘分离；</li>
+<li>LFS、Artifacts、Registry 独立容量治理；</li>
+<li>保留 20% 以上空间；</li>
+<li>监控 inode 和 I&#x2F;O 延迟。</li>
+</ul>
+<h3 id="17-2-LDAP"><a href="#17-2-LDAP" class="headerlink" title="17.2 LDAP"></a>17.2 LDAP</h3><ul>
+<li>精确 <code>user_filter</code>；</li>
+<li>为 <code>uid</code>、<code>mail</code>、<code>memberOf</code> 建索引；</li>
+<li>使用 LDAPS；</li>
+<li>设置合理 Timeout；</li>
+<li>不使用过宽 Base DN；</li>
+<li>监控 LDAP 延迟。</li>
+</ul>
+<h3 id="17-3-GitLab"><a href="#17-3-GitLab" class="headerlink" title="17.3 GitLab"></a>17.3 GitLab</h3><p>使用官方内置工具：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">gitlab-rake gitlab:<span class="hljs-built_in">env</span>:info<br>gitlab-rake gitlab:check SANITIZE=<span class="hljs-literal">true</span><br>gitlab-rake gitlab:doctor:secrets<br></code></pre></td></tr></table></figure>
+
+<p>监控 Puma、Sidekiq、PostgreSQL、Redis、Gitaly、Workhorse 和磁盘。</p>
+<p>不要凭感觉无限增加 Puma Worker。GitLab 调优应以官方 Reference Architecture 和实际并发为依据。</p>
+<h2 id="十八、备份"><a href="#十八、备份" class="headerlink" title="十八、备份"></a>十八、备份</h2><p>GitLab Linux Package 官方备份：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">gitlab-backup create<br></code></pre></td></tr></table></figure>
+
+<p>默认备份目录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/var/opt/gitlab/backups<br></code></pre></td></tr></table></figure>
+
+<p>必须额外备份：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/gitlab/gitlab.rb<br>/etc/gitlab/gitlab-secrets.json<br>/etc/gitlab/ssl<br>/etc/gitlab/trusted-certs<br>SSH Host Keys<br>CAS SAML 配置和证书<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">tar --xattrs --acls \<br>  -czf <span class="hljs-string">&quot;/backup/gitlab-config-<span class="hljs-subst">$(date +%F-%H%M%S)</span>.tar.gz&quot;</span> \<br>  /etc/gitlab<br></code></pre></td></tr></table></figure>
+
+<p><code>gitlab-secrets.json</code> 丢失会导致加密数据无法解密，优先级极高。</p>
+<h3 id="18-1-恢复演练"><a href="#18-1-恢复演练" class="headerlink" title="18.1 恢复演练"></a>18.1 恢复演练</h3><p>备份不是完成，恢复成功才算完成。至少验证：</p>
+<ul>
+<li>Repository；</li>
+<li>LFS；</li>
+<li>Artifacts；</li>
+<li>用户；</li>
+<li>LDAP Identity；</li>
+<li>SAML Identity；</li>
+<li>CI&#x2F;CD；</li>
+<li>SSH；</li>
+<li>Registry。</li>
+</ul>
+<h2 id="十九、升级"><a href="#十九、升级" class="headerlink" title="十九、升级"></a>十九、升级</h2><p>GitLab 升级必须按官方 Upgrade Path，不可随意跨越 Required Stop。</p>
+<p>升级前：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">gitlab-backup create<br>gitlab-rake gitlab:check SANITIZE=<span class="hljs-literal">true</span><br>gitlab-ctl status<br></code></pre></td></tr></table></figure>
+
+<p>查看版本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /opt/gitlab/version-manifest.txt | <span class="hljs-built_in">head</span><br>gitlab-rake gitlab:<span class="hljs-built_in">env</span>:info<br></code></pre></td></tr></table></figure>
+
+<p>固定版本升级：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">dnf list gitlab-ee --showduplicates | <span class="hljs-built_in">sort</span> -Vr<br><span class="hljs-built_in">sudo</span> dnf install gitlab-ee-目标版本<br></code></pre></td></tr></table></figure>
+
+<p>升级后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">gitlab-ctl reconfigure<br>gitlab-rake gitlab:check SANITIZE=<span class="hljs-literal">true</span><br>gitlab-rake gitlab:ldap:check<br></code></pre></td></tr></table></figure>
+
+<p>验证 LDAP、SAML、Git、SSH 和 Runner。</p>
+<h2 id="二十、常见故障"><a href="#二十、常见故障" class="headerlink" title="二十、常见故障"></a>二十、常见故障</h2><h3 id="20-1-LDAP-Check-失败"><a href="#20-1-LDAP-Check-失败" class="headerlink" title="20.1 LDAP Check 失败"></a>20.1 LDAP Check 失败</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">gitlab-rake gitlab:ldap:check<br><br>gitlab-ctl <span class="hljs-built_in">tail</span> gitlab-rails<br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<ul>
+<li>DNS；</li>
+<li>636；</li>
+<li>CA；</li>
+<li>Bind DN；</li>
+<li>密码；</li>
+<li>Base DN；</li>
+<li>Filter；</li>
+<li>SELinux&#x2F;防火墙；</li>
+<li>LDAP 索引。</li>
+</ul>
+<h3 id="20-2-LDAP-登录创建了错误用户名"><a href="#20-2-LDAP-登录创建了错误用户名" class="headerlink" title="20.2 LDAP 登录创建了错误用户名"></a>20.2 LDAP 登录创建了错误用户名</h3><p>检查：</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs ruby"><span class="hljs-string">&#x27;uid&#x27;</span> =&gt; <span class="hljs-string">&#x27;uid&#x27;</span><br><span class="hljs-string">&#x27;lowercase_usernames&#x27;</span> =&gt; <span class="hljs-literal">true</span><br><span class="hljs-string">&#x27;allow_username_or_email_login&#x27;</span> =&gt; <span class="hljs-literal">false</span><br></code></pre></td></tr></table></figure>
+
+<p>用户名必须与 CAS SAML 返回的 <code>uid</code> 一致。</p>
+<h3 id="20-3-SAML-按钮不出现"><a href="#20-3-SAML-按钮不出现" class="headerlink" title="20.3 SAML 按钮不出现"></a>20.3 SAML 按钮不出现</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">gitlab-ctl reconfigure<br>gitlab-ctl <span class="hljs-built_in">tail</span> gitlab-rails<br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs ruby">gitlab_rails[<span class="hljs-string">&#x27;omniauth_enabled&#x27;</span>] = <span class="hljs-literal">true</span><br>gitlab_rails[<span class="hljs-string">&#x27;omniauth_providers&#x27;</span>]<br></code></pre></td></tr></table></figure>
+
+<p>检查 Ruby 语法和 Provider 名称。</p>
+<h3 id="20-4-SAML-Response-无法验证"><a href="#20-4-SAML-Response-无法验证" class="headerlink" title="20.4 SAML Response 无法验证"></a>20.4 SAML Response 无法验证</h3><p>检查：</p>
+<ul>
+<li>Fingerprint；</li>
+<li>CAS 签名证书；</li>
+<li>Assertion 是否签名；</li>
+<li>Audience；</li>
+<li>Recipient；</li>
+<li>ACS；</li>
+<li>Entity ID；</li>
+<li>时间同步；</li>
+<li>NameID Format。</li>
+</ul>
+<h3 id="20-5-SAML-创建重复用户"><a href="#20-5-SAML-创建重复用户" class="headerlink" title="20.5 SAML 创建重复用户"></a>20.5 SAML 创建重复用户</h3><p>关闭：</p>
+<figure class="highlight ruby"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs ruby">gitlab_rails[<span class="hljs-string">&#x27;omniauth_auto_link_saml_user&#x27;</span>] = <span class="hljs-literal">false</span><br></code></pre></td></tr></table></figure>
+
+<p>核对：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">LDAP mail<br>CAS mail<br>GitLab primary email<br>NameID<br>uid<br></code></pre></td></tr></table></figure>
+
+<p>不要直接删除其中一个用户，先迁移仓库、Issue、MR、Token 和成员关系。</p>
+<h3 id="20-6-CAS-认证成功但-GitLab-拒绝登录"><a href="#20-6-CAS-认证成功但-GitLab-拒绝登录" class="headerlink" title="20.6 CAS 认证成功但 GitLab 拒绝登录"></a>20.6 CAS 认证成功但 GitLab 拒绝登录</h3><p>CAS 只完成身份认证。GitLab 仍可能因为：</p>
+<ul>
+<li>用户被 Block；</li>
+<li>SAML Identity 未关联；</li>
+<li>Required Group 不匹配；</li>
+<li>邮箱不一致；</li>
+<li>用户未获批准；</li>
+<li>SAML 属性缺失；</li>
+<li>Sign-up 禁用且未允许自动创建；</li>
+</ul>
+<p>而拒绝登录。</p>
+<h3 id="20-7-Reconfigure-失败"><a href="#20-7-Reconfigure-失败" class="headerlink" title="20.7 Reconfigure 失败"></a>20.7 Reconfigure 失败</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">gitlab-ctl reconfigure<br>gitlab-ctl <span class="hljs-built_in">tail</span><br></code></pre></td></tr></table></figure>
+
+<p>先检查 <code>/etc/gitlab/gitlab.rb</code> Ruby 语法，不要反复重启所有组件碰运气。</p>
+<h2 id="二十一、生产检查清单"><a href="#二十一、生产检查清单" class="headerlink" title="二十一、生产检查清单"></a>二十一、生产检查清单</h2><ul>
+<li><input disabled="" type="checkbox"> GitLab 版本固定且符合升级路径；</li>
+<li><input disabled="" type="checkbox"> HTTPS 和证书监控已配置；</li>
+<li><input disabled="" type="checkbox"> 公共注册关闭；</li>
+<li><input disabled="" type="checkbox"> LDAP 使用专用 Reader 和 LDAPS；</li>
+<li><input disabled="" type="checkbox"> Reader 最小权限；</li>
+<li><input disabled="" type="checkbox"> LDAP Filter 只允许授权用户；</li>
+<li><input disabled="" type="checkbox"> CAS 通过 SAML&#x2F;OIDC 接入，不使用已移除的 CAS3 Provider；</li>
+<li><input disabled="" type="checkbox"> SAML Assertion 签名并校验；</li>
+<li><input disabled="" type="checkbox"> NameID 稳定不可变；</li>
+<li><input disabled="" type="checkbox"> 自动关联只在邮箱可信唯一时开启；</li>
+<li><input disabled="" type="checkbox"> 保留本地 Root + MFA；</li>
+<li><input disabled="" type="checkbox"> GitLab 权限由 Group&#x2F;Project 管理；</li>
+<li><input disabled="" type="checkbox"> <code>gitlab-secrets.json</code> 已异地备份；</li>
+<li><input disabled="" type="checkbox"> 已演练 LDAP&#x2F;CAS 故障回退；</li>
+<li><input disabled="" type="checkbox"> 已验证用户禁用链路；</li>
+<li><input disabled="" type="checkbox"> Runner 和 Token 已轮换管理。</li>
+</ul>
+<h2 id="二十二、总结"><a href="#二十二、总结" class="headerlink" title="二十二、总结"></a>二十二、总结</h2><p>现代 GitLab 与 LDAP&#x2F;CAS 的推荐链路：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">OpenLDAP：身份主数据<br>CAS：LDAP 认证 + SAML IdP<br>GitLab：LDAP 用户目录 + SAML SP<br></code></pre></td></tr></table></figure>
+
+<p>核心原则：</p>
+<ol>
+<li>不再使用已移除的 GitLab CAS3 Provider；</li>
+<li>CAS 通过 SAML&#x2F;OIDC 与 GitLab 集成；</li>
+<li>LDAP <code>uid</code>、CAS NameID 和 GitLab Username 必须统一；</li>
+<li>自动关联只在邮箱和 NameID 可信时开启；</li>
+<li>SSO 只解决认证，项目权限仍由 GitLab 管理；</li>
+<li>保留本地应急管理员；</li>
+<li>LDAP、SAML 和 GitLab 配置必须一同进入备份与升级测试。</li>
+</ol>
+<p>把 LDAP 和 CAS 接入 GitLab，不是多放两个登录按钮，而是把用户生命周期、认证会话和代码权限真正串成一条可回收、可审计的链路。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://docs.gitlab.com/install/package/">GitLab Linux Package Installation</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.gitlab.com/omnibus/settings/configuration/">GitLab Linux Package Configuration</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.gitlab.com/administration/auth/ldap/">GitLab LDAP Integration</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.gitlab.com/integration/saml/">GitLab Self-Managed SAML SSO</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.gitlab.com/administration/auth/oidc/">GitLab OIDC Integration</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.gitlab.com/update/deprecations/">GitLab Deprecations and Removals</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.gitlab.com/administration/backup_restore/">GitLab Backup and Restore</a></li>
+<li><a target="_blank" rel="noopener" href="https://apereo.github.io/cas/7.3.x/authentication/Configuring-SAML2-Authentication.html">Apereo CAS SAML IdP</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.openldap.org/doc/admin26/">OpenLDAP Administrator’s Guide</a></li>
+</ul>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Linux/" class="category-chain-item">Linux</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/Linux/DevOps/" class="category-chain-item">DevOps</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/GitLab/" class="print-no-link">#GitLab</a>
+      
+        <a href="/tags/DevOps/" class="print-no-link">#DevOps</a>
+      
+        <a href="/tags/Rocky-Linux-10/" class="print-no-link">#Rocky Linux 10</a>
+      
+        <a href="/tags/OpenLDAP/" class="print-no-link">#OpenLDAP</a>
+      
+        <a href="/tags/CAS/" class="print-no-link">#CAS</a>
+      
+        <a href="/tags/SSO/" class="print-no-link">#SSO</a>
+      
+        <a href="/tags/SAML/" class="print-no-link">#SAML</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Rocky Linux 10 搭建 GitLab Self-Managed 并集成 OpenLDAP 与 CAS 单点登录</div>
+      <div>https://allendericdalexander.github.io/2026/08/01/devops/linux/rocky/rocky-linux-10-gitlab-ldap-cas/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月1日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/08/01/devops/linux/rocky/rocky-linux-10-jira-ldap-cas/" title="Rocky Linux 10 搭建 Jira Data Center 并集成 OpenLDAP 与 CAS 单点登录">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Rocky Linux 10 搭建 Jira Data Center 并集成 OpenLDAP 与 CAS 单点登录</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/01/devops/linux/rocky/rocky-linux-10-jumpserver-ldap-cas/" title="Rocky Linux 10 搭建 JumpServer 堡垒机并集成 OpenLDAP 与 CAS 单点登录">
+                        <span class="hidden-mobile">Rocky Linux 10 搭建 JumpServer 堡垒机并集成 OpenLDAP 与 CAS 单点登录</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

@@ -1,0 +1,1460 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="在 Rocky Linux 10 上部署 Jira Data Center 11.3、PostgreSQL 17 和 Nginx，集成 OpenLDAP 用户目录，并通过 Apereo CAS 的 SAML IdP 能力实现单点登录，覆盖安全、调优、备份、升级与故障排查。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Rocky Linux 10 搭建 Jira Data Center 并集成 OpenLDAP 与 CAS 单点登录">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/01/devops/linux/rocky/rocky-linux-10-jira-ldap-cas/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="在 Rocky Linux 10 上部署 Jira Data Center 11.3、PostgreSQL 17 和 Nginx，集成 OpenLDAP 用户目录，并通过 Apereo CAS 的 SAML IdP 能力实现单点登录，覆盖安全、调优、备份、升级与故障排查。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-01T05:30:00.000Z">
+<meta property="article:modified_time" content="2026-08-01T05:30:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="CAS">
+<meta property="article:tag" content="Jira Data Center">
+<meta property="article:tag" content="OpenLDAP">
+<meta property="article:tag" content="Rocky Linux 10">
+<meta property="article:tag" content="SAML">
+<meta property="article:tag" content="SSO">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Rocky Linux 10 搭建 Jira Data Center 并集成 OpenLDAP 与 CAS 单点登录 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Rocky Linux 10 搭建 Jira Data Center 并集成 OpenLDAP 与 CAS 单点登录"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-01 13:30" pubdate>
+          2026年8月1日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          3.7k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          31 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Rocky Linux 10 搭建 Jira Data Center 并集成 OpenLDAP 与 CAS 单点登录</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>Jira Data Center 是 Atlassian 面向企业自托管场景提供的项目、需求、缺陷、流程和敏捷研发管理平台。企业部署 Jira 后，通常需要接入现有 LDAP 用户目录和统一单点登录平台。</p>
+<p>推荐身份架构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">OpenLDAP：保存人员、用户组和账号状态<br>Apereo CAS：使用 LDAP 验证用户，并提供 SAML 2.0 IdP<br>Jira Data Center：通过 LDAP 获取用户与组，通过原生 SAML SSO 接入 CAS<br></code></pre></td></tr></table></figure>
+
+<p>这里必须先说明两个边界：</p>
+<ol>
+<li>Jira Data Center 原生支持 LDAP 用户目录；</li>
+<li>Jira Data Center 原生企业 SSO 是 SAML&#x2F;OIDC，不原生支持 CAS Protocol。</li>
+</ol>
+<p>因此生产推荐路线不是修改 Jira Tomcat Filter 强接 CAS，而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">CAS 开启 SAML IdP<br>-&gt; Jira 使用 Data Center 内置 SAML SSO<br></code></pre></td></tr></table></figure>
+
+<p>第三方 CAS Marketplace App 可以作为备选，但必须确认与 Jira 11.3、Java 21 和当前 Data Center 许可证兼容，并接受插件升级和供应商支持风险。</p>
+<blockquote>
+<p>Jira Server 已结束支持。本文使用 Jira Data Center 11.3 作为版本基线，需要有效 Data Center License。Jira 11.3 使用 Java 21，Jira 10 起 Linux 生产安装采用官方 <code>tar.gz</code> 手工安装方式。Rocky Linux 并非 Atlassian 文档中逐项测试的主要发行版，正式采购和支持边界应向 Atlassian 确认。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="一、整体架构"><a href="#一、整体架构" class="headerlink" title="一、整体架构"></a>一、整体架构</h2><table>
+<thead>
+<tr>
+<th>组件</th>
+<th>地址</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Jira</td>
+<td><code>https://jira.example.com</code></td>
+<td>Jira Data Center 单节点</td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td><code>127.0.0.1:5432</code></td>
+<td>Jira 数据库</td>
+</tr>
+<tr>
+<td>OpenLDAP</td>
+<td><code>ldaps://ldap.example.com:636</code></td>
+<td>用户目录</td>
+</tr>
+<tr>
+<td>CAS</td>
+<td><code>https://sso.example.com/cas</code></td>
+<td>统一认证与 SAML IdP</td>
+</tr>
+<tr>
+<td>Rocky Linux</td>
+<td><code>192.168.9.40</code></td>
+<td>Jira 节点</td>
+</tr>
+</tbody></table>
+<pre><code class=" mermaid">sequenceDiagram
+    participant U as 用户浏览器
+    participant J as Jira Data Center
+    participant C as CAS SAML IdP
+    participant L as OpenLDAP
+
+    U-&gt;&gt;J: 访问 Jira
+    J--&gt;&gt;U: 重定向到 CAS SAML IdP
+    U-&gt;&gt;C: 提交凭证
+    C-&gt;&gt;L: LDAP Bind 验证
+    L--&gt;&gt;C: 返回 uid、mail、cn、memberOf
+    C--&gt;&gt;U: 返回 SAML Response
+    U-&gt;&gt;J: POST Assertion
+    J-&gt;&gt;J: 匹配 LDAP 用户
+    J--&gt;&gt;U: 建立 Jira Session
+</code></pre>
+
+<p>用户生命周期：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">LDAP 创建和禁用用户<br>-&gt; Jira LDAP Directory 同步用户与组<br>-&gt; CAS SAML 登录匹配同一用户名<br>-&gt; Jira Application Access、Group、Project Role 决定授权<br></code></pre></td></tr></table></figure>
+
+<h2 id="二、资源规划"><a href="#二、资源规划" class="headerlink" title="二、资源规划"></a>二、资源规划</h2><h3 id="2-1-单节点建议"><a href="#2-1-单节点建议" class="headerlink" title="2.1 单节点建议"></a>2.1 单节点建议</h3><table>
+<thead>
+<tr>
+<th>规模</th>
+<th align="right">CPU</th>
+<th align="right">内存</th>
+<th align="right">JVM Heap</th>
+<th align="right">数据盘</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>测试</td>
+<td align="right">4 核</td>
+<td align="right">8 GB</td>
+<td align="right">2 GB</td>
+<td align="right">100 GB SSD</td>
+</tr>
+<tr>
+<td>小型生产</td>
+<td align="right">8 核</td>
+<td align="right">16 GB</td>
+<td align="right">4～6 GB</td>
+<td align="right">500 GB SSD</td>
+</tr>
+<tr>
+<td>中型生产</td>
+<td align="right">16 核</td>
+<td align="right">32 GB</td>
+<td align="right">8～12 GB</td>
+<td align="right">1 TB SSD</td>
+</tr>
+</tbody></table>
+<p>Jira 性能受以下因素影响：</p>
+<ul>
+<li>Issue、Project、Workflow、Custom Field 数量；</li>
+<li>用户和用户组数量；</li>
+<li>Lucene Index；</li>
+<li>PostgreSQL 延迟；</li>
+<li>LDAP 同步；</li>
+<li>Automation；</li>
+<li>Marketplace App；</li>
+<li>Attachment；</li>
+<li>JVM GC；</li>
+<li>Dashboard 和 JQL。</li>
+</ul>
+<p>不要仅按在线用户数估算。</p>
+<h3 id="2-2-目录规划"><a href="#2-2-目录规划" class="headerlink" title="2.2 目录规划"></a>2.2 目录规划</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">/opt/atlassian/jira-11.3.x      安装目录<br>/opt/atlassian/jira             当前版本软链接<br>/var/atlassian/application-data/jira  Jira Home<br>/var/log/jira                   systemd/额外日志<br>/backup/jira                    备份目录<br></code></pre></td></tr></table></figure>
+
+<p>Jira Home 不得放在安装目录内部。</p>
+<h2 id="三、系统初始化"><a href="#三、系统初始化" class="headerlink" title="三、系统初始化"></a>三、系统初始化</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/rocky-release<br><span class="hljs-built_in">uname</span> -r<br><span class="hljs-built_in">uname</span> -m<br>hostnamectl<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">hostnamectl set-hostname jira01.example.com<br>timedatectl set-timezone Asia/Shanghai<br>systemctl <span class="hljs-built_in">enable</span> --now chronyd<br>chronyc tracking<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs bash">dnf clean all<br>dnf makecache<br>dnf upgrade -y<br><br>dnf install -y \<br>  vim curl wget tar gzip unzip jq \<br>  fontconfig dejavu-sans-fonts \<br>  bind-utils lsof policycoreutils-python-utils \<br>  firewalld nginx java-21-openjdk-devel<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">java -version<br>javac -version<br></code></pre></td></tr></table></figure>
+
+<p>Jira 11.3 不能使用 Java 8、11 或 17。</p>
+<p>保持 SELinux：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">getenforce<br>systemctl <span class="hljs-built_in">enable</span> --now firewalld<br></code></pre></td></tr></table></figure>
+
+<h2 id="四、安装-PostgreSQL-17"><a href="#四、安装-PostgreSQL-17" class="headerlink" title="四、安装 PostgreSQL 17"></a>四、安装 PostgreSQL 17</h2><h3 id="4-1-安装-PGDG-仓库"><a href="#4-1-安装-PGDG-仓库" class="headerlink" title="4.1 安装 PGDG 仓库"></a>4.1 安装 PGDG 仓库</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs bash">dnf install -y \<br>  https://download.postgresql.org/pub/repos/yum/reporpms/EL-10-x86_64/pgdg-redhat-repo-latest.noarch.rpm<br><br>dnf -qy module <span class="hljs-built_in">disable</span> postgresql<br><br>dnf install -y \<br>  postgresql17-server \<br>  postgresql17-contrib<br></code></pre></td></tr></table></figure>
+
+<p>初始化：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">/usr/pgsql-17/bin/postgresql-17-setup initdb<br>systemctl <span class="hljs-built_in">enable</span> --now postgresql-17<br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status postgresql-17 --no-pager -l<br><span class="hljs-built_in">sudo</span> -u postgres psql -c <span class="hljs-string">&#x27;SELECT version();&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="4-2-创建-Jira-数据库"><a href="#4-2-创建-Jira-数据库" class="headerlink" title="4.2 创建 Jira 数据库"></a>4.2 创建 Jira 数据库</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> -u postgres psql<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> ROLE jira<br>  LOGIN<br>  PASSWORD <span class="hljs-string">&#x27;替换为高强度密码&#x27;</span><br>  NOSUPERUSER<br>  NOCREATEDB<br>  NOCREATEROLE<br>  NOREPLICATION;<br><br><span class="hljs-keyword">CREATE</span> DATABASE jiradb<br>  <span class="hljs-keyword">WITH</span> OWNER <span class="hljs-operator">=</span> jira<br>       ENCODING <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;UTF8&#x27;</span><br>       LC_COLLATE <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;C&#x27;</span><br>       LC_CTYPE <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;C&#x27;</span><br>       TEMPLATE <span class="hljs-operator">=</span> template0;<br><br>\c jiradb<br><br><span class="hljs-keyword">GRANT</span> <span class="hljs-keyword">ALL</span> PRIVILEGES <span class="hljs-keyword">ON</span> SCHEMA public <span class="hljs-keyword">TO</span> jira;<br><br>\q<br></code></pre></td></tr></table></figure>
+
+<p>生产环境应将数据库密码放入密码管理系统，不写入 Git 或博客脚本。</p>
+<h3 id="4-3-限制数据库监听"><a href="#4-3-限制数据库监听" class="headerlink" title="4.3 限制数据库监听"></a>4.3 限制数据库监听</h3><p>编辑：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">vim /var/lib/pgsql/17/data/postgresql.conf<br></code></pre></td></tr></table></figure>
+
+<p>单机部署：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">listen_addresses = &#x27;127.0.0.1&#x27;<br>port = 5432<br>max_connections = 200<br></code></pre></td></tr></table></figure>
+
+<p><code>pg_hba.conf</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">host    jiradb    jira    127.0.0.1/32    scram-sha-256<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl restart postgresql-17<br></code></pre></td></tr></table></figure>
+
+<p>测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">psql \<br>  <span class="hljs-string">&#x27;host=127.0.0.1 port=5432 dbname=jiradb user=jira sslmode=disable&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<h2 id="五、安装-Jira-Data-Center"><a href="#五、安装-Jira-Data-Center" class="headerlink" title="五、安装 Jira Data Center"></a>五、安装 Jira Data Center</h2><h3 id="5-1-创建运行用户"><a href="#5-1-创建运行用户" class="headerlink" title="5.1 创建运行用户"></a>5.1 创建运行用户</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash">useradd \<br>  --system \<br>  --create-home \<br>  --home-dir /opt/atlassian \<br>  --shell /bin/bash \<br>  jira<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">mkdir</span> -p /opt/atlassian<br><span class="hljs-built_in">mkdir</span> -p /var/atlassian/application-data/jira<br><span class="hljs-built_in">mkdir</span> -p /var/log/jira<br><span class="hljs-built_in">mkdir</span> -p /backup/jira<br><br><span class="hljs-built_in">chown</span> -R jira:jira \<br>  /opt/atlassian \<br>  /var/atlassian \<br>  /var/log/jira<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-2-下载-Jira"><a href="#5-2-下载-Jira" class="headerlink" title="5.2 下载 Jira"></a>5.2 下载 Jira</h3><p>从 Atlassian 官方下载页确认当前 Jira Data Center 11.3 Patch。示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">export</span> JIRA_VERSION=<span class="hljs-string">&#x27;11.3.x&#x27;</span><br><br><span class="hljs-built_in">cd</span> /tmp<br><br>curl -fL \<br>  <span class="hljs-string">&quot;https://product-downloads.atlassian.com/software/jira/downloads/atlassian-jira-software-<span class="hljs-variable">$&#123;JIRA_VERSION&#125;</span>.tar.gz&quot;</span> \<br>  -o <span class="hljs-string">&quot;atlassian-jira-software-<span class="hljs-variable">$&#123;JIRA_VERSION&#125;</span>.tar.gz&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>将 <code>11.3.x</code> 替换为真实 Patch 版本。下载路径若变化，以官方 Download 页面为准。</p>
+<p>解压：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs bash">tar -xzf \<br>  <span class="hljs-string">&quot;atlassian-jira-software-<span class="hljs-variable">$&#123;JIRA_VERSION&#125;</span>.tar.gz&quot;</span> \<br>  -C /opt/atlassian<br><br><span class="hljs-built_in">mv</span> \<br>  <span class="hljs-string">&quot;/opt/atlassian/atlassian-jira-software-<span class="hljs-variable">$&#123;JIRA_VERSION&#125;</span>-standalone&quot;</span> \<br>  <span class="hljs-string">&quot;/opt/atlassian/jira-<span class="hljs-variable">$&#123;JIRA_VERSION&#125;</span>&quot;</span><br><br><span class="hljs-built_in">ln</span> -sfn \<br>  <span class="hljs-string">&quot;/opt/atlassian/jira-<span class="hljs-variable">$&#123;JIRA_VERSION&#125;</span>&quot;</span> \<br>  /opt/atlassian/jira<br><br><span class="hljs-built_in">chown</span> -h jira:jira /opt/atlassian/jira<br><span class="hljs-built_in">chown</span> -R jira:jira <span class="hljs-string">&quot;/opt/atlassian/jira-<span class="hljs-variable">$&#123;JIRA_VERSION&#125;</span>&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="5-3-配置-Jira-Home"><a href="#5-3-配置-Jira-Home" class="headerlink" title="5.3 配置 Jira Home"></a>5.3 配置 Jira Home</h3><p>编辑：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">vim \<br>  /opt/atlassian/jira/atlassian-jira/WEB-INF/classes/jira-application.properties<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">jira.home</span> = <span class="hljs-string">/var/atlassian/application-data/jira</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="5-4-JVM-配置"><a href="#5-4-JVM-配置" class="headerlink" title="5.4 JVM 配置"></a>5.4 JVM 配置</h3><p>编辑：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">vim /opt/atlassian/jira/bin/setenv.sh<br></code></pre></td></tr></table></figure>
+
+<p>小型生产起点：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">JVM_MINIMUM_MEMORY=<span class="hljs-string">&quot;4096m&quot;</span><br>JVM_MAXIMUM_MEMORY=<span class="hljs-string">&quot;4096m&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>追加：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs bash">CATALINA_PID=<span class="hljs-string">&quot;/var/atlassian/application-data/jira/catalina.pid&quot;</span><br><span class="hljs-built_in">export</span> CATALINA_PID<br><br>JVM_SUPPORT_RECOMMENDED_ARGS=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;JVM_SUPPORT_RECOMMENDED_ARGS&#125;</span> \</span><br><span class="hljs-string">-XX:+UseG1GC \</span><br><span class="hljs-string">-XX:+HeapDumpOnOutOfMemoryError \</span><br><span class="hljs-string">-XX:HeapDumpPath=/var/atlassian/application-data/jira/heapdumps \</span><br><span class="hljs-string">-Xlog:gc*,safepoint:file=/var/atlassian/application-data/jira/log/gc.log:time,uptime,level,tags:filecount=10,filesize=20M&quot;</span><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">mkdir</span> -p \<br>  /var/atlassian/application-data/jira/heapdumps \<br>  /var/atlassian/application-data/jira/log<br><br><span class="hljs-built_in">chown</span> -R jira:jira \<br>  /var/atlassian/application-data/jira<br></code></pre></td></tr></table></figure>
+
+<p>不要把宿主机大部分内存全部分给 Heap。Jira、Lucene、线程栈、Direct Memory、PostgreSQL 和 OS Page Cache 都需要内存。</p>
+<h2 id="六、配置-Nginx-反向代理"><a href="#六、配置-Nginx-反向代理" class="headerlink" title="六、配置 Nginx 反向代理"></a>六、配置 Nginx 反向代理</h2><h3 id="6-1-修改-Jira-Tomcat-Connector"><a href="#6-1-修改-Jira-Tomcat-Connector" class="headerlink" title="6.1 修改 Jira Tomcat Connector"></a>6.1 修改 Jira Tomcat Connector</h3><p>编辑：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">vim /opt/atlassian/jira/conf/server.xml<br></code></pre></td></tr></table></figure>
+
+<p>找到 HTTP Connector，配置：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">Connector</span></span><br><span class="hljs-tag">    <span class="hljs-attr">port</span>=<span class="hljs-string">&quot;8080&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">address</span>=<span class="hljs-string">&quot;127.0.0.1&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">maxThreads</span>=<span class="hljs-string">&quot;200&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">minSpareThreads</span>=<span class="hljs-string">&quot;25&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">connectionTimeout</span>=<span class="hljs-string">&quot;20000&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">enableLookups</span>=<span class="hljs-string">&quot;false&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">maxHttpHeaderSize</span>=<span class="hljs-string">&quot;8192&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">protocol</span>=<span class="hljs-string">&quot;HTTP/1.1&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">useBodyEncodingForURI</span>=<span class="hljs-string">&quot;true&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">redirectPort</span>=<span class="hljs-string">&quot;8443&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">acceptCount</span>=<span class="hljs-string">&quot;100&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">disableUploadTimeout</span>=<span class="hljs-string">&quot;true&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">bindOnInit</span>=<span class="hljs-string">&quot;false&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">secure</span>=<span class="hljs-string">&quot;true&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">scheme</span>=<span class="hljs-string">&quot;https&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">proxyName</span>=<span class="hljs-string">&quot;jira.example.com&quot;</span></span><br><span class="hljs-tag">    <span class="hljs-attr">proxyPort</span>=<span class="hljs-string">&quot;443&quot;</span> /&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>Jira 只支持捆绑的 Tomcat，不要替换为系统 Tomcat。</p>
+<h3 id="6-2-systemd"><a href="#6-2-systemd" class="headerlink" title="6.2 systemd"></a>6.2 systemd</h3><p>创建 <code>/etc/systemd/system/jira.service</code>：</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-section">[Unit]</span><br><span class="hljs-attr">Description</span>=Atlassian Jira Data Center<br><span class="hljs-attr">After</span>=network-<span class="hljs-literal">on</span>line.target postgresql-<span class="hljs-number">17</span>.service<br><span class="hljs-attr">Wants</span>=network-<span class="hljs-literal">on</span>line.target<br><span class="hljs-attr">Requires</span>=postgresql-<span class="hljs-number">17</span>.service<br><br><span class="hljs-section">[Service]</span><br><span class="hljs-attr">Type</span>=forking<br><span class="hljs-attr">User</span>=jira<br><span class="hljs-attr">Group</span>=jira<br><br><span class="hljs-attr">Environment</span>=<span class="hljs-string">&quot;JAVA_HOME=/usr/lib/jvm/java-21-openjdk&quot;</span><br><span class="hljs-attr">Environment</span>=<span class="hljs-string">&quot;JIRA_HOME=/var/atlassian/application-data/jira&quot;</span><br><br><span class="hljs-attr">ExecStart</span>=/opt/atlassian/jira/bin/start-jira.sh<br><span class="hljs-attr">ExecStop</span>=/opt/atlassian/jira/bin/stop-jira.sh<br><br><span class="hljs-attr">PIDFile</span>=/var/atlassian/application-data/jira/catalina.pid<br><br><span class="hljs-attr">Restart</span>=<span class="hljs-literal">on</span>-failure<br><span class="hljs-attr">RestartSec</span>=<span class="hljs-number">10</span>s<br><span class="hljs-attr">TimeoutStartSec</span>=<span class="hljs-number">600</span><br><span class="hljs-attr">TimeoutStopSec</span>=<span class="hljs-number">180</span><br><br><span class="hljs-attr">LimitNOFILE</span>=<span class="hljs-number">65536</span><br><span class="hljs-attr">TasksMax</span>=<span class="hljs-number">65536</span><br><br><span class="hljs-section">[Install]</span><br><span class="hljs-attr">WantedBy</span>=multi-user.target<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl daemon-reload<br>systemctl <span class="hljs-built_in">enable</span> --now jira<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status jira --no-pager -l<br>journalctl -u jira -n 200 --no-pager<br>ss -lntp | grep 8080<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-3-Nginx-配置"><a href="#6-3-Nginx-配置" class="headerlink" title="6.3 Nginx 配置"></a>6.3 Nginx 配置</h3><p>证书：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/nginx/ssl/jira.example.com.crt<br>/etc/nginx/ssl/jira.example.com.key<br></code></pre></td></tr></table></figure>
+
+<p>创建 <code>/etc/nginx/conf.d/jira.example.com.conf</code>：</p>
+<figure class="highlight nginx"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><code class="hljs nginx"><span class="hljs-section">upstream</span> jira_backend &#123;<br>    <span class="hljs-attribute">server</span> <span class="hljs-number">127.0.0.1:8080</span>;<br>    <span class="hljs-attribute">keepalive</span> <span class="hljs-number">32</span>;<br>&#125;<br><br><span class="hljs-section">server</span> &#123;<br>    <span class="hljs-attribute">listen</span> <span class="hljs-number">80</span>;<br>    <span class="hljs-attribute">server_name</span> jira.example.com;<br>    <span class="hljs-attribute">return</span> <span class="hljs-number">301</span> https://<span class="hljs-variable">$host</span><span class="hljs-variable">$request_uri</span>;<br>&#125;<br><br><span class="hljs-section">server</span> &#123;<br>    <span class="hljs-attribute">listen</span> <span class="hljs-number">443</span> ssl;<br>    <span class="hljs-attribute">http2</span> <span class="hljs-literal">on</span>;<br>    <span class="hljs-attribute">server_name</span> jira.example.com;<br><br>    <span class="hljs-attribute">ssl_certificate</span>     /etc/nginx/ssl/jira.example.com.crt;<br>    <span class="hljs-attribute">ssl_certificate_key</span> /etc/nginx/ssl/jira.example.com.key;<br><br>    <span class="hljs-attribute">ssl_protocols</span> TLSv1.<span class="hljs-number">2</span> TLSv1.<span class="hljs-number">3</span>;<br>    <span class="hljs-attribute">ssl_session_cache</span> shared:JIRA_SSL:<span class="hljs-number">20m</span>;<br>    <span class="hljs-attribute">ssl_session_timeout</span> <span class="hljs-number">1d</span>;<br><br>    <span class="hljs-attribute">client_max_body_size</span> <span class="hljs-number">2g</span>;<br><br>    <span class="hljs-section">location</span> = /nginx-health &#123;<br>        <span class="hljs-attribute">access_log</span> <span class="hljs-literal">off</span>;<br>        <span class="hljs-attribute">default_type</span> text/plain;<br>        <span class="hljs-attribute">return</span> <span class="hljs-number">200</span> <span class="hljs-string">&quot;ok\n&quot;</span>;<br>    &#125;<br><br>    <span class="hljs-section">location</span> / &#123;<br>        <span class="hljs-attribute">proxy_pass</span> http://jira_backend;<br>        <span class="hljs-attribute">proxy_http_version</span> <span class="hljs-number">1</span>.<span class="hljs-number">1</span>;<br><br>        <span class="hljs-attribute">proxy_set_header</span> Host <span class="hljs-variable">$host</span>;<br>        <span class="hljs-attribute">proxy_set_header</span> X-Real-IP <span class="hljs-variable">$remote_addr</span>;<br>        <span class="hljs-attribute">proxy_set_header</span> X-Forwarded-For <span class="hljs-variable">$proxy_add_x_forwarded_for</span>;<br>        <span class="hljs-attribute">proxy_set_header</span> X-Forwarded-Proto https;<br>        <span class="hljs-attribute">proxy_set_header</span> X-Forwarded-Host <span class="hljs-variable">$host</span>;<br>        <span class="hljs-attribute">proxy_set_header</span> X-Forwarded-Port <span class="hljs-number">443</span>;<br><br>        <span class="hljs-attribute">proxy_set_header</span> Connection <span class="hljs-string">&quot;&quot;</span>;<br><br>        <span class="hljs-attribute">proxy_connect_timeout</span> <span class="hljs-number">10s</span>;<br>        <span class="hljs-attribute">proxy_send_timeout</span> <span class="hljs-number">300s</span>;<br>        <span class="hljs-attribute">proxy_read_timeout</span> <span class="hljs-number">300s</span>;<br><br>        <span class="hljs-attribute">proxy_request_buffering</span> <span class="hljs-literal">off</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>允许网络连接：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">setsebool -P httpd_can_network_connect 1<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">nginx -t<br>systemctl <span class="hljs-built_in">enable</span> --now nginx<br>systemctl reload nginx<br></code></pre></td></tr></table></figure>
+
+<p>防火墙：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">firewall-cmd --permanent --add-service=http<br>firewall-cmd --permanent --add-service=https<br>firewall-cmd --reload<br></code></pre></td></tr></table></figure>
+
+<h2 id="七、完成-Jira-初始化向导"><a href="#七、完成-Jira-初始化向导" class="headerlink" title="七、完成 Jira 初始化向导"></a>七、完成 Jira 初始化向导</h2><p>访问：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">https://jira.example.com<br></code></pre></td></tr></table></figure>
+
+<p>选择外部数据库：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Database Type：PostgreSQL<br>Host：127.0.0.1<br>Port：5432<br>Database：jiradb<br>Username：jira<br>Password：数据库密码<br>Schema：public<br></code></pre></td></tr></table></figure>
+
+<p>然后：</p>
+<ol>
+<li>输入 Jira Data Center License；</li>
+<li>设置 Base URL；</li>
+<li>创建本地管理员；</li>
+<li>配置 SMTP；</li>
+<li>完成索引；</li>
+<li>验证附件和 Issue 创建。</li>
+</ol>
+<p>必须保留本地管理员作为 SSO 故障回退。</p>
+<h2 id="八、Jira-集成-LDAP"><a href="#八、Jira-集成-LDAP" class="headerlink" title="八、Jira 集成 LDAP"></a>八、Jira 集成 LDAP</h2><p>进入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Administration<br>-&gt; User management<br>-&gt; User directories<br>-&gt; Add directory<br>-&gt; LDAP<br></code></pre></td></tr></table></figure>
+
+<p>推荐目录类型：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Read Only, with Local Groups<br></code></pre></td></tr></table></figure>
+
+<p>含义：</p>
+<ul>
+<li>用户和目录组来自 LDAP；</li>
+<li>Jira 不修改 LDAP 用户；</li>
+<li>Jira 可以维护本地授权组；</li>
+<li>身份源与应用权限解耦。</li>
+</ul>
+<h3 id="8-1-基础配置"><a href="#8-1-基础配置" class="headerlink" title="8.1 基础配置"></a>8.1 基础配置</h3><table>
+<thead>
+<tr>
+<th>配置项</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Directory Type</td>
+<td>OpenLDAP</td>
+</tr>
+<tr>
+<td>Hostname</td>
+<td><code>ldap.example.com</code></td>
+</tr>
+<tr>
+<td>Port</td>
+<td><code>636</code></td>
+</tr>
+<tr>
+<td>Use SSL</td>
+<td>是</td>
+</tr>
+<tr>
+<td>Username</td>
+<td><code>cn=jira-reader,ou=system,dc=example,dc=com</code></td>
+</tr>
+<tr>
+<td>Password</td>
+<td>Reader 密码</td>
+</tr>
+<tr>
+<td>Base DN</td>
+<td><code>dc=example,dc=com</code></td>
+</tr>
+</tbody></table>
+<h3 id="8-2-User-Schema"><a href="#8-2-User-Schema" class="headerlink" title="8.2 User Schema"></a>8.2 User Schema</h3><table>
+<thead>
+<tr>
+<th>Jira 字段</th>
+<th>LDAP 属性</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>User Object Class</td>
+<td><code>inetOrgPerson</code></td>
+</tr>
+<tr>
+<td>User Object Filter</td>
+<td><code>(objectClass=inetOrgPerson)</code></td>
+</tr>
+<tr>
+<td>User Name Attribute</td>
+<td><code>uid</code></td>
+</tr>
+<tr>
+<td>User Name RDN Attribute</td>
+<td><code>uid</code></td>
+</tr>
+<tr>
+<td>User First Name Attribute</td>
+<td><code>givenName</code></td>
+</tr>
+<tr>
+<td>User Last Name Attribute</td>
+<td><code>sn</code></td>
+</tr>
+<tr>
+<td>User Display Name Attribute</td>
+<td><code>cn</code> 或 <code>displayName</code></td>
+</tr>
+<tr>
+<td>User Email Attribute</td>
+<td><code>mail</code></td>
+</tr>
+<tr>
+<td>User Password Attribute</td>
+<td><code>userPassword</code>，但不读取哈希</td>
+</tr>
+<tr>
+<td>User Unique ID Attribute</td>
+<td><code>entryUUID</code></td>
+</tr>
+</tbody></table>
+<p>User DN：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ou=people<br></code></pre></td></tr></table></figure>
+
+<h3 id="8-3-Group-Schema"><a href="#8-3-Group-Schema" class="headerlink" title="8.3 Group Schema"></a>8.3 Group Schema</h3><table>
+<thead>
+<tr>
+<th>Jira 字段</th>
+<th>LDAP 属性</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Group Object Class</td>
+<td><code>groupOfNames</code></td>
+</tr>
+<tr>
+<td>Group Object Filter</td>
+<td><code>(objectClass=groupOfNames)</code></td>
+</tr>
+<tr>
+<td>Group Name Attribute</td>
+<td><code>cn</code></td>
+</tr>
+<tr>
+<td>Group Description Attribute</td>
+<td><code>description</code></td>
+</tr>
+<tr>
+<td>Group Member Attribute</td>
+<td><code>member</code></td>
+</tr>
+<tr>
+<td>Use DN in Member Attribute</td>
+<td>是</td>
+</tr>
+</tbody></table>
+<p>Group DN：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ou=groups<br></code></pre></td></tr></table></figure>
+
+<h3 id="8-4-过滤允许用户"><a href="#8-4-过滤允许用户" class="headerlink" title="8.4 过滤允许用户"></a>8.4 过滤允许用户</h3><p>LDAP User Object Filter：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">(&amp;(objectClass=inetOrgPerson)(memberOf=cn=jira-users,ou=groups,dc=example,dc=com))<br></code></pre></td></tr></table></figure>
+
+<p>OpenLDAP 如果使用 <code>memberOf</code>，需确认 MemberOf Overlay 已启用。</p>
+<h3 id="8-5-同步"><a href="#8-5-同步" class="headerlink" title="8.5 同步"></a>8.5 同步</h3><p>先设置较长周期并手工同步：</p>
+<ol>
+<li>Test Settings；</li>
+<li>Save and Test；</li>
+<li>Synchronize；</li>
+<li>检查用户和组；</li>
+<li>检查 Application Access；</li>
+<li>再配置定时同步。</li>
+</ol>
+<p>不要把 LDAP 大组直接映射为 Jira 管理员。</p>
+<h2 id="九、配置-Jira-信任-LDAP-CA"><a href="#九、配置-Jira-信任-LDAP-CA" class="headerlink" title="九、配置 Jira 信任 LDAP CA"></a>九、配置 Jira 信任 LDAP CA</h2><p>Jira 运行在 Java 21，需要将企业 CA 导入 Java TrustStore，或者使用独立 TrustStore。</p>
+<p>推荐独立 TrustStore：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">mkdir</span> -p /etc/jira<br><br>JIRA_TRUSTSTORE_PASSWORD=<span class="hljs-string">&quot;<span class="hljs-subst">$(openssl rand -base64 32 | tr -d &#x27;\n&#x27;)</span>&quot;</span><br><br>keytool \<br>  -importcert \<br>  -noprompt \<br>  -<span class="hljs-built_in">alias</span> company-root-ca \<br>  -file company-root-ca.crt \<br>  -keystore /etc/jira/jira-truststore.p12 \<br>  -storetype PKCS12 \<br>  -storepass <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;JIRA_TRUSTSTORE_PASSWORD&#125;</span>&quot;</span><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">chown</span> root:jira /etc/jira/jira-truststore.p12<br><span class="hljs-built_in">chmod</span> 0640 /etc/jira/jira-truststore.p12<br></code></pre></td></tr></table></figure>
+
+<p>在 <code>/opt/atlassian/jira/bin/setenv.sh</code> 增加：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">JVM_SUPPORT_RECOMMENDED_ARGS=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;JVM_SUPPORT_RECOMMENDED_ARGS&#125;</span> \</span><br><span class="hljs-string">-Djavax.net.ssl.trustStore=/etc/jira/jira-truststore.p12 \</span><br><span class="hljs-string">-Djavax.net.ssl.trustStoreType=PKCS12 \</span><br><span class="hljs-string">-Djavax.net.ssl.trustStorePassword=替换为TrustStore密码&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>密码应由 systemd Credential 或受限环境文件注入，不要长期明文写入脚本。</p>
+<p>重启：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl restart jira<br></code></pre></td></tr></table></figure>
+
+<h2 id="十、为什么-Jira-不直接配置-CAS"><a href="#十、为什么-Jira-不直接配置-CAS" class="headerlink" title="十、为什么 Jira 不直接配置 CAS"></a>十、为什么 Jira 不直接配置 CAS</h2><p>Jira Data Center 原生 SSO 支持：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">SAML 2.0<br>OpenID Connect<br>Crowd Delegation<br></code></pre></td></tr></table></figure>
+
+<p>它不提供原生 CAS Protocol Client。</p>
+<p>不推荐：</p>
+<ul>
+<li>修改 <code>web.xml</code> 增加 CAS Filter；</li>
+<li>替换 Jira 捆绑 Tomcat；</li>
+<li>向 Jira Classpath 手工复制 CAS Client JAR；</li>
+<li>使用多年无人维护的插件；</li>
+<li>每次升级后手工重做侵入式修改。</li>
+</ul>
+<p>这些做法会导致：</p>
+<ul>
+<li>升级覆盖；</li>
+<li>官方不支持；</li>
+<li>登录链路不可预测；</li>
+<li>安全修复困难；</li>
+<li>集群节点不一致。</li>
+</ul>
+<p>推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">CAS 作为 SAML IdP<br>Jira Data Center 作为 SAML SP<br></code></pre></td></tr></table></figure>
+
+<h2 id="十一、为-CAS-开启-SAML-IdP"><a href="#十一、为-CAS-开启-SAML-IdP" class="headerlink" title="十一、为 CAS 开启 SAML IdP"></a>十一、为 CAS 开启 SAML IdP</h2><p>CAS Overlay 增加：</p>
+<figure class="highlight gradle"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs gradle"><span class="hljs-keyword">dependencies</span> &#123;<br>    implementation <span class="hljs-string">&quot;org.apereo.cas:cas-server-support-saml-idp&quot;</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>重新构建：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">./gradlew clean build -x <span class="hljs-built_in">test</span> --no-daemon<br></code></pre></td></tr></table></figure>
+
+<p>配置 CAS IdP Entity ID、签名证书、Metadata 和属性释放。示例方向：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">cas.authn.saml-idp.core.entity-id</span>=<span class="hljs-string">https://sso.example.com/cas/idp</span><br><span class="hljs-attr">cas.authn.saml-idp.metadata.file-system.location</span>=<span class="hljs-string">file:/etc/cas/saml</span><br></code></pre></td></tr></table></figure>
+
+<p>CAS SAML IdP 使用 OpenLDAP 认证，并释放：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">uid<br>mail<br>cn<br>givenName<br>sn<br>memberOf<br></code></pre></td></tr></table></figure>
+
+<h2 id="十二、在-Jira-配置-SAML-SSO"><a href="#十二、在-Jira-配置-SAML-SSO" class="headerlink" title="十二、在 Jira 配置 SAML SSO"></a>十二、在 Jira 配置 SAML SSO</h2><p>Jira Data Center 中进入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Administration<br>-&gt; System<br>-&gt; Authentication methods / SSO<br>-&gt; Add SAML configuration<br></code></pre></td></tr></table></figure>
+
+<p>菜单名称可能随 Jira 11.3 Patch 和 SSO App 版本变化。</p>
+<p>Jira 界面会显示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">SP Entity ID<br>Assertion Consumer Service URL<br>SP Metadata URL<br></code></pre></td></tr></table></figure>
+
+<p>将 Jira SP Metadata 注册到 CAS。</p>
+<p>CAS <code>SamlRegisteredService</code> 示例：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;@class&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;org.apereo.cas.support.saml.services.SamlRegisteredService&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;serviceId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;https://jira.example.com&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Jira Data Center&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">40000001</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;evaluationOrder&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">10</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;metadataLocation&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;替换为Jira界面显示的SP Metadata URL&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;attributeReleasePolicy&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>    <span class="hljs-attr">&quot;@class&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;org.apereo.cas.services.ReturnAllowedAttributeReleasePolicy&quot;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;allowedAttributes&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>      <span class="hljs-string">&quot;uid&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-string">&quot;mail&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-string">&quot;cn&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-string">&quot;givenName&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-string">&quot;sn&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-string">&quot;memberOf&quot;</span><br>    <span class="hljs-punctuation">]</span><br>  <span class="hljs-punctuation">&#125;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>Jira SAML 配置：</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>IdP Entity ID</td>
+<td>CAS SAML IdP Entity ID</td>
+</tr>
+<tr>
+<td>IdP SSO URL</td>
+<td>CAS SAML2 SSO Endpoint</td>
+</tr>
+<tr>
+<td>IdP Certificate</td>
+<td>CAS SAML 签名证书</td>
+</tr>
+<tr>
+<td>Username Mapping</td>
+<td><code>uid</code> 或稳定 NameID</td>
+</tr>
+<tr>
+<td>Email</td>
+<td><code>mail</code></td>
+</tr>
+<tr>
+<td>Display Name</td>
+<td><code>cn</code></td>
+</tr>
+<tr>
+<td>JIT Provisioning</td>
+<td>使用 LDAP 时建议关闭</td>
+</tr>
+<tr>
+<td>Remember User Login</td>
+<td>按安全策略配置</td>
+</tr>
+</tbody></table>
+<h3 id="12-1-LDAP-先同步，SAML-只登录"><a href="#12-1-LDAP-先同步，SAML-只登录" class="headerlink" title="12.1 LDAP 先同步，SAML 只登录"></a>12.1 LDAP 先同步，SAML 只登录</h3><p>推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Jira LDAP Directory 负责用户和组<br>CAS SAML 只负责认证<br>关闭 SAML JIT 自动创建用户<br></code></pre></td></tr></table></figure>
+
+<p>否则可能出现 LDAP 用户和 SAML JIT 用户重复。</p>
+<h3 id="12-2-NameID"><a href="#12-2-NameID" class="headerlink" title="12.2 NameID"></a>12.2 NameID</h3><p>推荐使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">uid 或 employeeId<br></code></pre></td></tr></table></figure>
+
+<p>必须满足：</p>
+<ul>
+<li>唯一；</li>
+<li>稳定；</li>
+<li>不允许用户自行修改；</li>
+<li>与 Jira LDAP 用户名完全一致。</li>
+</ul>
+<h3 id="12-3-回退登录"><a href="#12-3-回退登录" class="headerlink" title="12.3 回退登录"></a>12.3 回退登录</h3><p>在强制 SSO 前：</p>
+<ul>
+<li>保留本地 Jira 管理员；</li>
+<li>确认当前版本的 <code>auth_fallback</code> 回退 URL；</li>
+<li>将回退地址记录在密码库；</li>
+<li>仅允许管理网访问；</li>
+<li>演练 CAS 不可用时登录。</li>
+</ul>
+<p>常见回退形式：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">https://jira.example.com/login.jsp?auth_fallback<br></code></pre></td></tr></table></figure>
+
+<p>具体参数应以当前 Atlassian SSO 文档和 Jira 页面提示为准。</p>
+<h2 id="十三、CAS-直连插件备选路线"><a href="#十三、CAS-直连插件备选路线" class="headerlink" title="十三、CAS 直连插件备选路线"></a>十三、CAS 直连插件备选路线</h2><p>若组织明确要求使用 CAS Protocol，而不是 CAS SAML IdP，可在 Atlassian Marketplace 寻找 Data Center Approved CAS SSO App。</p>
+<p>上线前必须确认：</p>
+<ul>
+<li>支持 Jira Data Center 11.3；</li>
+<li>支持 Java 21；</li>
+<li>支持集群；</li>
+<li>支持 Single Logout；</li>
+<li>支持属性映射；</li>
+<li>有持续维护和安全公告；</li>
+<li>有厂商 SLA；</li>
+<li>不修改 Jira 核心文件；</li>
+<li>升级可回滚。</li>
+</ul>
+<p>第三方插件路线不属于 Atlassian 原生 CAS 支持。</p>
+<h2 id="十四、权限与用户组"><a href="#十四、权限与用户组" class="headerlink" title="十四、权限与用户组"></a>十四、权限与用户组</h2><p>LDAP&#x2F;CAS 只解决认证和用户来源。Jira 权限由：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Application Access<br>Jira Groups<br>Global Permissions<br>Project Roles<br>Permission Scheme<br>Issue Security Scheme<br>Workflow Conditions<br></code></pre></td></tr></table></figure>
+
+<p>控制。</p>
+<p>推荐 LDAP 组：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">jira-users<br>jira-software-users<br>jira-servicemanagement-users<br>jira-auditors<br></code></pre></td></tr></table></figure>
+
+<p>不要把 LDAP <code>jira-admins</code> 自动映射为 Jira System Administrator，除非经过严格审批和审计。</p>
+<h2 id="十五、安全加固"><a href="#十五、安全加固" class="headerlink" title="十五、安全加固"></a>十五、安全加固</h2><ul>
+<li>HTTPS；</li>
+<li>LDAP 使用 LDAPS；</li>
+<li>SAML Assertion 签名；</li>
+<li>NameID 稳定；</li>
+<li>保留 Break-Glass；</li>
+<li>禁用公共注册；</li>
+<li>API 使用 PAT&#x2F;OAuth，不使用人员密码；</li>
+<li>管理员启用 MFA；</li>
+<li>附件目录不可执行；</li>
+<li>Marketplace App 最小化；</li>
+<li>定期扫描过期管理员和应用访问。</li>
+</ul>
+<p>CAS SSO 只处理 Web 登录，REST API、Automation、邮件处理和服务账号仍需要专门的 Token&#x2F;账号策略。</p>
+<h2 id="十六、性能调优"><a href="#十六、性能调优" class="headerlink" title="十六、性能调优"></a>十六、性能调优</h2><h3 id="16-1-JVM"><a href="#16-1-JVM" class="headerlink" title="16.1 JVM"></a>16.1 JVM</h3><p>从 4～8 GB Heap 起步，通过 GC 和负载调优：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">JIRA_PID=<span class="hljs-string">&quot;<span class="hljs-subst">$(cat /var/atlassian/application-data/jira/catalina.pid)</span>&quot;</span><br><br>jcmd <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;JIRA_PID&#125;</span>&quot;</span> GC.heap_info<br>jcmd <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;JIRA_PID&#125;</span>&quot;</span> Thread.<span class="hljs-built_in">print</span><br></code></pre></td></tr></table></figure>
+
+<p>监控：</p>
+<ul>
+<li>Full GC；</li>
+<li>GC Pause；</li>
+<li>Old Gen；</li>
+<li>Thread；</li>
+<li>Heap Dump；</li>
+<li>CPU；</li>
+<li>Load。</li>
+</ul>
+<h3 id="16-2-PostgreSQL"><a href="#16-2-PostgreSQL" class="headerlink" title="16.2 PostgreSQL"></a>16.2 PostgreSQL</h3><p>重点：</p>
+<ul>
+<li>数据库延迟；</li>
+<li>连接池；</li>
+<li>慢 SQL；</li>
+<li>Autovacuum；</li>
+<li>磁盘 I&#x2F;O；</li>
+<li><code>max_connections</code>；</li>
+<li>备份和 WAL。</li>
+</ul>
+<p>不要盲目增大 Jira DB Pool。连接多不等于数据库更快。</p>
+<h3 id="16-3-LDAP"><a href="#16-3-LDAP" class="headerlink" title="16.3 LDAP"></a>16.3 LDAP</h3><ul>
+<li>精确 Base DN；</li>
+<li>用户组过滤；</li>
+<li>索引 <code>uid</code>、<code>mail</code>、<code>memberOf</code>；</li>
+<li>合理同步周期；</li>
+<li>监控 Directory Sync；</li>
+<li>大组和嵌套组谨慎使用。</li>
+</ul>
+<h3 id="16-4-Jira-业务治理"><a href="#16-4-Jira-业务治理" class="headerlink" title="16.4 Jira 业务治理"></a>16.4 Jira 业务治理</h3><p>Jira 性能常被配置复杂度拖慢：</p>
+<ul>
+<li>过多 Custom Field；</li>
+<li>全局 Context；</li>
+<li>大量 Workflow；</li>
+<li>复杂 JQL；</li>
+<li>Dashboard Gadget；</li>
+<li>高负载 Automation；</li>
+<li>Marketplace App；</li>
+<li>超大 Group。</li>
+</ul>
+<p>这类问题不是加 JVM Heap 就能根治。</p>
+<h2 id="十七、备份"><a href="#十七、备份" class="headerlink" title="十七、备份"></a>十七、备份</h2><p>必须备份：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">PostgreSQL<br>Jira Home<br>附件<br>Lucene Index（可重建但恢复更快）<br>安装目录自定义配置<br>server.xml<br>setenv.sh<br>证书与 TrustStore<br>LDAP/SAML 配置记录<br>License<br></code></pre></td></tr></table></figure>
+
+<h3 id="17-1-数据库"><a href="#17-1-数据库" class="headerlink" title="17.1 数据库"></a>17.1 数据库</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">mkdir</span> -p /backup/jira<br><br><span class="hljs-built_in">sudo</span> -u postgres pg_dump \<br>  -Fc \<br>  jiradb \<br>  &gt; <span class="hljs-string">&quot;/backup/jira/jiradb-<span class="hljs-subst">$(date +%F-%H%M%S)</span>.dump&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="17-2-Jira-Home"><a href="#17-2-Jira-Home" class="headerlink" title="17.2 Jira Home"></a>17.2 Jira Home</h3><p>维护窗口停止 Jira：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl stop jira<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">tar --xattrs --acls \<br>  -czf <span class="hljs-string">&quot;/backup/jira/jira-home-<span class="hljs-subst">$(date +%F-%H%M%S)</span>.tar.gz&quot;</span> \<br>  -C /var/atlassian/application-data \<br>  jira<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl start jira<br></code></pre></td></tr></table></figure>
+
+<p>配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash">tar --xattrs --acls \<br>  -czf <span class="hljs-string">&quot;/backup/jira/jira-config-<span class="hljs-subst">$(date +%F-%H%M%S)</span>.tar.gz&quot;</span> \<br>  /opt/atlassian/jira/conf/server.xml \<br>  /opt/atlassian/jira/bin/setenv.sh \<br>  /etc/systemd/system/jira.service \<br>  /etc/nginx/conf.d/jira.example.com.conf \<br>  /etc/jira<br></code></pre></td></tr></table></figure>
+
+<h2 id="十八、升级"><a href="#十八、升级" class="headerlink" title="十八、升级"></a>十八、升级</h2><p>升级前：</p>
+<ol>
+<li>阅读 Jira 11.x Upgrade Notes；</li>
+<li>验证 Java、PostgreSQL 和 App 兼容；</li>
+<li>备份数据库、Home 和配置；</li>
+<li>在测试环境恢复生产备份；</li>
+<li>验证 LDAP&#x2F;SAML；</li>
+<li>准备旧版本软链接回滚。</li>
+</ol>
+<p>新版本解压到新目录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">/opt/atlassian/jira-11.3.a<br>/opt/atlassian/jira-11.3.b<br></code></pre></td></tr></table></figure>
+
+<p>不要覆盖旧安装目录。迁移配置时不要直接复制整个旧 <code>web.xml</code> 或全部 Tomcat 配置，应按官方 Upgrade Guide 合并必要修改。</p>
+<p>升级后验证：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">本地管理员<br>LDAP 登录/同步<br>CAS SAML 登录<br>Issue 创建<br>附件<br>搜索和索引<br>Automation<br>邮件<br>Marketplace App<br>REST API<br></code></pre></td></tr></table></figure>
+
+<h2 id="十九、常见故障"><a href="#十九、常见故障" class="headerlink" title="十九、常见故障"></a>十九、常见故障</h2><h3 id="19-1-Jira-启动失败"><a href="#19-1-Jira-启动失败" class="headerlink" title="19.1 Jira 启动失败"></a>19.1 Jira 启动失败</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status jira -l<br>journalctl -u jira -n 300 --no-pager<br><br><span class="hljs-built_in">tail</span> -f \<br>  /var/atlassian/application-data/jira/log/atlassian-jira.log<br></code></pre></td></tr></table></figure>
+
+<p>检查 Java 21、Home 权限、数据库、PID、端口和 License。</p>
+<h3 id="19-2-LDAP-SSL-错误"><a href="#19-2-LDAP-SSL-错误" class="headerlink" title="19.2 LDAP SSL 错误"></a>19.2 LDAP SSL 错误</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">openssl s_client \<br>  -connect ldap.example.com:636 \<br>  -servername ldap.example.com \<br>  -showcerts<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">keytool -list \<br>  -keystore /etc/jira/jira-truststore.p12 \<br>  -storetype PKCS12<br></code></pre></td></tr></table></figure>
+
+<p>检查 SAN、CA、TrustStore 密码和系统时间。</p>
+<h3 id="19-3-LDAP-用户存在但-Jira-搜不到"><a href="#19-3-LDAP-用户存在但-Jira-搜不到" class="headerlink" title="19.3 LDAP 用户存在但 Jira 搜不到"></a>19.3 LDAP 用户存在但 Jira 搜不到</h3><p>检查：</p>
+<ul>
+<li>User DN；</li>
+<li>Group DN；</li>
+<li>Object Class；</li>
+<li><code>uid</code>；</li>
+<li>Filter；</li>
+<li>MemberOf Overlay；</li>
+<li>Reader ACL；</li>
+<li>Directory 顺序。</li>
+</ul>
+<h3 id="19-4-SAML-登录后用户不存在"><a href="#19-4-SAML-登录后用户不存在" class="headerlink" title="19.4 SAML 登录后用户不存在"></a>19.4 SAML 登录后用户不存在</h3><p>原因通常是：</p>
+<ul>
+<li>LDAP 尚未同步；</li>
+<li>NameID 与 <code>uid</code> 不一致；</li>
+<li>JIT 关闭但用户不存在；</li>
+<li>Directory 不可用；</li>
+<li>用户没有 Application Access；</li>
+<li>用户被禁用。</li>
+</ul>
+<h3 id="19-5-SAML-登录循环"><a href="#19-5-SAML-登录循环" class="headerlink" title="19.5 SAML 登录循环"></a>19.5 SAML 登录循环</h3><p>检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Jira Base URL<br>Nginx Forwarded Header<br>Tomcat proxyName/proxyPort/scheme<br>CAS Entity ID<br>ACS<br>Audience<br>Recipient<br>Cookie<br>时间同步<br></code></pre></td></tr></table></figure>
+
+<h3 id="19-6-用户登录成功但没有项目权限"><a href="#19-6-用户登录成功但没有项目权限" class="headerlink" title="19.6 用户登录成功但没有项目权限"></a>19.6 用户登录成功但没有项目权限</h3><p>SSO 成功不等于授权成功。检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Application Access<br>Group<br>Project Role<br>Permission Scheme<br>Issue Security<br></code></pre></td></tr></table></figure>
+
+<h3 id="19-7-修改-server-xml-后升级丢失"><a href="#19-7-修改-server-xml-后升级丢失" class="headerlink" title="19.7 修改 server.xml 后升级丢失"></a>19.7 修改 server.xml 后升级丢失</h3><p>Jira 安装目录是版本目录，升级不会自动合并手工修改。必须通过配置清单和差异工具迁移，而不是依赖记忆。</p>
+<h2 id="二十、生产检查清单"><a href="#二十、生产检查清单" class="headerlink" title="二十、生产检查清单"></a>二十、生产检查清单</h2><ul>
+<li><input disabled="" type="checkbox"> 使用 Jira Data Center License；</li>
+<li><input disabled="" type="checkbox"> Java 21；</li>
+<li><input disabled="" type="checkbox"> PostgreSQL 版本在支持矩阵内；</li>
+<li><input disabled="" type="checkbox"> Jira Home 与安装目录分离；</li>
+<li><input disabled="" type="checkbox"> HTTPS 与 Nginx 代理参数正确；</li>
+<li><input disabled="" type="checkbox"> LDAP 使用专用 Reader 和 LDAPS；</li>
+<li><input disabled="" type="checkbox"> LDAP 用户和组过滤已验证；</li>
+<li><input disabled="" type="checkbox"> CAS 通过 SAML IdP 接入；</li>
+<li><input disabled="" type="checkbox"> 未侵入修改 Jira 以强接 CAS Filter；</li>
+<li><input disabled="" type="checkbox"> SAML JIT 与 LDAP 同步策略不冲突；</li>
+<li><input disabled="" type="checkbox"> NameID 与 LDAP <code>uid</code> 一致；</li>
+<li><input disabled="" type="checkbox"> 保留本地回退管理员；</li>
+<li><input disabled="" type="checkbox"> Application Access 和项目权限单独治理；</li>
+<li><input disabled="" type="checkbox"> 数据库、Home、附件和配置已备份；</li>
+<li><input disabled="" type="checkbox"> 已演练 LDAP&#x2F;CAS 故障；</li>
+<li><input disabled="" type="checkbox"> Marketplace App 已验证 Jira 11.3&#x2F;Java 21 兼容。</li>
+</ul>
+<h2 id="二十一、总结"><a href="#二十一、总结" class="headerlink" title="二十一、总结"></a>二十一、总结</h2><p>推荐链路：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">OpenLDAP：身份和用户组<br>CAS：LDAP 认证 + SAML IdP<br>Jira Data Center：LDAP Directory + SAML SP<br></code></pre></td></tr></table></figure>
+
+<p>核心原则：</p>
+<ol>
+<li>Jira 原生支持 LDAP，但不原生支持 CAS Protocol；</li>
+<li>使用 CAS SAML IdP 对接 Jira Data Center 原生 SSO；</li>
+<li>LDAP 负责用户生命周期，SAML 负责登录；</li>
+<li>关闭或谨慎使用 SAML JIT，避免重复用户；</li>
+<li>NameID 必须与 LDAP 用户名稳定一致；</li>
+<li>SSO 只解决认证，Jira 权限仍由 Application Access、Group、Role 和 Scheme 控制；</li>
+<li>保留本地回退管理员并演练故障登录；</li>
+<li>升级必须同时验证 Java、数据库、LDAP、SAML 和 Marketplace App。</li>
+</ol>
+<p>把 CAS 接入 Jira 的正确做法，不是在 Tomcat 里塞一个过滤器“能跳转就算成功”，而是利用 Jira 官方 SAML 边界，把身份、登录和应用权限分层管理。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://confluence.atlassian.com/adminjiraserver/supported-platforms-938846830.html">Jira Supported Platforms</a></li>
+<li><a target="_blank" rel="noopener" href="https://confluence.atlassian.com/adminjiraserver/installing-jira-applications-on-linux-938846841.html">Installing Jira Applications on Linux</a></li>
+<li><a target="_blank" rel="noopener" href="https://confluence.atlassian.com/adminjiraserver/jira-application-home-directory-938847746.html">Jira Application Home Directory</a></li>
+<li><a target="_blank" rel="noopener" href="https://confluence.atlassian.com/adminjiraserver/connecting-to-an-ldap-directory-938847052.html">Connecting Jira to LDAP</a></li>
+<li><a target="_blank" rel="noopener" href="https://confluence.atlassian.com/enterprise/saml-single-sign-on-for-atlassian-data-center-applications-857050705.html">SAML SSO for Atlassian Data Center</a></li>
+<li><a target="_blank" rel="noopener" href="https://confluence.atlassian.com/enterprise/data-center-architecture-and-infrastructure-options-994321215.html">Jira Data Center Infrastructure</a></li>
+<li><a target="_blank" rel="noopener" href="https://apereo.github.io/cas/7.3.x/">Apereo CAS Documentation</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/17/">PostgreSQL Documentation</a></li>
+</ul>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Linux/" class="category-chain-item">Linux</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/Linux/Project-Management/" class="category-chain-item">Project Management</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Rocky-Linux-10/" class="print-no-link">#Rocky Linux 10</a>
+      
+        <a href="/tags/OpenLDAP/" class="print-no-link">#OpenLDAP</a>
+      
+        <a href="/tags/CAS/" class="print-no-link">#CAS</a>
+      
+        <a href="/tags/SSO/" class="print-no-link">#SSO</a>
+      
+        <a href="/tags/Jira-Data-Center/" class="print-no-link">#Jira Data Center</a>
+      
+        <a href="/tags/SAML/" class="print-no-link">#SAML</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Rocky Linux 10 搭建 Jira Data Center 并集成 OpenLDAP 与 CAS 单点登录</div>
+      <div>https://allendericdalexander.github.io/2026/08/01/devops/linux/rocky/rocky-linux-10-jira-ldap-cas/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月1日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/08/01/devops/linux/rocky/rocky-linux-10-gitlab-runner-ldap-cas/" title="Rocky Linux 10 搭建 GitLab Runner，并接入已集成 LDAP 与 CAS 的 GitLab">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Rocky Linux 10 搭建 GitLab Runner，并接入已集成 LDAP 与 CAS 的 GitLab</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/01/devops/linux/rocky/rocky-linux-10-gitlab-ldap-cas/" title="Rocky Linux 10 搭建 GitLab Self-Managed 并集成 OpenLDAP 与 CAS 单点登录">
+                        <span class="hidden-mobile">Rocky Linux 10 搭建 GitLab Self-Managed 并集成 OpenLDAP 与 CAS 单点登录</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

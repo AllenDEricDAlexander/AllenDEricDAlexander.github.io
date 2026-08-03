@@ -1,0 +1,1532 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="在 Rocky Linux 10 上使用 chrony 搭建企业内网 NTP Server，并配置 chronyd Client，覆盖分层授时、冗余、多源、离线网络、firewalld、NetworkManager、虚拟机、硬件时间戳、NTS、监控、调优和故障排查。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Rocky Linux 10 搭建 NTP Server 与 Chrony Client：内网授时、离线容灾与生产调优">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/07/31/devops/linux/rocky/rocky-linux-10-ntp-server-chrony-client/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="在 Rocky Linux 10 上使用 chrony 搭建企业内网 NTP Server，并配置 chronyd Client，覆盖分层授时、冗余、多源、离线网络、firewalld、NetworkManager、虚拟机、硬件时间戳、NTS、监控、调优和故障排查。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-31T10:58:00.000Z">
+<meta property="article:modified_time" content="2026-07-31T10:58:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Chrony">
+<meta property="article:tag" content="NTP">
+<meta property="article:tag" content="Rocky Linux 10">
+<meta property="article:tag" content="chronyd">
+<meta property="article:tag" content="时间同步">
+<meta property="article:tag" content="运维">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Rocky Linux 10 搭建 NTP Server 与 Chrony Client：内网授时、离线容灾与生产调优 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Rocky Linux 10 搭建 NTP Server 与 Chrony Client：内网授时、离线容灾与生产调优"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-07-31 18:58" pubdate>
+          2026年7月31日 晚上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          5.8k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          49 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Rocky Linux 10 搭建 NTP Server 与 Chrony Client：内网授时、离线容灾与生产调优</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>在单机环境中，系统时间偏差几秒似乎问题不大；但在企业基础设施中，时间错误往往会引发一串很难排查的问题：</p>
+<ul>
+<li>Kerberos、Active Directory、CAS 或票据认证失败；</li>
+<li>TLS 证书被判断为尚未生效或已经过期；</li>
+<li>数据库主从、分布式锁、选主和事务时间线异常；</li>
+<li>日志顺序错乱，无法还原真实故障过程；</li>
+<li>Kubernetes、etcd、消息队列和定时任务行为异常；</li>
+<li>虚拟机快照恢复后出现大幅时间跳变；</li>
+<li>审计、计费、订单和结算记录缺少可信时间基线。</li>
+</ul>
+<p>Rocky Linux 10 默认使用 <code>chrony</code> 实现 NTP 客户端和服务器能力。其核心组件为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">chronyd：后台守护进程，负责测量、选择时间源并调整系统时钟<br>chronyc：管理和诊断命令，用于查看 tracking、sources、clients 等状态<br>/etc/chrony.conf：主配置文件<br></code></pre></td></tr></table></figure>
+
+<p>截至 2026 年 7 月 31 日，Rocky Linux 10 BaseOS 仓库中的 Chrony 版本基线为 <code>4.8-2.el10</code>。本文使用 Chrony 搭建企业内网 NTP Server，并配置 Client、离线容灾、监控和生产调优。</p>
+<span id="more"></span>
+
+<h2 id="一、NTP、Chrony-与系统时钟"><a href="#一、NTP、Chrony-与系统时钟" class="headerlink" title="一、NTP、Chrony 与系统时钟"></a>一、NTP、Chrony 与系统时钟</h2><h3 id="1-1-NTP-是协议，Chrony-是实现"><a href="#1-1-NTP-是协议，Chrony-是实现" class="headerlink" title="1.1 NTP 是协议，Chrony 是实现"></a>1.1 NTP 是协议，Chrony 是实现</h3><p>NTP（Network Time Protocol）是网络时间同步协议，默认使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">UDP 123<br></code></pre></td></tr></table></figure>
+
+<p>Chrony 是 NTP 的一种实现，既可以从上游获取时间，也可以向下游提供时间。</p>
+<pre><code class=" mermaid">flowchart LR
+    Upstream[公网或上级 NTP 源] --&gt;|UDP 123| Server[Rocky Linux 10&lt;br/&gt;chronyd NTP Server]
+    Server --&gt;|UDP 123| Client1[应用服务器]
+    Server --&gt;|UDP 123| Client2[数据库服务器]
+    Server --&gt;|UDP 123| Client3[Kubernetes 节点]
+</code></pre>
+
+<h3 id="1-2-System-Clock-与-RTC"><a href="#1-2-System-Clock-与-RTC" class="headerlink" title="1.2 System Clock 与 RTC"></a>1.2 System Clock 与 RTC</h3><p>Linux 中主要有两套时钟：</p>
+<table>
+<thead>
+<tr>
+<th>时钟</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>System Clock</td>
+<td>内核运行期间使用的软件时钟，应用读取的主要时间来源</td>
+</tr>
+<tr>
+<td>RTC &#x2F; Hardware Clock</td>
+<td>主板实时时钟，关机后继续运行，开机时用于初始化系统时间</td>
+</tr>
+</tbody></table>
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">date</span><br><span class="hljs-built_in">date</span> -u<br>timedatectl<br>hwclock --show<br></code></pre></td></tr></table></figure>
+
+<p>推荐让 RTC 保存 UTC：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">timedatectl set-local-rtc 0<br></code></pre></td></tr></table></figure>
+
+<p>时区只决定显示方式，不改变 NTP 同步的 UTC 基准：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">timedatectl set-timezone Asia/Shanghai<br></code></pre></td></tr></table></figure>
+
+<h3 id="1-3-Stratum"><a href="#1-3-Stratum" class="headerlink" title="1.3 Stratum"></a>1.3 Stratum</h3><table>
+<thead>
+<tr>
+<th align="right">Stratum</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">0</td>
+<td>原子钟、GPS、北斗、PPS 等参考时钟本身</td>
+</tr>
+<tr>
+<td align="right">1</td>
+<td>直接连接 Stratum 0 的服务器</td>
+</tr>
+<tr>
+<td align="right">2</td>
+<td>从 Stratum 1 同步</td>
+</tr>
+<tr>
+<td align="right">3</td>
+<td>从 Stratum 2 同步</td>
+</tr>
+<tr>
+<td align="right">4～15</td>
+<td>更下游层级</td>
+</tr>
+<tr>
+<td align="right">16</td>
+<td>未同步，不可作为有效时间源</td>
+</tr>
+</tbody></table>
+<p>Stratum 低不等于一定更准确。Chrony 还会综合延迟、抖动、误差区间和来源一致性进行选择。</p>
+<h2 id="二、企业推荐架构"><a href="#二、企业推荐架构" class="headerlink" title="二、企业推荐架构"></a>二、企业推荐架构</h2><p>不建议让所有服务器直接访问公网 NTP，而是建立内部授时层：</p>
+<pre><code class=" mermaid">flowchart TD
+    A1[独立上游 NTP 1] --&gt; N1[内部 NTP 1]
+    A2[独立上游 NTP 2] --&gt; N1
+    A3[独立上游 NTP 3] --&gt; N1
+    A4[独立上游 NTP 4] --&gt; N1
+
+    A1 --&gt; N2[内部 NTP 2]
+    A2 --&gt; N2
+    A3 --&gt; N2
+    A4 --&gt; N2
+
+    N1 --&gt; App[业务服务器]
+    N2 --&gt; App
+    N1 --&gt; DB[数据库服务器]
+    N2 --&gt; DB
+    N1 --&gt; K8S[Kubernetes 节点]
+    N2 --&gt; K8S
+</code></pre>
+
+<p>优势：</p>
+<ul>
+<li>只有内部 NTP Server 访问公网；</li>
+<li>客户端配置统一；</li>
+<li>降低公网抖动和 DNS 变化影响；</li>
+<li>上游切换不需要修改所有客户端；</li>
+<li>更容易审计、监控和隔离；</li>
+<li>断网时仍可按既定策略维持内部时间。</li>
+</ul>
+<h3 id="2-1-至少四个独立上游来源"><a href="#2-1-至少四个独立上游来源" class="headerlink" title="2.1 至少四个独立上游来源"></a>2.1 至少四个独立上游来源</h3><p>内部 NTP Server 推荐配置至少四个独立来源：</p>
+<table>
+<thead>
+<tr>
+<th align="right">数量</th>
+<th>风险</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">1</td>
+<td>无法判断唯一来源是否错误</td>
+</tr>
+<tr>
+<td align="right">2</td>
+<td>两个来源冲突时无法判断谁正确</td>
+</tr>
+<tr>
+<td align="right">3</td>
+<td>可容忍一个错误源，但再失联一个会退化成二选一</td>
+</tr>
+<tr>
+<td align="right">4 个以上</td>
+<td>更容易形成多数并排除 Falseticker</td>
+</tr>
+</tbody></table>
+<p>“独立”应尽量包括不同服务商、网络路径、物理基础设施和参考时钟，而不是四个域名最终指向同一组设备。</p>
+<h3 id="2-2-两台内部-Server-的边界"><a href="#2-2-两台内部-Server-的边界" class="headerlink" title="2.2 两台内部 Server 的边界"></a>2.2 两台内部 Server 的边界</h3><p>两台内部服务器是常见方案，但两者不一致时，客户端没有第三票可判断谁正确。更稳健的方式是：</p>
+<ul>
+<li>部署 3～4 台内部服务器；</li>
+<li>或 2 台内部服务器加可信备用源；</li>
+<li>或引入 GPS&#x2F;PPS 等独立参考源。</li>
+</ul>
+<p>如果只能部署两台，应持续监控二者偏差，并对分歧立即告警。</p>
+<h2 id="三、实验环境"><a href="#三、实验环境" class="headerlink" title="三、实验环境"></a>三、实验环境</h2><table>
+<thead>
+<tr>
+<th>角色</th>
+<th>主机名</th>
+<th align="right">IP</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>NTP Server 1</td>
+<td><code>ntp01.example.com</code></td>
+<td align="right"><code>192.168.9.10</code></td>
+</tr>
+<tr>
+<td>NTP Server 2</td>
+<td><code>ntp02.example.com</code></td>
+<td align="right"><code>192.168.9.11</code></td>
+</tr>
+<tr>
+<td>Client</td>
+<td><code>app01.example.com</code></td>
+<td align="right"><code>192.168.9.20</code></td>
+</tr>
+<tr>
+<td>内网网段</td>
+<td>-</td>
+<td align="right"><code>192.168.9.0/24</code></td>
+</tr>
+</tbody></table>
+<p>测试环境可配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> &gt;&gt; /etc/hosts &lt;&lt;<span class="hljs-string">&#x27;EOF_HOSTS&#x27;</span><br>192.168.9.10 ntp01.example.com ntp01<br>192.168.9.11 ntp02.example.com ntp02<br>192.168.9.20 app01.example.com app01<br>EOF_HOSTS<br></code></pre></td></tr></table></figure>
+
+<p>生产环境应使用企业 DNS。</p>
+<h2 id="四、安装与检查-Chrony"><a href="#四、安装与检查-Chrony" class="headerlink" title="四、安装与检查 Chrony"></a>四、安装与检查 Chrony</h2><p>Rocky Linux 10 通常已默认安装：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">rpm -q chrony<br>chronyd -v<br>chronyc -v<br></code></pre></td></tr></table></figure>
+
+<p>未安装时：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dnf install -y chrony<br></code></pre></td></tr></table></figure>
+
+<p>查看文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">rpm -ql chrony<br></code></pre></td></tr></table></figure>
+
+<p>启动：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl <span class="hljs-built_in">enable</span> --now chronyd<br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status chronyd --no-pager -l<br>systemctl is-enabled chronyd<br>systemctl is-active chronyd<br>journalctl -u chronyd -n 100 --no-pager<br></code></pre></td></tr></table></figure>
+
+<p>Rocky Linux 10 默认配置通常包含：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">pool 2.rocky.pool.ntp.org iburst<br>sourcedir /run/chrony-dhcp<br>driftfile /var/lib/chrony/drift<br>makestep 1.0 3<br>rtcsync<br>ntsdumpdir /var/lib/chrony<br>logdir /var/log/chrony<br></code></pre></td></tr></table></figure>
+
+<p>云厂商、Kickstart 或 NetworkManager 可能改写默认时间源，所以应以实际文件为准：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/chrony.conf<br></code></pre></td></tr></table></figure>
+
+<h2 id="五、核心配置项"><a href="#五、核心配置项" class="headerlink" title="五、核心配置项"></a>五、核心配置项</h2><h3 id="5-1-server-与-pool"><a href="#5-1-server-与-pool" class="headerlink" title="5.1 server 与 pool"></a>5.1 server 与 pool</h3><p>固定服务器使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">server ntp1.example.net iburst<br>server 192.0.2.10 iburst<br></code></pre></td></tr></table></figure>
+
+<p>真正会解析到多个地址的池使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">pool 2.rocky.pool.ntp.org iburst maxsources 4<br></code></pre></td></tr></table></figure>
+
+<p>不要对单个 IP 使用 <code>pool</code>。</p>
+<h3 id="5-2-iburst"><a href="#5-2-iburst" class="headerlink" title="5.2 iburst"></a>5.2 iburst</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">server ntp01.example.com iburst<br></code></pre></td></tr></table></figure>
+
+<p>初次通信时快速发送一组请求，加快首次同步。它不会让客户端长期高频轮询。</p>
+<h3 id="5-3-driftfile"><a href="#5-3-driftfile" class="headerlink" title="5.3 driftfile"></a>5.3 driftfile</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">driftfile /var/lib/chrony/drift<br></code></pre></td></tr></table></figure>
+
+<p>记录本机时钟变快或变慢的频率偏差。Chrony 重启后可利用它更快稳定。不要把清理 Drift 文件当成常规操作。</p>
+<h3 id="5-4-makestep"><a href="#5-4-makestep" class="headerlink" title="5.4 makestep"></a>5.4 makestep</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">makestep 1.0 3<br></code></pre></td></tr></table></figure>
+
+<p>在最初 3 次时钟更新中，偏差超过 1 秒时允许直接 Step。启动早期通常合理，但运行期间频繁 Step 会破坏日志顺序、数据库时间线、Token 和分布式协议。</p>
+<h3 id="5-5-rtcsync"><a href="#5-5-rtcsync" class="headerlink" title="5.5 rtcsync"></a>5.5 rtcsync</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">rtcsync<br></code></pre></td></tr></table></figure>
+
+<p>让内核定期把已同步的系统时间写入 RTC。</p>
+<h3 id="5-6-allow"><a href="#5-6-allow" class="headerlink" title="5.6 allow"></a>5.6 allow</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">allow 192.168.9.0/24<br></code></pre></td></tr></table></figure>
+
+<p>允许指定网段使用本机 NTP 服务。默认情况下，Chrony 不向任意远程客户端提供时间。</p>
+<h3 id="5-7-local"><a href="#5-7-local" class="headerlink" title="5.7 local"></a>5.7 local</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">local stratum 10<br></code></pre></td></tr></table></figure>
+
+<p>即使没有外部同步源，也继续向客户端提供本地时间。联网生产环境默认不要开启，因为上游全部失效后，本机可能逐渐漂移却仍表现为可用服务器。</p>
+<h3 id="5-8-minsources"><a href="#5-8-minsources" class="headerlink" title="5.8 minsources"></a>5.8 minsources</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">minsources 2<br></code></pre></td></tr></table></figure>
+
+<p>至少有两个可选择来源时才更新本机时钟。它提升正确性，但如果只配置两个来源，其中一个失联，系统会停止更新。</p>
+<h3 id="5-9-hwtimestamp"><a href="#5-9-hwtimestamp" class="headerlink" title="5.9 hwtimestamp"></a>5.9 hwtimestamp</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">hwtimestamp eth0<br></code></pre></td></tr></table></figure>
+
+<p>对支持的 NIC 启用硬件时间戳。它只有在网卡、驱动、交换网络和对端均支持，并且确实有高精度需求时才有价值。</p>
+<h2 id="六、搭建联网-NTP-Server"><a href="#六、搭建联网-NTP-Server" class="headerlink" title="六、搭建联网 NTP Server"></a>六、搭建联网 NTP Server</h2><p>在 <code>ntp01</code> 和 <code>ntp02</code> 上执行。</p>
+<h3 id="6-1-备份"><a href="#6-1-备份" class="headerlink" title="6.1 备份"></a>6.1 备份</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cp</span> -a \<br>  /etc/chrony.conf \<br>  <span class="hljs-string">&quot;/etc/chrony.conf.bak.<span class="hljs-subst">$(date +%F-%H%M%S)</span>&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="6-2-推荐配置"><a href="#6-2-推荐配置" class="headerlink" title="6.2 推荐配置"></a>6.2 推荐配置</h3><p><code>/etc/chrony.conf</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><code class="hljs text"># 上游时间源：生产环境替换为经过验证的独立来源<br>server ntp1.example.net iburst<br>server ntp2.example.net iburst<br>server ntp3.example.net iburst<br>server ntp4.example.net iburst<br><br># 固定企业配置时，不再接收 DHCP 注入的 NTP 源<br># sourcedir /run/chrony-dhcp<br><br>driftfile /var/lib/chrony/drift<br>makestep 1.0 3<br>rtcsync<br><br># 至少两个可选择来源时才更新本机时间<br>minsources 2<br><br># 拒绝不确定度过高的频率更新<br>maxupdateskew 100.0<br><br># 允许内网客户端<br>allow 192.168.9.0/24<br><br># 多网卡主机可选：只在内网地址提供 NTP<br>bindaddress 192.168.9.10<br><br># 限制单个源地址的异常请求速率<br>ratelimit interval 1 burst 16<br><br># 增加客户端状态容量，便于 clients 统计和 xleave<br>clientloglimit 1048576<br><br>ntsdumpdir /var/lib/chrony<br>logdir /var/log/chrony<br><br># 排障时按需开启，稳定后可关闭<br># log measurements statistics tracking<br></code></pre></td></tr></table></figure>
+
+<p><code>ntp02</code> 将绑定地址改为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">bindaddress 192.168.9.11<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-3-不默认开启-local-stratum"><a href="#6-3-不默认开启-local-stratum" class="headerlink" title="6.3 不默认开启 local stratum"></a>6.3 不默认开启 local stratum</h3><p>联网服务器不加入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">local stratum 10<br></code></pre></td></tr></table></figure>
+
+<p>这样上游长期失效时，下游能够识别该服务器不再可靠，而不是继续接受漂移时间。</p>
+<h3 id="6-4-重启与检查"><a href="#6-4-重启与检查" class="headerlink" title="6.4 重启与检查"></a>6.4 重启与检查</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl restart chronyd<br>journalctl -u chronyd -n 200 --no-pager<br></code></pre></td></tr></table></figure>
+
+<p>查看监听：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ss -ulnp | grep <span class="hljs-string">&#x27;:123&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="6-5-firewalld"><a href="#6-5-firewalld" class="headerlink" title="6.5 firewalld"></a>6.5 firewalld</h3><p>只允许内网网段访问：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl <span class="hljs-built_in">enable</span> --now firewalld<br><br>firewall-cmd \<br>  --permanent \<br>  --add-rich-rule=<span class="hljs-string">&#x27;rule family=&quot;ipv4&quot; source address=&quot;192.168.9.0/24&quot; service name=&quot;ntp&quot; accept&#x27;</span><br><br>firewall-cmd --reload<br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">firewall-cmd --list-rich-rules<br></code></pre></td></tr></table></figure>
+
+<p><code>firewalld</code> 控制数据包能否到达进程，<code>allow</code> 控制 Chrony 是否响应，两层都应设置。</p>
+<h3 id="6-6-SELinux"><a href="#6-6-SELinux" class="headerlink" title="6.6 SELinux"></a>6.6 SELinux</h3><p>标准 UDP 123 通常不需要额外 SELinux 配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">getenforce<br>ausearch -m AVC -ts recent<br></code></pre></td></tr></table></figure>
+
+<p>不要为了省事直接关闭 SELinux。</p>
+<h2 id="七、配置-Chrony-Client"><a href="#七、配置-Chrony-Client" class="headerlink" title="七、配置 Chrony Client"></a>七、配置 Chrony Client</h2><p>在 <code>app01</code> 上执行。</p>
+<h3 id="7-1-普通企业客户端"><a href="#7-1-普通企业客户端" class="headerlink" title="7.1 普通企业客户端"></a>7.1 普通企业客户端</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cp</span> -a \<br>  /etc/chrony.conf \<br>  <span class="hljs-string">&quot;/etc/chrony.conf.bak.<span class="hljs-subst">$(date +%F-%H%M%S)</span>&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p><code>/etc/chrony.conf</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs text">server ntp01.example.com iburst<br>server ntp02.example.com iburst<br><br># 如果有更多内部时间服务器，应全部配置<br># server ntp03.example.com iburst<br># server ntp04.example.com iburst<br><br># 固定企业来源时，不使用 DHCP 注入源<br># sourcedir /run/chrony-dhcp<br><br>driftfile /var/lib/chrony/drift<br>makestep 1.0 3<br>rtcsync<br>maxupdateskew 100.0<br><br># 显式禁止本机提供 NTP 服务，只作为客户端<br>port 0<br><br>ntsdumpdir /var/lib/chrony<br>logdir /var/log/chrony<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-2-严格可靠性客户端"><a href="#7-2-严格可靠性客户端" class="headerlink" title="7.2 严格可靠性客户端"></a>7.2 严格可靠性客户端</h3><p>有 4 台内部时间服务器时：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs text">server ntp01.example.com iburst<br>server ntp02.example.com iburst<br>server ntp03.example.com iburst<br>server ntp04.example.com iburst<br><br>minsources 2<br><br>driftfile /var/lib/chrony/drift<br>makestep 1.0 3<br>rtcsync<br>maxupdateskew 100.0<br>port 0<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-3-启动与首次同步"><a href="#7-3-启动与首次同步" class="headerlink" title="7.3 启动与首次同步"></a>7.3 启动与首次同步</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl <span class="hljs-built_in">enable</span> --now chronyd<br>systemctl restart chronyd<br></code></pre></td></tr></table></figure>
+
+<p>需要在维护窗口立即校准时：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">chronyc makestep<br></code></pre></td></tr></table></figure>
+
+<p>等待偏差小于 10 毫秒，最多检查 60 次：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">chronyc waitsync 60 0.01<br></code></pre></td></tr></table></figure>
+
+<p>不要在数据库、交易或关键任务运行期间随意 Step。</p>
+<h2 id="八、检查同步状态"><a href="#八、检查同步状态" class="headerlink" title="八、检查同步状态"></a>八、检查同步状态</h2><h3 id="8-1-timedatectl"><a href="#8-1-timedatectl" class="headerlink" title="8.1 timedatectl"></a>8.1 timedatectl</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">timedatectl<br></code></pre></td></tr></table></figure>
+
+<p>关注：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">System clock synchronized: yes<br>NTP service: active<br>RTC in local TZ: no<br></code></pre></td></tr></table></figure>
+
+<p>服务 Active 不代表当前一定已选中有效时间源。</p>
+<h3 id="8-2-tracking"><a href="#8-2-tracking" class="headerlink" title="8.2 tracking"></a>8.2 tracking</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">chronyc tracking<br></code></pre></td></tr></table></figure>
+
+<p>关键字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Reference ID</td>
+<td>当前选中的来源</td>
+</tr>
+<tr>
+<td>Stratum</td>
+<td>当前层级</td>
+</tr>
+<tr>
+<td>Ref time</td>
+<td>最近一次有效更新时间</td>
+</tr>
+<tr>
+<td>System time</td>
+<td>系统时间与 Chrony 估计时间的剩余差值</td>
+</tr>
+<tr>
+<td>Last offset</td>
+<td>最近一次偏差</td>
+</tr>
+<tr>
+<td>RMS offset</td>
+<td>一段时间内偏差均方根</td>
+</tr>
+<tr>
+<td>Frequency</td>
+<td>本机时钟频率快慢</td>
+</tr>
+<tr>
+<td>Skew</td>
+<td>频率估计不确定度</td>
+</tr>
+<tr>
+<td>Root delay</td>
+<td>到参考时钟的累计延迟</td>
+</tr>
+<tr>
+<td>Root dispersion</td>
+<td>累计误差上界</td>
+</tr>
+<tr>
+<td>Leap status</td>
+<td>健康时应为 <code>Normal</code></td>
+</tr>
+</tbody></table>
+<h3 id="8-3-sources-v"><a href="#8-3-sources-v" class="headerlink" title="8.3 sources -v"></a>8.3 sources -v</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">chronyc -n sources -v<br></code></pre></td></tr></table></figure>
+
+<p>状态符号：</p>
+<table>
+<thead>
+<tr>
+<th>符号</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>^*</code></td>
+<td>当前选中的 NTP Server</td>
+</tr>
+<tr>
+<td><code>^+</code></td>
+<td>可接受并参与组合的来源</td>
+</tr>
+<tr>
+<td><code>^-</code></td>
+<td>可接受但未参与当前组合</td>
+</tr>
+<tr>
+<td><code>^?</code></td>
+<td>不可达、样本不足或未通过测试</td>
+</tr>
+<tr>
+<td><code>^x</code></td>
+<td>Falseticker</td>
+</tr>
+<tr>
+<td><code>^~</code></td>
+<td>抖动过大</td>
+</tr>
+<tr>
+<td><code>#*</code></td>
+<td>选中的本地参考时钟，如 GPS&#x2F;PPS</td>
+</tr>
+</tbody></table>
+<p><code>Reach=377</code> 表示最近 8 次请求全部收到响应；长期为 <code>0</code> 说明没有有效回复。</p>
+<h3 id="8-4-其他命令"><a href="#8-4-其他命令" class="headerlink" title="8.4 其他命令"></a>8.4 其他命令</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">chronyc sourcestats -v<br>chronyc activity<br>chronyc ntpdata<br></code></pre></td></tr></table></figure>
+
+<p>服务器查看客户端：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">chronyc clients<br>chronyc serverstats<br></code></pre></td></tr></table></figure>
+
+<h2 id="九、验证客户端确实走内网-NTP"><a href="#九、验证客户端确实走内网-NTP" class="headerlink" title="九、验证客户端确实走内网 NTP"></a>九、验证客户端确实走内网 NTP</h2><p>客户端：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">chronyc -n sources -v<br></code></pre></td></tr></table></figure>
+
+<p>应看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.9.10<br>192.168.9.11<br></code></pre></td></tr></table></figure>
+
+<p>抓包：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">dnf install -y tcpdump<br><br>tcpdump -ni any udp port 123<br></code></pre></td></tr></table></figure>
+
+<p>服务端：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">chronyc clients<br></code></pre></td></tr></table></figure>
+
+<p>NTP 使用 UDP，不能用 <code>telnet IP 123</code> 判断服务是否正常。</p>
+<h2 id="十、上游选择与信任策略"><a href="#十、上游选择与信任策略" class="headerlink" title="十、上游选择与信任策略"></a>十、上游选择与信任策略</h2><p>优先级建议：</p>
+<ol>
+<li>企业或数据中心提供的高质量 NTP；</li>
+<li>云厂商同区域本地时间服务；</li>
+<li>运营商或经过验证的授时服务；</li>
+<li>公共 NTP Pool；</li>
+<li>GPS&#x2F;PPS 或硬件时间源。</li>
+</ol>
+<p>可对一个经过验证、网络质量更好的来源配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">server ntp1.example.net iburst prefer<br></code></pre></td></tr></table></figure>
+
+<p>不要给所有来源都加 <code>prefer</code>。</p>
+<p><code>trust</code> 和 <code>require</code> 更应谨慎：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">server secure-time.example.net iburst trust require<br></code></pre></td></tr></table></figure>
+
+<p>只适合经过认证的硬件源、NTS 源或本地 GPS&#x2F;PPS。不要把普通公网源随意设为绝对可信。</p>
+<h2 id="十一、DHCP-与-NetworkManager"><a href="#十一、DHCP-与-NetworkManager" class="headerlink" title="十一、DHCP 与 NetworkManager"></a>十一、DHCP 与 NetworkManager</h2><p>Rocky Linux 10 默认可能包含：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">sourcedir /run/chrony-dhcp<br></code></pre></td></tr></table></figure>
+
+<p>查看 DHCP 注入来源：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">find /run/chrony-dhcp -maxdepth 1 -<span class="hljs-built_in">type</span> f -<span class="hljs-built_in">print</span> -<span class="hljs-built_in">exec</span> <span class="hljs-built_in">cat</span> &#123;&#125; \;<br></code></pre></td></tr></table></figure>
+
+<p>企业要求固定来源时，应注释该行，否则可能出现手工来源与 DHCP 来源混合。</p>
+<h3 id="11-1-Dispatcher-将来源置为-Offline"><a href="#11-1-Dispatcher-将来源置为-Offline" class="headerlink" title="11.1 Dispatcher 将来源置为 Offline"></a>11.1 Dispatcher 将来源置为 Offline</h3><p>NetworkManager 会通过 Dispatcher 管理来源 Online&#x2F;Offline。使用自定义路由、VPN、策略路由或非 NetworkManager 网络时，可能出现来源被置为 Offline 后无法恢复。</p>
+<p>需要让 Chrony 始终轮询时，可禁用 Dispatcher：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ln</span> -f -s \<br>  /dev/null \<br>  /etc/NetworkManager/dispatcher.d/20-chrony-onoffline<br><br>systemctl restart NetworkManager<br>systemctl restart chronyd<br>chronyc online<br></code></pre></td></tr></table></figure>
+
+<p>只有确认命中该场景时再执行。</p>
+<h2 id="十二、联网失联与离线网络"><a href="#十二、联网失联与离线网络" class="headerlink" title="十二、联网失联与离线网络"></a>十二、联网失联与离线网络</h2><h3 id="12-1-联网环境默认策略"><a href="#12-1-联网环境默认策略" class="headerlink" title="12.1 联网环境默认策略"></a>12.1 联网环境默认策略</h3><p>联网生产环境不配置 <code>local</code>。上游全部失效后，服务器最终不再被客户端视为可靠来源，并触发监控告警。</p>
+<p>这牺牲“永远有源”的表面可用性，换取不向全网分发错误时间。</p>
+<h3 id="12-2-单节点离线-Server"><a href="#12-2-单节点离线-Server" class="headerlink" title="12.2 单节点离线 Server"></a>12.2 单节点离线 Server</h3><p>完全隔离网络可使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs text">driftfile /var/lib/chrony/drift<br>makestep 1.0 3<br>rtcsync<br><br>local stratum 10<br><br>allow 192.168.9.0/24<br>bindaddress 192.168.9.10<br>ratelimit interval 1 burst 16<br>clientloglimit 1048576<br><br>logdir /var/log/chrony<br></code></pre></td></tr></table></figure>
+
+<p>这种模式保证内部相对一致，但可能逐渐偏离真实 UTC。长期运行应考虑人工校时、GPS、北斗、PPS 或更稳定的硬件时钟。</p>
+<h3 id="12-3-多节点-Orphan-Mode"><a href="#12-3-多节点-Orphan-Mode" class="headerlink" title="12.3 多节点 Orphan Mode"></a>12.3 多节点 Orphan Mode</h3><p>多个离线服务器可：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">server 192.168.9.11 iburst<br>server 192.168.9.12 iburst<br>server 192.168.9.13 iburst<br><br>local stratum 10 orphan<br><br>allow 192.168.9.0/24<br>driftfile /var/lib/chrony/drift<br>makestep 1.0 3<br>rtcsync<br></code></pre></td></tr></table></figure>
+
+<p>Orphan Mode 会在同组服务器中选出一个本地参考，失效后由其他节点接管。</p>
+<p>离线客户端配置所有内部服务器：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">server 192.168.9.10 iburst<br>server 192.168.9.11 iburst<br>server 192.168.9.12 iburst<br>server 192.168.9.13 iburst<br></code></pre></td></tr></table></figure>
+
+<h2 id="十三、轮询间隔调优"><a href="#十三、轮询间隔调优" class="headerlink" title="十三、轮询间隔调优"></a>十三、轮询间隔调优</h2><p><code>minpoll</code> 和 <code>maxpoll</code> 使用 2 的指数：</p>
+<table>
+<thead>
+<tr>
+<th align="right">值</th>
+<th align="right">间隔</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">2</td>
+<td align="right">4 秒</td>
+</tr>
+<tr>
+<td align="right">3</td>
+<td align="right">8 秒</td>
+</tr>
+<tr>
+<td align="right">4</td>
+<td align="right">16 秒</td>
+</tr>
+<tr>
+<td align="right">5</td>
+<td align="right">32 秒</td>
+</tr>
+<tr>
+<td align="right">6</td>
+<td align="right">64 秒</td>
+</tr>
+<tr>
+<td align="right">7</td>
+<td align="right">128 秒</td>
+</tr>
+<tr>
+<td align="right">8</td>
+<td align="right">256 秒</td>
+</tr>
+<tr>
+<td align="right">9</td>
+<td align="right">512 秒</td>
+</tr>
+<tr>
+<td align="right">10</td>
+<td align="right">1024 秒</td>
+</tr>
+</tbody></table>
+<p>WAN 上游通常保持默认即可：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">server ntp1.example.net iburst<br></code></pre></td></tr></table></figure>
+
+<p>低延迟高精度局域网可考虑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">server ntp01.example.com iburst minpoll 4 maxpoll 6<br>server ntp02.example.com iburst minpoll 4 maxpoll 6<br></code></pre></td></tr></table></figure>
+
+<p>即 16～64 秒。</p>
+<p>不要让全网客户端每秒轮询。10000 台客户端每秒一次，就是 10000 QPS；不仅浪费资源，还会触发限速并增加网络抖动。</p>
+<h2 id="十四、网络质量过滤"><a href="#十四、网络质量过滤" class="headerlink" title="十四、网络质量过滤"></a>十四、网络质量过滤</h2><p>低延迟局域网中可以限制最大往返延迟：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">server ntp01.example.com iburst maxdelay 0.05<br></code></pre></td></tr></table></figure>
+
+<p>表示超过约 50 毫秒的样本不使用。</p>
+<p>不要把 LAN 阈值复制到跨地域或公网，否则正常来源可能全部被拒绝。</p>
+<p><code>maxupdateskew</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">maxupdateskew 100.0<br></code></pre></td></tr></table></figure>
+
+<p>当频率估计不确定度过高时，不使用该更新。不要为了快速显示“已同步”就无限放大阈值。</p>
+<h2 id="十五、大规模客户端与限速"><a href="#十五、大规模客户端与限速" class="headerlink" title="十五、大规模客户端与限速"></a>十五、大规模客户端与限速</h2><p>服务端：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ratelimit interval 1 burst 16<br></code></pre></td></tr></table></figure>
+
+<p>可限制单个源 IP 的异常请求。多个客户端经过同一 NAT 时会被视为同一个源地址，应评估共享出口影响。</p>
+<p>默认客户端日志容量有限，大规模环境可增加：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">clientloglimit 16777216<br></code></pre></td></tr></table></figure>
+
+<p>是否需要取决于客户端数量、<code>chronyc clients</code>、Rate Limit 和 Interleaved Mode。</p>
+<p><code>noclientlog</code> 会降低内存占用，但会损失客户端统计并关闭服务端 Interleaved Mode 支持，不能无脑开启。</p>
+<h2 id="十六、Chronyc-远程管理安全"><a href="#十六、Chronyc-远程管理安全" class="headerlink" title="十六、Chronyc 远程管理安全"></a>十六、Chronyc 远程管理安全</h2><p>NTP 服务端口是 UDP 123；Chronyc 远程命令端口默认是 UDP 323，但默认只绑定回环地址，本地 root 还可使用 Unix Socket。</p>
+<p>不要随意配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">bindcmdaddress 0.0.0.0<br>cmdallow all<br></code></pre></td></tr></table></figure>
+
+<p>推荐通过 SSH 登录服务器后执行 <code>chronyc</code>，或让监控 Agent 在本机采集。</p>
+<p>必须远程采集时，只允许专用监控节点并只开放必要命令：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">bindcmdaddress 192.168.9.10<br>cmdallow 192.168.9.100/32<br>opencommands tracking sources sourcestats activity serverstats<br>cmdratelimit interval 2<br></code></pre></td></tr></table></figure>
+
+<p>同时在防火墙限制 UDP 323 来源。</p>
+<h2 id="十七、硬件时间戳与高精度"><a href="#十七、硬件时间戳与高精度" class="headerlink" title="十七、硬件时间戳与高精度"></a>十七、硬件时间戳与高精度</h2><p>检查 NIC：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">dnf install -y ethtool<br>ethtool -T eth0<br></code></pre></td></tr></table></figure>
+
+<p>关注：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">hardware-transmit<br>hardware-receive<br>hardware-raw-clock<br></code></pre></td></tr></table></figure>
+
+<p>启用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">hwtimestamp eth0<br></code></pre></td></tr></table></figure>
+
+<p>重启并检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl restart chronyd<br>chronyc ntpdata<br></code></pre></td></tr></table></figure>
+
+<p><code>TX timestamping</code>、<code>RX timestamping</code> 显示 <code>Hardware</code> 才表示实际使用。</p>
+<h3 id="17-1-Interleaved-Mode"><a href="#17-1-Interleaved-Mode" class="headerlink" title="17.1 Interleaved Mode"></a>17.1 Interleaved Mode</h3><p>双方支持时，客户端来源可加入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">server ntp01.example.com iburst xleave<br></code></pre></td></tr></table></figure>
+
+<p>它可以提高精度，但依赖服务端保存客户端状态，不适合共享 NAT、状态容量不足或实现不兼容的网络。</p>
+<h3 id="17-2-NTP-与-PTP-的边界"><a href="#17-2-NTP-与-PTP-的边界" class="headerlink" title="17.2 NTP 与 PTP 的边界"></a>17.2 NTP 与 PTP 的边界</h3><p>如果目标是稳定亚微秒、工业控制、电信同步或高频测量，应评估 PTP、PHC、Boundary Clock、Transparent Clock 和专用网卡。<code>hwtimestamp *</code> 不是 PTP 的平替。</p>
+<h2 id="十八、NTS-安全时间"><a href="#十八、NTS-安全时间" class="headerlink" title="十八、NTS 安全时间"></a>十八、NTS 安全时间</h2><p>传统 NTP 默认不验证服务器身份。NTS 使用 TLS 建立认证材料，再保护后续 NTP 通信。</p>
+<p>客户端示例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">server nts.example.net iburst nts<br></code></pre></td></tr></table></figure>
+
+<p>只允许认证来源：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">authselectmode require<br></code></pre></td></tr></table></figure>
+
+<p>NTS 通常涉及：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">TCP 4460：NTS-KE 密钥协商<br>UDP 123：NTP 数据<br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<ul>
+<li>上游必须支持 NTS；</li>
+<li>DNS、证书链和系统时间必须合理；</li>
+<li><code>authselectmode require</code> 配错后可能完全无法同步；</li>
+<li>应使用多个独立 NTS 来源。</li>
+</ul>
+<p>Chrony 作为 NTS Server 时可配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">ntsservercert /etc/pki/tls/certs/ntp.example.com.crt<br>ntsserverkey /etc/pki/tls/private/ntp.example.com.key<br>ntsratelimit interval 3 burst 1<br></code></pre></td></tr></table></figure>
+
+<p>并开放 TCP 4460、保护私钥、监控证书有效期。</p>
+<h2 id="十九、虚拟机环境"><a href="#十九、虚拟机环境" class="headerlink" title="十九、虚拟机环境"></a>十九、虚拟机环境</h2><p>虚拟化平台可能同时提供 VMware Tools、Hyper-V Integration、QEMU Guest Agent 或云 Agent 时间同步。</p>
+<p>如果它与 Chrony 同时持续调时：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Chrony Slew<br>-&gt; Guest Tool 突然 Step<br>-&gt; Chrony 再反向修正<br></code></pre></td></tr></table></figure>
+
+<p>会造成 Offset 周期性跳变和日志倒退。</p>
+<p>建议：</p>
+<ul>
+<li>Chrony 负责持续时间同步；</li>
+<li>虚拟化平台仅在开机、恢复或迁移时一次性校准；</li>
+<li>禁用 Guest Tools 的周期性强制调时；</li>
+<li>快照恢复后先检查时间，再让数据库和集群服务上线。</li>
+</ul>
+<p>检查 Clocksource：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /sys/devices/system/clocksource/clocksource0/current_clocksource<br><span class="hljs-built_in">cat</span> /sys/devices/system/clocksource/clocksource0/available_clocksource<br></code></pre></td></tr></table></figure>
+
+<p>没有证据时不要手工切换 Clocksource。</p>
+<h2 id="二十、容器与-Kubernetes"><a href="#二十、容器与-Kubernetes" class="headerlink" title="二十、容器与 Kubernetes"></a>二十、容器与 Kubernetes</h2><p>普通 Linux 容器共享宿主机内核时钟，因此不要在每个容器中运行 Chrony。</p>
+<p>正确方式：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">宿主机同步时间 -&gt; 容器自动看到同一系统时间<br></code></pre></td></tr></table></figure>
+
+<p>容器中的 <code>TZ</code> 或 <code>/etc/localtime</code> 只影响显示时区，不改变时间基准。</p>
+<p>Kubernetes 应监控所有 Node 宿主机之间的偏差。</p>
+<h2 id="二十一、日志与监控"><a href="#二十一、日志与监控" class="headerlink" title="二十一、日志与监控"></a>二十一、日志与监控</h2><p>排障时可开启：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">log measurements statistics tracking<br>logdir /var/log/chrony<br></code></pre></td></tr></table></figure>
+
+<p>重启：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl restart chronyd<br></code></pre></td></tr></table></figure>
+
+<p>稳定后评估关闭高频日志，避免长期占用磁盘。</p>
+<p>建议监控：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs text">Leap status<br>Stratum<br>System time offset<br>Last/RMS offset<br>Root delay<br>Root dispersion<br>Skew<br>Reach<br>在线来源数量<br>可选择来源数量<br>Falseticker 数量<br>客户端数量<br>上游 DNS 和网络可达性<br>UDP 123 监听<br></code></pre></td></tr></table></figure>
+
+<p>简单健康检查脚本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> &gt; /usr/local/sbin/check-chrony.sh &lt;&lt;<span class="hljs-string">&#x27;EOF_SCRIPT&#x27;</span><br><span class="hljs-comment">#!/usr/bin/env bash</span><br><br><span class="hljs-built_in">set</span> -Eeuo pipefail<br><br>TRACKING=<span class="hljs-string">&quot;<span class="hljs-subst">$(chronyc tracking)</span>&quot;</span><br>SOURCES=<span class="hljs-string">&quot;<span class="hljs-subst">$(chronyc sources)</span>&quot;</span><br><br><span class="hljs-keyword">if</span> ! grep -q <span class="hljs-string">&#x27;Leap status.*Normal&#x27;</span> &lt;&lt;&lt; <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;TRACKING&#125;</span>&quot;</span>; <span class="hljs-keyword">then</span><br>  <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;CRITICAL: chrony is not synchronized&quot;</span><br>  <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;TRACKING&#125;</span>&quot;</span><br>  <span class="hljs-built_in">exit</span> 2<br><span class="hljs-keyword">fi</span><br><br><span class="hljs-keyword">if</span> ! grep -qE <span class="hljs-string">&#x27;^[#^]\*&#x27;</span> &lt;&lt;&lt; <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;SOURCES&#125;</span>&quot;</span>; <span class="hljs-keyword">then</span><br>  <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;CRITICAL: no selected time source&quot;</span><br>  <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;SOURCES&#125;</span>&quot;</span><br>  <span class="hljs-built_in">exit</span> 2<br><span class="hljs-keyword">fi</span><br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;OK: chrony synchronized&quot;</span><br>EOF_SCRIPT<br><br><span class="hljs-built_in">chmod</span> 0755 /usr/local/sbin/check-chrony.sh<br></code></pre></td></tr></table></figure>
+
+<p>生产监控最好采集结构化指标，不要长期依赖文本解析。</p>
+<h2 id="二十二、批量配置客户端"><a href="#二十二、批量配置客户端" class="headerlink" title="二十二、批量配置客户端"></a>二十二、批量配置客户端</h2><h3 id="22-1-Shell"><a href="#22-1-Shell" class="headerlink" title="22.1 Shell"></a>22.1 Shell</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> &gt; /usr/local/sbin/configure-chrony-client.sh &lt;&lt;<span class="hljs-string">&#x27;EOF_SCRIPT&#x27;</span><br><span class="hljs-comment">#!/usr/bin/env bash</span><br><br><span class="hljs-built_in">set</span> -Eeuo pipefail<br><br>CONFIG_FILE=<span class="hljs-string">&quot;/etc/chrony.conf&quot;</span><br>BACKUP_FILE=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;CONFIG_FILE&#125;</span>.bak.<span class="hljs-subst">$(date +%F-%H%M%S)</span>&quot;</span><br><br>[[ -f <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;CONFIG_FILE&#125;</span>&quot;</span> ]] &amp;&amp; <span class="hljs-built_in">cp</span> -a <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;CONFIG_FILE&#125;</span>&quot;</span> <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;BACKUP_FILE&#125;</span>&quot;</span><br><br><span class="hljs-built_in">cat</span> &gt; <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;CONFIG_FILE&#125;</span>&quot;</span> &lt;&lt;<span class="hljs-string">&#x27;EOF_CONFIG&#x27;</span><br>server ntp01.example.com iburst<br>server ntp02.example.com iburst<br><br>driftfile /var/lib/chrony/drift<br>makestep 1.0 3<br>rtcsync<br>maxupdateskew 100.0<br>port 0<br>ntsdumpdir /var/lib/chrony<br>logdir /var/log/chrony<br>EOF_CONFIG<br><br>systemctl <span class="hljs-built_in">enable</span> --now chronyd<br>systemctl restart chronyd<br><br>chronyc online<br>chronyc sources -v<br>chronyc tracking<br>EOF_SCRIPT<br><br><span class="hljs-built_in">chmod</span> 0750 /usr/local/sbin/configure-chrony-client.sh<br></code></pre></td></tr></table></figure>
+
+<h3 id="22-2-Ansible"><a href="#22-2-Ansible" class="headerlink" title="22.2 Ansible"></a>22.2 Ansible</h3><p><code>chrony.conf.j2</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs jinja2">&#123;% for server in chrony_servers %&#125;<br>server &#123;&#123; server &#125;&#125; iburst<br>&#123;% endfor %&#125;<br><br>driftfile /var/lib/chrony/drift<br>makestep 1.0 3<br>rtcsync<br>maxupdateskew 100.0<br>port 0<br>ntsdumpdir /var/lib/chrony<br>logdir /var/log/chrony<br></code></pre></td></tr></table></figure>
+
+<p>Playbook：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Configure</span> <span class="hljs-string">chrony</span> <span class="hljs-string">clients</span><br>  <span class="hljs-attr">hosts:</span> <span class="hljs-string">all</span><br>  <span class="hljs-attr">become:</span> <span class="hljs-literal">true</span><br><br>  <span class="hljs-attr">vars:</span><br>    <span class="hljs-attr">chrony_servers:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">ntp01.example.com</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">ntp02.example.com</span><br><br>  <span class="hljs-attr">tasks:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Install</span> <span class="hljs-string">chrony</span><br>      <span class="hljs-attr">ansible.builtin.dnf:</span><br>        <span class="hljs-attr">name:</span> <span class="hljs-string">chrony</span><br>        <span class="hljs-attr">state:</span> <span class="hljs-string">present</span><br><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Deploy</span> <span class="hljs-string">chrony</span> <span class="hljs-string">configuration</span><br>      <span class="hljs-attr">ansible.builtin.template:</span><br>        <span class="hljs-attr">src:</span> <span class="hljs-string">chrony.conf.j2</span><br>        <span class="hljs-attr">dest:</span> <span class="hljs-string">/etc/chrony.conf</span><br>        <span class="hljs-attr">owner:</span> <span class="hljs-string">root</span><br>        <span class="hljs-attr">group:</span> <span class="hljs-string">root</span><br>        <span class="hljs-attr">mode:</span> <span class="hljs-string">&quot;0644&quot;</span><br>      <span class="hljs-attr">notify:</span> <span class="hljs-string">Restart</span> <span class="hljs-string">chronyd</span><br><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Enable</span> <span class="hljs-string">chronyd</span><br>      <span class="hljs-attr">ansible.builtin.systemd_service:</span><br>        <span class="hljs-attr">name:</span> <span class="hljs-string">chronyd</span><br>        <span class="hljs-attr">enabled:</span> <span class="hljs-literal">true</span><br>        <span class="hljs-attr">state:</span> <span class="hljs-string">started</span><br><br>  <span class="hljs-attr">handlers:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">Restart</span> <span class="hljs-string">chronyd</span><br>      <span class="hljs-attr">ansible.builtin.systemd_service:</span><br>        <span class="hljs-attr">name:</span> <span class="hljs-string">chronyd</span><br>        <span class="hljs-attr">state:</span> <span class="hljs-string">restarted</span><br></code></pre></td></tr></table></figure>
+
+<h2 id="二十三、滚动变更"><a href="#二十三、滚动变更" class="headerlink" title="二十三、滚动变更"></a>二十三、滚动变更</h2><p>不要同时重启所有内部 NTP Server：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[修改 ntp02] --&gt; B[验证 ntp02 上游同步]
+    B --&gt; C[验证客户端可访问 ntp02]
+    C --&gt; D[等待稳定]
+    D --&gt; E[修改 ntp01]
+    E --&gt; F[验证整个时间层级]
+</code></pre>
+
+<p>验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">chronyc tracking<br>chronyc sources -v<br>chronyc sourcestats -v<br>ss -ulnp | grep <span class="hljs-string">&#x27;:123&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<h2 id="二十四、备份与恢复"><a href="#二十四、备份与恢复" class="headerlink" title="二十四、备份与恢复"></a>二十四、备份与恢复</h2><p>建议备份：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/chrony.conf<br>/etc/chrony.keys<br>NTS 证书和私钥<br>/var/lib/chrony/drift<br>/var/lib/chrony 中的 NTS 数据<br>systemd Override<br>防火墙和监控配置<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">mkdir</span> -p /backup/chrony<br><br>tar \<br>  --xattrs \<br>  --acls \<br>  -czf <span class="hljs-string">&quot;/backup/chrony/chrony-<span class="hljs-subst">$(date +%F-%H%M%S)</span>.tar.gz&quot;</span> \<br>  /etc/chrony.conf \<br>  /etc/chrony.keys \<br>  /var/lib/chrony \<br>  /etc/systemd/system/chronyd.service.d \<br>  2&gt;/dev/null || <span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>恢复后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">restorecon -Rv /etc/chrony.conf /etc/chrony.keys /var/lib/chrony<br>systemctl daemon-reload<br>systemctl restart chronyd<br>chronyc sources -v<br>chronyc tracking<br></code></pre></td></tr></table></figure>
+
+<p>NTS 私钥必须加密备份并限制权限。</p>
+<h2 id="二十五、常见故障"><a href="#二十五、常见故障" class="headerlink" title="二十五、常见故障"></a>二十五、常见故障</h2><h3 id="25-1-Leap-status-Not-synchronised"><a href="#25-1-Leap-status-Not-synchronised" class="headerlink" title="25.1 Leap status: Not synchronised"></a>25.1 Leap status: Not synchronised</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">chronyc tracking<br>chronyc sources -v<br>chronyc activity<br>journalctl -u chronyd -n 300 --no-pager<br></code></pre></td></tr></table></figure>
+
+<p>常见原因：</p>
+<ul>
+<li>UDP 123 被阻断；</li>
+<li>DNS 解析失败；</li>
+<li>来源被 NetworkManager 标记 Offline；</li>
+<li>不满足 <code>minsources</code>；</li>
+<li>来源互相冲突；</li>
+<li>过滤阈值过严；</li>
+<li>NTS 证书失败；</li>
+<li>虚拟机时间被其他工具修改。</li>
+</ul>
+<h3 id="25-2-来源一直是"><a href="#25-2-来源一直是" class="headerlink" title="25.2 来源一直是 ^?"></a>25.2 来源一直是 ^?</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">getent ahosts ntp01.example.com<br>ip route get 192.168.9.10<br>tcpdump -ni any host 192.168.9.10 and udp port 123<br></code></pre></td></tr></table></figure>
+
+<p>服务端：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">ss -ulnp | grep <span class="hljs-string">&#x27;:123&#x27;</span><br>firewall-cmd --list-all<br>chronyc clients<br></code></pre></td></tr></table></figure>
+
+<h3 id="25-3-服务端没有监听-123"><a href="#25-3-服务端没有监听-123" class="headerlink" title="25.3 服务端没有监听 123"></a>25.3 服务端没有监听 123</h3><p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">grep -nE <span class="hljs-string">&#x27;^[[:space:]]*(allow|port)&#x27;</span> /etc/chrony.conf<br></code></pre></td></tr></table></figure>
+
+<p>客户端配置中的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">port 0<br></code></pre></td></tr></table></figure>
+
+<p>会禁止服务端监听。</p>
+<h3 id="25-4-防火墙已开放但仍不同步"><a href="#25-4-防火墙已开放但仍不同步" class="headerlink" title="25.4 防火墙已开放但仍不同步"></a>25.4 防火墙已开放但仍不同步</h3><p>还要检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">allow 192.168.9.0/24<br></code></pre></td></tr></table></figure>
+
+<p>验证访问规则：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">chronyc accheck 192.168.9.20<br></code></pre></td></tr></table></figure>
+
+<h3 id="25-5-Reach-长期为-0"><a href="#25-5-Reach-长期为-0" class="headerlink" title="25.5 Reach 长期为 0"></a>25.5 Reach 长期为 0</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">chronyc online<br>chronyc activity<br></code></pre></td></tr></table></figure>
+
+<p>排查请求是否发出、回复是否被丢弃、服务端 <code>allow</code>、NAT 和策略路由。</p>
+<h3 id="25-6-Can’t-synchronise-no-majority"><a href="#25-6-Can’t-synchronise-no-majority" class="headerlink" title="25.6 Can’t synchronise: no majority"></a>25.6 Can’t synchronise: no majority</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">chronyc sources -v<br>chronyc sourcestats -v<br>chronyc selectdata<br></code></pre></td></tr></table></figure>
+
+<p>不要马上给其中一个来源加 <code>trust</code>，应先找出异常源、网络非对称、虚拟化调时或上游同源问题。</p>
+<h3 id="25-7-偏差很大"><a href="#25-7-偏差很大" class="headerlink" title="25.7 偏差很大"></a>25.7 偏差很大</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">chronyc tracking<br>chronyc sourcestats -v<br></code></pre></td></tr></table></figure>
+
+<p>启动早期或维护窗口可：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">chronyc makestep<br></code></pre></td></tr></table></figure>
+
+<h3 id="25-8-重启后又偏差很大"><a href="#25-8-重启后又偏差很大" class="headerlink" title="25.8 重启后又偏差很大"></a>25.8 重启后又偏差很大</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">grep -E <span class="hljs-string">&#x27;^(driftfile|rtcsync)&#x27;</span> /etc/chrony.conf<br><span class="hljs-built_in">ls</span> -l /var/lib/chrony/drift<br>hwclock --show<br></code></pre></td></tr></table></figure>
+
+<p>可能是 RTC 电池、RTC 本地时间、快照恢复、宿主机时间、Guest Tools 或 Drift 文件权限问题。</p>
+<h3 id="25-9-上游失联后仍向客户端服务"><a href="#25-9-上游失联后仍向客户端服务" class="headerlink" title="25.9 上游失联后仍向客户端服务"></a>25.9 上游失联后仍向客户端服务</h3><p>检查是否配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">local stratum 10<br></code></pre></td></tr></table></figure>
+
+<p>联网环境不需要时应删除并重启。</p>
+<h3 id="25-10-时间正确但时区不对"><a href="#25-10-时间正确但时区不对" class="headerlink" title="25.10 时间正确但时区不对"></a>25.10 时间正确但时区不对</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">timedatectl set-timezone Asia/Shanghai<br></code></pre></td></tr></table></figure>
+
+<p>不要通过手工修改系统时钟来修正时区。</p>
+<h3 id="25-11-NTS-无法建立"><a href="#25-11-NTS-无法建立" class="headerlink" title="25.11 NTS 无法建立"></a>25.11 NTS 无法建立</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">tcpdump -ni any tcp port 4460<br>chronyc authdata<br>journalctl -u chronyd -n 300 --no-pager<br></code></pre></td></tr></table></figure>
+
+<p>检查证书链、DNS、系统初始时间和 TCP 4460。</p>
+<h2 id="二十六、不要做的事情"><a href="#二十六、不要做的事情" class="headerlink" title="二十六、不要做的事情"></a>二十六、不要做的事情</h2><h3 id="26-1-不要用-Cron-执行-date-s"><a href="#26-1-不要用-Cron-执行-date-s" class="headerlink" title="26.1 不要用 Cron 执行 date -s"></a>26.1 不要用 Cron 执行 date -s</h3><p>错误方式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">* * * * * <span class="hljs-built_in">date</span> -s <span class="hljs-string">&quot;<span class="hljs-subst">$(ssh ntp-server date)</span>&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>它会频繁 Step，破坏日志、数据库和分布式协议，并完全绕开 NTP 的质量评估。</p>
+<h3 id="26-2-不要同时运行多个调时守护进程"><a href="#26-2-不要同时运行多个调时守护进程" class="headerlink" title="26.2 不要同时运行多个调时守护进程"></a>26.2 不要同时运行多个调时守护进程</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status chronyd<br>systemctl status ntpd<br>systemctl status systemd-timesyncd<br></code></pre></td></tr></table></figure>
+
+<p>同一系统只保留一个主要时间同步服务。</p>
+<h3 id="26-3-不要向公网无条件开放-NTP"><a href="#26-3-不要向公网无条件开放-NTP" class="headerlink" title="26.3 不要向公网无条件开放 NTP"></a>26.3 不要向公网无条件开放 NTP</h3><p>使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">allow 内网网段<br>+ firewalld 源地址限制<br>+ bindaddress 内网地址<br>+ ratelimit<br></code></pre></td></tr></table></figure>
+
+<h3 id="26-4-不要无条件-local-stratum"><a href="#26-4-不要无条件-local-stratum" class="headerlink" title="26.4 不要无条件 local stratum"></a>26.4 不要无条件 local stratum</h3><p>“客户端永远能同步”不等于“时间永远正确”。</p>
+<h3 id="26-5-不要把两个来源当作多数共识"><a href="#26-5-不要把两个来源当作多数共识" class="headerlink" title="26.5 不要把两个来源当作多数共识"></a>26.5 不要把两个来源当作多数共识</h3><p>两个来源发生分歧时没有第三票，应监控服务器之间的偏差。</p>
+<h2 id="二十七、生产配置汇总"><a href="#二十七、生产配置汇总" class="headerlink" title="二十七、生产配置汇总"></a>二十七、生产配置汇总</h2><h3 id="27-1-联网-NTP-Server"><a href="#27-1-联网-NTP-Server" class="headerlink" title="27.1 联网 NTP Server"></a>27.1 联网 NTP Server</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs text">server ntp1.example.net iburst<br>server ntp2.example.net iburst<br>server ntp3.example.net iburst<br>server ntp4.example.net iburst<br><br>driftfile /var/lib/chrony/drift<br>makestep 1.0 3<br>rtcsync<br>minsources 2<br>maxupdateskew 100.0<br><br>allow 192.168.9.0/24<br>bindaddress 192.168.9.10<br>ratelimit interval 1 burst 16<br>clientloglimit 1048576<br><br>ntsdumpdir /var/lib/chrony<br>logdir /var/log/chrony<br></code></pre></td></tr></table></figure>
+
+<h3 id="27-2-普通-Client"><a href="#27-2-普通-Client" class="headerlink" title="27.2 普通 Client"></a>27.2 普通 Client</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">server ntp01.example.com iburst<br>server ntp02.example.com iburst<br><br>driftfile /var/lib/chrony/drift<br>makestep 1.0 3<br>rtcsync<br>maxupdateskew 100.0<br>port 0<br>ntsdumpdir /var/lib/chrony<br>logdir /var/log/chrony<br></code></pre></td></tr></table></figure>
+
+<h3 id="27-3-高精度-LAN-Client"><a href="#27-3-高精度-LAN-Client" class="headerlink" title="27.3 高精度 LAN Client"></a>27.3 高精度 LAN Client</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">server ntp01.example.com iburst minpoll 4 maxpoll 6 xleave<br>server ntp02.example.com iburst minpoll 4 maxpoll 6 xleave<br>server ntp03.example.com iburst minpoll 4 maxpoll 6 xleave<br>server ntp04.example.com iburst minpoll 4 maxpoll 6 xleave<br><br>minsources 2<br>driftfile /var/lib/chrony/drift<br>makestep 1.0 3<br>rtcsync<br>hwtimestamp eth0<br>port 0<br></code></pre></td></tr></table></figure>
+
+<h3 id="27-4-离线-Orphan-Server"><a href="#27-4-离线-Orphan-Server" class="headerlink" title="27.4 离线 Orphan Server"></a>27.4 离线 Orphan Server</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">server 192.168.9.11 iburst<br>server 192.168.9.12 iburst<br>server 192.168.9.13 iburst<br><br>local stratum 10 orphan<br><br>driftfile /var/lib/chrony/drift<br>makestep 1.0 3<br>rtcsync<br>allow 192.168.9.0/24<br>ratelimit interval 1 burst 16<br></code></pre></td></tr></table></figure>
+
+<h2 id="二十八、上线检查清单"><a href="#二十八、上线检查清单" class="headerlink" title="二十八、上线检查清单"></a>二十八、上线检查清单</h2><h3 id="Server"><a href="#Server" class="headerlink" title="Server"></a>Server</h3><ul>
+<li><input disabled="" type="checkbox"> Chrony 已更新；</li>
+<li><input disabled="" type="checkbox"> 配置至少四个独立上游来源；</li>
+<li><input disabled="" type="checkbox"> <code>sources -v</code> 存在 <code>^*</code>；</li>
+<li><input disabled="" type="checkbox"> <code>Leap status</code> 为 <code>Normal</code>；</li>
+<li><input disabled="" type="checkbox"> 联网环境未无条件启用 <code>local stratum</code>；</li>
+<li><input disabled="" type="checkbox"> <code>allow</code> 只放行内网；</li>
+<li><input disabled="" type="checkbox"> firewalld 只允许可信网段 UDP 123；</li>
+<li><input disabled="" type="checkbox"> 多网卡环境绑定正确地址；</li>
+<li><input disabled="" type="checkbox"> Rate Limit 合理；</li>
+<li><input disabled="" type="checkbox"> 服务器之间偏差已监控；</li>
+<li><input disabled="" type="checkbox"> NTS 证书和私钥权限正确；</li>
+<li><input disabled="" type="checkbox"> 日志和磁盘已监控。</li>
+</ul>
+<h3 id="Client"><a href="#Client" class="headerlink" title="Client"></a>Client</h3><ul>
+<li><input disabled="" type="checkbox"> 只配置内部 NTP；</li>
+<li><input disabled="" type="checkbox"> 不需要时禁用 DHCP 注入源；</li>
+<li><input disabled="" type="checkbox"> <code>chronyd</code> 开机启动；</li>
+<li><input disabled="" type="checkbox"> 存在 <code>^*</code>；</li>
+<li><input disabled="" type="checkbox"> Reach 能达到 <code>377</code>；</li>
+<li><input disabled="" type="checkbox"> <code>Leap status</code> 为 <code>Normal</code>；</li>
+<li><input disabled="" type="checkbox"> 没有其他程序持续强制调时；</li>
+<li><input disabled="" type="checkbox"> RTC 使用 UTC；</li>
+<li><input disabled="" type="checkbox"> 快照恢复流程包含时间检查。</li>
+</ul>
+<h3 id="高可用"><a href="#高可用" class="headerlink" title="高可用"></a>高可用</h3><ul>
+<li><input disabled="" type="checkbox"> 不依赖单台 Server；</li>
+<li><input disabled="" type="checkbox"> 不把两台 Server 当成完整多数判断；</li>
+<li><input disabled="" type="checkbox"> 上游来源具备独立性；</li>
+<li><input disabled="" type="checkbox"> 变更采用滚动方式；</li>
+<li><input disabled="" type="checkbox"> 上游全部失效有告警；</li>
+<li><input disabled="" type="checkbox"> 客户端偏差有阈值告警；</li>
+<li><input disabled="" type="checkbox"> 离线模式与真实 UTC 的边界明确。</li>
+</ul>
+<h2 id="二十九、总结"><a href="#二十九、总结" class="headerlink" title="二十九、总结"></a>二十九、总结</h2><p>在 Rocky Linux 10 上搭建 Chrony 时间基础设施，真正重要的不是执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dnf install chrony<br></code></pre></td></tr></table></figure>
+
+<p>而是建立一套可信的层级：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">独立上游时间源<br>-&gt; 内部 NTP Server<br>-&gt; 内部客户端<br>-&gt; 监控和告警<br>-&gt; 离线与故障策略<br></code></pre></td></tr></table></figure>
+
+<p>核心原则：</p>
+<ol>
+<li>NTP 是协议，Chrony 同时提供客户端和服务器实现；</li>
+<li>内部服务器使用至少四个独立上游来源；</li>
+<li>客户端尽量只访问企业内部 NTP；</li>
+<li><code>iburst</code> 用于初始加速，不是持续高频轮询；</li>
+<li><code>makestep</code> 适合启动早期，不适合运行期间频繁强制跳时；</li>
+<li>联网环境默认不要配置 <code>local stratum</code>；</li>
+<li>离线网络可使用 <code>local ... orphan</code> 保持内部一致；</li>
+<li><code>allow</code>、firewalld 和监听地址共同限制访问；</li>
+<li>虚拟机避免 Guest Tools 与 Chrony 同时持续调时；</li>
+<li>有明确精度需求时再缩短 Poll、启用硬件时间戳和 xleave；</li>
+<li>高安全环境可以使用 NTS；</li>
+<li>判断同步不能只看服务 Active，必须检查 <code>tracking</code>、<code>sources</code> 和 <code>Leap status</code>。</li>
+</ol>
+<p>时间基础设施平时几乎没有存在感，但认证、数据库、集群和审计都默认它永远正确。把 NTP 配好，属于那种没人鼓掌，却能让未来少开很多故障会议的工作。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://docs.rockylinux.org/10/guides/automation/configuring_chrony/">Rocky Linux 10：Configuring chrony</a></li>
+<li><a target="_blank" rel="noopener" href="https://dl.rockylinux.org/pub/rocky/10/BaseOS/x86_64/os/Packages/c/">Rocky Linux 10 BaseOS Packages</a></li>
+<li><a target="_blank" rel="noopener" href="https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html-single/configuring_time_synchronization/index">RHEL 10：Configuring time synchronization</a></li>
+<li><a target="_blank" rel="noopener" href="https://chrony-project.org/">Chrony Project</a></li>
+<li><a target="_blank" rel="noopener" href="https://chrony-project.org/documentation.html">Chrony Documentation</a></li>
+<li><a target="_blank" rel="noopener" href="https://chrony-project.org/doc/4.7/chrony.conf.html">chrony.conf Manual</a></li>
+<li><a target="_blank" rel="noopener" href="https://chrony-project.org/doc/4.7/chronyc.html">chronyc Manual</a></li>
+<li><a target="_blank" rel="noopener" href="https://chrony-project.org/examples.html">Chrony Configuration Examples</a></li>
+<li><a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/html/rfc5905">RFC 5905：Network Time Protocol Version 4</a></li>
+<li><a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/html/rfc8633">RFC 8633：Network Time Protocol Best Current Practices</a></li>
+<li><a target="_blank" rel="noopener" href="https://datatracker.ietf.org/doc/html/rfc8915">RFC 8915：Network Time Security</a></li>
+</ul>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Linux/" class="category-chain-item">Linux</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/Linux/Infrastructure/" class="category-chain-item">Infrastructure</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/%E8%BF%90%E7%BB%B4/" class="print-no-link">#运维</a>
+      
+        <a href="/tags/Rocky-Linux-10/" class="print-no-link">#Rocky Linux 10</a>
+      
+        <a href="/tags/NTP/" class="print-no-link">#NTP</a>
+      
+        <a href="/tags/Chrony/" class="print-no-link">#Chrony</a>
+      
+        <a href="/tags/chronyd/" class="print-no-link">#chronyd</a>
+      
+        <a href="/tags/%E6%97%B6%E9%97%B4%E5%90%8C%E6%AD%A5/" class="print-no-link">#时间同步</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Rocky Linux 10 搭建 NTP Server 与 Chrony Client：内网授时、离线容灾与生产调优</div>
+      <div>https://allendericdalexander.github.io/2026/07/31/devops/linux/rocky/rocky-linux-10-ntp-server-chrony-client/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年7月31日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/07/31/devops/linux/rocky/rocky-linux-10-system-permission-network-management/" title="Rocky Linux 10 系统权限与网络管理实战：用户、ACL、sudo、SELinux、NetworkManager 与 firewalld">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Rocky Linux 10 系统权限与网络管理实战：用户、ACL、sudo、SELinux、NetworkManager 与 firewalld</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/07/31/devops/linux/rocky/rocky-linux-10-cas-openldap-sso/" title="Rocky Linux 10 搭建 CAS + OpenLDAP 单点登录系统：原生部署、Docker 部署与生产调优">
+                        <span class="hidden-mobile">Rocky Linux 10 搭建 CAS + OpenLDAP 单点登录系统：原生部署、Docker 部署与生产调优</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
