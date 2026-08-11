@@ -1,0 +1,2273 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="系统梳理 Linux 内存映射、页表与 TLB、malloc 与缺页、Buffer&#x2F;Cache、内存泄漏、Swap、OOM、NUMA 以及常用性能分析工具，给出一套可复用的内存性能排查方法。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 内存管理与性能优化：从虚拟内存、Page Cache 到 Swap、OOM 与泄漏排查">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/11/devops/linux/performanceOptimization/03linux-memory-management-performance-optimization/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="系统梳理 Linux 内存映射、页表与 TLB、malloc 与缺页、Buffer&#x2F;Cache、内存泄漏、Swap、OOM、NUMA 以及常用性能分析工具，给出一套可复用的内存性能排查方法。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-11T07:15:00.000Z">
+<meta property="article:modified_time" content="2026-08-11T09:07:57.210Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Buffer">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Memory">
+<meta property="article:tag" content="NUMA">
+<meta property="article:tag" content="OOM">
+<meta property="article:tag" content="Page Cache">
+<meta property="article:tag" content="Swap">
+<meta property="article:tag" content="Virtual Memory">
+<meta property="article:tag" content="eBPF">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Linux 内存管理与性能优化：从虚拟内存、Page Cache 到 Swap、OOM 与泄漏排查 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Linux 内存管理与性能优化：从虚拟内存、Page Cache 到 Swap、OOM 与泄漏排查"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-11 15:15" pubdate>
+          2026年8月11日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          12k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          97 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Linux 内存管理与性能优化：从虚拟内存、Page Cache 到 Swap、OOM 与泄漏排查</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <h1 id="Linux-内存管理与性能优化：从虚拟内存、Page-Cache-到-Swap、OOM-与泄漏排查"><a href="#Linux-内存管理与性能优化：从虚拟内存、Page-Cache-到-Swap、OOM-与泄漏排查" class="headerlink" title="Linux 内存管理与性能优化：从虚拟内存、Page Cache 到 Swap、OOM 与泄漏排查"></a>Linux 内存管理与性能优化：从虚拟内存、Page Cache 到 Swap、OOM 与泄漏排查</h1><p>Linux 内存性能问题很容易陷入两个极端：一边是只会看 <code>free</code>、<code>top</code>，看到 <code>free</code> 很小就认定“内存不够”；另一边是一下子钻进页表、LRU、NUMA、Swap、Slab、OOM 的细节，知道很多名词，却不知道线上出问题时该先看什么。</p>
+<p>真正有用的知识结构应该把几条链路串起来：</p>
+<ul>
+<li><strong>进程看到的是虚拟地址，真正使用的是物理页。</strong></li>
+<li><strong>内存分配并不等于物理内存立刻到手，首次访问才可能触发缺页并分配物理页。</strong></li>
+<li><strong>Linux 会把空闲内存积极用于缓存，因此 <code>free</code> 很低并不等价于内存紧张。</strong></li>
+<li><strong>文件页、匿名页的回收方式不同，进而引出 Page Cache、Swap、LRU、OOM。</strong></li>
+<li><strong>性能分析不能只看一个瞬时值，而要从系统整体、变化趋势、具体进程一路缩小范围。</strong></li>
+</ul>
+<p>把这些关系建立起来以后，<code>free</code>、<code>vmstat</code>、<code>sar</code>、<code>pmap</code>、<code>smaps</code>、<code>cachetop</code>、<code>memleak</code> 等工具就不再是一串需要死记硬背的命令，而是对应内存工作机制的不同观察窗口。</p>
+<span id="more"></span>
+
+<h2 id="1-先建立一张-Linux-内存全景图"><a href="#1-先建立一张-Linux-内存全景图" class="headerlink" title="1. 先建立一张 Linux 内存全景图"></a>1. 先建立一张 Linux 内存全景图</h2><p>从应用程序的一次内存访问开始，可以把 Linux 内存系统理解为下面这条链路：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[进程访问虚拟地址] --&gt; B&#123;TLB 是否命中&#125;
+    B --&gt;|命中| C[得到物理页映射]
+    B --&gt;|未命中| D[MMU 查页表]
+    D --&gt; E&#123;页表中是否已有有效映射&#125;
+    E --&gt;|有| C
+    E --&gt;|没有| F[缺页异常 Page Fault]
+    F --&gt; G[内核处理缺页]
+    G --&gt; H&#123;页面来源&#125;
+    H --&gt;|匿名页| I[分配/初始化物理页]
+    H --&gt;|文件页| J[从文件或 Page Cache 获取]
+    H --&gt;|被换出的匿名页| K[从 Swap 换入]
+    I --&gt; L[更新页表]
+    J --&gt; L
+    K --&gt; L
+    L --&gt; C
+    C --&gt; M[CPU 访问物理内存]
+</code></pre>
+
+<p>这张图解释了后面几乎所有内存性能指标：</p>
+<ul>
+<li>TLB 命中率不好，会增加地址翻译开销；</li>
+<li>页表中没有映射，会发生缺页；</li>
+<li>如果缺页只需要分配一个物理页，通常属于 <strong>Minor Page Fault（次缺页）</strong>；</li>
+<li>如果需要从磁盘、Swap 等慢速介质读取数据，则会形成 <strong>Major Page Fault（主缺页）</strong>；</li>
+<li>如果物理内存不足，内核会尝试回收文件页、换出匿名页；</li>
+<li>回收仍无法满足分配请求时，才会走向 OOM。</li>
+</ul>
+<p>所以 Linux 内存性能分析，本质上是在回答四个问题：</p>
+<ol>
+<li><strong>内存被谁占了？</strong></li>
+<li><strong>这些内存是什么类型？</strong></li>
+<li><strong>它们是否可以被回收？</strong></li>
+<li><strong>系统是否因为回收、缺页、Swap 或 OOM 付出了额外代价？</strong></li>
+</ol>
+<hr>
+<h2 id="2-物理内存与虚拟内存：进程看到的并不是-DRAM"><a href="#2-物理内存与虚拟内存：进程看到的并不是-DRAM" class="headerlink" title="2. 物理内存与虚拟内存：进程看到的并不是 DRAM"></a>2. 物理内存与虚拟内存：进程看到的并不是 DRAM</h2><p>通常说服务器有 8 GB、32 GB、128 GB 内存，指的是 <strong>Physical Memory（物理内存）</strong>，常见实现是 DRAM。</p>
+<p>应用进程并不直接拿物理地址读写 DRAM。Linux 为每个进程提供一个独立的 <strong>Virtual Address Space（虚拟地址空间）</strong>。进程看到的是连续的虚拟地址，至于这些地址到底对应物理内存中的哪一页，由内核建立映射关系。</p>
+<p>这样做带来了几个关键能力：</p>
+<ul>
+<li>每个进程拥有独立地址空间，进程之间天然隔离；</li>
+<li>虚拟地址可以远大于实际物理内存；</li>
+<li>物理内存可以按需分配，而不是进程一申请虚拟地址就全部兑现；</li>
+<li>同一份物理页面可以映射到多个进程，实现共享库、共享内存等；</li>
+<li>内核可以通过页权限实现只读、可写、可执行等访问控制。</li>
+</ul>
+<h3 id="2-1-用户空间与内核空间"><a href="#2-1-用户空间与内核空间" class="headerlink" title="2.1 用户空间与内核空间"></a>2.1 用户空间与内核空间</h3><p>虚拟地址空间通常被划分为：</p>
+<ul>
+<li><strong>User Space（用户空间）</strong></li>
+<li><strong>Kernel Space（内核空间）</strong></li>
+</ul>
+<p>进程在用户态只能访问用户空间；进入内核态后，才能执行需要内核权限的操作。</p>
+<p>资料使用 32 位系统的经典 <code>3G 用户空间 + 1G 内核空间</code>，以及 64 位系统中用户空间、内核空间各 128 TB 的示意来帮助理解。需要注意，这些数字是<strong>特定架构和当时实现下的经典示例</strong>，不是所有现代 64 位 Linux 的固定布局。实际可用虚拟地址宽度、页表级数、内核配置和体系结构都会影响地址空间布局。</p>
+<p>真正应该记住的是：</p>
+<blockquote>
+<p><strong>地址空间布局会随架构和内核变化，但“每个进程拥有独立虚拟地址空间，用户态与内核态权限不同”这个模型不变。</strong></p>
+</blockquote>
+<hr>
+<h2 id="3-页、页表、MMU-与-TLB"><a href="#3-页、页表、MMU-与-TLB" class="headerlink" title="3. 页、页表、MMU 与 TLB"></a>3. 页、页表、MMU 与 TLB</h2><h3 id="3-1-内存不是按字节做映射，而是按页"><a href="#3-1-内存不是按字节做映射，而是按页" class="headerlink" title="3.1 内存不是按字节做映射，而是按页"></a>3.1 内存不是按字节做映射，而是按页</h3><p>Linux 虚拟内存管理的基本单位是 <strong>Page（页）</strong>。常见普通页大小为 4 KB。</p>
+<p>如果使用 4 KB 页：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">4 GB / 4 KB = 1,048,576 个页<br></code></pre></td></tr></table></figure>
+
+<p>如果为每个虚拟页都保存一条映射，页表会非常庞大。因此 Linux 使用 <strong>Multi-level Page Table（多级页表）</strong>，只为实际使用到的地址空间建立必要的页表层级。</p>
+<p>资料以经典四级页表说明虚拟地址可以拆成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">PGD -&gt; PUD -&gt; PMD -&gt; PTE -&gt; Offset<br></code></pre></td></tr></table></figure>
+
+<p>现代体系结构上页表级数可能更多，例如某些 x86_64 系统支持五级页表。对性能分析来说，重点不是背层级名称，而是理解：</p>
+<ul>
+<li>虚拟地址会被拆成若干级索引；</li>
+<li>最终定位到 PTE；</li>
+<li>PTE 再给出物理页信息和访问权限；</li>
+<li>页内偏移不需要再次翻译。</li>
+</ul>
+<h3 id="3-2-页表到底放在哪里？"><a href="#3-2-页表到底放在哪里？" class="headerlink" title="3.2 页表到底放在哪里？"></a>3.2 页表到底放在哪里？</h3><p>资料正文中有一句容易误导的简化描述：“页表存储在 MMU 中”。后续答疑已经把这个问题讲得更准确：</p>
+<ul>
+<li><strong>页表本身是内核维护的数据结构，存放在内存中；</strong></li>
+<li><strong>MMU（Memory Management Unit，内存管理单元）是执行虚拟地址到物理地址翻译的硬件；</strong></li>
+<li><strong>TLB（Translation Lookaside Buffer，转译后备缓冲器）缓存常用的地址翻译结果。</strong></li>
+</ul>
+<p>可以理解为：</p>
+<pre><code class=" mermaid">flowchart LR
+    VA[Virtual Address] --&gt; TLB&#123;TLB&#125;
+    TLB --&gt;|Hit| PA[Physical Address]
+    TLB --&gt;|Miss| MMU[MMU Page Walk]
+    PT[(Page Tables in Memory)] --&gt; MMU
+    MMU --&gt; PA
+    MMU --&gt; TLB
+</code></pre>
+
+<p>TLB 的意义非常直接：如果每次内存访问都要在内存里逐级查页表，代价会非常高。TLB 把最近使用的地址翻译缓存下来，避免重复页表遍历。</p>
+<p>这也解释了为什么上下文切换、页表规模以及大页都会影响内存访问性能。</p>
+<hr>
+<h2 id="4-HugePage-为什么能提升大内存应用性能"><a href="#4-HugePage-为什么能提升大内存应用性能" class="headerlink" title="4. HugePage 为什么能提升大内存应用性能"></a>4. HugePage 为什么能提升大内存应用性能</h2><p>普通 4 KB 页意味着大内存应用需要维护大量页表项，也更容易给 TLB 带来压力。</p>
+<p>Linux 支持更大的页面，例如资料中提到的：</p>
+<ul>
+<li>2 MB</li>
+<li>1 GB</li>
+</ul>
+<p>大页常见于：</p>
+<ul>
+<li>数据库；</li>
+<li>DPDK；</li>
+<li>大型缓存；</li>
+<li>大内存计算；</li>
+<li>对 TLB Miss 敏感的场景。</li>
+</ul>
+<p>大页的主要收益包括：</p>
+<ol>
+<li><strong>减少页表项数量；</strong></li>
+<li><strong>提高单个 TLB Entry 覆盖的内存范围；</strong></li>
+<li><strong>降低地址翻译开销。</strong></li>
+</ol>
+<p>但大页并不是“打开就一定更快”。它会带来更粗的内存分配粒度，可能增加内存浪费，也会改变内存回收和碎片管理方式。因此应当基于负载特征使用，而不是把 HugePage 当成通用开关。</p>
+<hr>
+<h2 id="5-一个-Linux-进程的虚拟地址空间怎么分布"><a href="#5-一个-Linux-进程的虚拟地址空间怎么分布" class="headerlink" title="5. 一个 Linux 进程的虚拟地址空间怎么分布"></a>5. 一个 Linux 进程的虚拟地址空间怎么分布</h2><p>以经典布局理解，一个用户进程通常会包含：</p>
+<table>
+<thead>
+<tr>
+<th>区域</th>
+<th>主要内容</th>
+<th>典型特征</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>只读段</td>
+<td>程序代码、常量</td>
+<td>通常只读，可被多个进程共享</td>
+</tr>
+<tr>
+<td>数据段</td>
+<td>全局变量、静态变量</td>
+<td>生命周期通常与进程一致</td>
+</tr>
+<tr>
+<td>Heap（堆）</td>
+<td>动态分配内存</td>
+<td>由应用&#x2F;分配器管理</td>
+</tr>
+<tr>
+<td>Memory Mapping Area（映射区）</td>
+<td>动态库、文件映射、共享内存、匿名映射</td>
+<td>常由 <code>mmap()</code> 建立</td>
+</tr>
+<tr>
+<td>Stack（栈）</td>
+<td>局部变量、函数调用上下文</td>
+<td>自动分配和回收</td>
+</tr>
+</tbody></table>
+<p>资料用“堆从低地址向高地址增长、文件映射区从高地址向低地址增长”的经典图帮助理解。</p>
+<p>需要注意，现代系统启用了 ASLR（地址空间布局随机化）后，具体地址位置并不会像教材图那样固定。栈大小也不是永远固定为 8 MB，而是受 <code>ulimit</code>、线程实现和系统配置影响。</p>
+<p>查看当前 Shell 的栈限制可以使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ulimit</span> -s<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="6-malloc、brk、mmap：申请虚拟内存不等于立刻占用物理内存"><a href="#6-malloc、brk、mmap：申请虚拟内存不等于立刻占用物理内存" class="headerlink" title="6. malloc、brk、mmap：申请虚拟内存不等于立刻占用物理内存"></a>6. malloc、brk、mmap：申请虚拟内存不等于立刻占用物理内存</h2><p>C 程序中最常见的动态内存入口是：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">void</span> *p = <span class="hljs-built_in">malloc</span>(size);<br></code></pre></td></tr></table></figure>
+
+<p><code>malloc()</code> 是 C 标准库接口，不是一个单独的内核系统调用。分配器会根据内存大小、空闲块情况和实现策略选择不同机制。</p>
+<p>资料用经典 glibc 策略解释：</p>
+<ul>
+<li>较小内存常通过 <code>brk()</code> 扩展堆；</li>
+<li>较大内存常通过 <code>mmap()</code> 建立匿名映射；</li>
+<li>示例阈值为约 128 KB。</li>
+</ul>
+<p>这个 <code>128 KB</code> 适合用来理解机制，但不要当成固定 ABI。实际阈值会受 glibc 版本、分配器策略和运行时状态影响。</p>
+<h3 id="6-1-brk-的特点"><a href="#6-1-brk-的特点" class="headerlink" title="6.1 brk 的特点"></a>6.1 brk 的特点</h3><p><code>brk()</code> 通过移动 Program Break 扩展堆。</p>
+<p>优点：</p>
+<ul>
+<li>已经向进程堆申请过的区域可以被用户态分配器重复利用；</li>
+<li>可以减少频繁系统调用；</li>
+<li>可以降低反复建立映射、反复缺页带来的开销。</li>
+</ul>
+<p>代价：</p>
+<ul>
+<li>释放后的内存未必马上归还内核；</li>
+<li>高地址仍被占用时，低地址释放的小块很可能只回到分配器的空闲链表；</li>
+<li>长期频繁分配、释放可能形成碎片。</li>
+</ul>
+<h3 id="6-2-mmap-的特点"><a href="#6-2-mmap-的特点" class="headerlink" title="6.2 mmap 的特点"></a>6.2 mmap 的特点</h3><p><code>mmap()</code> 可以在映射区建立一段新的虚拟内存区域。</p>
+<p>优点：</p>
+<ul>
+<li>大块内存释放后更容易直接解除映射并归还系统；</li>
+<li>单独的映射便于管理。</li>
+</ul>
+<p>代价：</p>
+<ul>
+<li>建立和销毁映射需要更多内核参与；</li>
+<li>首次访问仍然可能触发缺页；</li>
+<li>高频大规模 <code>mmap()/munmap()</code> 会增加 VMA 和页表管理成本。</li>
+</ul>
+<h3 id="6-3-First-Touch：真正的物理页往往在第一次访问时才分配"><a href="#6-3-First-Touch：真正的物理页往往在第一次访问时才分配" class="headerlink" title="6.3 First Touch：真正的物理页往往在第一次访问时才分配"></a>6.3 First Touch：真正的物理页往往在第一次访问时才分配</h3><p>下面的理解非常关键：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">void</span> *p = <span class="hljs-built_in">malloc</span>(<span class="hljs-number">1024</span> * <span class="hljs-number">1024</span> * <span class="hljs-number">1024</span>);<br></code></pre></td></tr></table></figure>
+
+<p>并不意味着内核立即拿出 1 GB 物理内存交给进程。</p>
+<p>通常过程是：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant App as Application
+    participant Alloc as malloc allocator
+    participant Kernel as Linux Kernel
+    participant MM as Physical Memory
+
+    App-&gt;&gt;Alloc: malloc(1GB)
+    Alloc-&gt;&gt;Kernel: brk/mmap 建立虚拟地址区间
+    Kernel--&gt;&gt;Alloc: 返回虚拟地址
+    Alloc--&gt;&gt;App: 返回指针
+
+    App-&gt;&gt;App: 首次写入某个页面
+    App-&gt;&gt;Kernel: Page Fault
+    Kernel-&gt;&gt;MM: 分配物理页
+    Kernel-&gt;&gt;Kernel: 更新页表
+    Kernel--&gt;&gt;App: 恢复执行
+</code></pre>
+
+<p>这就是为什么：</p>
+<ul>
+<li><code>VIRT/VSS</code> 很大，不代表物理内存真的用了那么多；</li>
+<li>大量 <code>malloc()</code> 后不触碰内存，RSS 可能变化不大；</li>
+<li>真正“写满”内存时，问题才会逐渐暴露。</li>
+</ul>
+<hr>
+<h2 id="7-内核如何分配物理内存：Buddy-与-Slab"><a href="#7-内核如何分配物理内存：Buddy-与-Slab" class="headerlink" title="7. 内核如何分配物理内存：Buddy 与 Slab"></a>7. 内核如何分配物理内存：Buddy 与 Slab</h2><p>物理页层面的分配，Linux 主要使用 <strong>Buddy System（伙伴系统）</strong> 管理连续页块。</p>
+<p>伙伴系统通过按 2 的幂次维护不同阶的连续页块，在分配和释放时拆分、合并相邻块，以降低外部碎片。</p>
+<p>但内核里有大量对象远小于一个页面，例如：</p>
+<ul>
+<li>inode；</li>
+<li>dentry；</li>
+<li>task_struct；</li>
+<li>socket 相关结构；</li>
+<li>各种内核对象。</li>
+</ul>
+<p>如果每个小对象都独占 4 KB 页面，浪费会非常严重。因此内核在伙伴系统之上构建了 <strong>Slab 类分配器</strong>，用于高效缓存和复用小对象。</p>
+<p>资料使用 <code>slab</code> 作为统称。现代 Linux 中常见的是 SLUB 实现，但性能分析时仍经常使用 Slab 这一概念和 <code>/proc/slabinfo</code>、<code>slabtop</code> 这些接口。</p>
+<p>这里必须区分一个常见误解：</p>
+<blockquote>
+<p><strong>用户空间的 <code>malloc()</code> 不会直接使用内核 Slab 来管理用户对象。Slab 主要用于内核空间小对象。</strong></p>
+</blockquote>
+<p>用户空间分配器向内核申请页或映射，再在用户空间内部做更细粒度的切分和复用。</p>
+<hr>
+<h2 id="8-怎么正确读-free：free-小不等于内存紧张"><a href="#8-怎么正确读-free：free-小不等于内存紧张" class="headerlink" title="8. 怎么正确读 free：free 小不等于内存紧张"></a>8. 怎么正确读 free：free 小不等于内存紧张</h2><p>最常见的系统内存入口是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">free -h<br></code></pre></td></tr></table></figure>
+
+<p>典型指标包括：</p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>total</code></td>
+<td>总物理内存</td>
+</tr>
+<tr>
+<td><code>used</code></td>
+<td>已使用内存</td>
+</tr>
+<tr>
+<td><code>free</code></td>
+<td>当前完全未使用的内存</td>
+</tr>
+<tr>
+<td><code>shared</code></td>
+<td>共享内存相关使用量</td>
+</tr>
+<tr>
+<td><code>buff/cache</code></td>
+<td>Buffer、Page Cache、可回收 Slab 等缓存</td>
+</tr>
+<tr>
+<td><code>available</code></td>
+<td>内核估计的新进程在不发生明显 Swap 的情况下可用的内存</td>
+</tr>
+</tbody></table>
+<p>真正需要重点观察的不是单独的 <code>free</code>，而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">available<br></code></pre></td></tr></table></figure>
+
+<p>Linux 的设计倾向是：</p>
+<blockquote>
+<p><strong>与其让物理内存闲着，不如拿来做缓存。</strong></p>
+</blockquote>
+<p>所以一个运行稳定的 Linux 服务器，<code>free</code> 很小、<code>buff/cache</code> 很大，完全可能是健康状态。</p>
+<p>判断内存压力时应该结合：</p>
+<ul>
+<li><code>available</code>；</li>
+<li>Swap 是否活跃；</li>
+<li><code>vmstat</code> 的 <code>si/so</code>；</li>
+<li>Major Fault 是否升高；</li>
+<li>回收线程是否频繁活动；</li>
+<li>应用延迟是否与内存回收同步恶化。</li>
+</ul>
+<hr>
+<h2 id="9-进程内存指标：VIRT、RES-RSS、SHR、PSS-到底怎么看"><a href="#9-进程内存指标：VIRT、RES-RSS、SHR、PSS-到底怎么看" class="headerlink" title="9. 进程内存指标：VIRT、RES&#x2F;RSS、SHR、PSS 到底怎么看"></a>9. 进程内存指标：VIRT、RES&#x2F;RSS、SHR、PSS 到底怎么看</h2><h3 id="9-1-VIRT-VSS"><a href="#9-1-VIRT-VSS" class="headerlink" title="9.1 VIRT &#x2F; VSS"></a>9.1 VIRT &#x2F; VSS</h3><p><code>VIRT</code> 或 <code>VSS</code> 表示进程拥有的虚拟地址空间，可能包括：</p>
+<ul>
+<li>代码；</li>
+<li>数据；</li>
+<li>堆；</li>
+<li>映射文件；</li>
+<li>动态库；</li>
+<li>共享内存；</li>
+<li>已申请但尚未真正映射物理页的区域；</li>
+<li>已经换出到 Swap 的页面。</li>
+</ul>
+<p>因此：</p>
+<blockquote>
+<p><strong>VIRT 很大本身并不说明内存泄漏，也不说明机器快要 OOM。</strong></p>
+</blockquote>
+<h3 id="9-2-RES-RSS"><a href="#9-2-RES-RSS" class="headerlink" title="9.2 RES &#x2F; RSS"></a>9.2 RES &#x2F; RSS</h3><p><code>RES</code> 常对应 Resident Set Size（RSS），表示当前驻留在物理内存中的页面规模。</p>
+<p>资料前文曾把 RES&#x2F;RSS 简化描述成“不包括共享内存”，但后续答疑明确指出：<strong>工具给出的 RSS&#x2F;RES 与这个简化概念存在出入，实践必须以具体工具定义为准。</strong></p>
+<p>对常见 Linux 工具来说，RSS&#x2F;RES 通常会把当前驻留的共享页也算进来，因此不能简单把多个进程的 RSS 相加得到“所有进程真正独占的物理内存”。</p>
+<h3 id="9-3-SHR"><a href="#9-3-SHR" class="headerlink" title="9.3 SHR"></a>9.3 SHR</h3><p><code>SHR</code> 是可共享的驻留内存的一部分，可能包括：</p>
+<ul>
+<li>真正的共享内存；</li>
+<li>共享库；</li>
+<li>程序代码页；</li>
+<li>其他可共享映射。</li>
+</ul>
+<p><code>SHR</code> 并不代表“这部分一定正在被别的进程共享”。</p>
+<h3 id="9-4-PSS"><a href="#9-4-PSS" class="headerlink" title="9.4 PSS"></a>9.4 PSS</h3><p>**PSS（Proportional Set Size，按比例分摊的常驻集）**是统计多进程实际内存归属时更有意义的指标。</p>
+<p>假设：</p>
+<ul>
+<li>进程独占 1000 页；</li>
+<li>另外 1000 页与另一个进程共享；</li>
+</ul>
+<p>那么：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">PSS = 1000 + 1000 / 2 = 1500 页<br></code></pre></td></tr></table></figure>
+
+<p>把所有进程 PSS 相加，可以避免共享页被重复统计。</p>
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">grep Pss /proc/[1-9]*/smaps \<br>  | awk <span class="hljs-string">&#x27;&#123;total += $2&#125; END &#123;printf &quot;%d kB\n&quot;, total&#125;&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果要深入看单个进程：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/&lt;pid&gt;/smaps<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">pmap -x &lt;pid&gt;<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="10-Page-Fault：内存慢不一定是“内存带宽慢”"><a href="#10-Page-Fault：内存慢不一定是“内存带宽慢”" class="headerlink" title="10. Page Fault：内存慢不一定是“内存带宽慢”"></a>10. Page Fault：内存慢不一定是“内存带宽慢”</h2><p>缺页异常是 Linux 内存分析中经常被忽略、但非常重要的一组指标。</p>
+<h3 id="Minor-Page-Fault"><a href="#Minor-Page-Fault" class="headerlink" title="Minor Page Fault"></a>Minor Page Fault</h3><p>页面尚未建立当前进程可用的映射，但数据已经在内存中，或者只需要分配&#x2F;建立映射，不需要磁盘读取。</p>
+<p>典型场景：</p>
+<ul>
+<li>First Touch；</li>
+<li>Copy-on-Write；</li>
+<li>已经在 Page Cache 中的文件页建立进程映射。</li>
+</ul>
+<h3 id="Major-Page-Fault"><a href="#Major-Page-Fault" class="headerlink" title="Major Page Fault"></a>Major Page Fault</h3><p>需要慢速 I&#x2F;O 才能把页面带回内存。</p>
+<p>典型场景：</p>
+<ul>
+<li>页面已经被换出到 Swap；</li>
+<li>文件页需要从存储设备重新读取。</li>
+</ul>
+<p>因此当 Major Fault 持续增加时，真正的瓶颈往往已经跨越“内存”边界，进入磁盘 I&#x2F;O。</p>
+<hr>
+<h1 id="11-Buffer-与-Cache：两个最容易被误解的指标"><a href="#11-Buffer-与-Cache：两个最容易被误解的指标" class="headerlink" title="11. Buffer 与 Cache：两个最容易被误解的指标"></a>11. Buffer 与 Cache：两个最容易被误解的指标</h1><p><code>free</code> 的 <code>buff/cache</code> 实际包含多个来源。</p>
+<p>资料从 <code>/proc/meminfo</code> 和 <code>man proc</code> 出发，梳理了三个关键值：</p>
+<ul>
+<li><code>Buffers</code></li>
+<li><code>Cached</code></li>
+<li><code>SReclaimable</code></li>
+</ul>
+<p>可以把它们理解为：</p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>核心含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Buffers</code></td>
+<td>块设备相关的原始磁盘块缓存</td>
+</tr>
+<tr>
+<td><code>Cached</code></td>
+<td>文件页缓存 Page Cache</td>
+</tr>
+<tr>
+<td><code>SReclaimable</code></td>
+<td>Slab 中可以在内存压力下回收的部分</td>
+</tr>
+</tbody></table>
+<p>很多资料会把 Buffer 简化成“写缓存”、Cache 简化成“读缓存”，但实验表明这种说法太粗糙。</p>
+<p>更准确的工程理解是：</p>
+<blockquote>
+<p><strong>Buffer 更偏向块设备层的数据缓存；Cache 更偏向文件系统管理的文件页缓存。它们都可能参与读，也都可能参与写。</strong></p>
+</blockquote>
+<hr>
+<h2 id="12-普通文件、块设备、裸-I-O、Direct-I-O-不是一回事"><a href="#12-普通文件、块设备、裸-I-O、Direct-I-O-不是一回事" class="headerlink" title="12. 普通文件、块设备、裸 I&#x2F;O、Direct I&#x2F;O 不是一回事"></a>12. 普通文件、块设备、裸 I&#x2F;O、Direct I&#x2F;O 不是一回事</h2><p>这是理解 Buffer、Page Cache、<code>O_DIRECT</code> 的关键。</p>
+<h3 id="12-1-普通文件-I-O"><a href="#12-1-普通文件-I-O" class="headerlink" title="12.1 普通文件 I&#x2F;O"></a>12.1 普通文件 I&#x2F;O</h3><p>假设：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">dd</span> <span class="hljs-keyword">if</span>=/tmp/file of=/dev/null<br></code></pre></td></tr></table></figure>
+
+<p><code>/tmp/file</code> 是文件系统中的普通文件，I&#x2F;O 路径大体是：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[Application] --&gt; B[VFS]
+    B --&gt; C[File System]
+    C --&gt; D[Page Cache]
+    D --&gt; E[Block Layer]
+    E --&gt; F[Device]
+</code></pre>
+
+<p>文件读写会使用 Page Cache。</p>
+<h3 id="12-2-块设备-I-O，也就是资料中的“裸-I-O”"><a href="#12-2-块设备-I-O，也就是资料中的“裸-I-O”" class="headerlink" title="12.2 块设备 I&#x2F;O，也就是资料中的“裸 I&#x2F;O”"></a>12.2 块设备 I&#x2F;O，也就是资料中的“裸 I&#x2F;O”</h3><p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">dd</span> <span class="hljs-keyword">if</span>=/dev/sda1 of=/dev/null<br></code></pre></td></tr></table></figure>
+
+<p>这里直接读块设备文件，不通过某个普通文件的文件系统语义。</p>
+<p>概念上可以理解为：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[Application] --&gt; B[Block Device]
+    B --&gt; C[Block Layer]
+    C --&gt; D[Device]
+</code></pre>
+
+<p>资料把这种“跳过文件系统、直接访问块设备”的方式称为 <strong>Raw I&#x2F;O（裸 I&#x2F;O）</strong>。</p>
+<h3 id="12-3-Direct-I-O"><a href="#12-3-Direct-I-O" class="headerlink" title="12.3 Direct I&#x2F;O"></a>12.3 Direct I&#x2F;O</h3><p><code>O_DIRECT</code> 是另外一件事。</p>
+<p>它的目标是<strong>尽量绕过 Page Cache</strong>，让应用缓冲区和存储设备之间直接进行 I&#x2F;O，减少双重缓存和拷贝。</p>
+<p>所以：</p>
+<blockquote>
+<p><strong>裸 I&#x2F;O强调“是否经过文件系统”；Direct I&#x2F;O强调“是否绕过系统页缓存”。</strong></p>
+</blockquote>
+<p>二者不能混为一谈。</p>
+<hr>
+<h2 id="13-文件读写为什么也会让-Cache-增长"><a href="#13-文件读写为什么也会让-Cache-增长" class="headerlink" title="13. 文件读写为什么也会让 Cache 增长"></a>13. 文件读写为什么也会让 Cache 增长</h2><p>资料通过四组 <code>dd + vmstat</code> 实验观察了 Buffer&#x2F;Cache：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>主要现象</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>写普通文件</td>
+<td>Cache 明显增长</td>
+</tr>
+<tr>
+<td>写块设备</td>
+<td>Buffer 明显增长</td>
+</tr>
+<tr>
+<td>读普通文件</td>
+<td>Cache 明显增长</td>
+</tr>
+<tr>
+<td>读块设备</td>
+<td>Buffer 明显增长</td>
+</tr>
+</tbody></table>
+<p>这说明 Page Cache 并不只是“读缓存”。</p>
+<h3 id="写普通文件"><a href="#写普通文件" class="headerlink" title="写普通文件"></a>写普通文件</h3><p>典型流程是：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant App
+    participant Cache as Page Cache
+    participant Kernel as Kernel Writeback
+    participant Disk
+
+    App-&gt;&gt;Cache: write()
+    Cache--&gt;&gt;App: 很快返回
+    Note over Cache: 页面被标记为 Dirty
+    Kernel-&gt;&gt;Disk: 后台回写脏页
+</code></pre>
+
+<p>应用不必每次 <code>write()</code> 都等待磁盘真正完成落盘，因此吞吐和响应时间都可以明显改善。</p>
+<h3 id="读普通文件"><a href="#读普通文件" class="headerlink" title="读普通文件"></a>读普通文件</h3><p>第一次读：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Disk -&gt; Page Cache -&gt; Application<br></code></pre></td></tr></table></figure>
+
+<p>后续重复读：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Page Cache -&gt; Application<br></code></pre></td></tr></table></figure>
+
+<p>这就是为什么同一个文件第二次读往往快很多。</p>
+<hr>
+<h2 id="14-drop-caches-适合实验，不适合当“优化命令”"><a href="#14-drop-caches-适合实验，不适合当“优化命令”" class="headerlink" title="14. drop_caches 适合实验，不适合当“优化命令”"></a>14. <code>drop_caches</code> 适合实验，不适合当“优化命令”</h2><p>资料为了减少实验干扰使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> 3 &gt; /proc/sys/vm/drop_caches<br></code></pre></td></tr></table></figure>
+
+<p>它会释放可以回收的 Page Cache、dentry、inode 等缓存。</p>
+<p>这个命令非常适合：</p>
+<ul>
+<li>做缓存冷启动实验；</li>
+<li>对比第一次读取与第二次读取；</li>
+<li>验证某个现象是否与系统缓存有关。</li>
+</ul>
+<p>但不应该把它当成常规“释放内存优化”。</p>
+<p>原因很简单：</p>
+<blockquote>
+<p>你主动清掉的，正是 Linux 为了加速后续 I&#x2F;O 而保留的缓存。</p>
+</blockquote>
+<p>如果每次看到 Cache 高就 <code>drop_caches</code>，相当于把操作系统主动做好的性能优化扔掉，然后让下一个请求重新读盘。</p>
+<hr>
+<h1 id="15-系统缓存到底有没有用：用命中率说话"><a href="#15-系统缓存到底有没有用：用命中率说话" class="headerlink" title="15. 系统缓存到底有没有用：用命中率说话"></a>15. 系统缓存到底有没有用：用命中率说话</h1><p>缓存是否有效，不能只看“缓存占了多少内存”，更应该看 <strong>Cache Hit Ratio（缓存命中率）</strong>。</p>
+<p>基本公式：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Cache Hit Ratio = Cache Hits / Total Requests<br></code></pre></td></tr></table></figure>
+
+<p>命中率越高，说明更多请求可以在内存中完成，减少慢速磁盘 I&#x2F;O。</p>
+<p>资料使用 BCC 中的：</p>
+<ul>
+<li><code>cachestat</code></li>
+<li><code>cachetop</code></li>
+</ul>
+<p>来观察缓存。</p>
+<h3 id="15-1-cachestat"><a href="#15-1-cachestat" class="headerlink" title="15.1 cachestat"></a>15.1 cachestat</h3><p>用于看系统整体缓存读写情况，典型字段包括：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>TOTAL</code></td>
+<td>总 I&#x2F;O 次数</td>
+</tr>
+<tr>
+<td><code>MISSES</code></td>
+<td>缓存未命中</td>
+</tr>
+<tr>
+<td><code>HITS</code></td>
+<td>缓存命中</td>
+</tr>
+<tr>
+<td><code>DIRTIES</code></td>
+<td>新产生的脏页</td>
+</tr>
+<tr>
+<td><code>BUFFERS_MB</code></td>
+<td>Buffer 大小</td>
+</tr>
+<tr>
+<td><code>CACHED_MB</code></td>
+<td>Cache 大小</td>
+</tr>
+</tbody></table>
+<p>示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">cachestat 1 3<br></code></pre></td></tr></table></figure>
+
+<h3 id="15-2-cachetop"><a href="#15-2-cachetop" class="headerlink" title="15.2 cachetop"></a>15.2 cachetop</h3><p>用于按进程观察缓存命中。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">cachetop<br></code></pre></td></tr></table></figure>
+
+<p>常见字段：</p>
+<ul>
+<li><code>HITS</code></li>
+<li><code>MISSES</code></li>
+<li><code>DIRTIES</code></li>
+<li><code>READ_HIT%</code></li>
+<li><code>WRITE_HIT%</code></li>
+</ul>
+<h3 id="15-3-pcstat"><a href="#15-3-pcstat" class="headerlink" title="15.3 pcstat"></a>15.3 pcstat</h3><p><code>pcstat</code> 可以查看<strong>某个具体文件有多少页面已经在 Page Cache 中</strong>。</p>
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">pcstat /bin/ls<br></code></pre></td></tr></table></figure>
+
+<p>这比“整个系统 Cache 有多大”更接近某个文件的实际缓存状态。</p>
+<blockquote>
+<p>资料里的 BCC 和 pcstat 安装步骤来自 2018-2019 年环境，仓库地址、包名和安装方式具有明显时代性。真正使用时应优先查当前发行版和项目文档，而不是照抄旧安装命令。</p>
+</blockquote>
+<hr>
+<h2 id="16-一个非常典型的缓存实验：为什么第二次-dd-能从-33-MB-s-变成-4-5-GB-s"><a href="#16-一个非常典型的缓存实验：为什么第二次-dd-能从-33-MB-s-变成-4-5-GB-s" class="headerlink" title="16. 一个非常典型的缓存实验：为什么第二次 dd 能从 33 MB&#x2F;s 变成 4.5 GB&#x2F;s"></a>16. 一个非常典型的缓存实验：为什么第二次 dd 能从 33 MB&#x2F;s 变成 4.5 GB&#x2F;s</h2><p>资料先构造一个 512 MB 文件，然后清理缓存：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">dd</span> <span class="hljs-keyword">if</span>=/dev/sda1 of=file bs=1M count=512<br><span class="hljs-built_in">echo</span> 3 &gt; /proc/sys/vm/drop_caches<br></code></pre></td></tr></table></figure>
+
+<p>确认文件不在缓存：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">pcstat file<br></code></pre></td></tr></table></figure>
+
+<p>第一次读取：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">dd</span> <span class="hljs-keyword">if</span>=file of=/dev/null bs=1M<br></code></pre></td></tr></table></figure>
+
+<p>示例结果约：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">33.4 MB/s<br></code></pre></td></tr></table></figure>
+
+<p>第二次读取同一文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">dd</span> <span class="hljs-keyword">if</span>=file of=/dev/null bs=1M<br></code></pre></td></tr></table></figure>
+
+<p>示例结果约：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">4.5 GB/s<br></code></pre></td></tr></table></figure>
+
+<p>这当然不是磁盘突然变成了 4.5 GB&#x2F;s。</p>
+<p>第二次读已经基本命中 Page Cache，测到的是：</p>
+<ul>
+<li>内存访问；</li>
+<li>内核路径；</li>
+<li>数据拷贝；</li>
+</ul>
+<p>而不再是存储设备的真实吞吐。</p>
+<p>这个案例直接给出一条性能测试原则：</p>
+<blockquote>
+<p><strong>测磁盘性能之前，必须先明确你要测“存储设备本身”，还是“文件系统 + Page Cache 的实际应用性能”。</strong></p>
+</blockquote>
+<p>否则同一个 <code>dd</code> 命令可以测出完全不同的东西。</p>
+<hr>
+<h1 id="17-O-DIRECT：缓存命中率很高，为什么应用还是读得很慢"><a href="#17-O-DIRECT：缓存命中率很高，为什么应用还是读得很慢" class="headerlink" title="17. O_DIRECT：缓存命中率很高，为什么应用还是读得很慢"></a>17. O_DIRECT：缓存命中率很高，为什么应用还是读得很慢</h1><p>资料中另一个案例每次读取约 32 MB，但耗时约 0.9 秒。</p>
+<p><code>cachetop</code> 看上去命中率是 100%，似乎应该很快，可根据页面数换算后发现缓存吞吐只有很小一部分，和应用实际读取量不一致。</p>
+<p>进一步通过 <code>strace</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">strace -p $(pgrep app)<br></code></pre></td></tr></table></figure>
+
+<p>观察到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">openat(..., &quot;/dev/sdb1&quot;, O_RDONLY|O_DIRECT) = 4<br></code></pre></td></tr></table></figure>
+
+<p>关键就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">O_DIRECT<br></code></pre></td></tr></table></figure>
+
+<p>源代码类似：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">int</span> flags = O_RDONLY | O_LARGEFILE | O_DIRECT;<br><span class="hljs-type">int</span> fd = open(disk, flags, <span class="hljs-number">0755</span>);<br></code></pre></td></tr></table></figure>
+
+<p>删除 <code>O_DIRECT</code> 后，读取 32 MB 的时间从接近 0.9 秒下降到约 0.03 秒量级。</p>
+<p>这个案例揭示了两个非常重要的排查经验。</p>
+<h3 id="第一，性能工具的“100-”并不等于你以为的-100"><a href="#第一，性能工具的“100-”并不等于你以为的-100" class="headerlink" title="第一，性能工具的“100%”并不等于你以为的 100%"></a>第一，性能工具的“100%”并不等于你以为的 100%</h3><p><code>cachetop</code> 并不会把所有 Direct I&#x2F;O 数据完整纳入同一种 Page Cache 统计逻辑。</p>
+<p>所以看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">READ_HIT% = 100%<br></code></pre></td></tr></table></figure>
+
+<p>不能立刻得出“应用全部从缓存读取”。</p>
+<p>还必须对照：</p>
+<ul>
+<li>应用实际读了多少字节；</li>
+<li>命中了多少页；</li>
+<li>每页多大；</li>
+<li>统计窗口多长。</li>
+</ul>
+<p>如果指标之间算不平，就说明还有另一条 I&#x2F;O 路径。</p>
+<h3 id="第二，性能分析最终要能落到系统调用"><a href="#第二，性能分析最终要能落到系统调用" class="headerlink" title="第二，性能分析最终要能落到系统调用"></a>第二，性能分析最终要能落到系统调用</h3><p>当现象和指标矛盾时：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">cachetop -&gt; 发现缓存数据量对不上<br>strace   -&gt; 找到 openat(... O_DIRECT)<br>source   -&gt; 确认代码主动绕过缓存<br></code></pre></td></tr></table></figure>
+
+<p>这比只说“磁盘慢”更接近真正的根因。</p>
+<hr>
+<h1 id="18-内存泄漏：最重要的不是“内存高”，而是“不可解释地持续增长”"><a href="#18-内存泄漏：最重要的不是“内存高”，而是“不可解释地持续增长”" class="headerlink" title="18. 内存泄漏：最重要的不是“内存高”，而是“不可解释地持续增长”"></a>18. 内存泄漏：最重要的不是“内存高”，而是“不可解释地持续增长”</h1><p>Memory Leak（内存泄漏）不是简单的“进程占用内存很多”。</p>
+<p>更有意义的定义是：</p>
+<blockquote>
+<p>程序已经不再需要某些动态内存，却仍然持有它们，导致这些内存无法再次利用或回收。</p>
+</blockquote>
+<p>典型危害链路：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[内存泄漏持续累积] --&gt; B[Available 内存下降]
+    B --&gt; C[回收 Page Cache]
+    C --&gt; D[I/O 增加]
+    B --&gt; E[Swap 增加]
+    E --&gt; F[Major Fault 增加]
+    F --&gt; G[请求延迟升高]
+    B --&gt; H[回收仍不足]
+    H --&gt; I[OOM]
+</code></pre>
+
+<p>所以内存泄漏最终很可能表现为：</p>
+<ul>
+<li>缓存突然变少；</li>
+<li>Swap 开始活跃；</li>
+<li>I&#x2F;O 增加；</li>
+<li>延迟抖动；</li>
+<li>OOM；</li>
+<li>其他原本正常的进程也被拖慢。</li>
+</ul>
+<hr>
+<h2 id="19-哪些内存最容易泄漏"><a href="#19-哪些内存最容易泄漏" class="headerlink" title="19. 哪些内存最容易泄漏"></a>19. 哪些内存最容易泄漏</h2><h3 id="栈内存"><a href="#栈内存" class="headerlink" title="栈内存"></a>栈内存</h3><p>局部变量通常在作用域退出时自动回收。</p>
+<p>例如：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">void</span> <span class="hljs-title function_">f</span><span class="hljs-params">(<span class="hljs-type">void</span>)</span> &#123;<br>    <span class="hljs-type">int</span> data[<span class="hljs-number">64</span>];<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>函数结束后，栈帧被回收，不需要手动 <code>free()</code>。</p>
+<h3 id="堆内存"><a href="#堆内存" class="headerlink" title="堆内存"></a>堆内存</h3><p>通过：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-built_in">malloc</span>()<br><span class="hljs-built_in">calloc</span>()<br><span class="hljs-built_in">realloc</span>()<br></code></pre></td></tr></table></figure>
+
+<p>等方式获得的动态内存，需要匹配：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-built_in">free</span>()<br></code></pre></td></tr></table></figure>
+
+<p>否则最容易形成经典堆内存泄漏。</p>
+<h3 id="文件映射和共享内存"><a href="#文件映射和共享内存" class="headerlink" title="文件映射和共享内存"></a>文件映射和共享内存</h3><p><code>mmap()</code>、共享内存等映射资源同样需要正确解除。</p>
+<p>典型接口：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs c">munmap(addr, length);<br></code></pre></td></tr></table></figure>
+
+<p>所以从进程地址空间看，最值得重点盯住的是：</p>
+<ul>
+<li>Heap；</li>
+<li>Anonymous Mapping；</li>
+<li>Shared Memory；</li>
+<li>长期增长的映射区。</li>
+</ul>
+<hr>
+<h1 id="20-怎么定位内存泄漏：先看趋势，再找调用栈"><a href="#20-怎么定位内存泄漏：先看趋势，再找调用栈" class="headerlink" title="20. 怎么定位内存泄漏：先看趋势，再找调用栈"></a>20. 怎么定位内存泄漏：先看趋势，再找调用栈</h1><p>资料给出了一条非常实用的路径。</p>
+<h2 id="第一步：确认系统内存在持续下降"><a href="#第一步：确认系统内存在持续下降" class="headerlink" title="第一步：确认系统内存在持续下降"></a>第一步：确认系统内存在持续下降</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">vmstat 3<br></code></pre></td></tr></table></figure>
+
+<p>如果持续看到：</p>
+<ul>
+<li><code>free</code> 下降；</li>
+<li><code>buff/cache</code> 相对稳定；</li>
+<li>Swap 尚未明显介入；</li>
+</ul>
+<p>说明某类不可回收或暂时不能回收的内存正在增加。</p>
+<p>但这仍然不能直接证明泄漏，因为业务可能本来就在建立一个合法的大缓存。</p>
+<p>所以重点是“趋势 + 业务预期”。</p>
+<h2 id="第二步：定位增长最快的进程"><a href="#第二步：定位增长最快的进程" class="headerlink" title="第二步：定位增长最快的进程"></a>第二步：定位增长最快的进程</h2><p>可以用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">top<br></code></pre></td></tr></table></figure>
+
+<p>按 <code>M</code> 按内存排序。</p>
+<p>也可以：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ps aux --<span class="hljs-built_in">sort</span>=-rss | <span class="hljs-built_in">head</span><br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">pidstat -r 1<br></code></pre></td></tr></table></figure>
+
+<h2 id="第三步：查看进程地址空间"><a href="#第三步：查看进程地址空间" class="headerlink" title="第三步：查看进程地址空间"></a>第三步：查看进程地址空间</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">pmap -x &lt;pid&gt;<br></code></pre></td></tr></table></figure>
+
+<p>以及：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/&lt;pid&gt;/smaps<br></code></pre></td></tr></table></figure>
+
+<p>观察到底是：</p>
+<ul>
+<li>heap；</li>
+<li>anonymous mapping；</li>
+<li>file mapping；</li>
+<li>shared memory；</li>
+</ul>
+<p>哪一部分在增长。</p>
+<h2 id="第四步：追踪“分配了但没有释放”的调用栈"><a href="#第四步：追踪“分配了但没有释放”的调用栈" class="headerlink" title="第四步：追踪“分配了但没有释放”的调用栈"></a>第四步：追踪“分配了但没有释放”的调用栈</h2><p>资料使用 BCC 的 <code>memleak</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/usr/share/bcc/tools/memleak -a -p &lt;pid&gt;<br></code></pre></td></tr></table></figure>
+
+<p>它可以跟踪：</p>
+<ul>
+<li>内存分配；</li>
+<li>内存释放；</li>
+<li>Outstanding Allocation；</li>
+<li>对应调用栈。</li>
+</ul>
+<p>如果生产环境内核太旧，资料还给出了一个重要替代思路：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Valgrind<br></code></pre></td></tr></table></figure>
+
+<p>也就是说：</p>
+<blockquote>
+<p>工具不是核心，核心是“找到仍未释放的分配记录，并映射回代码调用栈”。</p>
+</blockquote>
+<hr>
+<h2 id="21-一个最小内存泄漏案例"><a href="#21-一个最小内存泄漏案例" class="headerlink" title="21. 一个最小内存泄漏案例"></a>21. 一个最小内存泄漏案例</h2><p>资料中的 Fibonacci 示例，为了让泄漏更明显，每次分配 1024 个 <code>long long</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">long</span> <span class="hljs-type">long</span> *<span class="hljs-title function_">fibonacci</span><span class="hljs-params">(<span class="hljs-type">long</span> <span class="hljs-type">long</span> *n0, <span class="hljs-type">long</span> <span class="hljs-type">long</span> *n1)</span><br>&#123;<br>    <span class="hljs-type">long</span> <span class="hljs-type">long</span> *v = (<span class="hljs-type">long</span> <span class="hljs-type">long</span> *)<span class="hljs-built_in">calloc</span>(<span class="hljs-number">1024</span>, <span class="hljs-keyword">sizeof</span>(<span class="hljs-type">long</span> <span class="hljs-type">long</span>));<br>    *v = *n0 + *n1;<br>    <span class="hljs-keyword">return</span> v;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>调用方循环执行：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">void</span> *<span class="hljs-title function_">child</span><span class="hljs-params">(<span class="hljs-type">void</span> *arg)</span><br>&#123;<br>    <span class="hljs-type">long</span> <span class="hljs-type">long</span> n0 = <span class="hljs-number">0</span>;<br>    <span class="hljs-type">long</span> <span class="hljs-type">long</span> n1 = <span class="hljs-number">1</span>;<br>    <span class="hljs-type">long</span> <span class="hljs-type">long</span> *v = <span class="hljs-literal">NULL</span>;<br><br>    <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> n = <span class="hljs-number">2</span>; n &gt; <span class="hljs-number">0</span>; n++) &#123;<br>        v = fibonacci(&amp;n0, &amp;n1);<br>        n0 = n1;<br>        n1 = *v;<br><br>        <span class="hljs-built_in">printf</span>(<span class="hljs-string">&quot;%dth =&gt; %lld\n&quot;</span>, n, *v);<br>        sleep(<span class="hljs-number">1</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>问题很明显：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">calloc() -&gt; return -&gt; 下一轮覆盖 v -&gt; 之前的地址丢失<br></code></pre></td></tr></table></figure>
+
+<p>修复：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">void</span> *<span class="hljs-title function_">child</span><span class="hljs-params">(<span class="hljs-type">void</span> *arg)</span><br>&#123;<br>    <span class="hljs-type">long</span> <span class="hljs-type">long</span> n0 = <span class="hljs-number">0</span>;<br>    <span class="hljs-type">long</span> <span class="hljs-type">long</span> n1 = <span class="hljs-number">1</span>;<br>    <span class="hljs-type">long</span> <span class="hljs-type">long</span> *v = <span class="hljs-literal">NULL</span>;<br><br>    <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> n = <span class="hljs-number">2</span>; n &gt; <span class="hljs-number">0</span>; n++) &#123;<br>        v = fibonacci(&amp;n0, &amp;n1);<br>        n0 = n1;<br>        n1 = *v;<br><br>        <span class="hljs-built_in">printf</span>(<span class="hljs-string">&quot;%dth =&gt; %lld\n&quot;</span>, n, *v);<br><br>        <span class="hljs-built_in">free</span>(v);<br>        sleep(<span class="hljs-number">1</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>更进一步，如果根本没必要动态分配，就可以直接改成栈变量或调用方提供缓冲区。</p>
+<p>这比“记得 free”更进一步：</p>
+<blockquote>
+<p><strong>最好的泄漏修复之一，是减少不必要的动态内存所有权。</strong></p>
+</blockquote>
+<hr>
+<h2 id="22-为什么真实项目里的内存泄漏比这个案例难得多"><a href="#22-为什么真实项目里的内存泄漏比这个案例难得多" class="headerlink" title="22. 为什么真实项目里的内存泄漏比这个案例难得多"></a>22. 为什么真实项目里的内存泄漏比这个案例难得多</h2><p>真实程序常见复杂点包括：</p>
+<ul>
+<li><code>malloc()</code> 和 <code>free()</code> 不在同一个函数；</li>
+<li>成功路径释放了，异常路径忘记释放；</li>
+<li>一个线程分配，另一个线程释放；</li>
+<li>第三方库隐式分配，调用方需要显式销毁；</li>
+<li>对象还被某个集合、缓存、回调、线程本地变量引用；</li>
+<li>每小时只泄漏几 MB，可能运行数周才暴露。</li>
+</ul>
+<p>所以生产环境中最关键的是：</p>
+<ol>
+<li><strong>持续监控；</strong></li>
+<li><strong>保留历史趋势；</strong></li>
+<li><strong>能把内存增长与业务事件、日志对应起来。</strong></li>
+</ol>
+<p>内存泄漏不是一定要等 OOM 才发现。</p>
+<hr>
+<h1 id="23-文件页与匿名页：理解内存回收和-Swap-的分水岭"><a href="#23-文件页与匿名页：理解内存回收和-Swap-的分水岭" class="headerlink" title="23. 文件页与匿名页：理解内存回收和 Swap 的分水岭"></a>23. 文件页与匿名页：理解内存回收和 Swap 的分水岭</h1><p>Linux 内存回收时，一个特别重要的分类是：</p>
+<h2 id="File-backed-Page（文件页）"><a href="#File-backed-Page（文件页）" class="headerlink" title="File-backed Page（文件页）"></a>File-backed Page（文件页）</h2><p>典型包括：</p>
+<ul>
+<li>Page Cache；</li>
+<li>文件映射；</li>
+<li>可重新从文件读取的页面。</li>
+</ul>
+<p>如果文件页是干净的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">直接丢弃 -&gt; 以后需要再从文件读取<br></code></pre></td></tr></table></figure>
+
+<p>如果文件页是脏的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">先回写磁盘 -&gt; 再释放<br></code></pre></td></tr></table></figure>
+
+<h2 id="Anonymous-Page（匿名页）"><a href="#Anonymous-Page（匿名页）" class="headerlink" title="Anonymous Page（匿名页）"></a>Anonymous Page（匿名页）</h2><p>典型包括：</p>
+<ul>
+<li>堆；</li>
+<li>栈；</li>
+<li>匿名 <code>mmap()</code>；</li>
+<li>没有文件可以重新恢复内容的进程内存。</li>
+</ul>
+<p>匿名页不能简单丢弃。</p>
+<p>如果要回收，就需要把内容保存到其他地方，这就是 Swap 的核心作用。</p>
+<hr>
+<h1 id="24-LRU：Linux-怎么判断哪些页更值得回收"><a href="#24-LRU：Linux-怎么判断哪些页更值得回收" class="headerlink" title="24. LRU：Linux 怎么判断哪些页更值得回收"></a>24. LRU：Linux 怎么判断哪些页更值得回收</h1><p>资料用经典的 Active&#x2F;Inactive LRU 模型解释回收优先级。</p>
+<p>可以把物理页大致理解成维护在两组链表中：</p>
+<ul>
+<li><code>active</code></li>
+<li><code>inactive</code></li>
+</ul>
+<p>并进一步区分：</p>
+<ul>
+<li>anonymous pages；</li>
+<li>file pages。</li>
+</ul>
+<p>查看示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/meminfo | grep -i active | <span class="hljs-built_in">sort</span><br></code></pre></td></tr></table></figure>
+
+<p>可能看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">Active:<br>Active(anon):<br>Active(file):<br>Inactive:<br>Inactive(anon):<br>Inactive(file):<br></code></pre></td></tr></table></figure>
+
+<p>核心思想不是“严格删除最久没用的一页”，而是：</p>
+<blockquote>
+<p><strong>通过活跃&#x2F;非活跃状态近似判断页面近期使用情况，优先回收更冷的页面。</strong></p>
+</blockquote>
+<p>文件页冷了，可以丢弃或回写。</p>
+<p>匿名页冷了，如果开启 Swap，可以换出。</p>
+<hr>
+<h1 id="25-内存回收有两条路：Direct-Reclaim-与-kswapd"><a href="#25-内存回收有两条路：Direct-Reclaim-与-kswapd" class="headerlink" title="25. 内存回收有两条路：Direct Reclaim 与 kswapd"></a>25. 内存回收有两条路：Direct Reclaim 与 kswapd</h1><h3 id="Direct-Reclaim（直接回收）"><a href="#Direct-Reclaim（直接回收）" class="headerlink" title="Direct Reclaim（直接回收）"></a>Direct Reclaim（直接回收）</h3><p>某个进程要申请内存，但当前可分配页不够时，内核可能让当前分配路径直接参与回收。</p>
+<p>这会增加请求延迟，因为应用本来只是“申请内存”，却被迫同步做了回收工作。</p>
+<h3 id="kswapd"><a href="#kswapd" class="headerlink" title="kswapd"></a>kswapd</h3><p>Linux 还有后台回收线程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">kswapd<br></code></pre></td></tr></table></figure>
+
+<p>它会根据内存水位提前回收，尽量避免所有压力都落到前台分配路径。</p>
+<p>因此线上看到：</p>
+<ul>
+<li>kswapd CPU 升高；</li>
+<li>应用延迟增加；</li>
+<li>Swap&#x2F;回收活动明显；</li>
+</ul>
+<p>往往说明系统已经进入内存压力状态。</p>
+<hr>
+<h2 id="26-Watermark：Linux-怎么判断“内存压力大不大”"><a href="#26-Watermark：Linux-怎么判断“内存压力大不大”" class="headerlink" title="26. Watermark：Linux 怎么判断“内存压力大不大”"></a>26. Watermark：Linux 怎么判断“内存压力大不大”</h2><p>资料使用三个水位解释内存压力：</p>
+<ul>
+<li><code>pages_min</code></li>
+<li><code>pages_low</code></li>
+<li><code>pages_high</code></li>
+</ul>
+<p>可以从：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/zoneinfo<br></code></pre></td></tr></table></figure>
+
+<p>中看到某个 Zone 的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">pages free<br>min<br>low<br>high<br></code></pre></td></tr></table></figure>
+
+<p>概念上可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">free &gt; high<br>    -&gt; 内存宽裕<br><br>low &lt; free &lt;= high<br>    -&gt; 有压力，但通常还能满足请求<br><br>min &lt; free &lt;= low<br>    -&gt; kswapd 需要积极回收，直到恢复到较高水位<br><br>free &lt;= min<br>    -&gt; 压力非常高，前台分配更容易进入直接回收甚至失败<br></code></pre></td></tr></table></figure>
+
+<p>资料给出的经典计算示例是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">pages_low  = pages_min * 5 / 4<br>pages_high = pages_min * 3 / 2<br></code></pre></td></tr></table></figure>
+
+<p>这些公式非常适合帮助理解水位之间的相对关系，但内核内部的精确计算逻辑会随版本演进，排障时应以当前内核的 <code>/proc/zoneinfo</code> 实际值为准。</p>
+<p><code>pages_min</code> 相关的系统配置入口是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/sys/vm/min_free_kbytes<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h1 id="27-Swap：不是“扩容内存”，而是用延迟换生存空间"><a href="#27-Swap：不是“扩容内存”，而是用延迟换生存空间" class="headerlink" title="27. Swap：不是“扩容内存”，而是用延迟换生存空间"></a>27. Swap：不是“扩容内存”，而是用延迟换生存空间</h1><p>Swap 可以是：</p>
+<ul>
+<li>Swap 分区；</li>
+<li>Swap 文件。</li>
+</ul>
+<p>核心过程只有两个：</p>
+<h3 id="Swap-Out"><a href="#Swap-Out" class="headerlink" title="Swap Out"></a>Swap Out</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">冷匿名页 -&gt; 写入磁盘 -&gt; 释放物理页<br></code></pre></td></tr></table></figure>
+
+<h3 id="Swap-In"><a href="#Swap-In" class="headerlink" title="Swap In"></a>Swap In</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">进程再次访问 -&gt; Page Fault -&gt; 从磁盘读回 -&gt; 恢复映射<br></code></pre></td></tr></table></figure>
+
+<p>Swap 的确让系统在物理内存不足时拥有更多缓冲空间，但代价非常明显：</p>
+<blockquote>
+<p><strong>磁盘访问延迟远高于内存。</strong></p>
+</blockquote>
+<p>一旦工作集频繁在内存和 Swap 之间来回抖动，就会出现严重性能下降。</p>
+<hr>
+<h2 id="28-swappiness-到底是什么"><a href="#28-swappiness-到底是什么" class="headerlink" title="28. swappiness 到底是什么"></a>28. swappiness 到底是什么</h2><p>Linux 提供：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/sys/vm/swappiness<br></code></pre></td></tr></table></figure>
+
+<p>来调整回收时对匿名页与文件页的倾向。</p>
+<p>资料中的核心结论非常重要：</p>
+<blockquote>
+<p><strong>swappiness 是倾向，不是“用了多少百分比内存后才开始 Swap”。</strong></p>
+</blockquote>
+<p>也就是说：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">swappiness = 0<br></code></pre></td></tr></table></figure>
+
+<p>并不应该简单理解成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">绝对禁止 Swap<br></code></pre></td></tr></table></figure>
+
+<p>如果内存压力足够大，系统仍可能被迫做匿名页回收。</p>
+<p>如果业务明确不允许 Swap，真正可靠的方式是不要启用 Swap，而不是只改一个倾向参数。</p>
+<hr>
+<h1 id="29-NUMA：为什么整台机器还有空闲内存，却已经开始-Swap"><a href="#29-NUMA：为什么整台机器还有空闲内存，却已经开始-Swap" class="headerlink" title="29. NUMA：为什么整台机器还有空闲内存，却已经开始 Swap"></a>29. NUMA：为什么整台机器还有空闲内存，却已经开始 Swap</h1><p>NUMA（Non-Uniform Memory Access）机器上，CPU 和内存被划分成多个 Node。</p>
+<p>每个 Node 更偏好使用本地内存：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Node 0 CPUs -&gt; Node 0 Memory<br>Node 1 CPUs -&gt; Node 1 Memory<br>...<br></code></pre></td></tr></table></figure>
+
+<p>本地访问通常更快，跨 Node 访问成本更高。</p>
+<p>查看 NUMA：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">numactl --hardware<br></code></pre></td></tr></table></figure>
+
+<p>示例结构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">available: 2 nodes (0-1)<br>node 0 cpus: ...<br>node 0 size: ...<br>node 0 free: ...<br><br>node 1 cpus: ...<br>node 1 size: ...<br>node 1 free: ...<br></code></pre></td></tr></table></figure>
+
+<p>所以不能只看整机：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">MemAvailable<br></code></pre></td></tr></table></figure>
+
+<p>还应该考虑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">某个 Node 是否已经接近本地低水位<br></code></pre></td></tr></table></figure>
+
+<p>Linux 还提供：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/sys/vm/zone_reclaim_mode<br></code></pre></td></tr></table></figure>
+
+<p>来影响 NUMA 本地回收策略。</p>
+<p>资料总结的核心理解是：</p>
+<ul>
+<li>默认策略可以在本地回收，也可以寻找其他 Node；</li>
+<li>某些配置会更偏向只在本地回收；</li>
+<li>本地内存压力可能让 Swap&#x2F;回收活动提前出现。</li>
+</ul>
+<p>这解释了一个线上非常反直觉的现象：</p>
+<blockquote>
+<p><strong>“整机还有很多 free&#x2F;available”并不能排除某个 NUMA Node 已经很紧张。</strong></p>
+</blockquote>
+<hr>
+<h1 id="30-一个完整-Swap-排查案例"><a href="#30-一个完整-Swap-排查案例" class="headerlink" title="30. 一个完整 Swap 排查案例"></a>30. 一个完整 Swap 排查案例</h1><p>资料通过大规模块设备读取让 Buffer 持续增长，然后观察 Swap 为什么开始上升。</p>
+<h2 id="30-1-开启-Swap-文件"><a href="#30-1-开启-Swap-文件" class="headerlink" title="30.1 开启 Swap 文件"></a>30.1 开启 Swap 文件</h2><p>示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">fallocate -l 8G /mnt/swapfile<br><span class="hljs-built_in">chmod</span> 600 /mnt/swapfile<br>mkswap /mnt/swapfile<br>swapon /mnt/swapfile<br></code></pre></td></tr></table></figure>
+
+<p>确认：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">free -h<br></code></pre></td></tr></table></figure>
+
+<h2 id="30-2-构造大规模读取"><a href="#30-2-构造大规模读取" class="headerlink" title="30.2 构造大规模读取"></a>30.2 构造大规模读取</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">dd</span> <span class="hljs-keyword">if</span>=/dev/sda1 of=/dev/null bs=1G count=2048<br></code></pre></td></tr></table></figure>
+
+<h2 id="30-3-观察系统内存和-Swap"><a href="#30-3-观察系统内存和-Swap" class="headerlink" title="30.3 观察系统内存和 Swap"></a>30.3 观察系统内存和 Swap</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">sar -r -S 1<br></code></pre></td></tr></table></figure>
+
+<p>关注：</p>
+<ul>
+<li><code>kbmemfree</code></li>
+<li><code>kbavail</code></li>
+<li><code>kbmemused</code></li>
+<li><code>%memused</code></li>
+<li><code>kbbuffers</code></li>
+<li><code>kbcached</code></li>
+<li><code>kbactive</code></li>
+<li><code>kbinact</code></li>
+<li><code>kbswpfree</code></li>
+<li><code>kbswpused</code></li>
+<li><code>%swpused</code></li>
+</ul>
+<p>现象大致是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">Buffer 持续增长<br>    -&gt;<br>free 不断下降<br>    -&gt;<br>触及回收水位<br>    -&gt;<br>回收一部分文件页和匿名页<br>    -&gt;<br>Swap 开始增长<br>    -&gt;<br>dd 继续读，Buffer 再次增长<br>    -&gt;<br>系统不断在“重新缓存 -&gt; 回收”之间循环<br></code></pre></td></tr></table></figure>
+
+<h2 id="30-4-用-cachetop-找出是谁把-Buffer-推高"><a href="#30-4-用-cachetop-找出是谁把-Buffer-推高" class="headerlink" title="30.4 用 cachetop 找出是谁把 Buffer 推高"></a>30.4 用 cachetop 找出是谁把 Buffer 推高</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">cachetop 5<br></code></pre></td></tr></table></figure>
+
+<p>如果看到 <code>dd</code> 大量 Miss，就能把 Buffer 增长和这个进程关联起来。</p>
+<h2 id="30-5-观察-Watermark"><a href="#30-5-观察-Watermark" class="headerlink" title="30.5 观察 Watermark"></a>30.5 观察 Watermark</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">watch -d <span class="hljs-string">&quot;grep -A 15 &#x27;Normal&#x27; /proc/zoneinfo&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>重点看：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">pages free<br>min<br>low<br>high<br>nr_zone_inactive_anon<br>nr_zone_active_anon<br>nr_zone_inactive_file<br>nr_zone_active_file<br></code></pre></td></tr></table></figure>
+
+<p>如果 <code>pages_free</code> 下降到 <code>low</code> 附近后又突然回升，通常意味着回收正在发生。</p>
+<h2 id="30-6-找出哪些进程被换出了"><a href="#30-6-找出哪些进程被换出了" class="headerlink" title="30.6 找出哪些进程被换出了"></a>30.6 找出哪些进程被换出了</h2><p>每个进程的 Swap 可以从：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/proc/&lt;pid&gt;/status<br></code></pre></td></tr></table></figure>
+
+<p>中的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">VmSwap<br></code></pre></td></tr></table></figure>
+
+<p>获取。</p>
+<p>资料给出一个排序脚本，可以整理成：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-keyword">for</span> file <span class="hljs-keyword">in</span> /proc/[0-9]*/status; <span class="hljs-keyword">do</span><br>    awk <span class="hljs-string">&#x27;</span><br><span class="hljs-string">        /^Name:/   &#123;name=$2&#125;</span><br><span class="hljs-string">        /^Pid:/    &#123;pid=$2&#125;</span><br><span class="hljs-string">        /^VmSwap:/ &#123;swap=$2&#125;</span><br><span class="hljs-string">        END &#123;</span><br><span class="hljs-string">            if (swap &gt; 0) &#123;</span><br><span class="hljs-string">                printf &quot;%-24s %-10s %10d kB\n&quot;, name, pid, swap</span><br><span class="hljs-string">            &#125;</span><br><span class="hljs-string">        &#125;</span><br><span class="hljs-string">    &#x27;</span> <span class="hljs-string">&quot;<span class="hljs-variable">$file</span>&quot;</span> 2&gt;/dev/null<br><span class="hljs-keyword">done</span> | <span class="hljs-built_in">sort</span> -k3 -nr | <span class="hljs-built_in">head</span><br></code></pre></td></tr></table></figure>
+
+<p>也可以借助支持 PSS&#x2F;Swap 统计的工具，例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">smem --<span class="hljs-built_in">sort</span> swap<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h1 id="31-清理-Swap：swapoff-a-swapon-a-有风险"><a href="#31-清理-Swap：swapoff-a-swapon-a-有风险" class="headerlink" title="31. 清理 Swap：swapoff -a &amp;&amp; swapon -a 有风险"></a>31. 清理 Swap：<code>swapoff -a &amp;&amp; swapon -a</code> 有风险</h1><p>资料给出了：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">swapoff -a &amp;&amp; swapon -a<br></code></pre></td></tr></table></figure>
+
+<p>作为一种清理 Swap 的方式。</p>
+<p>这个命令的本质是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">把已经换出的匿名页强制重新换入物理内存<br></code></pre></td></tr></table></figure>
+
+<p>如果系统本来就是因为内存压力才用了 Swap，那么此时强制全部换回可能让物理内存瞬间更紧张，甚至触发 OOM。</p>
+<p>因此线上不要把它当“无脑清 Swap”命令。</p>
+<p>真正应该先回答：</p>
+<ul>
+<li>为什么产生了 Swap？</li>
+<li>哪些进程被换出？</li>
+<li>当前是否还有足够 <code>MemAvailable</code>？</li>
+<li>是否正在持续 <code>si/so</code>？</li>
+<li>是历史遗留的少量 Swap，还是正在发生 Thrashing？</li>
+</ul>
+<hr>
+<h1 id="32-OOM：最后一道保护机制"><a href="#32-OOM：最后一道保护机制" class="headerlink" title="32. OOM：最后一道保护机制"></a>32. OOM：最后一道保护机制</h1><p>当回收文件页、回收匿名页等手段仍无法满足内存分配需求时，Linux 可能进入 OOM 路径，选择终止进程释放内存。</p>
+<p>查看历史日志：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dmesg | grep -Ei <span class="hljs-string">&#x27;out of memory|oom|killed process&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="32-1-oom-score-与-oom-score-adj"><a href="#32-1-oom-score-与-oom-score-adj" class="headerlink" title="32.1 oom_score 与 oom_score_adj"></a>32.1 oom_score 与 oom_score_adj</h3><p>Linux 会给进程计算 OOM 相关分数。</p>
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/&lt;pid&gt;/oom_score<br></code></pre></td></tr></table></figure>
+
+<p>调整优先级时，现代接口更常用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/proc/&lt;pid&gt;/oom_score_adj<br></code></pre></td></tr></table></figure>
+
+<p>资料早期还使用过：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/proc/&lt;pid&gt;/oom_adj<br></code></pre></td></tr></table></figure>
+
+<p>这是旧接口，理解历史材料时要区分。</p>
+<p>不要把“把核心服务调成最难杀”当成万能方案。OOM 保护要和：</p>
+<ul>
+<li>cgroups；</li>
+<li>容器内存 limit；</li>
+<li>服务优先级；</li>
+<li>系统保底进程；</li>
+</ul>
+<p>一起设计。</p>
+<p>否则所有进程都“不能杀”，最后就等于没有策略。</p>
+<hr>
+<h2 id="33-一个必须纠正的-OOM-误区：不是“虚拟内存申请一大就立刻-OOM”"><a href="#33-一个必须纠正的-OOM-误区：不是“虚拟内存申请一大就立刻-OOM”" class="headerlink" title="33. 一个必须纠正的 OOM 误区：不是“虚拟内存申请一大就立刻 OOM”"></a>33. 一个必须纠正的 OOM 误区：不是“虚拟内存申请一大就立刻 OOM”</h2><p>资料答疑中曾把 OOM 简化为“基于虚拟内存触发”。同一份资料后续评论已经指出，这个说法并不严谨。</p>
+<p>例如：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">void</span> *p = <span class="hljs-built_in">malloc</span>(<span class="hljs-number">500</span> * <span class="hljs-number">1024</span> * <span class="hljs-number">1024</span>);<br></code></pre></td></tr></table></figure>
+
+<p>在允许 Overcommit 的系统中，<code>malloc()</code> 很可能成功，因为它首先只是获得一段虚拟地址空间。</p>
+<p>如果之后不断写：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-built_in">memset</span>(p, <span class="hljs-number">0</span>, <span class="hljs-number">500</span> * <span class="hljs-number">1024</span> * <span class="hljs-number">1024</span>);<br></code></pre></td></tr></table></figure>
+
+<p>First Touch 才会逐页分配物理内存。</p>
+<p>因此更准确的理解应该是：</p>
+<blockquote>
+<p><strong>OOM 的关键不是“VIRT 看起来多大”，而是某次实际内存分配&#x2F;缺页在经过回收等机制后仍无法满足。</strong></p>
+</blockquote>
+<p>在容器环境中，还可能因为 cgroup 内存上限触发容器级 OOM，而整机仍然有可用内存。</p>
+<p>这也是为什么排查 OOM 时，要同时看：</p>
+<ul>
+<li><code>VIRT</code></li>
+<li><code>RSS</code></li>
+<li><code>PSS</code></li>
+<li><code>MemAvailable</code></li>
+<li>cgroup limit</li>
+<li><code>dmesg</code></li>
+<li><code>/proc/&lt;pid&gt;/status</code></li>
+<li>容器运行时事件</li>
+</ul>
+<p>而不是只盯 <code>VIRT</code>。</p>
+<hr>
+<h1 id="34-从“内存高”到根因：一套可复用的排查流程"><a href="#34-从“内存高”到根因：一套可复用的排查流程" class="headerlink" title="34. 从“内存高”到根因：一套可复用的排查流程"></a>34. 从“内存高”到根因：一套可复用的排查流程</h1><p>资料最后把前面所有知识收敛成一个非常重要的思想：</p>
+<blockquote>
+<p><strong>不要一上来把所有工具跑一遍。先用覆盖面大的工具判断问题类型，再进入专用工具。</strong></p>
+</blockquote>
+<p>可以整理成下面这套流程。</p>
+<pre><code class=" mermaid">flowchart TD
+    A[出现延迟/OOM/内存告警] --&gt; B[free -h + top]
+    B --&gt; C&#123;MemAvailable 是否低?&#125;
+
+    C --&gt;|否| D&#123;是否只是 Cache/Buffer 高?&#125;
+    D --&gt;|是| E[vmstat/sar 看趋势]
+    E --&gt; F&#123;Cache 是否持续增长?&#125;
+    F --&gt;|是| G[cachetop/cachestat/slabtop/pcstat]
+    F --&gt;|否| H[可能是正常缓存]
+
+    C --&gt;|是| I[vmstat 1 / sar -r -S 1]
+    I --&gt; J&#123;si/so 是否持续?&#125;
+    J --&gt;|是| K[Swap/NUMA 分析]
+    K --&gt; L[/proc/zoneinfo + VmSwap + numactl]
+
+    I --&gt; M&#123;某进程 RSS 是否持续增长?&#125;
+    M --&gt;|是| N[pidstat/top 找进程]
+    N --&gt; O[pmap/smaps 看增长区域]
+    O --&gt; P[memleak/valgrind/语言运行时工具]
+
+    I --&gt; Q&#123;Major Fault 是否高?&#125;
+    Q --&gt;|是| R[检查 Swap / 文件 I/O / 工作集]
+
+    B --&gt; S&#123;已经发生 OOM?&#125;
+    S --&gt;|是| T[dmesg + cgroup + oom_score]
+</code></pre>
+
+<hr>
+<h1 id="35-第一层：free-top，先回答“系统到底缺不缺内存”"><a href="#35-第一层：free-top，先回答“系统到底缺不缺内存”" class="headerlink" title="35. 第一层：free + top，先回答“系统到底缺不缺内存”"></a>35. 第一层：free + top，先回答“系统到底缺不缺内存”</h1><p>先看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">free -h<br></code></pre></td></tr></table></figure>
+
+<p>再看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">top<br></code></pre></td></tr></table></figure>
+
+<p>第一轮不要急着找代码，先回答：</p>
+<ul>
+<li><code>available</code> 是否真的低？</li>
+<li>Swap 是否已经使用？</li>
+<li>哪些进程 RES&#x2F;RSS 最大？</li>
+<li>Cache&#x2F;Buffer 是否占了大头？</li>
+<li>是否只是一个很大的 <code>VIRT</code> 吓到了你？</li>
+</ul>
+<p>这一层的目标不是定根因，而是把问题分到几个大类：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">A. 正常缓存<br>B. 进程常驻内存太高<br>C. 内存在持续增长<br>D. Swap 正在发生<br>E. OOM<br>F. Slab/内核内存异常<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h1 id="36-第二层：vmstat-sar-pidstat，看变化趋势"><a href="#36-第二层：vmstat-sar-pidstat，看变化趋势" class="headerlink" title="36. 第二层：vmstat &#x2F; sar &#x2F; pidstat，看变化趋势"></a>36. 第二层：vmstat &#x2F; sar &#x2F; pidstat，看变化趋势</h1><p>瞬时值经常会骗人。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">RSS = 8 GB<br></code></pre></td></tr></table></figure>
+
+<p>可能是：</p>
+<ul>
+<li>服务启动后就一直 8 GB，完全稳定；</li>
+<li>每分钟从 1 GB 增加到 8 GB；</li>
+<li>GC 后会回落；</li>
+<li>Page Cache 的变化造成系统 used 上升；</li>
+<li>只是短时间峰值。</li>
+</ul>
+<p>所以需要持续观察。</p>
+<h3 id="vmstat"><a href="#vmstat" class="headerlink" title="vmstat"></a>vmstat</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">vmstat 1<br></code></pre></td></tr></table></figure>
+
+<p>常看：</p>
+<ul>
+<li><code>free</code></li>
+<li><code>buff</code></li>
+<li><code>cache</code></li>
+<li><code>si</code></li>
+<li><code>so</code></li>
+<li><code>bi</code></li>
+<li><code>bo</code></li>
+<li><code>wa</code></li>
+</ul>
+<h3 id="sar"><a href="#sar" class="headerlink" title="sar"></a>sar</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">sar -r -S 1<br></code></pre></td></tr></table></figure>
+
+<p>适合同时看：</p>
+<ul>
+<li>内存占用；</li>
+<li>活跃&#x2F;非活跃内存；</li>
+<li>Swap。</li>
+</ul>
+<h3 id="pidstat"><a href="#pidstat" class="headerlink" title="pidstat"></a>pidstat</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">pidstat -r 1<br></code></pre></td></tr></table></figure>
+
+<p>适合按进程观察：</p>
+<ul>
+<li>RSS；</li>
+<li>缺页；</li>
+<li>内存增长趋势。</li>
+</ul>
+<hr>
+<h1 id="37-第三层：针对问题类型选择工具"><a href="#37-第三层：针对问题类型选择工具" class="headerlink" title="37. 第三层：针对问题类型选择工具"></a>37. 第三层：针对问题类型选择工具</h1><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>优先工具</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>系统整体内存</td>
+<td><code>free</code>、<code>/proc/meminfo</code></td>
+</tr>
+<tr>
+<td>动态趋势</td>
+<td><code>vmstat</code>、<code>sar</code></td>
+</tr>
+<tr>
+<td>进程 RSS&#x2F;VIRT</td>
+<td><code>top</code>、<code>ps</code>、<code>pidstat</code></td>
+</tr>
+<tr>
+<td>进程地址空间</td>
+<td><code>pmap</code>、<code>/proc/&lt;pid&gt;/smaps</code></td>
+</tr>
+<tr>
+<td>进程 Swap</td>
+<td><code>/proc/&lt;pid&gt;/status</code>、<code>smem</code></td>
+</tr>
+<tr>
+<td>Page Cache 命中</td>
+<td><code>cachestat</code>、<code>cachetop</code></td>
+</tr>
+<tr>
+<td>指定文件缓存</td>
+<td><code>pcstat</code></td>
+</tr>
+<tr>
+<td>Slab</td>
+<td><code>slabtop</code>、<code>/proc/slabinfo</code></td>
+</tr>
+<tr>
+<td>内存泄漏</td>
+<td><code>memleak</code>、<code>valgrind</code></td>
+</tr>
+<tr>
+<td>系统调用</td>
+<td><code>strace</code></td>
+</tr>
+<tr>
+<td>NUMA</td>
+<td><code>numactl --hardware</code>、<code>/proc/zoneinfo</code></td>
+</tr>
+<tr>
+<td>OOM</td>
+<td><code>dmesg</code>、<code>oom_score</code>、cgroup 指标</td>
+</tr>
+</tbody></table>
+<p>核心原则是：</p>
+<blockquote>
+<p><strong>从现象选指标，再从指标选工具。不要反过来“因为我会这个工具，所以我只看这个工具”。</strong></p>
+</blockquote>
+<hr>
+<h1 id="38-常见症状与快速判断"><a href="#38-常见症状与快速判断" class="headerlink" title="38. 常见症状与快速判断"></a>38. 常见症状与快速判断</h1><h2 id="症状一：free-很小"><a href="#症状一：free-很小" class="headerlink" title="症状一：free 很小"></a>症状一：<code>free</code> 很小</h2><p>不要立刻扩容。</p>
+<p>先看：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">available<br>buff/cache<br>si/so<br></code></pre></td></tr></table></figure>
+
+<p>如果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">free 很小<br>available 很大<br>swap 不活跃<br></code></pre></td></tr></table></figure>
+
+<p>大概率只是 Linux 正常使用缓存。</p>
+<hr>
+<h2 id="症状二：buff-cache-很大"><a href="#症状二：buff-cache-很大" class="headerlink" title="症状二：buff/cache 很大"></a>症状二：<code>buff/cache</code> 很大</h2><p>继续看趋势：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">vmstat 1<br></code></pre></td></tr></table></figure>
+
+<p>如果 Cache 持续增大：</p>
+<ul>
+<li>大文件扫描？</li>
+<li>文件热数据？</li>
+<li>大量 mmap？</li>
+<li>Slab 增长？</li>
+</ul>
+<p>再分别用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">cachetop<br>cachestat<br>slabtop<br>pcstat<br></code></pre></td></tr></table></figure>
+
+<p>缩小范围。</p>
+<hr>
+<h2 id="症状三：进程-VIRT-特别大"><a href="#症状三：进程-VIRT-特别大" class="headerlink" title="症状三：进程 VIRT 特别大"></a>症状三：进程 VIRT 特别大</h2><p>先不要慌。</p>
+<p>看：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">RES/RSS<br>PSS<br>VmSwap<br></code></pre></td></tr></table></figure>
+
+<p>如果只是 VIRT 大而 RSS 稳定，可能只是：</p>
+<ul>
+<li>预留地址空间；</li>
+<li>mmap；</li>
+<li>JVM 等运行时的地址空间管理；</li>
+<li>尚未 First Touch 的内存。</li>
+</ul>
+<hr>
+<h2 id="症状四：进程-RSS-一直增长"><a href="#症状四：进程-RSS-一直增长" class="headerlink" title="症状四：进程 RSS 一直增长"></a>症状四：进程 RSS 一直增长</h2><p>这是最值得怀疑泄漏的信号之一。</p>
+<p>路径：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">pidstat/top<br>  -&gt;<br>pmap/smaps<br>  -&gt;<br>确定是 heap/anon/file map<br>  -&gt;<br>memleak/valgrind/runtime profiler<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="症状五：Swap-已经用了很多"><a href="#症状五：Swap-已经用了很多" class="headerlink" title="症状五：Swap 已经用了很多"></a>症状五：Swap 已经用了很多</h2><p>先判断：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">现在还在 swap，还是历史上曾 swap？<br></code></pre></td></tr></table></figure>
+
+<p>看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">vmstat 1<br></code></pre></td></tr></table></figure>
+
+<p>如果 <code>si/so</code> 长时间接近 0：</p>
+<ul>
+<li>可能只是历史遗留的冷页；</li>
+<li>Swap 已用不一定意味着当前正在产生明显性能问题。</li>
+</ul>
+<p>如果 <code>si/so</code> 持续很高：</p>
+<ul>
+<li>工作集大于物理内存；</li>
+<li>系统可能正在 Thrashing；</li>
+<li>延迟通常会显著恶化。</li>
+</ul>
+<hr>
+<h2 id="症状六：OOM"><a href="#症状六：OOM" class="headerlink" title="症状六：OOM"></a>症状六：OOM</h2><p>先找日志：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dmesg | grep -Ei <span class="hljs-string">&#x27;out of memory|oom|killed process&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>然后区分：</p>
+<ul>
+<li>Host OOM；</li>
+<li>cgroup&#x2F;container OOM；</li>
+<li>单进程分配失败；</li>
+<li>overcommit&#x2F;commit limit；</li>
+<li>内核内存耗尽。</li>
+</ul>
+<p>再回头找“为什么内存到这里了”，而不是只把被杀进程重启。</p>
+<hr>
+<h1 id="39-性能测试最容易踩的缓存坑"><a href="#39-性能测试最容易踩的缓存坑" class="headerlink" title="39. 性能测试最容易踩的缓存坑"></a>39. 性能测试最容易踩的缓存坑</h1><h3 id="坑一：同一个文件重复测，第二次其实在测内存"><a href="#坑一：同一个文件重复测，第二次其实在测内存" class="headerlink" title="坑一：同一个文件重复测，第二次其实在测内存"></a>坑一：同一个文件重复测，第二次其实在测内存</h3><p>如果你要测冷缓存文件读性能：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> 3 &gt; /proc/sys/vm/drop_caches<br></code></pre></td></tr></table></figure>
+
+<p>只适合测试环境。</p>
+<p>如果要测实际线上应用体验，那么 Page Cache 本来就是系统性能的一部分，不应该人为清掉。</p>
+<h3 id="坑二：用-O-DIRECT-后拿结果和普通-Buffered-I-O-直接比较"><a href="#坑二：用-O-DIRECT-后拿结果和普通-Buffered-I-O-直接比较" class="headerlink" title="坑二：用 O_DIRECT 后拿结果和普通 Buffered I&#x2F;O 直接比较"></a>坑二：用 O_DIRECT 后拿结果和普通 Buffered I&#x2F;O 直接比较</h3><p>两者优化目标不同。</p>
+<p>Buffered I&#x2F;O：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">利用 Page Cache<br></code></pre></td></tr></table></figure>
+
+<p>Direct I&#x2F;O：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">绕过 Page Cache<br></code></pre></td></tr></table></figure>
+
+<p>数据库、自带 Buffer Pool 的存储系统常常会考虑 Direct I&#x2F;O，是为了避免双重缓存，而不是因为 Direct I&#x2F;O 天生更快。</p>
+<h3 id="坑三：把设备吞吐和文件系统吞吐混为一谈"><a href="#坑三：把设备吞吐和文件系统吞吐混为一谈" class="headerlink" title="坑三：把设备吞吐和文件系统吞吐混为一谈"></a>坑三：把设备吞吐和文件系统吞吐混为一谈</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">dd</span> <span class="hljs-keyword">if</span>=/dev/sda1 ...<br></code></pre></td></tr></table></figure>
+
+<p>与：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">dd</span> <span class="hljs-keyword">if</span>=/mnt/data/file ...<br></code></pre></td></tr></table></figure>
+
+<p>走的层次不同。</p>
+<p>比较之前必须明确测试对象。</p>
+<hr>
+<h1 id="40-proc-文件系统为什么是性能分析必修课"><a href="#40-proc-文件系统为什么是性能分析必修课" class="headerlink" title="40. proc 文件系统为什么是性能分析必修课"></a>40. <code>proc</code> 文件系统为什么是性能分析必修课</h1><p>很多性能工具本质上只是把 <code>/proc</code> 中的信息格式化给你看。</p>
+<p>常见接口：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">/proc/meminfo<br>/proc/zoneinfo<br>/proc/&lt;pid&gt;/status<br>/proc/&lt;pid&gt;/smaps<br>/proc/&lt;pid&gt;/oom_score<br>/proc/&lt;pid&gt;/oom_score_adj<br>/proc/sys/vm/swappiness<br>/proc/sys/vm/min_free_kbytes<br>/proc/sys/vm/zone_reclaim_mode<br></code></pre></td></tr></table></figure>
+
+<p>遇到不认识的指标，正确习惯不是先背博客结论，而是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">man free<br>man proc<br>man vmstat<br>man sar<br>man top<br></code></pre></td></tr></table></figure>
+
+<p>性能指标会随：</p>
+<ul>
+<li>内核版本；</li>
+<li>procps&#x2F;sysstat 版本；</li>
+<li>发行版；</li>
+</ul>
+<p>发生变化。</p>
+<p><strong>理解数据来源，比记住某个版本的输出列更可靠。</strong></p>
+<hr>
+<h1 id="41-几个资料中需要特别注意的历史-版本问题"><a href="#41-几个资料中需要特别注意的历史-版本问题" class="headerlink" title="41. 几个资料中需要特别注意的历史&#x2F;版本问题"></a>41. 几个资料中需要特别注意的历史&#x2F;版本问题</h1><p>这组资料来自 2018-2019 年，原理仍然非常有价值，但部分命令、接口和表述不能直接当成今天所有 Linux 环境的固定事实。</p>
+<h2 id="41-1-“64-位用户空间-128-TB”是经典示意，不是永恒常量"><a href="#41-1-“64-位用户空间-128-TB”是经典示意，不是永恒常量" class="headerlink" title="41.1 “64 位用户空间 128 TB”是经典示意，不是永恒常量"></a>41.1 “64 位用户空间 128 TB”是经典示意，不是永恒常量</h2><p>虚拟地址宽度和页表级数会随架构变化。</p>
+<p>要记模型，不要死记容量。</p>
+<h2 id="41-2-“Linux-使用四级页表”是当时主流-x86-64-语境"><a href="#41-2-“Linux-使用四级页表”是当时主流-x86-64-语境" class="headerlink" title="41.2 “Linux 使用四级页表”是当时主流 x86_64 语境"></a>41.2 “Linux 使用四级页表”是当时主流 x86_64 语境</h2><p>现代系统可能支持五级页表。</p>
+<h2 id="41-3-“malloc-小于-128-KB-用-brk，大于-128-KB-用-mmap”是经典-glibc-解释"><a href="#41-3-“malloc-小于-128-KB-用-brk，大于-128-KB-用-mmap”是经典-glibc-解释" class="headerlink" title="41.3 “malloc 小于 128 KB 用 brk，大于 128 KB 用 mmap”是经典 glibc 解释"></a>41.3 “malloc 小于 128 KB 用 brk，大于 128 KB 用 mmap”是经典 glibc 解释</h2><p>真实分配器会动态调整阈值，也可能使用其他 allocator。</p>
+<h2 id="41-4-oom-adj-是旧接口"><a href="#41-4-oom-adj-是旧接口" class="headerlink" title="41.4 oom_adj 是旧接口"></a>41.4 <code>oom_adj</code> 是旧接口</h2><p>资料早期命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> -16 &gt; /proc/$(pidof sshd)/oom_adj<br></code></pre></td></tr></table></figure>
+
+<p>适合理解历史。</p>
+<p>现代排障更常见的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">oom_score<br>oom_score_adj<br></code></pre></td></tr></table></figure>
+
+<h2 id="41-5-“RSS-不包含共享内存”是过度简化"><a href="#41-5-“RSS-不包含共享内存”是过度简化" class="headerlink" title="41.5 “RSS 不包含共享内存”是过度简化"></a>41.5 “RSS 不包含共享内存”是过度简化</h2><p>资料后续答疑已经指出该定义和工具实际输出存在出入。</p>
+<p>多进程汇总使用 PSS 更可靠。</p>
+<h2 id="41-6-“页表存储在-MMU”是简化错误"><a href="#41-6-“页表存储在-MMU”是简化错误" class="headerlink" title="41.6 “页表存储在 MMU”是简化错误"></a>41.6 “页表存储在 MMU”是简化错误</h2><p>更准确的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">页表在内存<br>MMU 负责地址翻译<br>TLB 缓存翻译结果<br></code></pre></td></tr></table></figure>
+
+<h2 id="41-7-“OOM-基于虚拟内存触发”不能机械理解"><a href="#41-7-“OOM-基于虚拟内存触发”不能机械理解" class="headerlink" title="41.7 “OOM 基于虚拟内存触发”不能机械理解"></a>41.7 “OOM 基于虚拟内存触发”不能机械理解</h2><p>大虚拟地址空间本身不等于 OOM。</p>
+<p>真正要看物理页兑现、内存回收、cgroup 限制和分配失败。</p>
+<h2 id="41-8-BCC-安装命令具有很强时代性"><a href="#41-8-BCC-安装命令具有很强时代性" class="headerlink" title="41.8 BCC 安装命令具有很强时代性"></a>41.8 BCC 安装命令具有很强时代性</h2><p>资料中的 Ubuntu&#x2F;CentOS 仓库命令是当时实践环境。</p>
+<p>今天不要为了照抄一篇旧文章，直接在生产服务器升级内核。</p>
+<p>原则应该是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">先确认现象和需要的指标<br>-&gt; 再选择当前环境能使用的工具<br></code></pre></td></tr></table></figure>
+
+<p>工具受限时依然可以用：</p>
+<ul>
+<li><code>/proc</code></li>
+<li><code>vmstat</code></li>
+<li><code>sar</code></li>
+<li><code>pmap</code></li>
+<li><code>smaps</code></li>
+<li><code>strace</code></li>
+<li><code>valgrind</code></li>
+<li>语言运行时自带工具</li>
+</ul>
+<p>解决大量问题。</p>
+<hr>
+<h1 id="42-内存优化真正值得优先做什么"><a href="#42-内存优化真正值得优先做什么" class="headerlink" title="42. 内存优化真正值得优先做什么"></a>42. 内存优化真正值得优先做什么</h1><h2 id="42-1-让热点数据留在内存"><a href="#42-1-让热点数据留在内存" class="headerlink" title="42.1 让热点数据留在内存"></a>42.1 让热点数据留在内存</h2><p>这是一切缓存优化的根本。</p>
+<p>热点数据反复从磁盘读取，性能一定差。</p>
+<p>可以利用：</p>
+<ul>
+<li>Page Cache；</li>
+<li>应用内存缓存；</li>
+<li>Redis 等外部缓存；</li>
+<li>数据库 Buffer Pool。</li>
+</ul>
+<p>但缓存一定要有边界和淘汰策略。</p>
+<hr>
+<h2 id="42-2-减少无意义的动态内存分配"><a href="#42-2-减少无意义的动态内存分配" class="headerlink" title="42.2 减少无意义的动态内存分配"></a>42.2 减少无意义的动态内存分配</h2><p>高频：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">malloc -&gt; free -&gt; malloc -&gt; free<br></code></pre></td></tr></table></figure>
+
+<p>可能带来：</p>
+<ul>
+<li>allocator 锁竞争；</li>
+<li>碎片；</li>
+<li>Page Fault；</li>
+<li>mmap&#x2F;brk 管理成本；</li>
+<li>Cache Locality 变差。</li>
+</ul>
+<p>常见优化：</p>
+<ul>
+<li>对象池；</li>
+<li>内存池；</li>
+<li>批量分配；</li>
+<li>复用缓冲区；</li>
+<li>合理使用栈；</li>
+<li>大页。</li>
+</ul>
+<hr>
+<h2 id="42-3-尽量避免-Swap-进入请求关键路径"><a href="#42-3-尽量避免-Swap-进入请求关键路径" class="headerlink" title="42.3 尽量避免 Swap 进入请求关键路径"></a>42.3 尽量避免 Swap 进入请求关键路径</h2><p>延迟敏感服务通常应该把工作集控制在物理内存范围内。</p>
+<p>比“调 swappiness”更重要的是：</p>
+<ul>
+<li>容量规划；</li>
+<li>cgroups limit；</li>
+<li>工作集大小；</li>
+<li>缓存上限；</li>
+<li>防止泄漏。</li>
+</ul>
+<p>Swap 可以做保险，但不要让业务正常路径依赖频繁 Swap。</p>
+<hr>
+<h2 id="42-4-使用-cgroups-限制异常进程"><a href="#42-4-使用-cgroups-限制异常进程" class="headerlink" title="42.4 使用 cgroups 限制异常进程"></a>42.4 使用 cgroups 限制异常进程</h2><p>单个进程或容器如果可以无限吃内存，很容易拖垮整机。</p>
+<p>合理的内存限制至少要结合：</p>
+<ul>
+<li>正常稳态；</li>
+<li>峰值；</li>
+<li>GC&#x2F;Compaction；</li>
+<li>Page Cache；</li>
+<li>本地缓存；</li>
+<li>临时大对象；</li>
+<li>业务突发。</li>
+</ul>
+<p>不要只测“刚启动时 RSS”就决定容器内存上限。</p>
+<hr>
+<h2 id="42-5-给核心进程合理设置-OOM-优先级"><a href="#42-5-给核心进程合理设置-OOM-优先级" class="headerlink" title="42.5 给核心进程合理设置 OOM 优先级"></a>42.5 给核心进程合理设置 OOM 优先级</h2><p>如果机器真的走到 OOM，至少要确保：</p>
+<ul>
+<li>SSH&#x2F;运维入口；</li>
+<li>核心控制进程；</li>
+<li>系统守护进程；</li>
+</ul>
+<p>不会最先被杀。</p>
+<p>但 OOM 优先级只是最后防线，不能代替容量治理。</p>
+<hr>
+<h1 id="43-一份可以直接用于线上排障的命令清单"><a href="#43-一份可以直接用于线上排障的命令清单" class="headerlink" title="43. 一份可以直接用于线上排障的命令清单"></a>43. 一份可以直接用于线上排障的命令清单</h1><h2 id="系统总览"><a href="#系统总览" class="headerlink" title="系统总览"></a>系统总览</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">free -h<br>top<br>vmstat 1<br></code></pre></td></tr></table></figure>
+
+<h2 id="进程排序"><a href="#进程排序" class="headerlink" title="进程排序"></a>进程排序</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ps aux --<span class="hljs-built_in">sort</span>=-rss | <span class="hljs-built_in">head</span> -20<br></code></pre></td></tr></table></figure>
+
+<h2 id="进程内存"><a href="#进程内存" class="headerlink" title="进程内存"></a>进程内存</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">pmap -x &lt;pid&gt;<br><span class="hljs-built_in">cat</span> /proc/&lt;pid&gt;/status<br><span class="hljs-built_in">cat</span> /proc/&lt;pid&gt;/smaps<br></code></pre></td></tr></table></figure>
+
+<h2 id="Page-Cache-Buffer"><a href="#Page-Cache-Buffer" class="headerlink" title="Page Cache &#x2F; Buffer"></a>Page Cache &#x2F; Buffer</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/meminfo<br>cachestat 1<br>cachetop<br>slabtop<br></code></pre></td></tr></table></figure>
+
+<h2 id="文件缓存"><a href="#文件缓存" class="headerlink" title="文件缓存"></a>文件缓存</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">pcstat &lt;file&gt;<br></code></pre></td></tr></table></figure>
+
+<h2 id="Page-Fault-进程趋势"><a href="#Page-Fault-进程趋势" class="headerlink" title="Page Fault &#x2F; 进程趋势"></a>Page Fault &#x2F; 进程趋势</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">pidstat -r 1<br></code></pre></td></tr></table></figure>
+
+<h2 id="Swap"><a href="#Swap" class="headerlink" title="Swap"></a>Swap</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">free -h<br>vmstat 1<br>sar -r -S 1<br><span class="hljs-built_in">cat</span> /proc/sys/vm/swappiness<br><span class="hljs-built_in">cat</span> /proc/zoneinfo<br></code></pre></td></tr></table></figure>
+
+<h2 id="NUMA"><a href="#NUMA" class="headerlink" title="NUMA"></a>NUMA</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">numactl --hardware<br><span class="hljs-built_in">cat</span> /proc/sys/vm/zone_reclaim_mode<br></code></pre></td></tr></table></figure>
+
+<h2 id="OOM"><a href="#OOM" class="headerlink" title="OOM"></a>OOM</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">dmesg | grep -Ei <span class="hljs-string">&#x27;out of memory|oom|killed process&#x27;</span><br><span class="hljs-built_in">cat</span> /proc/&lt;pid&gt;/oom_score<br><span class="hljs-built_in">cat</span> /proc/&lt;pid&gt;/oom_score_adj<br></code></pre></td></tr></table></figure>
+
+<h2 id="系统调用"><a href="#系统调用" class="headerlink" title="系统调用"></a>系统调用</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">strace -p &lt;pid&gt;<br></code></pre></td></tr></table></figure>
+
+<h2 id="内存泄漏"><a href="#内存泄漏" class="headerlink" title="内存泄漏"></a>内存泄漏</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">memleak -p &lt;pid&gt;<br></code></pre></td></tr></table></figure>
+
+<p>或：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">valgrind --leak-check=full ./app<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h1 id="44-一套更适合软件开发者记忆的内存性能模型"><a href="#44-一套更适合软件开发者记忆的内存性能模型" class="headerlink" title="44. 一套更适合软件开发者记忆的内存性能模型"></a>44. 一套更适合软件开发者记忆的内存性能模型</h1><p>可以把整个内存篇压缩成四层。</p>
+<h2 id="第一层：地址"><a href="#第一层：地址" class="headerlink" title="第一层：地址"></a>第一层：地址</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Virtual Address<br>    -&gt;<br>Page Table / TLB<br>    -&gt;<br>Physical Page<br></code></pre></td></tr></table></figure>
+
+<p>这一层决定：</p>
+<ul>
+<li>地址空间；</li>
+<li>页表；</li>
+<li>TLB；</li>
+<li>Page Fault；</li>
+<li>HugePage。</li>
+</ul>
+<h2 id="第二层：分配"><a href="#第二层：分配" class="headerlink" title="第二层：分配"></a>第二层：分配</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">malloc<br>    -&gt;<br>brk / mmap<br>    -&gt;<br>First Touch<br>    -&gt;<br>Buddy<br>    -&gt;<br>Physical Page<br></code></pre></td></tr></table></figure>
+
+<p>这一层决定：</p>
+<ul>
+<li>VIRT 与 RSS 为什么不一样；</li>
+<li>内存碎片；</li>
+<li>动态分配开销；</li>
+<li>泄漏。</li>
+</ul>
+<h2 id="第三层：缓存与回收"><a href="#第三层：缓存与回收" class="headerlink" title="第三层：缓存与回收"></a>第三层：缓存与回收</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">File Page<br>    -&gt; Page Cache<br>    -&gt; Reclaim / Writeback<br><br>Anonymous Page<br>    -&gt; RAM<br>    -&gt; Swap<br></code></pre></td></tr></table></figure>
+
+<p>这一层决定：</p>
+<ul>
+<li>Buffer&#x2F;Cache；</li>
+<li>LRU；</li>
+<li>Dirty Page；</li>
+<li>Swap；</li>
+<li>kswapd；</li>
+<li>Watermark。</li>
+</ul>
+<h2 id="第四层：故障处理"><a href="#第四层：故障处理" class="headerlink" title="第四层：故障处理"></a>第四层：故障处理</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">内存持续增长<br>    -&gt; 泄漏分析<br><br>回收频繁<br>    -&gt; Cache/Swap/NUMA 分析<br><br>回收仍不足<br>    -&gt; OOM<br></code></pre></td></tr></table></figure>
+
+<p>这一层决定线上排查方法。</p>
+<hr>
+<h1 id="45-最后：不要把“工具”当知识体系，把“关系”记下来"><a href="#45-最后：不要把“工具”当知识体系，把“关系”记下来" class="headerlink" title="45. 最后：不要把“工具”当知识体系，把“关系”记下来"></a>45. 最后：不要把“工具”当知识体系，把“关系”记下来</h1><p>Linux 内存相关工具很多，但它们其实只是在回答不同层次的问题。</p>
+<p><code>free</code> 回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">整台机器现在还有多少内存余量？<br></code></pre></td></tr></table></figure>
+
+<p><code>vmstat/sar</code> 回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">内存是在变好还是变坏？Swap 和回收是不是正在发生？<br></code></pre></td></tr></table></figure>
+
+<p><code>top/pidstat</code> 回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">哪个进程最可疑？<br></code></pre></td></tr></table></figure>
+
+<p><code>pmap/smaps</code> 回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">这个进程的内存到底长在哪个地址区间？<br></code></pre></td></tr></table></figure>
+
+<p><code>cachestat/cachetop</code> 回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">这些缓存到底有没有被有效利用？<br></code></pre></td></tr></table></figure>
+
+<p><code>memleak/valgrind</code> 回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">哪次内存分配没有被释放？<br></code></pre></td></tr></table></figure>
+
+<p><code>zoneinfo/numactl</code> 回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">是不是已经触发内存水位或 NUMA 本地压力？<br></code></pre></td></tr></table></figure>
+
+<p><code>dmesg</code> 回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">内核最后为什么决定 OOM？<br></code></pre></td></tr></table></figure>
+
+<p>真正稳定的分析方法可以归纳成一句话：</p>
+<blockquote>
+<p><strong>先看系统是否真的有内存压力，再看压力来自 Cache、进程常驻集、内存泄漏还是 Swap；确认类型后，沿着指标找到进程，再沿着进程找到地址空间、系统调用和代码。</strong></p>
+</blockquote>
+<p>只要这条主线还在，即使换了 Linux 版本、换了工具、换了语言运行时，也不会因为某个命令不存在就失去分析能力。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Linux/" class="category-chain-item">Linux</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/Linux/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/" class="category-chain-item">性能优化</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Linux/" class="print-no-link">#Linux</a>
+      
+        <a href="/tags/eBPF/" class="print-no-link">#eBPF</a>
+      
+        <a href="/tags/Memory/" class="print-no-link">#Memory</a>
+      
+        <a href="/tags/Virtual-Memory/" class="print-no-link">#Virtual Memory</a>
+      
+        <a href="/tags/Page-Cache/" class="print-no-link">#Page Cache</a>
+      
+        <a href="/tags/Buffer/" class="print-no-link">#Buffer</a>
+      
+        <a href="/tags/Swap/" class="print-no-link">#Swap</a>
+      
+        <a href="/tags/OOM/" class="print-no-link">#OOM</a>
+      
+        <a href="/tags/NUMA/" class="print-no-link">#NUMA</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Linux 内存管理与性能优化：从虚拟内存、Page Cache 到 Swap、OOM 与泄漏排查</div>
+      <div>https://allendericdalexander.github.io/2026/08/11/devops/linux/performanceOptimization/03linux-memory-management-performance-optimization/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月11日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/08/11/devops/linux/performanceOptimization/04linux-filesystem-disk-io-performance/" title="Linux 文件系统与磁盘 I/O：从 VFS、块层到性能分析与优化">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Linux 文件系统与磁盘 I/O：从 VFS、块层到性能分析与优化</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/11/devops/linux/performanceOptimization/02linux-cpu-performance-analysis/" title="Linux CPU 性能分析与优化：从软中断到 perf 的系统化排障方法">
+                        <span class="hidden-mobile">Linux CPU 性能分析与优化：从软中断到 perf 的系统化排障方法</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

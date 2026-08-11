@@ -1,0 +1,1241 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="Linux 性能优化工程方法论：从全局观到诊断闭环性能问题最麻烦的地方，通常不是“不会用某个命令”，而是不知道应该先看什么、为什么看、看到异常之后如何继续向下追。 线上出现延迟升高、吞吐下降、平均负载异常、CPU 打满、磁盘 I&#x2F;O 抖动或者网络请求变慢时，如果排查方式仍然是“看一眼 top，猜一下最近改了什么，不行就搜索报错”，那么偶尔也能碰巧解决问题，但很难形成稳定、可复用的工程能力">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 性能优化工程方法论：从全局观到诊断闭环">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/11/devops/linux/performanceOptimization/08linux-performance-engineering-methodology/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="Linux 性能优化工程方法论：从全局观到诊断闭环性能问题最麻烦的地方，通常不是“不会用某个命令”，而是不知道应该先看什么、为什么看、看到异常之后如何继续向下追。 线上出现延迟升高、吞吐下降、平均负载异常、CPU 打满、磁盘 I&#x2F;O 抖动或者网络请求变慢时，如果排查方式仍然是“看一眼 top，猜一下最近改了什么，不行就搜索报错”，那么偶尔也能碰巧解决问题，但很难形成稳定、可复用的工程能力">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-11T09:06:00.000Z">
+<meta property="article:modified_time" content="2026-08-11T09:15:02.609Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Wireshark">
+<meta property="article:tag" content="perf">
+<meta property="article:tag" content="性能优化">
+<meta property="article:tag" content="性能分析">
+<meta property="article:tag" content="系统原理">
+<meta property="article:tag" content="网络">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Linux 性能优化工程方法论：从全局观到诊断闭环 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Linux 性能优化工程方法论：从全局观到诊断闭环"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-11 17:06" pubdate>
+          2026年8月11日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          8.4k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          71 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Linux 性能优化工程方法论：从全局观到诊断闭环</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <h1 id="Linux-性能优化工程方法论：从全局观到诊断闭环"><a href="#Linux-性能优化工程方法论：从全局观到诊断闭环" class="headerlink" title="Linux 性能优化工程方法论：从全局观到诊断闭环"></a>Linux 性能优化工程方法论：从全局观到诊断闭环</h1><p>性能问题最麻烦的地方，通常不是“不会用某个命令”，而是不知道<strong>应该先看什么、为什么看、看到异常之后如何继续向下追</strong>。</p>
+<p>线上出现延迟升高、吞吐下降、平均负载异常、CPU 打满、磁盘 I&#x2F;O 抖动或者网络请求变慢时，如果排查方式仍然是“看一眼 <code>top</code>，猜一下最近改了什么，不行就搜索报错”，那么偶尔也能碰巧解决问题，但很难形成稳定、可复用的工程能力。</p>
+<p>真正可靠的 Linux 性能分析，需要建立一套完整链路：</p>
+<blockquote>
+<p><strong>理解原理 → 观察指标 → 选择工具 → 建立假设 → 定位瓶颈 → 实施优化 → 再次测量。</strong></p>
+</blockquote>
+<p>这套链路背后还有一个更重要的前提：<strong>性能优化必须拥有系统全局观。</strong> 一个表面上表现为 CPU、内存、磁盘或者网络的问题，其根因可能来自硬件、Linux 内核、中间件、运行时、应用程序，甚至外部基础设施。只盯着一个指标，很容易“治标不治本”。</p>
+<span id="more"></span>
+
+<h2 id="1-性能优化首先是系统工程，而不是命令集合"><a href="#1-性能优化首先是系统工程，而不是命令集合" class="headerlink" title="1. 性能优化首先是系统工程，而不是命令集合"></a>1. 性能优化首先是系统工程，而不是命令集合</h2><p>Linux 性能问题天然跨层。</p>
+<p>一个请求从客户端进入服务器，到最终返回结果，可能经过网络协议栈、Socket、线程或进程调度、内存分配、文件系统、磁盘、数据库、中间件以及业务代码。任何一个环节出现瓶颈，都可能在另一个环节表现出症状。</p>
+<p>可以把排查对象先粗略分成几层：</p>
+<pre><code class=" mermaid">flowchart TD
+    A[业务现象&lt;br/&gt;延迟 / 吞吐 / 错误 / 抖动] --&gt; B[应用与中间件]
+    B --&gt; C[Linux 系统资源]
+    C --&gt; D1[CPU]
+    C --&gt; D2[内存]
+    C --&gt; D3[磁盘与文件系统]
+    C --&gt; D4[网络]
+    D1 --&gt; E[内核与硬件]
+    D2 --&gt; E
+    D3 --&gt; E
+    D4 --&gt; E
+</code></pre>
+
+<p>在实际排障中，最危险的思维方式是看到某个指标就立刻给它贴标签。例如：</p>
+<ul>
+<li>平均负载高，不等于一定是 CPU 算力不足；</li>
+<li>CPU 使用率高，不等于一定是业务代码计算太多；</li>
+<li>网络连接数增加，不等于一定是网卡带宽不足；</li>
+<li>I&#x2F;O 变慢，也不意味着问题只在磁盘设备；</li>
+<li>进程还活着，也不代表应用仍然具有正常处理请求的能力。</li>
+</ul>
+<p>因此，性能优化的第一原则不是“马上调参数”，而是先建立<strong>系统视角</strong>：症状在哪一层出现，相关资源发生了什么变化，变化与业务负载是否同步，问题能否继续向更深一层收敛。</p>
+<h2 id="2-最核心的闭环：原理、指标、工具、优化、验证"><a href="#2-最核心的闭环：原理、指标、工具、优化、验证" class="headerlink" title="2. 最核心的闭环：原理、指标、工具、优化、验证"></a>2. 最核心的闭环：原理、指标、工具、优化、验证</h2><p>一套可复用的性能分析方法，可以整理成下面这个闭环：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[理解工作原理] --&gt; B[确定关键指标]
+    B --&gt; C[使用工具采集证据]
+    C --&gt; D[形成瓶颈假设]
+    D --&gt; E[定位根因]
+    E --&gt; F[实施优化]
+    F --&gt; G[重新测量]
+    G --&gt; H&#123;目标是否达到?&#125;
+    H -- 否 --&gt; B
+    H -- 是 --&gt; I[沉淀基线与经验]
+</code></pre>
+
+<p>这几个步骤看起来朴素，却决定了性能分析到底是在“猜”，还是在做工程诊断。</p>
+<h3 id="2-1-原理决定你应该观察什么"><a href="#2-1-原理决定你应该观察什么" class="headerlink" title="2.1 原理决定你应该观察什么"></a>2.1 原理决定你应该观察什么</h3><p>性能分析的核心不是背指标，而是知道指标背后的系统行为。</p>
+<p>如果不了解进程调度，就很难判断平均负载变化意味着什么；不了解虚拟内存和缓存，就容易误读内存使用情况；不了解文件系统和 I&#x2F;O 路径，就很难区分应用慢、文件系统慢还是块设备慢；不了解 TCP&#x2F;IP 协议栈，就很容易把重传、连接、延迟等不同层面的现象混在一起。</p>
+<p>因此，<strong>原理是指标解释能力的来源</strong>。</p>
+<p>工具只能告诉你“发生了什么”，原理才能帮助你判断“为什么会发生”。</p>
+<h3 id="2-2-指标是定位和调优的依据"><a href="#2-2-指标是定位和调优的依据" class="headerlink" title="2.2 指标是定位和调优的依据"></a>2.2 指标是定位和调优的依据</h3><p>性能问题不能只靠感觉判断。</p>
+<p>指标的作用至少有三层：</p>
+<ol>
+<li><strong>确认现象是否真实存在</strong>：业务说“变慢了”，系统层面到底发生了什么？</li>
+<li><strong>帮助缩小范围</strong>：CPU、内存、I&#x2F;O、网络，哪一块与异常同时变化？</li>
+<li><strong>验证优化效果</strong>：改动之后到底有没有更快，还是只是“感觉好像好了”？</li>
+</ol>
+<p>好的指标体系不是指标越多越好，而是能够把指标与具体问题建立映射。</p>
+<h3 id="2-3-工具的价值在于获取证据"><a href="#2-3-工具的价值在于获取证据" class="headerlink" title="2.3 工具的价值在于获取证据"></a>2.3 工具的价值在于获取证据</h3><p>常见的 Linux 性能工具很多，但学习工具最容易掉进一个坑：记住了大量命令，却不知道什么时候该用哪个。</p>
+<p>更有效的方法，是建立两张映射表：</p>
+<ul>
+<li><strong>问题 &#x2F; 指标 → 工具</strong></li>
+<li><strong>工具 → 能观察到的指标与系统层次</strong></li>
+</ul>
+<p>资料中的工程实践反复体现了这一点。早期只会用 <code>top</code>、<code>vmstat</code> 查看 CPU、内存、磁盘和软中断等基础信息，遇到异常再临时搜索，很难应对新的问题；当工具和指标之间形成体系后，即使忘记具体用法，也能先确定“应该找哪类工具”。</p>
+<p>典型工具可以这样理解：</p>
+<table>
+<thead>
+<tr>
+<th>工具</th>
+<th>主要价值</th>
+<th>更适合回答的问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>top</code></td>
+<td>快速查看系统和进程级资源使用情况</td>
+<td>谁最忙？整体负载是否异常？</td>
+</tr>
+<tr>
+<td><code>vmstat</code></td>
+<td>从系统角度观察 CPU、内存、进程、I&#x2F;O 等变化</td>
+<td>异常主要集中在哪一类系统资源？</td>
+</tr>
+<tr>
+<td><code>perf</code></td>
+<td>深入 CPU 与程序执行热点</td>
+<td>CPU 时间到底消耗在什么函数或执行路径上？</td>
+</tr>
+<tr>
+<td>Wireshark</td>
+<td>图形化观察网络报文和协议交互</td>
+<td>网络协议到底发生了什么？</td>
+</tr>
+<tr>
+<td>Bash &#x2F; <code>grep</code> &#x2F; <code>awk</code></td>
+<td>系统操作与文本过滤</td>
+<td>如何快速整理日志、命令输出和系统信息？</td>
+</tr>
+</tbody></table>
+<p>需要特别强调：<strong>工具不是结论。</strong></p>
+<p>看到一个数字，只是拿到了证据的一部分。真正的分析还需要上下文、基线、时间关系以及对系统原理的理解。</p>
+<h3 id="2-4-优化必须建立在已定位的问题上"><a href="#2-4-优化必须建立在已定位的问题上" class="headerlink" title="2.4 优化必须建立在已定位的问题上"></a>2.4 优化必须建立在已定位的问题上</h3><p>“优化”不是看到某个参数可以调，就顺手改一下。</p>
+<p>更合理的顺序是：</p>
+<blockquote>
+<p><strong>先通过指标找问题，再根据原理解释问题，然后实施有针对性的修改。</strong></p>
+</blockquote>
+<p>否则很容易出现两种情况：</p>
+<ul>
+<li>参数改了很多，问题偶然消失，却不知道真正原因；</li>
+<li>单项指标变漂亮了，但业务延迟、吞吐或者稳定性并没有改善。</li>
+</ul>
+<h3 id="2-5-优化完成后必须重新测量"><a href="#2-5-优化完成后必须重新测量" class="headerlink" title="2.5 优化完成后必须重新测量"></a>2.5 优化完成后必须重新测量</h3><p>性能调优不是一次性的“修复”，而是一个实验过程。</p>
+<p>没有再次测量，就无法回答：</p>
+<ul>
+<li>优化是否真的生效？</li>
+<li>改善了多少？</li>
+<li>是否引入新的副作用？</li>
+<li>问题是否只是暂时消失？</li>
+</ul>
+<p>所以完整闭环应该是：</p>
+<blockquote>
+<p><strong>问题 → 指标 → 原因 → 修改 → 指标 → 结果。</strong></p>
+</blockquote>
+<h2 id="3-从“凭经验猜”升级为“基于证据排查”"><a href="#3-从“凭经验猜”升级为“基于证据排查”" class="headerlink" title="3. 从“凭经验猜”升级为“基于证据排查”"></a>3. 从“凭经验猜”升级为“基于证据排查”</h2><p>很多工程师早期处理性能问题的方式都很相似：</p>
+<ol>
+<li>先猜最近是不是改了什么；</li>
+<li>猜到一个可疑程序；</li>
+<li>再用二分法或者代码排除；</li>
+<li>看几项熟悉的系统指标；</li>
+<li>如果还没答案，再去搜索类似案例。</li>
+</ol>
+<p>这种方式的问题不在于“经验没用”，而在于<strong>经验缺少结构</strong>。</p>
+<p>一个更稳定的排查流程应该从现象出发，通过数据逐层排除：</p>
+<pre><code class=" mermaid">flowchart TD
+    A[确认业务现象] --&gt; B[确定异常时间窗口]
+    B --&gt; C[采集系统级指标]
+    C --&gt; D[比较正常基线与异常窗口]
+    D --&gt; E[CPU / 内存 / I/O / 网络分类]
+    E --&gt; F[下钻到进程 / 线程 / 协议 / 调用路径]
+    F --&gt; G[验证假设]
+    G --&gt; H[优化或继续缩小范围]
+</code></pre>
+
+<p>这套思路的关键不是保证每一次都能找到根因，而是让排查过程具有<strong>可解释性和可收敛性</strong>。</p>
+<h2 id="4-一个非常典型的案例：平均负载异常但应用未必有问题"><a href="#4-一个非常典型的案例：平均负载异常但应用未必有问题" class="headerlink" title="4. 一个非常典型的案例：平均负载异常但应用未必有问题"></a>4. 一个非常典型的案例：平均负载异常但应用未必有问题</h2><p>有一个很有代表性的工程实践：服务器从一个云平台迁移到另一个云平台后，原本 1 分钟平均负载长期低于 1，迁移后却开始间歇性升到 14，5 分钟平均负载也会升到 8。</p>
+<p>此时最容易做的事情，是直接怀疑应用程序。</p>
+<p>但更系统的分析方式是先收集异常窗口中的多维指标，包括：</p>
+<ul>
+<li>软中断、硬中断；</li>
+<li>磁盘 I&#x2F;O；</li>
+<li>CPU 负载；</li>
+<li>正在运行的进程和线程；</li>
+<li>运行队列等与负载相关的信息。</li>
+</ul>
+<p>结果发现，这些指标在高负载期间整体保持平稳，与正常时期没有明显差异，也没有看到应用程序自身出现对应异常。</p>
+<p>继续观察时间特征后，又发现两个重要线索：</p>
+<ul>
+<li>异常几乎按照固定时间间隔触发；</li>
+<li>每次持续时长也比较固定。</li>
+</ul>
+<p>更有意思的是，这个现象持续接近半个月后，在应用部署没有调整的情况下自行消失。</p>
+<p>最终并没有得到一个可以完全确认的具体根因，但这次排查依然是有价值的，因为它完成了两件重要的事：</p>
+<ol>
+<li><strong>通过数据显著降低了“自身应用导致异常”的可能性；</strong></li>
+<li><strong>把问题方向从应用内部收敛到了更外层的系统或基础设施。</strong></li>
+</ol>
+<p>这正是工程化排障与“猜问题”的区别。</p>
+<p>性能分析并不要求每次都能得到一个完美答案。很多生产问题受限于权限、监控粒度、问题复现条件以及外部基础设施，最终可能只能得到高概率判断。但只要排查过程有证据、有排除、有收敛，它就比“重启一下好了”更有价值。</p>
+<h2 id="5-观察时间关系，比孤立看一个数字更重要"><a href="#5-观察时间关系，比孤立看一个数字更重要" class="headerlink" title="5. 观察时间关系，比孤立看一个数字更重要"></a>5. 观察时间关系，比孤立看一个数字更重要</h2><p>性能问题经常具有明显的时间特征：</p>
+<ul>
+<li>固定周期发生；</li>
+<li>只在业务高峰发生；</li>
+<li>部署后立即出现；</li>
+<li>某批任务运行时出现；</li>
+<li>资源指标与请求量同步变化；</li>
+<li>系统指标先变化，业务指标随后恶化。</li>
+</ul>
+<p>这些时间关系可以帮助判断因果方向。</p>
+<p>因此，看到异常时不要只截一张 <code>top</code> 的图。更有价值的是建立一个完整时间窗口：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">正常阶段 → 异常开始 → 异常持续 → 恢复阶段<br></code></pre></td></tr></table></figure>
+
+<p>然后比较每一阶段的 CPU、内存、I&#x2F;O、网络、进程和线程变化。</p>
+<p><strong>基线对比</strong>往往比单个绝对值更有意义。某个数字“高不高”，需要结合机器规格、业务类型以及平时状态判断；而同一台机器从正常到异常发生了什么变化，通常更值得优先关注。</p>
+<h2 id="6-性能学习的四个核心资源域"><a href="#6-性能学习的四个核心资源域" class="headerlink" title="6. 性能学习的四个核心资源域"></a>6. 性能学习的四个核心资源域</h2><p>从系统层面建立性能知识结构时，可以先抓住四个最主要的资源域：</p>
+<ul>
+<li>CPU</li>
+<li>内存</li>
+<li>磁盘 &#x2F; 文件系统</li>
+<li>网络</li>
+</ul>
+<p>这四块不是彼此孤立的，它们共同组成应用执行环境。</p>
+<h3 id="6-1-CPU：从“占用高”继续追到执行路径"><a href="#6-1-CPU：从“占用高”继续追到执行路径" class="headerlink" title="6.1 CPU：从“占用高”继续追到执行路径"></a>6.1 CPU：从“占用高”继续追到执行路径</h3><p>CPU 模块中，一个非常实用的能力是：</p>
+<blockquote>
+<p>不只是知道“哪个进程 CPU 高”，还要继续回答“CPU 时间到底消耗在什么地方”。</p>
+</blockquote>
+<p>例如，在训练类程序占用 10～40 个 CPU 核心的场景里，只知道进程占满 CPU 仍然不够，还需要进一步定位热点。<code>perf</code> 的价值就在这里：它可以把分析从进程级继续推进到更细的程序执行位置。</p>
+<p>这体现了一个通用下钻关系：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">系统 CPU 异常<br>  ↓<br>哪个进程 / 线程？<br>  ↓<br>哪个函数 / 执行路径？<br>  ↓<br>为什么这段路径消耗 CPU？<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-2-内存：不要只盯“用了多少”"><a href="#6-2-内存：不要只盯“用了多少”" class="headerlink" title="6.2 内存：不要只盯“用了多少”"></a>6.2 内存：不要只盯“用了多少”</h3><p>内存分析特别容易因为概念混淆而误判。资料中的学习反馈多次提到 <code>Buffer</code> 和 <code>Cache</code> 的区别与联系，说明真正困难的不是记一个数值，而是理解 Linux 如何利用内存。</p>
+<p>在完整的性能方法里，内存同样应该遵循“原理 → 指标 → 工具 → 优化”的路径，而不是看到“剩余内存少”就直接判断内存不足。</p>
+<h3 id="6-3-磁盘与文件系统：I-O-是一条链路"><a href="#6-3-磁盘与文件系统：I-O-是一条链路" class="headerlink" title="6.3 磁盘与文件系统：I&#x2F;O 是一条链路"></a>6.3 磁盘与文件系统：I&#x2F;O 是一条链路</h3><p>应用发起 I&#x2F;O 后，并不是直接“打到硬盘”那么简单。性能分析需要保留这种链路意识：应用、系统调用、文件系统、内核 I&#x2F;O 路径、块设备都可能影响最终表现。</p>
+<p>即使当前资料没有展开具体的磁盘指标和命令，方法论依然明确：<strong>先观察指标定位问题，再回到原理决定该优化哪一层。</strong></p>
+<h3 id="6-4-网络：性能分析中最容易掉队的一块"><a href="#6-4-网络：性能分析中最容易掉队的一块" class="headerlink" title="6.4 网络：性能分析中最容易掉队的一块"></a>6.4 网络：性能分析中最容易掉队的一块</h3><p>与 CPU、内存、磁盘相比，网络通常需要更多基础理论，因为它同时涉及：</p>
+<ul>
+<li>分层协议；</li>
+<li>主机之间的交互；</li>
+<li>TCP&#x2F;IP 协议族；</li>
+<li>路由；</li>
+<li>Socket；</li>
+<li>Linux 网络协议栈；</li>
+<li>抓包与报文分析。</li>
+</ul>
+<p>这也是为什么网络性能不能只靠记几个命令。协议不理解，抓到包也很难判断它为什么这样交互。</p>
+<h2 id="7-网络性能的学习路线：协议-→-报文-→-Socket-→-内核"><a href="#7-网络性能的学习路线：协议-→-报文-→-Socket-→-内核" class="headerlink" title="7. 网络性能的学习路线：协议 → 报文 → Socket → 内核"></a>7. 网络性能的学习路线：协议 → 报文 → Socket → 内核</h2><p>网络部分可以拆成四个层次逐步深入。</p>
+<pre><code class=" mermaid">flowchart LR
+    A[计算机网络基本原理] --&gt; B[TCP/IP 协议族]
+    B --&gt; C[Wireshark 报文分析]
+    C --&gt; D[Socket 网络编程]
+    D --&gt; E[Linux 内核网络协议栈]
+</code></pre>
+
+<h3 id="7-1-先理解网络分层"><a href="#7-1-先理解网络分层" class="headerlink" title="7.1 先理解网络分层"></a>7.1 先理解网络分层</h3><p>学习网络性能之前，要先对计算机网络整体模型有概念，包括：</p>
+<ul>
+<li>物理层；</li>
+<li>数据链路层；</li>
+<li>访问控制相关机制；</li>
+<li>网络层；</li>
+<li>传输层；</li>
+<li>应用层。</li>
+</ul>
+<p>这一步的目标不是立即成为协议专家，而是建立“一个网络请求经过哪些层”的地图。</p>
+<h3 id="7-2-再深入-TCP-IP-协议族"><a href="#7-2-再深入-TCP-IP-协议族" class="headerlink" title="7.2 再深入 TCP&#x2F;IP 协议族"></a>7.2 再深入 TCP&#x2F;IP 协议族</h3><p>网络性能分析中经常遇到的协议和机制包括：</p>
+<ul>
+<li>ARP</li>
+<li>ICMP</li>
+<li>路由</li>
+<li>TCP</li>
+<li>UDP</li>
+<li>NAT</li>
+<li>DNS</li>
+</ul>
+<p>理解这些协议后，很多原本抽象的网络现象才有解释基础。</p>
+<h3 id="7-3-用-Wireshark-把抽象协议变成真实报文"><a href="#7-3-用-Wireshark-把抽象协议变成真实报文" class="headerlink" title="7.3 用 Wireshark 把抽象协议变成真实报文"></a>7.3 用 Wireshark 把抽象协议变成真实报文</h3><p>协议学习最大的障碍之一，是只看文字时过于抽象。</p>
+<p>Wireshark 的价值不是“多一个抓包工具”，而是把协议交互过程可视化。通过真实报文，可以观察：</p>
+<ul>
+<li>请求与响应的先后顺序；</li>
+<li>不同协议字段；</li>
+<li>主机之间到底交换了什么信息；</li>
+<li>一个网络问题在协议层面的真实表现。</li>
+</ul>
+<p>所以，Wireshark 不仅是排障工具，也是非常有效的网络学习工具。</p>
+<h3 id="7-4-再从协议进入-Socket-编程"><a href="#7-4-再从协议进入-Socket-编程" class="headerlink" title="7.4 再从协议进入 Socket 编程"></a>7.4 再从协议进入 Socket 编程</h3><p>理解协议之后，还要知道应用程序如何与协议栈交互。</p>
+<p>在 Linux &#x2F; UNIX 环境中，Socket API 是应用进入网络协议栈的重要接口。对开发者而言，理解 Socket 可以把“协议原理”和“应用代码”连接起来，从而更容易理解高性能网络程序的行为。</p>
+<h3 id="7-5-最后进入-Linux-内核网络实现"><a href="#7-5-最后进入-Linux-内核网络实现" class="headerlink" title="7.5 最后进入 Linux 内核网络实现"></a>7.5 最后进入 Linux 内核网络实现</h3><p>Socket 解决的是应用接口层，而协议最终还要由 Linux 内核协议栈执行。</p>
+<p>因此，如果要继续深入网络性能，最终仍然要回到内核：数据包如何进入系统、如何经过协议栈、如何与进程交互。</p>
+<p>这也是网络性能分析知识链条中最底层、也最难的一段。</p>
+<h2 id="8-一套面向开发者的系统学习路线"><a href="#8-一套面向开发者的系统学习路线" class="headerlink" title="8. 一套面向开发者的系统学习路线"></a>8. 一套面向开发者的系统学习路线</h2><p>性能优化覆盖面太广，不适合一上来就硬啃内核源码。更合理的学习方式，是从 Linux 使用能力逐层深入。</p>
+<pre><code class=" mermaid">flowchart TD
+    A[Linux 基础使用与管理] --&gt; B[计算机系统原理]
+    B --&gt; C[Linux / UNIX 系统编程]
+    C --&gt; D[Linux 内核架构]
+    D --&gt; E[性能分析与调优方法]
+    B --&gt; F[计算机网络原理]
+    F --&gt; G[TCP/IP 协议]
+    G --&gt; H[Wireshark 报文分析]
+    H --&gt; I[Socket 网络编程]
+    I --&gt; D
+</code></pre>
+
+<h3 id="8-1-Linux-基础：先能熟练使用系统"><a href="#8-1-Linux-基础：先能熟练使用系统" class="headerlink" title="8.1 Linux 基础：先能熟练使用系统"></a>8.1 Linux 基础：先能熟练使用系统</h3><p>《鸟哥的 Linux 私房菜》适合作为基础入口，覆盖系统安装、文件与目录、磁盘与文件系统、编辑器、Bash、系统管理维护等内容。</p>
+<p>性能分析本身就高度依赖 Linux 基本操作。如果软件包安装、Shell、<code>grep</code>、<code>awk</code>、文档查询这些基础动作还不熟练，性能排查会被大量非核心问题打断。</p>
+<p>需要注意的是，这类经典资料可能以较旧的发行版为示例。学习时应该把重点放在 Linux 的基本概念和操作模型上，而不是机械照抄某个历史版本的安装界面或管理细节。</p>
+<h3 id="8-2-计算机系统：建立开发者视角的底层模型"><a href="#8-2-计算机系统：建立开发者视角的底层模型" class="headerlink" title="8.2 计算机系统：建立开发者视角的底层模型"></a>8.2 计算机系统：建立开发者视角的底层模型</h3><p>《深入理解计算机系统》（Computer Systems: A Programmer’s Perspective）适合用于补齐“代码如何真正运行”的系统视角，覆盖：</p>
+<ul>
+<li>信息在计算机中的表示；</li>
+<li>程序编译、链接与运行；</li>
+<li>处理器体系结构；</li>
+<li>虚拟内存；</li>
+<li>存储系统与 I&#x2F;O；</li>
+<li>网络；</li>
+<li>并发。</li>
+</ul>
+<p>它的价值在于把程序、操作系统和硬件联系起来。对性能分析而言，这层知识决定了你是否能够把“应用现象”继续向系统底层解释。</p>
+<p>如果整本顺序阅读压力很大，可以优先阅读与当前工作最相关的章节，再逐步补齐其余部分。学习性能不需要把每一本书都先读完，才允许开始实践。</p>
+<h3 id="8-3-Linux-UNIX-编程：理解应用如何调用系统"><a href="#8-3-Linux-UNIX-编程：理解应用如何调用系统" class="headerlink" title="8.3 Linux &#x2F; UNIX 编程：理解应用如何调用系统"></a>8.3 Linux &#x2F; UNIX 编程：理解应用如何调用系统</h3><p>《Linux 程序设计》更偏向 Linux 应用开发入门，涉及 Shell、标准库、数据库、多进程、进程间通信、Socket 等主题。</p>
+<p>《UNIX 环境高级编程》则进一步深入：</p>
+<ul>
+<li>标准库；</li>
+<li>文件 I&#x2F;O；</li>
+<li>进程控制；</li>
+<li>多进程；</li>
+<li>进程间通信；</li>
+<li>多线程；</li>
+<li>高级 I&#x2F;O。</li>
+</ul>
+<p>性能分析最终经常需要回答“应用程序到底在系统里做了什么”。系统编程基础越扎实，越容易理解进程、线程、I&#x2F;O 和网络行为，也越容易在必要时阅读应用甚至内核源码。</p>
+<h3 id="8-4-Linux-内核：理解瓶颈为什么会发生"><a href="#8-4-Linux-内核：理解瓶颈为什么会发生" class="headerlink" title="8.4 Linux 内核：理解瓶颈为什么会发生"></a>8.4 Linux 内核：理解瓶颈为什么会发生</h3><p>《深入 Linux 内核架构》覆盖进程管理、内存管理、文件系统、磁盘、网络、设备驱动、时钟等大量内核主题，并结合 Linux 内核源码讨论实现。</p>
+<p>需要特别注意它使用的是较早的 Linux 2.6.24 内核版本。今天阅读时，适合用它理解架构思想和核心机制，不应该默认其中每一个实现细节都与当前内核完全一致。</p>
+<p>对于第一次接触内核的人，也没必要追求一次读懂。性能问题具有明显的“按需学习”特征：工作中碰到调度问题，就回到进程调度；碰到内存问题，就深入虚拟内存；碰到网络问题，再进入协议栈。</p>
+<h3 id="8-5-性能方法论：把知识串成可执行流程"><a href="#8-5-性能方法论：把知识串成可执行流程" class="headerlink" title="8.5 性能方法论：把知识串成可执行流程"></a>8.5 性能方法论：把知识串成可执行流程</h3><p>《性能之巅：洞悉系统、企业与云计算》更接近性能工程本身：系统化讨论 Linux 性能分析、调优思路、动态追踪以及大量性能工具。</p>
+<p>当基础原理已经有一定积累后，这类资料的价值会明显变大，因为此时你不再只是“认识工具”，而能理解工具采集的数据对应哪一层系统行为。</p>
+<h2 id="9-网络方向的阅读路线"><a href="#9-网络方向的阅读路线" class="headerlink" title="9. 网络方向的阅读路线"></a>9. 网络方向的阅读路线</h2><p>如果主要目标是补网络性能，可以单独形成一条阅读路径。</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>资料</th>
+<th>主要目标</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>网络基础</td>
+<td>《计算机网络（第 5 版）》</td>
+<td>建立网络分层与整体工作模型</td>
+</tr>
+<tr>
+<td>协议深入</td>
+<td>《TCP&#x2F;IP 详解 卷 1：协议》</td>
+<td>理解 ARP、ICMP、路由、TCP、UDP、NAT、DNS 等协议</td>
+</tr>
+<tr>
+<td>抓包实践</td>
+<td>《Wireshark 网络分析就这么简单》</td>
+<td>用案例入门抓包和网络问题分析</td>
+</tr>
+<tr>
+<td>抓包进阶</td>
+<td>《Wireshark 网络分析的艺术》</td>
+<td>通过更多案例建立协议分析思路</td>
+</tr>
+<tr>
+<td>网络编程</td>
+<td>《UNIX 网络编程》</td>
+<td>理解 Socket API 以及应用如何使用网络协议</td>
+</tr>
+<tr>
+<td>内核实现</td>
+<td>《深入 Linux 内核架构》相关章节</td>
+<td>理解 Linux 网络协议栈实现</td>
+</tr>
+</tbody></table>
+<p>这些经典资料中有一些版本已经不新，但网络的很多基础机制并不会因为应用框架更新而失效。阅读时需要区分两类内容：</p>
+<ul>
+<li><strong>长期稳定的核心原理</strong>：分层、TCP&#x2F;IP 基本机制、Socket 编程模型、系统调用思维；</li>
+<li><strong>可能随时代变化的实现与生态细节</strong>：具体系统版本、内核实现、工具界面和现代协议扩展。</li>
+</ul>
+<p>不要因为书旧就跳过原理，也不要因为原理稳定就认为所有实现细节都不会变化。</p>
+<h2 id="10-性能学习不应该是“读完一本再开始下一本”"><a href="#10-性能学习不应该是“读完一本再开始下一本”" class="headerlink" title="10. 性能学习不应该是“读完一本再开始下一本”"></a>10. 性能学习不应该是“读完一本再开始下一本”</h2><p>性能知识天然是交叉的。</p>
+<p>如果要求自己把一本几百页的大部头从第一页顺序读到最后一页，常见结果不是“体系完整”，而是卡在暂时用不到的章节里失去进度。</p>
+<p>更适合工程师的方式，是围绕问题交叉学习：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">工作中遇到 CPU 问题<br>  → 补调度与平均负载原理<br>  → 学会对应指标<br>  → 用工具复现实验<br>  → 进入 perf<br>  → 必要时继续读系统与内核章节<br></code></pre></td></tr></table></figure>
+
+<p>这种模式并不是降低学习深度，而是让“理论”和“实践”不断互相拉动。</p>
+<p>对于基础较弱的学习者，尤其要避免两个极端：</p>
+<ul>
+<li><strong>完全跳过原理</strong>：最后只会背命令；</li>
+<li><strong>无限追究原理</strong>：一个问题一路钻到底层，主线学习反而停滞。</li>
+</ul>
+<p>更好的原则是：</p>
+<blockquote>
+<p>当前问题需要理解到哪一层，就先补到哪一层；留下暂时不影响主线的问题，之后再回头深入。</p>
+</blockquote>
+<h2 id="11-最有效的学习方式：案例驱动，而不是只读理论"><a href="#11-最有效的学习方式：案例驱动，而不是只读理论" class="headerlink" title="11. 最有效的学习方式：案例驱动，而不是只读理论"></a>11. 最有效的学习方式：案例驱动，而不是只读理论</h2><p>“以案例实践贯穿性能优化理论”是非常适合性能工程的学习方式。</p>
+<p>原因很直接：性能知识面太广，如果完全按照理论学科顺序学习，很容易在真正解决问题之前就被大量细节淹没；而只学案例又会变成“这个问题我见过，换一个问题就不会”。</p>
+<p>案例驱动把两者连接起来：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[真实问题] --&gt; B[观察现象]
+    B --&gt; C[学习相关原理]
+    C --&gt; D[使用工具]
+    D --&gt; E[分析指标]
+    E --&gt; F[得到结论]
+    F --&gt; G[复盘并抽象方法]
+</code></pre>
+
+<p>这样学习，每解决一个案例，不只是多记住一个答案，而是多练习一次完整诊断过程。</p>
+<h2 id="12-一套适合在职开发者的学习节奏"><a href="#12-一套适合在职开发者的学习节奏" class="headerlink" title="12. 一套适合在职开发者的学习节奏"></a>12. 一套适合在职开发者的学习节奏</h2><p>多份工程师实践都体现出一个可复制的节奏：</p>
+<h3 id="工作日：阅读与建立问题意识"><a href="#工作日：阅读与建立问题意识" class="headerlink" title="工作日：阅读与建立问题意识"></a>工作日：阅读与建立问题意识</h3><p>利用碎片时间阅读概念和案例，先理解：</p>
+<ul>
+<li>这个案例的现象是什么；</li>
+<li>关键指标是什么；</li>
+<li>为什么选择这些工具；</li>
+<li>分析过程如何一步步缩小范围。</li>
+</ul>
+<h3 id="周末：复现案例"><a href="#周末：复现案例" class="headerlink" title="周末：复现案例"></a>周末：复现案例</h3><p>技术知识只有真正执行过，才容易形成长期记忆。</p>
+<p>复现时不要只复制命令，而要问：</p>
+<ul>
+<li>我现在想验证什么？</li>
+<li>哪个指标应该变化？</li>
+<li>如果没有变化，意味着什么？</li>
+</ul>
+<h3 id="模块结束：复盘并建立自己的表格"><a href="#模块结束：复盘并建立自己的表格" class="headerlink" title="模块结束：复盘并建立自己的表格"></a>模块结束：复盘并建立自己的表格</h3><p>把常见问题、指标、工具和下一步动作整理成自己的速查表。</p>
+<p>真正遇到事故时，人不会有耐心翻完整本书。一个结构清晰的速查表，往往比“记住所有命令”更实用。</p>
+<h3 id="定期二刷"><a href="#定期二刷" class="headerlink" title="定期二刷"></a>定期二刷</h3><p>性能知识很适合反复学习。第一次阅读主要建立地图；工作中遇到真实问题后再次阅读，同一个知识点往往会出现完全不同的理解。</p>
+<h2 id="13-把知识内化的一个检验标准：能不能讲给别人听"><a href="#13-把知识内化的一个检验标准：能不能讲给别人听" class="headerlink" title="13. 把知识内化的一个检验标准：能不能讲给别人听"></a>13. 把知识内化的一个检验标准：能不能讲给别人听</h2><p>技术学习不仅靠输入。</p>
+<p>如果能把一个性能问题的现象、指标、工具选择、分析过程和结论完整解释给别人，并且能够回应对方的追问，说明知识已经开始从“看过”变成“掌握”。</p>
+<p>交流还有另一个价值：生产环境中的性能问题差异非常大。不同工程师会遇到不同硬件、不同业务模型、不同容器平台和不同异常模式。案例之间的碰撞，会不断暴露自己知识体系的盲区。</p>
+<p>因此，性能成长非常适合形成一个循环：</p>
+<blockquote>
+<p><strong>学习 → 实践 → 讲解 → 接受反馈 → 修正理解 → 再实践。</strong></p>
+</blockquote>
+<h2 id="14-常见失败方式"><a href="#14-常见失败方式" class="headerlink" title="14. 常见失败方式"></a>14. 常见失败方式</h2><h3 id="14-1-只从最近改动开始猜"><a href="#14-1-只从最近改动开始猜" class="headerlink" title="14.1 只从最近改动开始猜"></a>14.1 只从最近改动开始猜</h3><p>最近变更当然值得检查，但不能成为唯一依据。</p>
+<p>如果一开始就认定“肯定是刚发的代码”，后续所有数据都会被带着这个结论解释，很容易产生确认偏差。</p>
+<p>更好的做法是把“最近变更”作为一个假设，同时检查系统指标是否支持它。</p>
+<h3 id="14-2-只会-top-和-vmstat"><a href="#14-2-只会-top-和-vmstat" class="headerlink" title="14.2 只会 top 和 vmstat"></a>14.2 只会 <code>top</code> 和 <code>vmstat</code></h3><p>这两个工具非常有用，但它们更像入口，而不是性能分析的终点。</p>
+<p>系统级工具帮助你确定方向；真正定位代码热点、协议异常或更深层系统问题，还需要继续下钻。</p>
+<h3 id="14-3-指标异常了才临时搜索工具"><a href="#14-3-指标异常了才临时搜索工具" class="headerlink" title="14.3 指标异常了才临时搜索工具"></a>14.3 指标异常了才临时搜索工具</h3><p>这种方式最大的问题是没有形成稳定路径。</p>
+<p>如果提前建立“指标—工具—原理”的映射，问题出现时就能迅速知道下一步去哪一层，而不是从搜索引擎重新开始学习。</p>
+<h3 id="14-4-只看某一层，忽略系统整体"><a href="#14-4-只看某一层，忽略系统整体" class="headerlink" title="14.4 只看某一层，忽略系统整体"></a>14.4 只看某一层，忽略系统整体</h3><p>性能问题的根因可能来自硬件、系统、中间件或应用。局部指标正常，并不代表整个链路正常。</p>
+<h3 id="14-5-只改参数，不做前后对比"><a href="#14-5-只改参数，不做前后对比" class="headerlink" title="14.5 只改参数，不做前后对比"></a>14.5 只改参数，不做前后对比</h3><p>没有基线，没有复测，就无法证明优化有效。</p>
+<h3 id="14-6-沉迷工具，而忽略原理"><a href="#14-6-沉迷工具，而忽略原理" class="headerlink" title="14.6 沉迷工具，而忽略原理"></a>14.6 沉迷工具，而忽略原理</h3><p>会用十个工具但无法解释指标，比会用三个工具且知道什么时候使用更危险。</p>
+<h3 id="14-7-过分追求底层细节"><a href="#14-7-过分追求底层细节" class="headerlink" title="14.7 过分追求底层细节"></a>14.7 过分追求底层细节</h3><p>底层原理重要，但性能分析的目标仍然是解决系统问题。如果某个实现细节暂时不影响判断，可以先保留问题，避免整条学习主线被卡住。</p>
+<h3 id="14-8-只追新技术，忽略基础知识"><a href="#14-8-只追新技术，忽略基础知识" class="headerlink" title="14.8 只追新技术，忽略基础知识"></a>14.8 只追新技术，忽略基础知识</h3><p>发行版、容器平台、编程语言和应用框架会快速变化，但进程、内存、I&#x2F;O、网络等基础原理具有更长的生命周期。</p>
+<p>基础越牢，面对新技术时越容易看清它只是在哪一层增加了新的抽象。</p>
+<h2 id="15-为自己建立一份-Performance-Runbook"><a href="#15-为自己建立一份-Performance-Runbook" class="headerlink" title="15. 为自己建立一份 Performance Runbook"></a>15. 为自己建立一份 Performance Runbook</h2><p>当知识开始形成体系后，最好把它沉淀成自己的性能排查手册。</p>
+<p>可以使用下面的结构：</p>
+<figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><code class="hljs markdown"><span class="hljs-section"># 性能问题记录</span><br><br><span class="hljs-section">## 1. 现象</span><br><span class="hljs-bullet">-</span> 业务影响：<br><span class="hljs-bullet">-</span> 开始时间：<br><span class="hljs-bullet">-</span> 是否周期性：<br><span class="hljs-bullet">-</span> 是否与发布 / 流量 / 批任务相关：<br><br><span class="hljs-section">## 2. 正常基线</span><br><span class="hljs-bullet">-</span> CPU：<br><span class="hljs-bullet">-</span> 内存：<br><span class="hljs-bullet">-</span> I/O：<br><span class="hljs-bullet">-</span> 网络：<br><span class="hljs-bullet">-</span> 关键业务指标：<br><br><span class="hljs-section">## 3. 异常窗口</span><br><span class="hljs-bullet">-</span> CPU：<br><span class="hljs-bullet">-</span> 内存：<br><span class="hljs-bullet">-</span> I/O：<br><span class="hljs-bullet">-</span> 网络：<br><span class="hljs-bullet">-</span> 进程 / 线程：<br><br><span class="hljs-section">## 4. 当前假设</span><br><span class="hljs-bullet">-</span> 假设 A：<br><span class="hljs-bullet">-</span> 支持证据：<br><span class="hljs-bullet">-</span> 反对证据：<br><br><span class="hljs-section">## 5. 下一步验证</span><br><span class="hljs-bullet">-</span> 指标：<br><span class="hljs-bullet">-</span> 工具：<br><span class="hljs-bullet">-</span> 预期现象：<br><br><span class="hljs-section">## 6. 修改</span><br><span class="hljs-bullet">-</span> 修改内容：<br><span class="hljs-bullet">-</span> 风险：<br><span class="hljs-bullet">-</span> 回滚方案：<br><br><span class="hljs-section">## 7. 复测</span><br><span class="hljs-bullet">-</span> 修改前：<br><span class="hljs-bullet">-</span> 修改后：<br><span class="hljs-bullet">-</span> 是否达到目标：<br><br><span class="hljs-section">## 8. 结论与后续</span><br><span class="hljs-bullet">-</span> 根因：<br><span class="hljs-bullet">-</span> 临时措施：<br><span class="hljs-bullet">-</span> 长期措施：<br></code></pre></td></tr></table></figure>
+
+<p>这份 Runbook 的意义不是增加文档负担，而是强制排障过程保留证据，避免同一个问题下次又从头猜一遍。</p>
+<h2 id="16-从“被动救火”走向“主动性能工程”"><a href="#16-从“被动救火”走向“主动性能工程”" class="headerlink" title="16. 从“被动救火”走向“主动性能工程”"></a>16. 从“被动救火”走向“主动性能工程”</h2><p>成熟的性能能力不应该只在故障发生后才启动。</p>
+<p>更好的状态是平时就熟悉生产环境中的正常指标范围，并在安全前提下主动观察系统：</p>
+<ul>
+<li>正常情况下平均负载是什么水平；</li>
+<li>业务高峰时 CPU、I&#x2F;O、网络如何变化；</li>
+<li>核心进程通常消耗多少资源；</li>
+<li>哪些任务具有明显周期性；</li>
+<li>哪些指标变化往往早于业务告警。</li>
+</ul>
+<p>有了正常基线，真正发生故障时才知道什么叫“异常”。</p>
+<p>这也是从“救火”走向性能工程的重要转变：</p>
+<blockquote>
+<p><strong>不是等系统坏了才认识它，而是在系统正常时就理解它。</strong></p>
+</blockquote>
+<h2 id="17-如何看待“旧书”和“旧版本”"><a href="#17-如何看待“旧书”和“旧版本”" class="headerlink" title="17. 如何看待“旧书”和“旧版本”"></a>17. 如何看待“旧书”和“旧版本”</h2><p>性能领域很多经典资料出版时间不短，甚至会使用已经非常旧的系统版本。阅读时不应该走两个极端。</p>
+<p>一种极端是：“版本旧了，所以整本书没有价值。”</p>
+<p>另一种极端是：“经典书写的每个实现细节今天都完全一样。”</p>
+<p>更合理的方式是分层阅读：</p>
+<h3 id="长期有效的内容"><a href="#长期有效的内容" class="headerlink" title="长期有效的内容"></a>长期有效的内容</h3><ul>
+<li>计算机系统基本模型；</li>
+<li>进程、线程、内存、I&#x2F;O 的核心概念；</li>
+<li>TCP&#x2F;IP 的基础原理；</li>
+<li>Socket 编程模型；</li>
+<li>性能分析的方法论；</li>
+<li>从指标验证假设的思维方式。</li>
+</ul>
+<h3 id="需要带版本意识阅读的内容"><a href="#需要带版本意识阅读的内容" class="headerlink" title="需要带版本意识阅读的内容"></a>需要带版本意识阅读的内容</h3><ul>
+<li>某个发行版的具体管理方式；</li>
+<li>某个 Linux 内核版本的实现细节；</li>
+<li>工具界面和默认参数；</li>
+<li>具体命令输出格式；</li>
+<li>已经演进的协议与软件生态。</li>
+</ul>
+<p>读经典资料真正要带走的是<strong>系统模型和分析能力</strong>，而不是把历史环境原样复制到今天。</p>
+<h2 id="18-给软件开发者的一条最短可执行路线"><a href="#18-给软件开发者的一条最短可执行路线" class="headerlink" title="18. 给软件开发者的一条最短可执行路线"></a>18. 给软件开发者的一条最短可执行路线</h2><p>如果没有时间一次性补全所有知识，可以先执行下面这条路线：</p>
+<ol>
+<li>熟练 Linux 基本操作、Bash、日志和文本处理；</li>
+<li>先建立 CPU、内存、I&#x2F;O、网络四大资源域的全局地图；</li>
+<li>每个资源域都按照“原理 → 指标 → 工具 → 优化”学习；</li>
+<li>能熟练使用系统级工具快速确定方向；</li>
+<li>CPU 热点继续进入 <code>perf</code>，网络问题继续进入 Wireshark；</li>
+<li>遇到系统调用、进程、线程、I&#x2F;O 问题时补 UNIX&#x2F;Linux 系统编程；</li>
+<li>需要解释内核行为时，再进入内核相关章节；</li>
+<li>每学一个模块至少复现一个案例；</li>
+<li>把问题、指标和工具整理成自己的 Runbook；</li>
+<li>每次线上排障都保留“假设—证据—结论—复测”链路。</li>
+</ol>
+<p>这里真正重要的不是第 1 步还是第 5 步，而是不要让知识继续保持零散。</p>
+<h2 id="20-用自测检验“会不会分析”，而不只是“看没看过”"><a href="#20-用自测检验“会不会分析”，而不只是“看没看过”" class="headerlink" title="20. 用自测检验“会不会分析”，而不只是“看没看过”"></a>20. 用自测检验“会不会分析”，而不只是“看没看过”</h2><p>性能知识很容易产生一种错觉：文章读懂了、工具名字认识了，就等于已经掌握。实际上，真正的检验标准应该是能否在没有提示的情况下完成判断。</p>
+<p>原课程在结课阶段安排了一套 20 题的自测，其中 7 道单选题、13 道多选题，满分 100 分。现有材料只保留了测试说明，并没有包含具体题目，因此没有必要凭空恢复题目内容；但这种“学完立即检测”的思路非常值得保留。</p>
+<p>可以把自己的性能知识也设计成类似检查：</p>
+<ul>
+<li>给出一个平均负载异常的现象，能否列出应该先验证哪些系统维度；</li>
+<li>看到 CPU 打满时，能否从系统级继续下钻到进程、线程和代码热点；</li>
+<li>面对网络异常时，能否判断应该停留在系统指标，还是进入抓包和协议分析；</li>
+<li>完成一次优化后，能否明确给出修改前后的测量结果；</li>
+<li>对一个问题，能否说清楚“现象、证据、假设、验证、结论”五个环节。</li>
+</ul>
+<p>如果这些问题只能在翻资料时回答，说明知识还停留在“见过”；如果能够在真实问题中快速建立分析路径，才算真正进入可用状态。</p>
+<h2 id="21-总结"><a href="#21-总结" class="headerlink" title="21. 总结"></a>21. 总结</h2><p>Linux 性能优化并不存在一套“万能命令”。真正可迁移的能力，是面对一个此前从未见过的问题时，仍然知道如何开始、如何收集证据、如何逐层下钻、如何验证自己的判断。</p>
+<p>可以把整套方法压缩成五句话：</p>
+<blockquote>
+<p><strong>先看全局，不要急着猜根因。</strong><br><strong>先懂原理，再解释指标。</strong><br><strong>工具用于取证，不用于替代思考。</strong><br><strong>优化必须可测量、可验证。</strong><br><strong>案例用于练方法，基础知识决定方法能走多深。</strong></p>
+</blockquote>
+<p>当 CPU、内存、磁盘、网络不再是四堆孤立的命令，而是一个完整系统中的四个资源域；当 <code>top</code>、<code>vmstat</code>、<code>perf</code>、Wireshark 不再是工具清单，而是诊断链路中的不同观测点；当每一次线上事故都能沉淀进自己的问题模型和 Runbook，性能优化才真正从“经验活”变成了一项工程能力。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Linux/" class="category-chain-item">Linux</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Linux/" class="print-no-link">#Linux</a>
+      
+        <a href="/tags/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/" class="print-no-link">#性能优化</a>
+      
+        <a href="/tags/perf/" class="print-no-link">#perf</a>
+      
+        <a href="/tags/%E6%80%A7%E8%83%BD%E5%88%86%E6%9E%90/" class="print-no-link">#性能分析</a>
+      
+        <a href="/tags/Wireshark/" class="print-no-link">#Wireshark</a>
+      
+        <a href="/tags/%E7%B3%BB%E7%BB%9F%E5%8E%9F%E7%90%86/" class="print-no-link">#系统原理</a>
+      
+        <a href="/tags/%E7%BD%91%E7%BB%9C/" class="print-no-link">#网络</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Linux 性能优化工程方法论：从全局观到诊断闭环</div>
+      <div>https://allendericdalexander.github.io/2026/08/11/devops/linux/performanceOptimization/08linux-performance-engineering-methodology/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月11日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/11/devops/linux/performanceOptimization/07linux-performance-engineering/" title="Linux 性能工程实战：从监控、定位、动态追踪到容器与网络调优">
+                        <span class="hidden-mobile">Linux 性能工程实战：从监控、定位、动态追踪到容器与网络调优</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

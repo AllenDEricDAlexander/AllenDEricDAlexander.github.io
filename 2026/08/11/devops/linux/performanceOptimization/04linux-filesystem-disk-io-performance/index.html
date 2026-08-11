@@ -1,0 +1,1923 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="从 Linux 文件系统、VFS、页缓存、通用块层和磁盘工作原理出发，系统梳理 I&#x2F;O 指标、工具链、故障定位方法、MySQL&#x2F;Redis&#x2F;日志案例以及应用、文件系统和磁盘三个层面的优化思路。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 文件系统与磁盘 I&#x2F;O：从 VFS、块层到性能分析与优化">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/11/devops/linux/performanceOptimization/04linux-filesystem-disk-io-performance/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="从 Linux 文件系统、VFS、页缓存、通用块层和磁盘工作原理出发，系统梳理 I&#x2F;O 指标、工具链、故障定位方法、MySQL&#x2F;Redis&#x2F;日志案例以及应用、文件系统和磁盘三个层面的优化思路。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-11T07:41:00.000Z">
+<meta property="article:modified_time" content="2026-08-11T09:08:10.693Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Disk I&#x2F;O">
+<meta property="article:tag" content="File System">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Performance">
+<meta property="article:tag" content="VFS">
+<meta property="article:tag" content="eBPF">
+<meta property="article:tag" content="fio">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Linux 文件系统与磁盘 I/O：从 VFS、块层到性能分析与优化 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Linux 文件系统与磁盘 I/O：从 VFS、块层到性能分析与优化"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-11 15:41" pubdate>
+          2026年8月11日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          10k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          85 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Linux 文件系统与磁盘 I/O：从 VFS、块层到性能分析与优化</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>Linux 性能问题里，I&#x2F;O 往往是最容易“看起来像别的问题”的一类：接口慢，可能表现成 CPU <code>iowait</code> 高；数据库慢，表面是 SQL，根因可能是全表扫描把磁盘打满；Redis 明明是内存数据库，查询时却可能因为 AOF 持久化和错误的客户端用法产生大量同步写；系统内存看起来几乎用完了，真正占用者却可能只是可回收的 Page Cache、dentry 或 inode 缓存。</p>
+<p>真正有效的 I&#x2F;O 排查，不是记住几十个命令，而是理解一条完整链路：</p>
+<p><strong>应用程序 → 系统调用 → VFS → 文件系统与缓存 → 通用块层 → I&#x2F;O 调度 → 设备驱动 → 物理存储。</strong></p>
+<p>只要知道请求经过了哪些层、每层负责什么、每个指标在哪一层产生，<code>top</code>、<code>iostat</code>、<code>pidstat</code>、<code>strace</code>、<code>lsof</code>、<code>fio</code>、BCC&#x2F;eBPF 等工具就不再是零散命令，而会组成一套可以反复复用的分析方法。</p>
+<h2 id="Linux-存储-I-O-的整体知识地图"><a href="#Linux-存储-I-O-的整体知识地图" class="headerlink" title="Linux 存储 I&#x2F;O 的整体知识地图"></a>Linux 存储 I&#x2F;O 的整体知识地图</h2><p>先把整个存储系统放到一张图里：</p>
+<pre><code class=" mermaid">flowchart TB
+    A[应用程序] --&gt; B[标准库 / Runtime]
+    A --&gt; C[系统调用 open/read/write/mmap]
+    B --&gt; C
+
+    C --&gt; D[VFS 虚拟文件系统]
+    D --&gt; E[Page Cache]
+    D --&gt; F[dentry Cache]
+    D --&gt; G[inode Cache]
+
+    D --&gt; H[具体文件系统&lt;br/&gt;Ext4 / XFS / OverlayFS / NFS ...]
+    H --&gt; I[块 I/O / Buffer]
+    I --&gt; J[通用块层]
+    J --&gt; K[I/O 队列与调度]
+    K --&gt; L[设备驱动]
+    L --&gt; M[HDD / SSD / RAID / 网络块存储]
+</code></pre>
+
+<p>这张图可以解释后面几乎所有现象：</p>
+<ul>
+<li><code>find</code> 扫描大量路径时，dentry 和 inode 缓存会增长；</li>
+<li>普通文件读写通常先命中 Page Cache，不一定立即产生磁盘 I&#x2F;O；</li>
+<li><code>O_DIRECT</code> 可以绕过 Page Cache；</li>
+<li><code>iostat</code> 观察的是块设备层面的结果，和应用实际 <code>read()</code> &#x2F; <code>write()</code> 的次数并不一一对应；</li>
+<li><code>pidstat</code> 显示某个进程大量写，不意味着磁盘最终也按相同大小写入，因为中间还可能存在缓存、合并和异步回写；</li>
+<li>数据库、Redis、日志系统虽然业务形态完全不同，但到了 Linux 内核里，最终仍然会落到文件、socket、块设备和系统调用上。</li>
+</ul>
+<hr>
+<h2 id="文件系统到底管理什么"><a href="#文件系统到底管理什么" class="headerlink" title="文件系统到底管理什么"></a>文件系统到底管理什么</h2><p>磁盘提供持久化存储能力，文件系统负责把一片块设备组织成可以按“文件名、目录、权限、元数据”访问的树状结构。</p>
+<p>Linux 中常说“一切皆文件”。更准确地说，普通文件、目录、设备、管道、socket 等对象都可以通过统一的文件描述符和 VFS 接口访问。对应用来说，它们最终都表现成 <code>open/read/write</code> 一类统一接口。</p>
+<h3 id="inode、dentry、数据块和-superblock"><a href="#inode、dentry、数据块和-superblock" class="headerlink" title="inode、dentry、数据块和 superblock"></a>inode、dentry、数据块和 superblock</h3><p>理解 Linux 文件系统，最关键的是四个概念：</p>
+<table>
+<thead>
+<tr>
+<th>结构</th>
+<th>主要作用</th>
+<th>是否持久化</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>inode（索引节点）</td>
+<td>保存文件元数据和数据位置，如权限、大小、时间、数据块指针等</td>
+<td>是</td>
+</tr>
+<tr>
+<td>dentry（目录项）</td>
+<td>把文件名与 inode 联系起来，并维护目录树关系</td>
+<td>主要是内核中的缓存对象</td>
+</tr>
+<tr>
+<td>data block（数据块）</td>
+<td>保存真正的文件内容，目录文件也会在数据块中保存“文件名与 inode”的映射</td>
+<td>是</td>
+</tr>
+<tr>
+<td>superblock（超级块）</td>
+<td>保存文件系统整体状态，如 inode、数据块等资源信息</td>
+<td>是</td>
+</tr>
+</tbody></table>
+<p>这里最容易混淆的是 <strong>dentry 和目录文件</strong>。</p>
+<p>dentry 是内核为了加速路径解析而维护的内存对象；但文件名当然不可能只存在内存里。目录本身也是一种文件，它有自己的 inode 和数据块，目录文件的数据中保存了子文件名与 inode 的映射。系统需要访问某个路径时，会根据磁盘上的目录内容按需构建 dentry 缓存。</p>
+<p>因此：</p>
+<ul>
+<li>dentry 不是文件名唯一的持久化存储；</li>
+<li>重启后即使 dentry 缓存消失，目录结构仍然可以从磁盘重新构建；</li>
+<li>dentry 不需要开机时一次性构建完整目录树，而是按需创建；</li>
+<li>一个 inode 可以被多个 dentry 引用，这正是硬链接的基础。</li>
+</ul>
+<h3 id="inode-为什么也会把磁盘“用满”"><a href="#inode-为什么也会把磁盘“用满”" class="headerlink" title="inode 为什么也会把磁盘“用满”"></a>inode 为什么也会把磁盘“用满”</h3><p>inode 本身也占用磁盘空间，而且数量通常在创建文件系统时就已经确定。</p>
+<p>所以会出现一种经典现象：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">df</span> -h /<br></code></pre></td></tr></table></figure>
+
+<p>看起来还有大量磁盘容量，但程序仍然报 <code>No space left on device</code>。这时要继续检查 inode：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">df</span> -i /<br></code></pre></td></tr></table></figure>
+
+<p>如果 inode 已经耗尽，而数据块仍然充足，通常意味着系统存在大量小文件。</p>
+<h3 id="扇区、页和逻辑块"><a href="#扇区、页和逻辑块" class="headerlink" title="扇区、页和逻辑块"></a>扇区、页和逻辑块</h3><p>传统机械磁盘常见扇区大小为 512B。若文件系统每次只处理一个扇区，管理成本会很高，因此会把连续扇区组织成更大的逻辑块，常见文件系统块大小为 4KB。</p>
+<p>可以把几个常见粒度区分开：</p>
+<ul>
+<li>HDD 的物理访问以扇区为基本单位；</li>
+<li>SSD 内部通常以页为读写单位，同时还有更大的擦除块；</li>
+<li>文件系统以逻辑块组织数据，常见是 4KB；</li>
+<li>CPU 和内核内存管理中还有 Page（页），常见也是 4KB，但它与文件系统逻辑块属于不同概念，只是大小经常恰好相同。</li>
+</ul>
+<hr>
+<h2 id="VFS：为什么不同文件系统能使用同一套-API"><a href="#VFS：为什么不同文件系统能使用同一套-API" class="headerlink" title="VFS：为什么不同文件系统能使用同一套 API"></a>VFS：为什么不同文件系统能使用同一套 API</h2><p>Linux 需要同时支持 Ext4、XFS、NFS、OverlayFS、procfs、sysfs 等大量文件系统。如果每种文件系统都向应用暴露不同 API，应用程序几乎无法维护。</p>
+<p>因此内核引入了 VFS（Virtual File System，虚拟文件系统）作为统一抽象层。</p>
+<p>应用看到的是统一接口：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs c"><span class="hljs-type">int</span> <span class="hljs-title function_">open</span><span class="hljs-params">(<span class="hljs-type">const</span> <span class="hljs-type">char</span> *pathname, <span class="hljs-type">int</span> flags, <span class="hljs-type">mode_t</span> mode)</span>;<br><span class="hljs-type">ssize_t</span> <span class="hljs-title function_">read</span><span class="hljs-params">(<span class="hljs-type">int</span> fd, <span class="hljs-type">void</span> *buf, <span class="hljs-type">size_t</span> count)</span>;<br><span class="hljs-type">ssize_t</span> <span class="hljs-title function_">write</span><span class="hljs-params">(<span class="hljs-type">int</span> fd, <span class="hljs-type">const</span> <span class="hljs-type">void</span> *buf, <span class="hljs-type">size_t</span> count)</span>;<br></code></pre></td></tr></table></figure>
+
+<p>具体由 Ext4、XFS 还是 NFS 完成，应用通常不需要关心。</p>
+<p>不同文件系统最终都要挂载到 VFS 的目录树中：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mount<br></code></pre></td></tr></table></figure>
+
+<p>根文件系统先挂到 <code>/</code>，其他分区、<code>/proc</code>、<code>/sys</code>、网络文件系统再分别挂到对应目录。</p>
+<h3 id="几类文件系统不要混淆"><a href="#几类文件系统不要混淆" class="headerlink" title="几类文件系统不要混淆"></a>几类文件系统不要混淆</h3><p>可以粗略按数据来源理解：</p>
+<ul>
+<li><strong>本地磁盘文件系统</strong>：Ext4、XFS 等；</li>
+<li><strong>伪文件系统 &#x2F; 内核导出接口</strong>：<code>/proc</code>、<code>/sys</code> 等，不对应普通磁盘文件；</li>
+<li><strong>网络文件系统</strong>：NFS、SMB 等，由远端服务器提供文件语义；</li>
+<li><strong>堆叠文件系统</strong>：如 OverlayFS，在容器场景中很常见。</li>
+</ul>
+<p>有一个需要特别澄清的点：<strong>iSCSI 不是 NFS&#x2F;SMB 这种“网络文件系统”</strong>。iSCSI 通过网络暴露的是块设备，Linux 收到后通常仍会在它之上创建文件系统，它位于存储栈更底层的位置。</p>
+<hr>
+<h2 id="Linux-为什么要大量使用缓存"><a href="#Linux-为什么要大量使用缓存" class="headerlink" title="Linux 为什么要大量使用缓存"></a>Linux 为什么要大量使用缓存</h2><p>磁盘比内存慢几个数量级。如果每次 <code>read()</code> 都真的落到物理磁盘，系统性能会非常差。</p>
+<p>Linux 在文件系统层使用多类缓存：</p>
+<ul>
+<li>Page Cache：缓存文件内容；</li>
+<li>dentry Cache：缓存路径和目录项；</li>
+<li>inode Cache：缓存文件元数据；</li>
+<li>文件系统自己的 Slab Cache；</li>
+<li>块设备相关 Buffer。</li>
+</ul>
+<h3 id="Page-Cache"><a href="#Page-Cache" class="headerlink" title="Page Cache"></a>Page Cache</h3><p>普通 Buffered I&#x2F;O 读取文件时，如果对应数据已经在 Page Cache 中，就可以直接从内存返回；写文件时，数据也可能先变成脏页，之后由内核异步回写磁盘。</p>
+<p>因此，“应用写了 100MB”不意味着此刻磁盘就立即写了 100MB。</p>
+<h3 id="dentry-和-inode-Cache"><a href="#dentry-和-inode-Cache" class="headerlink" title="dentry 和 inode Cache"></a>dentry 和 inode Cache</h3><p>dentry 和 inode 都属于大量、小型、结构固定的内核对象，Linux 使用 Slab 机制管理它们。</p>
+<p>可以查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/slabinfo | grep -E <span class="hljs-string">&#x27;^#|dentry|inode&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>更直观的是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">slabtop<br></code></pre></td></tr></table></figure>
+
+<p>常见条目包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">dentry<br>inode_cache<br>ext4_inode_cache<br>xfs_inode<br>proc_inode_cache<br></code></pre></td></tr></table></figure>
+
+<p>其中 <code>inode_cache</code> 更偏 VFS 层，<code>ext4_inode_cache</code>、<code>xfs_inode</code> 则属于具体文件系统实现。</p>
+<h3 id="find-为什么会让缓存上涨"><a href="#find-为什么会让缓存上涨" class="headerlink" title="find / 为什么会让缓存上涨"></a><code>find /</code> 为什么会让缓存上涨</h3><p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">find / -name file-name<br></code></pre></td></tr></table></figure>
+
+<p>需要遍历大量目录并解析文件名。</p>
+<p>原本没有被访问过的目录，需要从文件系统读取目录数据并构建 dentry，同时 inode 元数据也会进入缓存。因此你通常会看到：</p>
+<ul>
+<li>dentry 增长；</li>
+<li>inode 相关 Slab 增长；</li>
+<li>Cache 增长；</li>
+<li>某些环境里 Buffer 也可能增长，因为构造元数据缓存需要读取底层文件系统数据。</li>
+</ul>
+<p>第二次执行相同 <code>find</code> 往往明显更快，就是因为大量目录结构和元数据已经缓存。</p>
+<p>可以用下面的方式观察：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">vmstat 1<br></code></pre></td></tr></table></figure>
+
+<p>以及：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">slabtop<br></code></pre></td></tr></table></figure>
+
+<p>如果为了实验清缓存，内核接口的语义是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># 释放 Page Cache</span><br><span class="hljs-built_in">echo</span> 1 &gt; /proc/sys/vm/drop_caches<br><br><span class="hljs-comment"># 释放 dentry 和 inode Cache</span><br><span class="hljs-built_in">echo</span> 2 &gt; /proc/sys/vm/drop_caches<br><br><span class="hljs-comment"># 两者都释放</span><br><span class="hljs-built_in">echo</span> 3 &gt; /proc/sys/vm/drop_caches<br></code></pre></td></tr></table></figure>
+
+<p>这类操作会直接破坏系统缓存命中率，不应该被当作日常“优化命令”。在生产环境中随意执行，可能把本来正常的数据库或文件服务瞬间变成磁盘 I&#x2F;O 密集型应用。</p>
+<hr>
+<h2 id="四组最容易混淆的-I-O-概念"><a href="#四组最容易混淆的-I-O-概念" class="headerlink" title="四组最容易混淆的 I&#x2F;O 概念"></a>四组最容易混淆的 I&#x2F;O 概念</h2><p>Linux I&#x2F;O 经常出现四组词：</p>
+<ul>
+<li>Buffered &#x2F; Unbuffered</li>
+<li>Direct &#x2F; Non-direct</li>
+<li>Blocking &#x2F; Non-blocking</li>
+<li>Synchronous &#x2F; Asynchronous</li>
+</ul>
+<p>它们描述的不是同一个维度。</p>
+<h3 id="Buffered-I-O-与-Unbuffered-I-O"><a href="#Buffered-I-O-与-Unbuffered-I-O" class="headerlink" title="Buffered I&#x2F;O 与 Unbuffered I&#x2F;O"></a>Buffered I&#x2F;O 与 Unbuffered I&#x2F;O</h3><p>这里的“Buffer”指的是<strong>用户态标准库自己的缓冲</strong>。</p>
+<p>例如 C 标准库的：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs c">fopen();<br>fread();<br>fwrite();<br></code></pre></td></tr></table></figure>
+
+<p>通常会先经过标准库缓冲。</p>
+<p>而直接使用：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs c">open();<br>read();<br>write();<br></code></pre></td></tr></table></figure>
+
+<p>不会经过标准库缓冲。</p>
+<p>但要注意：即便是所谓“Unbuffered I&#x2F;O”，默认仍然可能经过操作系统 Page Cache。</p>
+<h3 id="Direct-I-O-与普通缓存-I-O"><a href="#Direct-I-O-与普通缓存-I-O" class="headerlink" title="Direct I&#x2F;O 与普通缓存 I&#x2F;O"></a>Direct I&#x2F;O 与普通缓存 I&#x2F;O</h3><p>Direct I&#x2F;O 关注的是 <strong>是否绕过操作系统 Page Cache</strong>。</p>
+<p>典型做法是在 <code>open()</code> 时指定：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs c">O_DIRECT<br></code></pre></td></tr></table></figure>
+
+<p>普通文件 I&#x2F;O 默认通常会利用 Page Cache；Direct I&#x2F;O 则尽量让用户缓冲区直接与文件系统&#x2F;块设备交互。</p>
+<p>数据库经常使用 Direct I&#x2F;O，是因为数据库可能已经有自己的 Buffer Pool，再叠一层操作系统缓存会导致双重缓存和不可控的回写行为。</p>
+<h3 id="阻塞与非阻塞"><a href="#阻塞与非阻塞" class="headerlink" title="阻塞与非阻塞"></a>阻塞与非阻塞</h3><p>这个维度关注<strong>调用线程会不会被卡住</strong>。</p>
+<p>阻塞 I&#x2F;O：</p>
+<blockquote>
+<p>发起 I&#x2F;O 后，如果暂时没有结果，当前线程停止执行，等待条件满足。</p>
+</blockquote>
+<p>非阻塞 I&#x2F;O：</p>
+<blockquote>
+<p>如果当前无法完成，系统调用立即返回，线程可以继续做其他事情，之后再轮询或等待事件通知。</p>
+</blockquote>
+<p>例如 socket 可以设置：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs c">O_NONBLOCK<br></code></pre></td></tr></table></figure>
+
+<p>然后配合 <code>select</code>、<code>poll</code>、<code>epoll</code> 进行事件驱动。</p>
+<p>普通磁盘文件通常总被认为“可读&#x2F;可写”，因此对普通文件使用 <code>select</code> 并不能解决磁盘实际完成时间的问题。</p>
+<h3 id="同步与异步"><a href="#同步与异步" class="headerlink" title="同步与异步"></a>同步与异步</h3><p>这个维度关注<strong>I&#x2F;O 完成结果由谁等待、以什么方式通知</strong>。</p>
+<p>同步 I&#x2F;O：</p>
+<ul>
+<li>应用发起请求；</li>
+<li>系统最终通过当前调用路径返回结果；</li>
+<li>调用方需要参与等待完成。</li>
+</ul>
+<p>异步 I&#x2F;O：</p>
+<ul>
+<li>应用提交请求后先返回；</li>
+<li>内核后台完成 I&#x2F;O；</li>
+<li>完成后再通过事件、回调等方式通知。</li>
+</ul>
+<p>两者是正交维度，不要简单把“非阻塞”直接等同于“异步”。</p>
+<pre><code class=" mermaid">flowchart LR
+    A[阻塞 / 非阻塞] --&gt; A1[关注调用线程是否等待]
+    B[同步 / 异步] --&gt; B1[关注 I/O 完成与结果通知机制]
+</code></pre>
+
+<p>资料中的经典例子是：</p>
+<ul>
+<li><code>read()</code>：同步读；</li>
+<li>AIO 接口：请求提交后返回，完成后再通知；</li>
+<li>socket 未设置 <code>O_NONBLOCK</code> 时，<code>send()</code> 可能阻塞；</li>
+<li><code>epoll</code> 常与非阻塞 socket 搭配使用。</li>
+</ul>
+<h3 id="O-SYNC-与-O-DSYNC"><a href="#O-SYNC-与-O-DSYNC" class="headerlink" title="O_SYNC 与 O_DSYNC"></a><code>O_SYNC</code> 与 <code>O_DSYNC</code></h3><p>同步写语义还涉及落盘要求：</p>
+<ul>
+<li><code>O_DSYNC</code>：要求数据本身到达稳定存储后再返回；</li>
+<li><code>O_SYNC</code>：除了数据，还要求与本次写相关的必要元数据同步完成。</li>
+</ul>
+<p>这也是为什么大量小请求配合强制同步写，性能可能极差。</p>
+<hr>
+<h2 id="从文件系统继续向下：Linux-块设备-I-O-栈"><a href="#从文件系统继续向下：Linux-块设备-I-O-栈" class="headerlink" title="从文件系统继续向下：Linux 块设备 I&#x2F;O 栈"></a>从文件系统继续向下：Linux 块设备 I&#x2F;O 栈</h2><p>文件系统最终仍要访问存储设备。</p>
+<p>Linux 把磁盘作为块设备管理。块设备支持按块读写，也支持随机访问，并通过主设备号和次设备号进行标识。</p>
+<p>完整 I&#x2F;O 栈可以简化为三层：</p>
+<pre><code class=" mermaid">flowchart TB
+    A[文件系统层&lt;br/&gt;VFS + Ext4/XFS/NFS...] --&gt; B[通用块层&lt;br/&gt;Block Layer]
+    B --&gt; C[I/O Queue]
+    C --&gt; D[I/O Scheduler]
+    D --&gt; E[设备驱动]
+    E --&gt; F[HDD / SSD / RAID / NVMe / 网络块设备]
+</code></pre>
+
+<h3 id="HDD-与-SSD-的性能差异"><a href="#HDD-与-SSD-的性能差异" class="headerlink" title="HDD 与 SSD 的性能差异"></a>HDD 与 SSD 的性能差异</h3><p>HDD（Hard Disk Drive）需要机械寻道和盘片旋转，所以：</p>
+<ul>
+<li>连续 I&#x2F;O 通常非常快；</li>
+<li>随机 I&#x2F;O 需要频繁寻道，延迟高很多。</li>
+</ul>
+<p>SSD 没有机械磁头，随机性能远高于 HDD，但随机写仍可能触发 Flash Translation Layer、垃圾回收、写放大等问题，所以连续 I&#x2F;O 往往仍然更友好。</p>
+<p>这也是为什么大量高性能存储引擎都在努力把随机写转成顺序&#x2F;追加写。</p>
+<h3 id="RAID"><a href="#RAID" class="headerlink" title="RAID"></a>RAID</h3><p>多块磁盘可以通过 RAID 组合成逻辑设备。</p>
+<p>常见特性可以概括为：</p>
+<table>
+<thead>
+<tr>
+<th>RAID</th>
+<th>核心特点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>RAID0</td>
+<td>条带化，性能高，但没有冗余</td>
+</tr>
+<tr>
+<td>RAID1</td>
+<td>镜像，提高可靠性，读性能可提升</td>
+</tr>
+<tr>
+<td>RAID5</td>
+<td>校验冗余，容量利用率较高，但写入有校验开销</td>
+</tr>
+<tr>
+<td>RAID10</td>
+<td>镜像 + 条带，兼顾性能与冗余，但有效容量降低</td>
+</tr>
+</tbody></table>
+<p>分析 RAID 上的 I&#x2F;O 时，文件系统看到的容量、吞吐和底层真实磁盘消耗可能不同，不能直接把单盘经验套上去。</p>
+<hr>
+<h2 id="通用块层和-I-O-调度"><a href="#通用块层和-I-O-调度" class="headerlink" title="通用块层和 I&#x2F;O 调度"></a>通用块层和 I&#x2F;O 调度</h2><p>不同磁盘设备、控制器和驱动差异很大，因此 Linux 又在文件系统和驱动之间提供了通用块层。</p>
+<p>它主要做两件事：</p>
+<ol>
+<li>向上提供统一块设备接口；</li>
+<li>对 I&#x2F;O 请求排队、合并、排序，再交给设备驱动。</li>
+</ol>
+<p>资料所处的内核时代重点介绍了：</p>
+<ul>
+<li>NONE</li>
+<li>NOOP</li>
+<li>CFQ</li>
+<li>Deadline</li>
+</ul>
+<p>这些名称和适用经验具有明显的内核时代背景。现代系统不要机械照搬“SSD 就一定选 noop、数据库就一定选 deadline”这样的旧结论，而应该直接检查当前设备实际支持的调度器：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /sys/block/sda/queue/scheduler<br></code></pre></td></tr></table></figure>
+
+<p>再结合真实 workload 做基准测试。</p>
+<p>调度器本质上的目标始终没有变：在吞吐、公平性、延迟之间做权衡。</p>
+<hr>
+<h2 id="磁盘性能到底看哪些指标"><a href="#磁盘性能到底看哪些指标" class="headerlink" title="磁盘性能到底看哪些指标"></a>磁盘性能到底看哪些指标</h2><p>磁盘 I&#x2F;O 最常用的几个指标是：</p>
+<ul>
+<li>使用率（utilization）</li>
+<li>IOPS</li>
+<li>吞吐量</li>
+<li>响应时间 &#x2F; 延迟</li>
+<li>队列长度</li>
+<li>饱和度</li>
+</ul>
+<h3 id="IOPS"><a href="#IOPS" class="headerlink" title="IOPS"></a>IOPS</h3><p>IOPS（Input&#x2F;Output Operations Per Second）是每秒完成或提交给设备的 I&#x2F;O 请求数。</p>
+<p>它不是“每秒读写多少字节”。</p>
+<p>同样 10 万 IOPS：</p>
+<ul>
+<li>每次 4KB，大约是 400MB&#x2F;s；</li>
+<li>每次 128KB，则可能是十几 GB&#x2F;s 级别。</li>
+</ul>
+<p>所以分析 IOPS 时必须同时看平均请求大小。</p>
+<p>近似关系是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">吞吐量 ≈ IOPS × 平均 I/O 大小<br></code></pre></td></tr></table></figure>
+
+<h3 id="吞吐量"><a href="#吞吐量" class="headerlink" title="吞吐量"></a>吞吐量</h3><p>吞吐量表示单位时间传输的数据量，常见单位：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">KB/s<br>MB/s<br>GB/s<br></code></pre></td></tr></table></figure>
+
+<p>大文件顺序读写场景通常更关注吞吐量。</p>
+<h3 id="响应时间"><a href="#响应时间" class="headerlink" title="响应时间"></a>响应时间</h3><p>响应时间关注一次 I&#x2F;O 从发出到完成需要多久。</p>
+<p>数据库 OLTP、随机小 I&#x2F;O、在线请求等场景，延迟经常比最大吞吐量更重要。</p>
+<h3 id="使用率-util"><a href="#使用率-util" class="headerlink" title="使用率 %util"></a>使用率 <code>%util</code></h3><p><code>iostat</code> 中的 <code>%util</code> 表示设备在采样周期内有 I&#x2F;O 活动的时间比例。</p>
+<p>一个重要误区是：</p>
+<blockquote>
+<p><code>%util = 100%</code> 不一定等于“设备已经彻底无法接受更多 I&#x2F;O”。</p>
+</blockquote>
+<p>现代设备、RAID、SSD、NVMe 都可能并行处理多个请求。单纯一个 <code>%util</code> 很难完整表达队列深度和并发能力。</p>
+<p>因此要同时看：</p>
+<ul>
+<li><code>await</code></li>
+<li><code>aqu-sz</code></li>
+<li>IOPS</li>
+<li>吞吐量</li>
+<li>请求大小</li>
+<li>基准测试极限</li>
+</ul>
+<h3 id="饱和度"><a href="#饱和度" class="headerlink" title="饱和度"></a>饱和度</h3><p>饱和度表示设备是否已经忙到不能继续有效接收更多请求。</p>
+<p>它通常没有一个简单、直接的单指标，因此更可靠的方法是：</p>
+<ol>
+<li>用 <code>fio</code> 获得设备在相同 I&#x2F;O 模式下的基准能力；</li>
+<li>线上观察 <code>await</code>、队列长度、吞吐、IOPS；</li>
+<li>与基准值对比；</li>
+<li>看增加并发后吞吐是否不再增长、延迟是否迅速恶化。</li>
+</ol>
+<hr>
+<h2 id="iowait-高，不等于磁盘一定饱和"><a href="#iowait-高，不等于磁盘一定饱和" class="headerlink" title="iowait 高，不等于磁盘一定饱和"></a><code>iowait</code> 高，不等于磁盘一定饱和</h2><p>这是 I&#x2F;O 分析里最值得反复强调的一点。</p>
+<p><code>top</code> 中的 <code>wa</code> &#x2F; <code>iowait</code> 表示 CPU 在某段时间内处于“没有其他可运行任务，同时存在未完成 I&#x2F;O”的状态。</p>
+<p>它不是“磁盘使用率”。</p>
+<p>因此可能出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">iowait = 80%<br>%util = 0%~很低<br></code></pre></td></tr></table></figure>
+
+<p>只要系统很空闲，即使只有少量慢同步 I&#x2F;O，也可能让一个 CPU 的 iowait 比例很高。</p>
+<p>反过来，一个高并发 I&#x2F;O 系统即便磁盘很忙，如果 CPU 还有大量其他任务可运行，也不一定表现为很高的 iowait。</p>
+<p>正确方法不是看到 <code>wa</code> 就宣布“磁盘瓶颈”，而是把它当成一个线索，再通过 <code>iostat</code>、<code>pidstat</code> 等继续验证。</p>
+<hr>
+<h2 id="用-iostat-看块设备"><a href="#用-iostat-看块设备" class="headerlink" title="用 iostat 看块设备"></a>用 <code>iostat</code> 看块设备</h2><p>最常用命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">iostat -d -x 1<br></code></pre></td></tr></table></figure>
+
+<p>常见字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>r/s</code></td>
+<td>每秒读请求数</td>
+</tr>
+<tr>
+<td><code>w/s</code></td>
+<td>每秒写请求数</td>
+</tr>
+<tr>
+<td><code>rkB/s</code></td>
+<td>每秒读取数据量</td>
+</tr>
+<tr>
+<td><code>wkB/s</code></td>
+<td>每秒写入数据量</td>
+</tr>
+<tr>
+<td><code>rrqm/s</code></td>
+<td>每秒合并的读请求</td>
+</tr>
+<tr>
+<td><code>wrqm/s</code></td>
+<td>每秒合并的写请求</td>
+</tr>
+<tr>
+<td><code>%rrqm</code> &#x2F; <code>%wrqm</code></td>
+<td>请求合并比例</td>
+</tr>
+<tr>
+<td><code>r_await</code></td>
+<td>读请求平均完成时间</td>
+</tr>
+<tr>
+<td><code>w_await</code></td>
+<td>写请求平均完成时间</td>
+</tr>
+<tr>
+<td><code>aqu-sz</code></td>
+<td>平均请求队列长度</td>
+</tr>
+<tr>
+<td><code>rareq-sz</code></td>
+<td>平均读请求大小</td>
+</tr>
+<tr>
+<td><code>wareq-sz</code></td>
+<td>平均写请求大小</td>
+</tr>
+<tr>
+<td><code>%util</code></td>
+<td>设备处于 I&#x2F;O 活动的时间比例</td>
+</tr>
+</tbody></table>
+<p>不要把 <code>r_await + w_await</code> 简单当成“总响应时间”。它们分别是读、写请求的平均延迟；如果要计算整体平均，需要按读写请求数量做加权。</p>
+<p>老版本 <code>iostat</code> 里还可能出现 <code>svctm</code>。它本身是推导指标，并不能保证准确，也不是现代分析中最值得依赖的字段。</p>
+<hr>
+<h2 id="用-pidstat-和-iotop-找到“谁在做-I-O”"><a href="#用-pidstat-和-iotop-找到“谁在做-I-O”" class="headerlink" title="用 pidstat 和 iotop 找到“谁在做 I&#x2F;O”"></a>用 <code>pidstat</code> 和 <code>iotop</code> 找到“谁在做 I&#x2F;O”</h2><p><code>iostat</code> 只能告诉你“哪块盘有问题”，不能直接告诉你“哪个进程造成的”。</p>
+<h3 id="pidstat"><a href="#pidstat" class="headerlink" title="pidstat"></a>pidstat</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">pidstat -d 1<br></code></pre></td></tr></table></figure>
+
+<p>重点字段：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">kB_rd/s<br>kB_wr/s<br>kB_ccwr/s<br>iodelay<br></code></pre></td></tr></table></figure>
+
+<p>它适合把块设备压力继续定位到进程。</p>
+<p>多线程应用还要关注线程：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">pidstat -d -t 1<br></code></pre></td></tr></table></figure>
+
+<h3 id="iotop"><a href="#iotop" class="headerlink" title="iotop"></a>iotop</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">iotop<br></code></pre></td></tr></table></figure>
+
+<p>适合按 I&#x2F;O 大小排序，快速找到大户。</p>
+<p>进程层统计与磁盘真实读写大小可能不同，因为中间还有：</p>
+<ul>
+<li>Page Cache；</li>
+<li>Buffer；</li>
+<li>I&#x2F;O 合并；</li>
+<li>延迟回写；</li>
+<li>文件系统日志；</li>
+<li>设备缓存。</li>
+</ul>
+<p>因此不要因为 <code>pidstat</code> 和 <code>iostat</code> 数值不完全一致，就认为工具出错。</p>
+<hr>
+<h2 id="文件系统容量与缓存的常用检查"><a href="#文件系统容量与缓存的常用检查" class="headerlink" title="文件系统容量与缓存的常用检查"></a>文件系统容量与缓存的常用检查</h2><h3 id="空间"><a href="#空间" class="headerlink" title="空间"></a>空间</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">df</span> -h<br></code></pre></td></tr></table></figure>
+
+<h3 id="inode"><a href="#inode" class="headerlink" title="inode"></a>inode</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">df</span> -i<br></code></pre></td></tr></table></figure>
+
+<h3 id="目录实际文件大小"><a href="#目录实际文件大小" class="headerlink" title="目录实际文件大小"></a>目录实际文件大小</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">du</span> -sh /path<br></code></pre></td></tr></table></figure>
+
+<p>如果 <code>df</code> 明显比 <code>du</code> 大，一个经典原因是：</p>
+<blockquote>
+<p>文件已经从目录中删除，但仍被某个进程打开。</p>
+</blockquote>
+<p>可以检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsof | grep deleted<br></code></pre></td></tr></table></figure>
+
+<p>这种文件只有在进程关闭文件描述符或退出后，磁盘空间才真正释放。</p>
+<h3 id="Page-Cache-Slab"><a href="#Page-Cache-Slab" class="headerlink" title="Page Cache &#x2F; Slab"></a>Page Cache &#x2F; Slab</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/meminfo | grep -E <span class="hljs-string">&#x27;Cached|SReclaimable|Buffers&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">free -w<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">vmstat 1<br></code></pre></td></tr></table></figure>
+
+<h3 id="dentry-inode"><a href="#dentry-inode" class="headerlink" title="dentry &#x2F; inode"></a>dentry &#x2F; inode</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/slabinfo | grep -E <span class="hljs-string">&#x27;^#|dentry|inode&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">slabtop<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="一套可复用的-I-O-故障定位链路"><a href="#一套可复用的-I-O-故障定位链路" class="headerlink" title="一套可复用的 I&#x2F;O 故障定位链路"></a>一套可复用的 I&#x2F;O 故障定位链路</h2><p>多个案例背后，真正值得记住的是同一套分析框架：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[接口慢 / 系统卡 / iowait 高] --&gt; B[top / vmstat&lt;br/&gt;看整体资源]
+    B --&gt; C[iostat&lt;br/&gt;确认块设备是否有瓶颈]
+    C --&gt; D[pidstat / iotop&lt;br/&gt;定位进程]
+    D --&gt; E&#123;普通进程还是内核线程?&#125;
+
+    E --&gt;|普通进程| F[strace -f&lt;br/&gt;看系统调用]
+    F --&gt; G[lsof&lt;br/&gt;fd -&gt; 文件 / socket]
+    G --&gt; H[filetop / opensnoop / perf / eBPF]
+    H --&gt; I[结合应用原理、配置和代码]
+
+    E --&gt;|内核线程| J[检查 Page Cache / Swap / 文件系统日志 / 回写]
+    J --&gt; I
+
+    I --&gt; K[修改后重新测量]
+</code></pre>
+
+<p>把它进一步压缩，可以记成四句话：</p>
+<ol>
+<li><strong>系统有没有 I&#x2F;O 问题？</strong></li>
+<li><strong>是谁造成的？</strong></li>
+<li><strong>它到底在读写什么？</strong></li>
+<li><strong>为什么业务会产生这些 I&#x2F;O？</strong></li>
+</ol>
+<p>工具只是回答这些问题的手段。</p>
+<hr>
+<h2 id="案例一：狂打日志把磁盘写满"><a href="#案例一：狂打日志把磁盘写满" class="headerlink" title="案例一：狂打日志把磁盘写满"></a>案例一：狂打日志把磁盘写满</h2><p>这是最典型的从系统到应用逐层收敛案例。</p>
+<h3 id="第一步：top-发现-iowait"><a href="#第一步：top-发现-iowait" class="headerlink" title="第一步：top 发现 iowait"></a>第一步：<code>top</code> 发现 iowait</h3><p>系统中某个 CPU 的 <code>iowait</code> 超过 90%，同时内存里 Buffer&#x2F;Cache 很高。</p>
+<p>这说明值得怀疑 I&#x2F;O，但还不能直接下结论。</p>
+<h3 id="第二步：iostat-确认磁盘"><a href="#第二步：iostat-确认磁盘" class="headerlink" title="第二步：iostat 确认磁盘"></a>第二步：<code>iostat</code> 确认磁盘</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">iostat -x -d 1<br></code></pre></td></tr></table></figure>
+
+<p>案例中出现：</p>
+<ul>
+<li>磁盘 <code>%util</code> 接近 99%；</li>
+<li>每秒写入约 32MB；</li>
+<li>写请求响应时间达到秒级；</li>
+<li>请求队列长度超过 1000。</li>
+</ul>
+<p>这已经不只是“有 I&#x2F;O”，而是非常明显的磁盘瓶颈。</p>
+<h3 id="第三步：pidstat-找进程"><a href="#第三步：pidstat-找进程" class="headerlink" title="第三步：pidstat 找进程"></a>第三步：<code>pidstat</code> 找进程</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">pidstat -d 1<br></code></pre></td></tr></table></figure>
+
+<p>Python 进程每秒写入超过 45MB，是最可疑对象。</p>
+<h3 id="第四步：strace-找系统调用"><a href="#第四步：strace-找系统调用" class="headerlink" title="第四步：strace 找系统调用"></a>第四步：<code>strace</code> 找系统调用</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">strace -p &lt;PID&gt;<br></code></pre></td></tr></table></figure>
+
+<p>可以看到类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">write(3, &quot;...&quot;, 314572844) = 314572844<br></code></pre></td></tr></table></figure>
+
+<p>一次就写大约 300MB。</p>
+<h3 id="第五步：lsof-把-fd-还原成文件"><a href="#第五步：lsof-把-fd-还原成文件" class="headerlink" title="第五步：lsof 把 fd 还原成文件"></a>第五步：<code>lsof</code> 把 fd 还原成文件</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsof -p &lt;PID&gt;<br></code></pre></td></tr></table></figure>
+
+<p>发现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">3w REG ... /tmp/logtest.txt<br></code></pre></td></tr></table></figure>
+
+<p>于是链路完整了：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">高 iowait<br>→ 磁盘写满<br>→ Python 大量写<br>→ fd 3<br>→ /tmp/logtest.txt<br>→ 应用日志<br></code></pre></td></tr></table></figure>
+
+<p>案例程序支持通过信号动态调日志级别：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">kill</span> -SIGUSR2 &lt;PID&gt;<br></code></pre></td></tr></table></figure>
+
+<p>把 INFO 调高到 WARNING 后，iowait 和磁盘使用率都逐步恢复。</p>
+<h3 id="工程结论"><a href="#工程结论" class="headerlink" title="工程结论"></a>工程结论</h3><p>日志不是“免费”的。</p>
+<p>生产环境应该至少考虑：</p>
+<ul>
+<li>默认日志级别；</li>
+<li>单条日志大小；</li>
+<li>日志频率；</li>
+<li>异步日志；</li>
+<li>日志轮转；</li>
+<li>限速；</li>
+<li>磁盘隔离；</li>
+<li>动态调整日志级别后自动恢复。</li>
+</ul>
+<hr>
+<h2 id="案例二：大量临时文件让-API-从秒级拖到分钟级"><a href="#案例二：大量临时文件让-API-从秒级拖到分钟级" class="headerlink" title="案例二：大量临时文件让 API 从秒级拖到分钟级"></a>案例二：大量临时文件让 API 从秒级拖到分钟级</h2><p>另一个 Web 应用每次请求都会：</p>
+<ol>
+<li>创建临时目录；</li>
+<li>生成 1000 个文本文件；</li>
+<li>把数据写入磁盘；</li>
+<li>再逐个读回；</li>
+<li>处理完成后删除整个目录。</li>
+</ol>
+<p>结果一个接口响应超过两分钟。</p>
+<h3 id="系统层现象"><a href="#系统层现象" class="headerlink" title="系统层现象"></a>系统层现象</h3><p><code>top</code>：</p>
+<ul>
+<li>CPU <code>iowait</code> 接近 94%。</li>
+</ul>
+<p><code>iostat</code>：</p>
+<ul>
+<li>磁盘 <code>%util</code> 接近 98%；</li>
+<li>大量写；</li>
+<li><code>await</code> 达到十几秒。</li>
+</ul>
+<p><code>pidstat</code>：</p>
+<ul>
+<li>Python 进程每秒产生数百 MB I&#x2F;O。</li>
+</ul>
+<h3 id="为什么-strace-p-PID-却找不到-write"><a href="#为什么-strace-p-PID-却找不到-write" class="headerlink" title="为什么 strace -p PID 却找不到 write"></a>为什么 <code>strace -p PID</code> 却找不到 <code>write</code></h3><p>一开始只跟踪主线程：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">strace -p &lt;PID&gt;<br></code></pre></td></tr></table></figure>
+
+<p>看不到写文件系统调用。</p>
+<p>这不是 Python 的问题，也不是 Docker 把系统调用“藏起来”了，而是<strong>文件 I&#x2F;O 发生在其他线程</strong>。</p>
+<p>正确做法是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">strace -f -p &lt;PID&gt;<br></code></pre></td></tr></table></figure>
+
+<p><code>-f</code> 会跟踪子进程和线程。</p>
+<p>这个案例给出了一个非常重要的经验：</p>
+<blockquote>
+<p>工具输出和已有证据矛盾时，先检查工具自己的观察范围、默认参数和限制，而不是立刻怀疑操作系统“不符合理论”。</p>
+</blockquote>
+<h3 id="用-BCC-eBPF-从内核侧观察"><a href="#用-BCC-eBPF-从内核侧观察" class="headerlink" title="用 BCC&#x2F;eBPF 从内核侧观察"></a>用 BCC&#x2F;eBPF 从内核侧观察</h3><p><code>filetop</code> 可以直接看到哪些线程在读写哪些文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">filetop<br></code></pre></td></tr></table></figure>
+
+<p><code>opensnoop</code> 可以跟踪文件打开路径：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">opensnoop<br></code></pre></td></tr></table></figure>
+
+<p>最终发现应用动态生成类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">/tmp/&lt;uuid&gt;/0.txt<br>/tmp/&lt;uuid&gt;/1.txt<br>...<br>/tmp/&lt;uuid&gt;/999.txt<br></code></pre></td></tr></table></figure>
+
+<p>然后再全部读回。</p>
+<h3 id="优化"><a href="#优化" class="headerlink" title="优化"></a>优化</h3><p>如果内存充足，这批短生命周期中间结果根本没有必要落盘，可以直接放内存。</p>
+<p>案例优化后，接口从约 <code>2m43s</code> 缩短到不到 <code>9s</code>。</p>
+<p>这里真正的思路不是“把 HDD 换 SSD”，而是：</p>
+<blockquote>
+<p><strong>最快的磁盘 I&#x2F;O，是根本不发生磁盘 I&#x2F;O。</strong></p>
+</blockquote>
+<hr>
+<h2 id="案例三：MySQL-查询-15-秒，根因既有索引也有系统缓存"><a href="#案例三：MySQL-查询-15-秒，根因既有索引也有系统缓存" class="headerlink" title="案例三：MySQL 查询 15 秒，根因既有索引也有系统缓存"></a>案例三：MySQL 查询 15 秒，根因既有索引也有系统缓存</h2><p>商品查询接口：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/products/geektime<br></code></pre></td></tr></table></figure>
+
+<p>一次请求需要大约 15 秒。</p>
+<h3 id="从系统先定位到-MySQL"><a href="#从系统先定位到-MySQL" class="headerlink" title="从系统先定位到 MySQL"></a>从系统先定位到 MySQL</h3><p><code>top</code>：</p>
+<ul>
+<li>iowait 很高；</li>
+<li>CPU 使用率并不高。</li>
+</ul>
+<p><code>iostat</code>：</p>
+<ul>
+<li>磁盘读约 32MB&#x2F;s；</li>
+<li><code>%util</code> 接近 97%。</li>
+</ul>
+<p><code>pidstat</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">pidstat -d 1<br></code></pre></td></tr></table></figure>
+
+<p>发现主要读盘的是 <code>mysqld</code>。</p>
+<h3 id="strace-f-找到-MySQL-在读哪个-fd"><a href="#strace-f-找到-MySQL-在读哪个-fd" class="headerlink" title="strace -f 找到 MySQL 在读哪个 fd"></a><code>strace -f</code> 找到 MySQL 在读哪个 fd</h3><p>MySQL 是多线程程序，要带 <code>-f</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">strace -f -p &lt;mysqld-pid&gt;<br></code></pre></td></tr></table></figure>
+
+<p>可以看到某个线程持续：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">read(38, ..., 131072)<br>read(38, ..., 20480)<br>...<br></code></pre></td></tr></table></figure>
+
+<h3 id="lsof-必须传进程-PID，而不是线程-ID"><a href="#lsof-必须传进程-PID，而不是线程-ID" class="headerlink" title="lsof 必须传进程 PID，而不是线程 ID"></a><code>lsof</code> 必须传进程 PID，而不是线程 ID</h3><p>如果把线程号直接交给：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsof -p &lt;TID&gt;<br></code></pre></td></tr></table></figure>
+
+<p>可能查不到。</p>
+<p>应该对 MySQL 进程执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsof -p &lt;mysqld-pid&gt;<br></code></pre></td></tr></table></figure>
+
+<p>然后根据 fd 38 找到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/var/lib/mysql/test/products.MYD<br></code></pre></td></tr></table></figure>
+
+<p>该案例使用的是 MySQL 5.6 + MyISAM：</p>
+<ul>
+<li><code>products.MYD</code>：表数据；</li>
+<li><code>products.MYI</code>：索引；</li>
+<li><code>.frm</code>：表结构元信息。</li>
+</ul>
+<p>这套文件布局具有明显时代背景。今天分析现代 MySQL&#x2F;InnoDB 时，不应该机械寻找 <code>.MYD/.MYI/.frm</code>，但“<strong>从系统调用 → fd → 数据文件 → 数据库对象</strong>”的分析方法仍然完全成立。</p>
+<h3 id="继续进入数据库层"><a href="#继续进入数据库层" class="headerlink" title="继续进入数据库层"></a>继续进入数据库层</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SHOW</span> <span class="hljs-keyword">FULL</span> PROCESSLIST;<br></code></pre></td></tr></table></figure>
+
+<p>发现长时间执行：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> products<br><span class="hljs-keyword">WHERE</span> productName <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;geektime&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<p>再执行：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql">EXPLAIN<br><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> products<br><span class="hljs-keyword">WHERE</span> productName <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;geektime&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<p>关键结果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">type = ALL<br>possible_keys = NULL<br>key = NULL<br>rows = 10000<br></code></pre></td></tr></table></figure>
+
+<p>说明是全表扫描。</p>
+<h3 id="为-TEXT-字段建立前缀索引"><a href="#为-TEXT-字段建立前缀索引" class="headerlink" title="为 TEXT 字段建立前缀索引"></a>为 TEXT 字段建立前缀索引</h3><p>直接建：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> INDEX products_index<br><span class="hljs-keyword">ON</span> products(productName);<br></code></pre></td></tr></table></figure>
+
+<p>因为 <code>productName</code> 是 TEXT，案例会报需要指定长度。</p>
+<p>于是使用前缀索引：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> INDEX products_index<br><span class="hljs-keyword">ON</span> products(productName(<span class="hljs-number">64</span>));<br></code></pre></td></tr></table></figure>
+
+<p>优化后接口从约 15 秒降到几毫秒。</p>
+<h3 id="为什么停掉另一个-DataService-后，不建索引也快了"><a href="#为什么停掉另一个-DataService-后，不建索引也快了" class="headerlink" title="为什么停掉另一个 DataService 后，不建索引也快了"></a>为什么停掉另一个 DataService 后，不建索引也快了</h3><p>案例中还有一个干扰程序，每隔几秒执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> 1 &gt; /proc/sys/vm/drop_caches<br></code></pre></td></tr></table></figure>
+
+<p>也就是不断清 Page Cache。</p>
+<p>MyISAM 本身主要依赖操作系统缓存表数据。全表扫描每次都需要把数据从磁盘读出来，而另一个进程又持续把 Page Cache 清掉，于是同一批数据永远无法形成热缓存。</p>
+<p>DataService 停止后：</p>
+<ul>
+<li>Page Cache 逐渐增长；</li>
+<li><code>vmstat</code> 的 <code>bi</code> 最终降到 0；</li>
+<li><code>iowait</code> 降到 0；</li>
+<li>即使没有索引，查询也从十几秒降到约 0.1 秒。</li>
+</ul>
+<p>这暴露出两个不同层次的问题：</p>
+<ol>
+<li><strong>没有索引导致无意义的大量数据扫描；</strong></li>
+<li><strong>把性能完全建立在不可控的全局系统缓存上，容易被其他应用干扰。</strong></li>
+</ol>
+<p>真正的工程优化应该优先解决第一个问题，而不是依赖“数据刚好在 Cache 里”。</p>
+<hr>
+<h2 id="案例四：Redis-查询慢，但磁盘根本没打满"><a href="#案例四：Redis-查询慢，但磁盘根本没打满" class="headerlink" title="案例四：Redis 查询慢，但磁盘根本没打满"></a>案例四：Redis 查询慢，但磁盘根本没打满</h2><p>Redis 案例更有意思，因为它证明：</p>
+<blockquote>
+<p>没有磁盘饱和，不代表 I&#x2F;O 行为就是合理的。</p>
+</blockquote>
+<h3 id="表面现象"><a href="#表面现象" class="headerlink" title="表面现象"></a>表面现象</h3><p><code>top</code>：</p>
+<ul>
+<li>一个 CPU 的 iowait 超过 80%；</li>
+<li>Redis、Python CPU 都不高；</li>
+<li>内存也充足。</li>
+</ul>
+<p><code>iostat</code>：</p>
+<ul>
+<li>只有几 MB&#x2F;s 写入；</li>
+<li><code>%util</code> 接近 0。</li>
+</ul>
+<p>所以不能说“磁盘性能不够”。</p>
+<p>真正异常的是：</p>
+<blockquote>
+<p>这是一个“查询缓存”的接口，为什么磁盘一直在写？</p>
+</blockquote>
+<h3 id="pidstat-找到-Redis-在写"><a href="#pidstat-找到-Redis-在写" class="headerlink" title="pidstat 找到 Redis 在写"></a><code>pidstat</code> 找到 Redis 在写</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">pidstat -d 1<br></code></pre></td></tr></table></figure>
+
+<p>发现 <code>redis-server</code> 持续有写 I&#x2F;O。</p>
+<h3 id="strace-看到了-fdatasync"><a href="#strace-看到了-fdatasync" class="headerlink" title="strace 看到了 fdatasync"></a><code>strace</code> 看到了 <code>fdatasync</code></h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">strace -f -T -tt -p &lt;redis-pid&gt;<br></code></pre></td></tr></table></figure>
+
+<p>可以观察到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">write(...)<br>fdatasync(7)<br></code></pre></td></tr></table></figure>
+
+<p>而且 <code>fdatasync</code> 高频出现。</p>
+<h3 id="lsof-找到-AOF"><a href="#lsof-找到-AOF" class="headerlink" title="lsof 找到 AOF"></a><code>lsof</code> 找到 AOF</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsof -p &lt;redis-pid&gt;<br></code></pre></td></tr></table></figure>
+
+<p>fd 7：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/data/appendonly.aof<br></code></pre></td></tr></table></figure>
+
+<p>查询配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">redis-cli CONFIG GET <span class="hljs-string">&#x27;append*&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>案例得到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">appendonly yes<br>appendfsync always<br></code></pre></td></tr></table></figure>
+
+<p><code>appendfsync always</code> 表示几乎每次写操作都要求同步落盘。</p>
+<p>对很多业务来说这是非常昂贵的持久化策略。</p>
+<p>案例把它调整为：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">redis-cli CONFIG SET appendfsync everysec<br></code></pre></td></tr></table></figure>
+
+<p>接口延迟从约 10 秒降低到约 0.9 秒。</p>
+<h3 id="可查询接口为什么会产生写命令"><a href="#可查询接口为什么会产生写命令" class="headerlink" title="可查询接口为什么会产生写命令"></a>可查询接口为什么会产生写命令</h3><p>继续看 Redis socket 流量，可以发现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">GET uuid:...<br>SADD good ...<br></code></pre></td></tr></table></figure>
+
+<p>应用在扫描缓存时，每命中一个目标值，又把结果写进 Redis 的 Set，最后读取这个临时 Set，再把它删除。</p>
+<p>也就是说，本来可以放在当前进程内存中的短生命周期中间结果，被当作 Redis 临时空间使用。</p>
+<p>简化后的逻辑类似：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-keyword">def</span> <span class="hljs-title function_">get_cache</span>(<span class="hljs-params">type_name</span>):<br>    <span class="hljs-keyword">for</span> key <span class="hljs-keyword">in</span> redis_client.scan_iter(<span class="hljs-string">&quot;uuid:*&quot;</span>):<br>        value = redis_client.get(key)<br>        <span class="hljs-keyword">if</span> value == type_name:<br>            redis_client.sadd(type_name, key[<span class="hljs-number">5</span>:])<br><br>    data = <span class="hljs-built_in">list</span>(redis_client.smembers(type_name))<br>    redis_client.delete(type_name)<br>    <span class="hljs-keyword">return</span> data<br></code></pre></td></tr></table></figure>
+
+<p>优化后直接在应用内存维护临时列表，接口继续从约 0.9 秒降低到约 0.16 秒。</p>
+<h3 id="容器场景下别忘了-network-namespace"><a href="#容器场景下别忘了-network-namespace" class="headerlink" title="容器场景下别忘了 network namespace"></a>容器场景下别忘了 network namespace</h3><p>Redis 和应用运行在容器里时，宿主机上的 socket 视图可能不完整。</p>
+<p>可以进入对应网络命名空间：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">PID=$(docker inspect --format <span class="hljs-string">&#x27;&#123;&#123;.State.Pid&#125;&#125;&#x27;</span> app)<br><br>nsenter --target <span class="hljs-string">&quot;<span class="hljs-variable">$PID</span>&quot;</span> --net -- lsof -i<br></code></pre></td></tr></table></figure>
+
+<p>这可以把 Redis server 端 socket 和 Python 客户端连接对应起来。</p>
+<hr>
+<h2 id="从四个案例抽象出的性能分析“心法”"><a href="#从四个案例抽象出的性能分析“心法”" class="headerlink" title="从四个案例抽象出的性能分析“心法”"></a>从四个案例抽象出的性能分析“心法”</h2><p>几个案例看起来分别是：</p>
+<ul>
+<li>日志；</li>
+<li>临时文件；</li>
+<li>MySQL；</li>
+<li>Redis。</li>
+</ul>
+<p>但底层排查逻辑高度一致。</p>
+<h3 id="1-从“资源异常”开始，不从源码猜"><a href="#1-从“资源异常”开始，不从源码猜" class="headerlink" title="1. 从“资源异常”开始，不从源码猜"></a>1. 从“资源异常”开始，不从源码猜</h3><p>先看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">top<br>vmstat 1<br>iostat -d -x 1<br></code></pre></td></tr></table></figure>
+
+<p>目的是确定：</p>
+<ul>
+<li>CPU？</li>
+<li>内存？</li>
+<li>Swap？</li>
+<li>Page Cache？</li>
+<li>磁盘？</li>
+<li>哪一块磁盘？</li>
+</ul>
+<h3 id="2-从设备缩小到进程"><a href="#2-从设备缩小到进程" class="headerlink" title="2. 从设备缩小到进程"></a>2. 从设备缩小到进程</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">pidstat -d 1<br>iotop<br></code></pre></td></tr></table></figure>
+
+<p>回答：</p>
+<blockquote>
+<p>谁在读？谁在写？</p>
+</blockquote>
+<h3 id="3-从进程缩小到行为"><a href="#3-从进程缩小到行为" class="headerlink" title="3. 从进程缩小到行为"></a>3. 从进程缩小到行为</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">strace -f -T -tt -p &lt;PID&gt;<br></code></pre></td></tr></table></figure>
+
+<p>重点关注：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">read<br>write<br>openat<br>fsync<br>fdatasync<br>mmap<br>stat<br>rename<br>unlink<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-把-fd-还原成资源"><a href="#4-把-fd-还原成资源" class="headerlink" title="4. 把 fd 还原成资源"></a>4. 把 fd 还原成资源</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsof -p &lt;PID&gt;<br></code></pre></td></tr></table></figure>
+
+<p>Linux 中 fd 可能对应：</p>
+<ul>
+<li>普通文件；</li>
+<li>目录；</li>
+<li>socket；</li>
+<li>pipe；</li>
+<li>设备；</li>
+<li>动态库。</li>
+</ul>
+<h3 id="5-strace-看不清时向内核侧移动"><a href="#5-strace-看不清时向内核侧移动" class="headerlink" title="5. strace 看不清时向内核侧移动"></a>5. <code>strace</code> 看不清时向内核侧移动</h3><p>可以考虑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">filetop<br>opensnoop<br>biosnoop<br>biotop<br>blktrace<br>perf<br></code></pre></td></tr></table></figure>
+
+<p>这些工具可以从更低层看到文件、块 I&#x2F;O 或内核事件。</p>
+<h3 id="6-最终一定要回到应用语义"><a href="#6-最终一定要回到应用语义" class="headerlink" title="6. 最终一定要回到应用语义"></a>6. 最终一定要回到应用语义</h3><p>系统工具只能回答：</p>
+<blockquote>
+<p>“它做了什么。”</p>
+</blockquote>
+<p>不能自动回答：</p>
+<blockquote>
+<p>“为什么业务要这么做。”</p>
+</blockquote>
+<p>最后必须结合：</p>
+<ul>
+<li>数据库执行计划；</li>
+<li>Redis 持久化；</li>
+<li>日志配置；</li>
+<li>文件生命周期；</li>
+<li>缓存策略；</li>
+<li>代码算法。</li>
+</ul>
+<p>这一步才是真正产生优化方案的地方。</p>
+<hr>
+<h2 id="指标和工具对应表"><a href="#指标和工具对应表" class="headerlink" title="指标和工具对应表"></a>指标和工具对应表</h2><table>
+<thead>
+<tr>
+<th>目标</th>
+<th>常用工具</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>文件系统空间</td>
+<td><code>df -h</code></td>
+</tr>
+<tr>
+<td>inode 空间</td>
+<td><code>df -i</code></td>
+</tr>
+<tr>
+<td>目录大小</td>
+<td><code>du</code></td>
+</tr>
+<tr>
+<td>Page Cache &#x2F; Buffer &#x2F; Slab</td>
+<td><code>/proc/meminfo</code>、<code>free</code>、<code>vmstat</code></td>
+</tr>
+<tr>
+<td>dentry &#x2F; inode Cache</td>
+<td><code>/proc/slabinfo</code>、<code>slabtop</code></td>
+</tr>
+<tr>
+<td>磁盘 IOPS &#x2F; 吞吐 &#x2F; await &#x2F; util &#x2F; 队列</td>
+<td><code>iostat</code>、<code>sar -d</code></td>
+</tr>
+<tr>
+<td>进程 I&#x2F;O</td>
+<td><code>pidstat -d</code>、<code>iotop</code></td>
+</tr>
+<tr>
+<td>进程系统调用</td>
+<td><code>strace</code></td>
+</tr>
+<tr>
+<td>进程打开文件 &#x2F; socket</td>
+<td><code>lsof</code></td>
+</tr>
+<tr>
+<td>文件读写动态追踪</td>
+<td><code>filetop</code></td>
+</tr>
+<tr>
+<td>open 路径动态追踪</td>
+<td><code>opensnoop</code></td>
+</tr>
+<tr>
+<td>块 I&#x2F;O 事件</td>
+<td><code>blktrace</code></td>
+</tr>
+<tr>
+<td>块 I&#x2F;O 延迟与进程</td>
+<td><code>biosnoop</code>、<code>biotop</code></td>
+</tr>
+<tr>
+<td>内核 I&#x2F;O 事件统计</td>
+<td><code>perf</code></td>
+</tr>
+<tr>
+<td>I&#x2F;O 基准测试</td>
+<td><code>fio</code></td>
+</tr>
+</tbody></table>
+<p>生产环境不一定允许临时安装所有工具，所以重点不是“命令收集”，而是知道已有工具分别能回答什么问题。</p>
+<hr>
+<h2 id="fio：优化前先知道设备的真实能力"><a href="#fio：优化前先知道设备的真实能力" class="headerlink" title="fio：优化前先知道设备的真实能力"></a><code>fio</code>：优化前先知道设备的真实能力</h2><p>优化之前必须知道目标。</p>
+<p>磁盘到底“慢”不慢，不能只看厂商宣传参数，也不能拿另一台机器的测试结果直接比较。</p>
+<p>最常用的基准测试工具是 <code>fio</code>。</p>
+<h3 id="安装"><a href="#安装" class="headerlink" title="安装"></a>安装</h3><p>Ubuntu：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">apt-get install -y fio<br></code></pre></td></tr></table></figure>
+
+<p>CentOS&#x2F;RHEL 系：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">yum install -y fio<br></code></pre></td></tr></table></figure>
+
+<h3 id="4KB-随机读"><a href="#4KB-随机读" class="headerlink" title="4KB 随机读"></a>4KB 随机读</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs bash">fio \<br>  --name=randread \<br>  --filename=/dev/sdb \<br>  --direct=1 \<br>  --iodepth=64 \<br>  --rw=randread \<br>  --ioengine=libaio \<br>  --bs=4k \<br>  --size=1G<br></code></pre></td></tr></table></figure>
+
+<h3 id="4KB-随机写"><a href="#4KB-随机写" class="headerlink" title="4KB 随机写"></a>4KB 随机写</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs bash">fio \<br>  --name=randwrite \<br>  --filename=/dev/sdb \<br>  --direct=1 \<br>  --iodepth=64 \<br>  --rw=randwrite \<br>  --ioengine=libaio \<br>  --bs=4k \<br>  --size=1G<br></code></pre></td></tr></table></figure>
+
+<h3 id="顺序读"><a href="#顺序读" class="headerlink" title="顺序读"></a>顺序读</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs bash">fio \<br>  --name=<span class="hljs-built_in">read</span> \<br>  --filename=/dev/sdb \<br>  --direct=1 \<br>  --iodepth=64 \<br>  --rw=<span class="hljs-built_in">read</span> \<br>  --ioengine=libaio \<br>  --bs=4k \<br>  --size=1G<br></code></pre></td></tr></table></figure>
+
+<h3 id="顺序写"><a href="#顺序写" class="headerlink" title="顺序写"></a>顺序写</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs bash">fio \<br>  --name=write \<br>  --filename=/dev/sdb \<br>  --direct=1 \<br>  --iodepth=64 \<br>  --rw=write \<br>  --ioengine=libaio \<br>  --bs=4k \<br>  --size=1G<br></code></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>警告：不要在系统盘或包含重要数据的裸设备上做写测试。直接以块设备作为 <code>filename</code> 进行写测试可能破坏原文件系统。</strong></p>
+</blockquote>
+<h3 id="关键参数"><a href="#关键参数" class="headerlink" title="关键参数"></a>关键参数</h3><p><code>direct=1</code></p>
+<p>跳过 Page Cache，尽量直接测试底层存储。</p>
+<p><code>iodepth=64</code></p>
+<p>异步 I&#x2F;O 同时允许在途的请求数量。</p>
+<p><code>rw</code></p>
+<p>I&#x2F;O 模式：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">read<br>write<br>randread<br>randwrite<br></code></pre></td></tr></table></figure>
+
+<p><code>ioengine</code></p>
+<p>I&#x2F;O 引擎，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">sync<br>libaio<br>mmap<br></code></pre></td></tr></table></figure>
+
+<p><code>bs</code></p>
+<p>单次 I&#x2F;O 大小。</p>
+<p><code>filename</code></p>
+<p>既可以是文件路径，也可以是裸块设备路径。</p>
+<hr>
+<h2 id="如何读-fio-报告"><a href="#如何读-fio-报告" class="headerlink" title="如何读 fio 报告"></a>如何读 <code>fio</code> 报告</h2><p>重点看：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">IOPS<br>BW<br>slat<br>clat<br>lat<br></code></pre></td></tr></table></figure>
+
+<h3 id="slat"><a href="#slat" class="headerlink" title="slat"></a><code>slat</code></h3><p>Submission Latency，I&#x2F;O 提交阶段延迟。</p>
+<h3 id="clat"><a href="#clat" class="headerlink" title="clat"></a><code>clat</code></h3><p>Completion Latency，从提交到完成的延迟。</p>
+<h3 id="lat"><a href="#lat" class="headerlink" title="lat"></a><code>lat</code></h3><p>fio 视角下整个 I&#x2F;O 的总延迟。</p>
+<p>异步 I&#x2F;O 下通常近似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">lat ≈ slat + clat<br></code></pre></td></tr></table></figure>
+
+<p>不要只看平均值，还要看延迟分位数。</p>
+<p>一个系统平均延迟 2ms，但 P99 是 200ms，对在线服务可能仍然完全不可接受。</p>
+<hr>
+<h2 id="用真实业务-I-O-做-Replay"><a href="#用真实业务-I-O-做-Replay" class="headerlink" title="用真实业务 I&#x2F;O 做 Replay"></a>用真实业务 I&#x2F;O 做 Replay</h2><p>固定 4KB 随机读写只能模拟某类 workload，而真实业务往往混合：</p>
+<ul>
+<li>不同请求大小；</li>
+<li>读写并发；</li>
+<li>顺序和随机；</li>
+<li>不同队列深度。</li>
+</ul>
+<p>可以先用 <code>blktrace</code> 记录真实设备访问，再用 fio 回放。</p>
+<h3 id="记录"><a href="#记录" class="headerlink" title="记录"></a>记录</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">blktrace /dev/sdb<br></code></pre></td></tr></table></figure>
+
+<h3 id="转换"><a href="#转换" class="headerlink" title="转换"></a>转换</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">blkparse sdb -d sdb.bin<br></code></pre></td></tr></table></figure>
+
+<h3 id="回放"><a href="#回放" class="headerlink" title="回放"></a>回放</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">fio \<br>  --name=replay \<br>  --filename=/dev/sdb \<br>  --direct=1 \<br>  --read_iolog=sdb.bin<br></code></pre></td></tr></table></figure>
+
+<p>这样做比“随便跑一个随机写 benchmark”更接近真实应用访问模式。</p>
+<hr>
+<h2 id="I-O-优化的总原则：先减少-I-O，再加速-I-O"><a href="#I-O-优化的总原则：先减少-I-O，再加速-I-O" class="headerlink" title="I&#x2F;O 优化的总原则：先减少 I&#x2F;O，再加速 I&#x2F;O"></a>I&#x2F;O 优化的总原则：先减少 I&#x2F;O，再加速 I&#x2F;O</h2><p>优化优先级可以这样理解：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[业务需要访问数据] --&gt; B&#123;能否不访问磁盘?&#125;
+    B --&gt;|能| C[内存 / Cache / Redis / 算法重构]
+    B --&gt;|不能| D&#123;能否减少请求次数?&#125;
+    D --&gt;|能| E[批量 / 合并 / 预读 / 顺序化]
+    D --&gt;|不能| F&#123;能否降低单次延迟?&#125;
+    F --&gt; G[文件系统 / 调度 / 队列 / SSD / RAID]
+</code></pre>
+
+<p>越靠应用层，往往收益越大、可控性越强。</p>
+<hr>
+<h2 id="应用层优化"><a href="#应用层优化" class="headerlink" title="应用层优化"></a>应用层优化</h2><h3 id="1-把随机写改成追加写"><a href="#1-把随机写改成追加写" class="headerlink" title="1. 把随机写改成追加写"></a>1. 把随机写改成追加写</h3><p>随机写会增加寻址和设备内部管理成本。</p>
+<p>日志、WAL、LSM Tree、AOF 等设计大量使用 Append-only，就是利用顺序写更友好的特性。</p>
+<h3 id="2-充分利用缓存"><a href="#2-充分利用缓存" class="headerlink" title="2. 充分利用缓存"></a>2. 充分利用缓存</h3><p>普通文件读取可以利用 Page Cache：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">磁盘 → Page Cache → 应用<br></code></pre></td></tr></table></figure>
+
+<p>热点数据反复读取时，缓存能够显著减少真实磁盘 I&#x2F;O。</p>
+<p>但也不要把系统稳定性建立在“缓存永远不会被别人挤掉”这个假设上。</p>
+<h3 id="3-应用自己管理缓存"><a href="#3-应用自己管理缓存" class="headerlink" title="3. 应用自己管理缓存"></a>3. 应用自己管理缓存</h3><p>应用内部缓存或 Redis&#x2F;Memcached 的优势是：</p>
+<ul>
+<li>数据由应用决定；</li>
+<li>生命周期更可控；</li>
+<li>不容易被其他进程随意清理；</li>
+<li>可以设计淘汰策略。</li>
+</ul>
+<p>MySQL 案例已经说明，完全依赖全局 Page Cache 的性能非常容易受其他进程干扰。</p>
+<h3 id="4-频繁访问同一区域时考虑-mmap"><a href="#4-频繁访问同一区域时考虑-mmap" class="headerlink" title="4. 频繁访问同一区域时考虑 mmap"></a>4. 频繁访问同一区域时考虑 <code>mmap</code></h3><p><code>mmap</code> 把文件映射到虚拟地址空间，可以减少显式 <code>read/write</code> 带来的用户态与内核态数据拷贝。</p>
+<p>它并不是“永远更快”，但对频繁随机访问同一文件区域的场景很有价值。</p>
+<h3 id="5-合并同步写"><a href="#5-合并同步写" class="headerlink" title="5. 合并同步写"></a>5. 合并同步写</h3><p>如果每一个小请求都：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">write<br>fsync<br>write<br>fsync<br>write<br>fsync<br></code></pre></td></tr></table></figure>
+
+<p>性能会非常差。</p>
+<p>更合理的策略通常是先聚合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">write<br>write<br>write<br>fsync<br></code></pre></td></tr></table></figure>
+
+<p>前提是业务能够接受相应的持久性窗口。</p>
+<p>Redis 的 <code>appendfsync always</code> 与 <code>everysec</code> 本质上就是“可靠性和性能”的典型权衡。</p>
+<h3 id="6-限制-I-O-大户"><a href="#6-限制-I-O-大户" class="headerlink" title="6. 限制 I&#x2F;O 大户"></a>6. 限制 I&#x2F;O 大户</h3><p>多个应用共享磁盘时，可以使用 cgroup 的 I&#x2F;O 控制能力，限制某个服务的 IOPS 或吞吐，避免它把磁盘完全占满。</p>
+<h3 id="7-I-O-优先级"><a href="#7-I-O-优先级" class="headerlink" title="7. I&#x2F;O 优先级"></a>7. I&#x2F;O 优先级</h3><p>在支持相应调度策略的系统中，可以用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ionice<br></code></pre></td></tr></table></figure>
+
+<p>调整进程 I&#x2F;O 优先级。</p>
+<p>但是否生效、效果如何取决于当前块层和调度器，不应脱离系统实际配置机械套用。</p>
+<hr>
+<h2 id="文件系统层优化"><a href="#文件系统层优化" class="headerlink" title="文件系统层优化"></a>文件系统层优化</h2><h3 id="1-选择合适的文件系统"><a href="#1-选择合适的文件系统" class="headerlink" title="1. 选择合适的文件系统"></a>1. 选择合适的文件系统</h3><p>不同文件系统在：</p>
+<ul>
+<li>大文件；</li>
+<li>小文件；</li>
+<li>并发写；</li>
+<li>元数据；</li>
+<li>扩容；</li>
+<li>日志模式；</li>
+</ul>
+<p>方面特性不同。</p>
+<p>Ext4 和 XFS 都是常见选择，选型应依据 workload，而不是简单说“谁绝对更快”。</p>
+<h3 id="2-挂载参数"><a href="#2-挂载参数" class="headerlink" title="2. 挂载参数"></a>2. 挂载参数</h3><p>一些场景可以考虑减少不必要的元数据更新，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">noatime<br></code></pre></td></tr></table></figure>
+
+<p>但每一个挂载选项都可能改变语义，应先确认业务是否依赖对应元数据。</p>
+<h3 id="3-日志模式"><a href="#3-日志模式" class="headerlink" title="3. 日志模式"></a>3. 日志模式</h3><p>日志型文件系统为了崩溃一致性会产生额外写入。</p>
+<p>不同日志模式本质上都在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">一致性<br>性能<br>恢复能力<br></code></pre></td></tr></table></figure>
+
+<p>之间做权衡。</p>
+<h3 id="4-脏页回写"><a href="#4-脏页回写" class="headerlink" title="4. 脏页回写"></a>4. 脏页回写</h3><p>Linux 允许先把写入放入 Page Cache，再异步刷盘。</p>
+<p>常见相关参数包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">dirty_expire_centisecs<br>dirty_writeback_centisecs<br>dirty_background_ratio<br>dirty_ratio<br></code></pre></td></tr></table></figure>
+
+<p>这类参数影响：</p>
+<ul>
+<li>回写频率；</li>
+<li>允许积累多少脏页；</li>
+<li>后台回写何时开始；</li>
+<li>应用何时被迫参与回写。</li>
+</ul>
+<p>调得太激进可能降低吞吐，积累太多又可能出现周期性的延迟尖峰。</p>
+<h3 id="5-vfs-cache-pressure"><a href="#5-vfs-cache-pressure" class="headerlink" title="5. vfs_cache_pressure"></a>5. <code>vfs_cache_pressure</code></h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/proc/sys/vm/vfs_cache_pressure<br></code></pre></td></tr></table></figure>
+
+<p>控制内核回收 dentry 和 inode Cache 的倾向。</p>
+<p>数值越高，一般意味着越积极回收这些元数据缓存。</p>
+<h3 id="6-不需要持久化就使用-tmpfs"><a href="#6-不需要持久化就使用-tmpfs" class="headerlink" title="6. 不需要持久化就使用 tmpfs"></a>6. 不需要持久化就使用 tmpfs</h3><p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/dev/shm<br></code></pre></td></tr></table></figure>
+
+<p>属于典型内存文件系统。</p>
+<p>短生命周期、中间计算结果如果不需要跨重启保存，tmpfs 往往比反复写物理磁盘更合理。</p>
+<hr>
+<h2 id="磁盘和块层优化"><a href="#磁盘和块层优化" class="headerlink" title="磁盘和块层优化"></a>磁盘和块层优化</h2><h3 id="1-换更快的设备"><a href="#1-换更快的设备" class="headerlink" title="1. 换更快的设备"></a>1. 换更快的设备</h3><p>最直接：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">HDD → SSD → 更高性能 SSD/NVMe<br></code></pre></td></tr></table></figure>
+
+<p>但硬件升级不能替代错误算法。</p>
+<p>“每个请求生成 1000 个临时文件”即使换 NVMe，也只是把一个错误设计跑得更快。</p>
+<h3 id="2-RAID"><a href="#2-RAID" class="headerlink" title="2. RAID"></a>2. RAID</h3><p>RAID 可以：</p>
+<ul>
+<li>提升吞吐；</li>
+<li>提升读并行；</li>
+<li>提供冗余。</li>
+</ul>
+<p>代价包括：</p>
+<ul>
+<li>写放大；</li>
+<li>容量损失；</li>
+<li>控制器缓存影响；</li>
+<li>故障重建时性能下降。</li>
+</ul>
+<h3 id="3-I-O-调度器"><a href="#3-I-O-调度器" class="headerlink" title="3. I&#x2F;O 调度器"></a>3. I&#x2F;O 调度器</h3><p>查看当前设备：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /sys/block/sdb/queue/scheduler<br></code></pre></td></tr></table></figure>
+
+<p>是否切换调度器必须基于真实测试。</p>
+<p>资料中 NOOP、CFQ、Deadline 等经验来自较早内核环境，现代系统的调度器名称和块层实现已经发生演进，所以应以当前内核暴露的选项为准。</p>
+<h3 id="4-数据隔离"><a href="#4-数据隔离" class="headerlink" title="4. 数据隔离"></a>4. 数据隔离</h3><p>数据库、日志、搜索引擎、备份如果共享一块盘，很容易互相影响。</p>
+<p>可以把高 I&#x2F;O 组件拆到独立设备：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">数据库数据盘<br>数据库日志盘<br>应用日志盘<br>备份盘<br></code></pre></td></tr></table></figure>
+
+<p>这既能提升性能，也让故障定位更容易。</p>
+<h3 id="5-预读"><a href="#5-预读" class="headerlink" title="5. 预读"></a>5. 预读</h3><p>顺序读明显时，可以增加块设备预读。</p>
+<p>查看或调整：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /sys/block/sdb/queue/read_ahead_kb<br></code></pre></td></tr></table></figure>
+
+<p>资料中的示例默认值为 128KB。</p>
+<p>也可以使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">blockdev --setra 8192 /dev/sdb<br></code></pre></td></tr></table></figure>
+
+<p><code>blockdev --setra</code> 的单位是 512B 扇区，因此数值与 <code>read_ahead_kb</code> 的单位不同。</p>
+<p>随机 I&#x2F;O 场景过度预读反而可能浪费带宽和内存。</p>
+<h3 id="6-队列长度"><a href="#6-队列长度" class="headerlink" title="6. 队列长度"></a>6. 队列长度</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/sys/block/sdb/queue/nr_requests<br></code></pre></td></tr></table></figure>
+
+<p>增大队列可能提高吞吐，但通常会增加排队延迟。</p>
+<p>这就是典型的吞吐和 latency trade-off。</p>
+<hr>
+<h2 id="硬件错误也会伪装成性能问题"><a href="#硬件错误也会伪装成性能问题" class="headerlink" title="硬件错误也会伪装成性能问题"></a>硬件错误也会伪装成性能问题</h2><p>如果磁盘性能突然异常下降，不要只调参数。</p>
+<p>可以先检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">dmesg<br></code></pre></td></tr></table></figure>
+
+<p>看是否存在 I&#x2F;O error、reset、timeout 等日志。</p>
+<p>物理盘还可以使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">smartctl<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">badblocks<br></code></pre></td></tr></table></figure>
+
+<p>文件系统层可以根据类型使用相应检查工具。</p>
+<p>需要注意，虚拟机或硬件 RAID 控制器后面的磁盘，<code>smartctl</code> 不一定能直接获得真实物理盘信息，排查时还需要结合虚拟化平台或 RAID 控制器工具。</p>
+<hr>
+<h2 id="三个极其常见的误区"><a href="#三个极其常见的误区" class="headerlink" title="三个极其常见的误区"></a>三个极其常见的误区</h2><h3 id="误区一：iowait-高，所以磁盘坏了"><a href="#误区一：iowait-高，所以磁盘坏了" class="headerlink" title="误区一：iowait 高，所以磁盘坏了"></a>误区一：iowait 高，所以磁盘坏了</h3><p>错误。</p>
+<p>iowait 只是 CPU 时间分类，不是磁盘饱和度。</p>
+<p>正确链路：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">top / vmstat<br>→ iostat<br>→ pidstat<br>→ syscall / file<br></code></pre></td></tr></table></figure>
+
+<h3 id="误区二：-util-100-就一定不能再提升"><a href="#误区二：-util-100-就一定不能再提升" class="headerlink" title="误区二：%util = 100% 就一定不能再提升"></a>误区二：<code>%util = 100%</code> 就一定不能再提升</h3><p>也不一定。</p>
+<p>对具备并行能力的设备，要同时看队列、延迟、吞吐、IOPS 和基准上限。</p>
+<h3 id="误区三：工具没看到，所以事情没发生"><a href="#误区三：工具没看到，所以事情没发生" class="headerlink" title="误区三：工具没看到，所以事情没发生"></a>误区三：工具没看到，所以事情没发生</h3><p>磁盘已经在写，<code>strace</code> 没看到 <code>write</code>，不代表内核凭空产生 I&#x2F;O。</p>
+<p>先检查：</p>
+<ul>
+<li>是不是多线程？</li>
+<li>是否忘了 <code>-f</code>？</li>
+<li>是否采样窗口太短？</li>
+<li>I&#x2F;O 是否由内核线程回写？</li>
+<li>是否应该从文件层转到块层&#x2F;eBPF？</li>
+</ul>
+<p>性能工具也有自己的观察边界。</p>
+<hr>
+<h2 id="版本与时代背景"><a href="#版本与时代背景" class="headerlink" title="版本与时代背景"></a>版本与时代背景</h2><p>这些案例形成于较早的 Linux、MySQL 和工具链环境，学习时应区分“原理”与“当时的具体实现”。</p>
+<h3 id="I-O-Scheduler"><a href="#I-O-Scheduler" class="headerlink" title="I&#x2F;O Scheduler"></a>I&#x2F;O Scheduler</h3><p>不要死记：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">NOOP<br>CFQ<br>Deadline<br></code></pre></td></tr></table></figure>
+
+<p>当前系统实际支持什么，直接查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /sys/block/&lt;device&gt;/queue/scheduler<br></code></pre></td></tr></table></figure>
+
+<h3 id="MySQL-MyISAM-文件"><a href="#MySQL-MyISAM-文件" class="headerlink" title="MySQL MyISAM 文件"></a>MySQL MyISAM 文件</h3><p>案例里用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">.MYD<br>.MYI<br>.frm<br></code></pre></td></tr></table></figure>
+
+<p>这是特定 MySQL 版本和存储引擎背景。</p>
+<p>现代生产环境更常见的是 InnoDB，具体文件布局不同，但 OS 侧分析路径不变：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">mysqld I/O<br>→ fd<br>→ 文件<br>→ 表/索引/日志<br>→ SQL / 数据库内部机制<br></code></pre></td></tr></table></figure>
+
+<h3 id="BCC-安装命令"><a href="#BCC-安装命令" class="headerlink" title="BCC 安装命令"></a>BCC 安装命令</h3><p>案例中的 BCC 软件源安装方式具有时代背景。实际环境应优先使用当前发行版维护的软件包或对应版本文档。</p>
+<h3 id="svctm"><a href="#svctm" class="headerlink" title="svctm"></a><code>svctm</code></h3><p>老版本 <code>iostat</code> 常见这个字段，但它属于推导指标，不应把它当作精确的物理设备服务时间。</p>
+<hr>
+<h2 id="最终可以记住的一张排查清单"><a href="#最终可以记住的一张排查清单" class="headerlink" title="最终可以记住的一张排查清单"></a>最终可以记住的一张排查清单</h2><p>遇到“接口突然很慢、系统卡顿、数据库延迟升高”时，可以按这个顺序走：</p>
+<h3 id="系统层"><a href="#系统层" class="headerlink" title="系统层"></a>系统层</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">top<br>vmstat 1<br>free -w<br></code></pre></td></tr></table></figure>
+
+<p>回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">CPU?<br>iowait?<br>内存?<br>Swap?<br>Cache?<br></code></pre></td></tr></table></figure>
+
+<h3 id="磁盘层"><a href="#磁盘层" class="headerlink" title="磁盘层"></a>磁盘层</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">iostat -d -x 1<br></code></pre></td></tr></table></figure>
+
+<p>回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">哪块盘?<br>读还是写?<br>IOPS?<br>吞吐?<br>await?<br>队列?<br>%util?<br></code></pre></td></tr></table></figure>
+
+<h3 id="进程层"><a href="#进程层" class="headerlink" title="进程层"></a>进程层</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">pidstat -d 1<br>iotop<br></code></pre></td></tr></table></figure>
+
+<p>回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">谁在做 I/O?<br></code></pre></td></tr></table></figure>
+
+<h3 id="系统调用层"><a href="#系统调用层" class="headerlink" title="系统调用层"></a>系统调用层</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">strace -f -T -tt -p &lt;PID&gt;<br></code></pre></td></tr></table></figure>
+
+<p>回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">read?<br>write?<br>fsync?<br>open?<br>mmap?<br></code></pre></td></tr></table></figure>
+
+<h3 id="文件和-socket"><a href="#文件和-socket" class="headerlink" title="文件和 socket"></a>文件和 socket</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsof -p &lt;PID&gt;<br></code></pre></td></tr></table></figure>
+
+<p>容器网络场景：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">nsenter --target &lt;PID&gt; --net -- lsof -i<br></code></pre></td></tr></table></figure>
+
+<h3 id="内核动态追踪"><a href="#内核动态追踪" class="headerlink" title="内核动态追踪"></a>内核动态追踪</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">filetop<br>opensnoop<br>biosnoop<br>biotop<br>blktrace<br>perf<br></code></pre></td></tr></table></figure>
+
+<h3 id="应用层"><a href="#应用层" class="headerlink" title="应用层"></a>应用层</h3><p>最后才问：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">为什么要读这个文件?<br>为什么要写这么多?<br>为什么每次都 fsync?<br>为什么没走索引?<br>为什么查询接口还在 SADD?<br>为什么中间结果非要落盘?<br></code></pre></td></tr></table></figure>
+
+<p>然后修改，并重新跑最初同一组观测命令验证。</p>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>Linux I&#x2F;O 性能优化最重要的不是某一个参数，而是把整个链路串起来。</p>
+<p>从文件系统角度，要理解：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">inode<br>dentry<br>superblock<br>data block<br>VFS<br>Page Cache<br>Slab<br></code></pre></td></tr></table></figure>
+
+<p>从磁盘角度，要理解：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">随机 / 顺序<br>IOPS<br>吞吐量<br>延迟<br>队列<br>利用率<br>块层<br>调度<br>设备<br></code></pre></td></tr></table></figure>
+
+<p>从分析方法看，核心链路是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">整体资源<br>→ 磁盘<br>→ 进程<br>→ 线程<br>→ 系统调用<br>→ 文件/socket<br>→ 应用语义<br></code></pre></td></tr></table></figure>
+
+<p>从优化顺序看，最值得优先考虑的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">减少 I/O<br>→ 合并 I/O<br>→ 顺序化 I/O<br>→ 利用缓存<br>→ 调整文件系统与块层<br>→ 升级存储硬件<br></code></pre></td></tr></table></figure>
+
+<p>一个成熟的性能分析过程，不应该是“看到 iowait 高就开始调内核参数”，而应该是通过指标提出假设，用工具验证假设，再回到应用原理找到真正原因，最后用同样的指标证明优化确实有效。</p>
+<p>这套方法的价值也不只在磁盘。CPU、内存、网络性能分析本质上也是同一件事：<strong>从现象出发，沿调用链逐层缩小范围，用原理解释指标，用数据验证结论。</strong></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Linux/" class="category-chain-item">Linux</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Linux/" class="print-no-link">#Linux</a>
+      
+        <a href="/tags/Performance/" class="print-no-link">#Performance</a>
+      
+        <a href="/tags/File-System/" class="print-no-link">#File System</a>
+      
+        <a href="/tags/Disk-I-O/" class="print-no-link">#Disk I/O</a>
+      
+        <a href="/tags/VFS/" class="print-no-link">#VFS</a>
+      
+        <a href="/tags/fio/" class="print-no-link">#fio</a>
+      
+        <a href="/tags/eBPF/" class="print-no-link">#eBPF</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Linux 文件系统与磁盘 I/O：从 VFS、块层到性能分析与优化</div>
+      <div>https://allendericdalexander.github.io/2026/08/11/devops/linux/performanceOptimization/04linux-filesystem-disk-io-performance/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月11日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/08/11/devops/linux/performanceOptimization/05linux-network-performance-analysis-and-optimization/" title="Linux 网络性能全景：从协议栈、C10K 到 NAT、抓包与内核调优">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Linux 网络性能全景：从协议栈、C10K 到 NAT、抓包与内核调优</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/11/devops/linux/performanceOptimization/03linux-memory-management-performance-optimization/" title="Linux 内存管理与性能优化：从虚拟内存、Page Cache 到 Swap、OOM 与泄漏排查">
+                        <span class="hidden-mobile">Linux 内存管理与性能优化：从虚拟内存、Page Cache 到 Swap、OOM 与泄漏排查</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

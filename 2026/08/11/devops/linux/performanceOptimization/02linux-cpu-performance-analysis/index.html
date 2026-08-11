@@ -1,0 +1,1769 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="从 CPU 指标体系、软中断与网络小包，到 top、vmstat、pidstat、sar、tcpdump、perf 的排障链路，再到容器与 Java JIT 场景，建立一套可复用的 Linux CPU 性能分析与优化方法。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux CPU 性能分析与优化：从软中断到 perf 的系统化排障方法">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/11/devops/linux/performanceOptimization/02linux-cpu-performance-analysis/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="从 CPU 指标体系、软中断与网络小包，到 top、vmstat、pidstat、sar、tcpdump、perf 的排障链路，再到容器与 Java JIT 场景，建立一套可复用的 Linux CPU 性能分析与优化方法。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-11T07:10:00.000Z">
+<meta property="article:modified_time" content="2026-08-11T09:07:47.503Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="CPU">
+<meta property="article:tag" content="JVM">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="Performance">
+<meta property="article:tag" content="SoftIRQ">
+<meta property="article:tag" content="perf">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Linux CPU 性能分析与优化：从软中断到 perf 的系统化排障方法 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Linux CPU 性能分析与优化：从软中断到 perf 的系统化排障方法"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-11 15:10" pubdate>
+          2026年8月11日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          9.5k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          80 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Linux CPU 性能分析与优化：从软中断到 perf 的系统化排障方法</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <h1 id="Linux-CPU-性能分析与优化：从软中断到-perf-的系统化排障方法"><a href="#Linux-CPU-性能分析与优化：从软中断到-perf-的系统化排障方法" class="headerlink" title="Linux CPU 性能分析与优化：从软中断到 perf 的系统化排障方法"></a>Linux CPU 性能分析与优化：从软中断到 perf 的系统化排障方法</h1><p>Linux CPU 性能问题最容易掉进两个坑：一个是看到 CPU 使用率高就开始猜代码，另一个是把所有性能工具都跑一遍，希望某个数字自己跳出来告诉你答案。</p>
+<p>真正可复用的方法不是记住多少条命令，而是把 <strong>指标、系统原理、工具和根因</strong> 连成一条证据链：</p>
+<blockquote>
+<p>先判断“哪类资源或 CPU 时间出了问题”，再找到“哪个进程、线程或内核路径在制造问题”，最后才进入函数、系统调用、网络包或硬件设备层面。</p>
+</blockquote>
+<p>这套方法尤其适合软件开发者。因为线上很多“应用变慢”“接口超时”“CPU 飙升”“机器卡顿”，最终并不一定是业务代码本身的问题，也可能来自调度、I&#x2F;O、软中断、网络小包、短时进程、容器符号缺失或 JVM JIT 等系统层因素。</p>
+<blockquote>
+<p><strong>版本说明</strong>：本文中的实验环境和命令主要来自 Ubuntu 18.04、CentOS 7 时代的 Linux 系统。核心分析思路仍然成立，但 <code>sysstat</code>、<code>perf</code>、JDK、容器权限模型和命令参数可能随版本变化。遇到输出与本文不一致时，优先执行 <code>man &lt;command&gt;</code> 核对当前版本的真实语义。</p>
+</blockquote>
+<hr>
+<h2 id="一、CPU-性能问题不是一个“CPU-使用率”数字"><a href="#一、CPU-性能问题不是一个“CPU-使用率”数字" class="headerlink" title="一、CPU 性能问题不是一个“CPU 使用率”数字"></a>一、CPU 性能问题不是一个“CPU 使用率”数字</h2><p>CPU 性能分析的第一步，是把“CPU 忙”拆成不同性质的忙。</p>
+<p>Linux 中常见的 CPU 指标大致可以分成四组：</p>
+<ol>
+<li>CPU 时间花在哪里；</li>
+<li>有多少任务在争抢 CPU；</li>
+<li>调度和上下文切换是否异常；</li>
+<li>CPU 缓存和硬件执行效率是否异常。</li>
+</ol>
+<h3 id="1-CPU-使用率的组成"><a href="#1-CPU-使用率的组成" class="headerlink" title="1. CPU 使用率的组成"></a>1. CPU 使用率的组成</h3><p>CPU 使用率描述的是非空闲时间占总 CPU 时间的比例，但不同 CPU 时间代表的根因完全不同。</p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>常见名称</th>
+<th>含义</th>
+<th>常见排查方向</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>用户 CPU</td>
+<td><code>us</code> &#x2F; user</td>
+<td>CPU 在用户态执行普通进程的时间</td>
+<td>应用计算、算法、循环、业务代码、JIT 代码</td>
+</tr>
+<tr>
+<td>nice CPU</td>
+<td><code>ni</code> &#x2F; nice</td>
+<td>CPU 执行低优先级用户进程的时间</td>
+<td>低优先级后台任务</td>
+</tr>
+<tr>
+<td>系统 CPU</td>
+<td><code>sy</code> &#x2F; system</td>
+<td>CPU 在内核态执行的时间，不含中断</td>
+<td>系统调用、内核路径、锁、内存、I&#x2F;O 等</td>
+</tr>
+<tr>
+<td>I&#x2F;O Wait</td>
+<td><code>wa</code> &#x2F; iowait</td>
+<td>CPU 处于空闲且系统存在未完成 I&#x2F;O 时记入的等待时间</td>
+<td>磁盘、块设备、直接 I&#x2F;O 等</td>
+</tr>
+<tr>
+<td>硬中断</td>
+<td><code>hi</code> &#x2F; irq</td>
+<td>CPU 执行硬中断处理程序的时间</td>
+<td>网卡、磁盘、设备中断</td>
+</tr>
+<tr>
+<td>软中断</td>
+<td><code>si</code> &#x2F; softirq</td>
+<td>CPU 执行软中断的时间</td>
+<td>网络收发、定时器、调度、RCU 等</td>
+</tr>
+<tr>
+<td>steal</td>
+<td><code>st</code></td>
+<td>虚拟机等待宿主机调度 CPU 的时间</td>
+<td>虚拟化资源争抢</td>
+</tr>
+<tr>
+<td>guest</td>
+<td>guest</td>
+<td>CPU 用于运行客户虚拟机的时间</td>
+<td>虚拟化负载</td>
+</tr>
+</tbody></table>
+<p>最关键的一点是：<strong>不要把“CPU 高”当成一个统一问题。</strong></p>
+<p><code>us</code> 高和 <code>si</code> 高，即使最终都表现为 CPU 使用率上升，排查路径也完全不同。</p>
+<h3 id="2-Load-Average-不是-CPU-使用率"><a href="#2-Load-Average-不是-CPU-使用率" class="headerlink" title="2. Load Average 不是 CPU 使用率"></a>2. Load Average 不是 CPU 使用率</h3><p>Load Average 描述的是系统中的平均活跃任务数，通常显示最近：</p>
+<ul>
+<li>1 分钟；</li>
+<li>5 分钟；</li>
+<li>15 分钟。</li>
+</ul>
+<p>Linux 的负载不仅包含正在运行和等待 CPU 的任务，还包含部分不可中断睡眠任务。因此，负载高不一定意味着 CPU 已经 100%。</p>
+<p>在理想化理解中，如果负载长期接近逻辑 CPU 数量，说明 CPU 资源得到了较充分利用；如果长期明显超过逻辑 CPU 数量，就需要继续区分：</p>
+<ul>
+<li>是大量任务在 Run Queue 中等 CPU；</li>
+<li>还是大量任务处于不可中断状态等待 I&#x2F;O。</li>
+</ul>
+<p>这正是 <code>vmstat</code> 中 <code>r</code> 和 <code>b</code> 两列的价值。</p>
+<h3 id="3-上下文切换"><a href="#3-上下文切换" class="headerlink" title="3. 上下文切换"></a>3. 上下文切换</h3><p>Linux 的调度能力依赖上下文切换，但切换本身不是免费的。</p>
+<p>进程或线程被切走时，CPU 需要保存和恢复寄存器、内核栈、调度状态等信息；进程切换还可能带来地址空间和缓存局部性方面的额外成本。</p>
+<p>常见上下文切换分为：</p>
+<ul>
+<li><strong>Voluntary Context Switch（自愿上下文切换）</strong>：任务因为等待资源主动让出 CPU；</li>
+<li><strong>Nonvoluntary Context Switch（非自愿上下文切换）</strong>：任务被调度器强制切走，例如时间片耗尽或有更高优先级任务运行。</li>
+</ul>
+<p>如果非自愿上下文切换大量增加，通常意味着过多线程或进程正在争抢 CPU。</p>
+<h3 id="4-CPU-Cache-命中率"><a href="#4-CPU-Cache-命中率" class="headerlink" title="4. CPU Cache 命中率"></a>4. CPU Cache 命中率</h3><p>CPU 和内存之间存在巨大的速度差，因此现代 CPU 依赖多级缓存降低访存延迟。</p>
+<p>通常可以把缓存理解为：</p>
+<ul>
+<li>L1：最小、最快，通常与核心强绑定；</li>
+<li>L2：容量更大，速度稍慢；</li>
+<li>L3：更大，常被多个核心共享。</li>
+</ul>
+<p>CPU Cache 命中率越高，说明热点数据复用越好。CPU 亲和性、NUMA、本地性优化，本质上都与减少跨核心、跨节点的数据访问有关。</p>
+<hr>
+<h2 id="二、从中断理解-Linux-的异步处理机制"><a href="#二、从中断理解-Linux-的异步处理机制" class="headerlink" title="二、从中断理解 Linux 的异步处理机制"></a>二、从中断理解 Linux 的异步处理机制</h2><h3 id="1-为什么需要中断"><a href="#1-为什么需要中断" class="headerlink" title="1. 为什么需要中断"></a>1. 为什么需要中断</h3><p>硬件速度远低于 CPU。如果 CPU 每次都主动轮询网卡、磁盘或其他设备：</p>
+<blockquote>
+<p>“数据到了吗？数据到了吗？数据到了吗？”</p>
+</blockquote>
+<p>CPU 大量时间会浪费在无效检查上。</p>
+<p>中断提供了一种异步事件机制：CPU 正常做其他工作，硬件准备好后主动通知 CPU。</p>
+<p>可以把它理解为：</p>
+<ul>
+<li>轮询：一直站在门口等外卖；</li>
+<li>中断：外卖到了打电话，你再去处理。</li>
+</ul>
+<p>问题在于，中断会打断 CPU 当前正在执行的任务。如果一次中断处理耗时太长，就会影响正常任务甚至其他中断的及时处理。</p>
+<p>因此 Linux 把中断处理拆成两个阶段。</p>
+<h3 id="2-上半部和下半部"><a href="#2-上半部和下半部" class="headerlink" title="2. 上半部和下半部"></a>2. 上半部和下半部</h3><pre><code class=" mermaid">flowchart LR
+    A[硬件事件发生] --&gt; B[产生硬件中断]
+    B --&gt; C[上半部 / Hard IRQ]
+    C --&gt; D[快速完成硬件相关工作]
+    D --&gt; E[触发后续处理]
+    E --&gt; F[下半部 / SoftIRQ 等机制]
+    F --&gt; G[执行较重的协议、调度或延迟工作]
+    G --&gt; H[最终交给进程/应用]
+</code></pre>
+
+<p>**上半部（Top Half）**的目标是快：</p>
+<ul>
+<li>响应设备；</li>
+<li>读取或确认必要的硬件状态；</li>
+<li>完成时间敏感操作；</li>
+<li>尽快退出中断上下文。</li>
+</ul>
+<p>**下半部（Bottom Half）**则处理可以延后的工作。</p>
+<p>以网卡收包为例，可以粗略理解为：</p>
+<ol>
+<li>网卡收到数据包；</li>
+<li>产生硬件中断；</li>
+<li>上半部快速确认设备状态，并把后续工作交给下半部；</li>
+<li>下半部继续处理网络协议栈；</li>
+<li>最终把数据交给 socket 和应用程序。</li>
+</ol>
+<p>这里需要补一个非常重要的细节：<strong>不能简单认为“所有软中断都是由 <code>ksoftirqd</code> 线程执行”。</strong></p>
+<p>软中断可以直接在相关内核执行路径中被处理；当软中断过多、超过处理预算或需要把工作延后时，才会更多地由每个 CPU 对应的 <code>ksoftirqd/N</code> 内核线程接管。</p>
+<p>因此，看到 <code>ksoftirqd</code> 占用 CPU 很高，通常说明软中断已经积压到需要内核线程持续处理。</p>
+<h3 id="3-ksoftirqd-是什么"><a href="#3-ksoftirqd-是什么" class="headerlink" title="3. ksoftirqd 是什么"></a>3. <code>ksoftirqd</code> 是什么</h3><p>Linux 每个逻辑 CPU 都有对应的软中断内核线程，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">[ksoftirqd/0]<br>[ksoftirqd/1]<br></code></pre></td></tr></table></figure>
+
+<p>可以用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ps aux | grep softirq<br></code></pre></td></tr></table></figure>
+
+<p>查看。</p>
+<p>进程名外面的 <code>[]</code> 是一个很有用的识别信号：这通常表示它是内核线程，而不是普通用户态程序。</p>
+<hr>
+<h2 id="三、Linux-软中断有哪些类型"><a href="#三、Linux-软中断有哪些类型" class="headerlink" title="三、Linux 软中断有哪些类型"></a>三、Linux 软中断有哪些类型</h2><p>系统中的软中断累计次数可以从：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/softirqs<br></code></pre></td></tr></table></figure>
+
+<p>查看。</p>
+<p>典型输出会包含：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">                CPU0       CPU1<br>      HI:          0          0<br>   TIMER:    811613    1972736<br>  NET_TX:         49          7<br>  NET_RX:    1136736    1506885<br>   BLOCK:          0          0<br>IRQ_POLL:          0          0<br> TASKLET:     304787       3691<br>   SCHED:     689718    1897539<br> HRTIMER:          0          0<br>     RCU:    1330771    1354737<br></code></pre></td></tr></table></figure>
+
+<p>常见类别可以这样理解：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>典型含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>HI</code></td>
+<td>高优先级 tasklet 类软中断</td>
+</tr>
+<tr>
+<td><code>TIMER</code></td>
+<td>普通定时器</td>
+</tr>
+<tr>
+<td><code>NET_TX</code></td>
+<td>网络发送</td>
+</tr>
+<tr>
+<td><code>NET_RX</code></td>
+<td>网络接收</td>
+</tr>
+<tr>
+<td><code>BLOCK</code></td>
+<td>块设备相关</td>
+</tr>
+<tr>
+<td><code>IRQ_POLL</code></td>
+<td>IRQ Poll 相关处理</td>
+</tr>
+<tr>
+<td><code>TASKLET</code></td>
+<td>tasklet 处理</td>
+</tr>
+<tr>
+<td><code>SCHED</code></td>
+<td>调度相关软中断</td>
+</tr>
+<tr>
+<td><code>HRTIMER</code></td>
+<td>高精度定时器</td>
+</tr>
+<tr>
+<td><code>RCU</code></td>
+<td>Read-Copy Update 相关处理</td>
+</tr>
+</tbody></table>
+<p>分析 <code>/proc/softirqs</code> 时不要只看“哪个数最大”，而要看两个维度：</p>
+<h3 id="1-看增长速度，而不是累计值"><a href="#1-看增长速度，而不是累计值" class="headerlink" title="1. 看增长速度，而不是累计值"></a>1. 看增长速度，而不是累计值</h3><p><code>/proc/softirqs</code> 显示的是自系统启动以来的累计次数。</p>
+<p>因此，单独执行一次：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/softirqs<br></code></pre></td></tr></table></figure>
+
+<p>信息量有限。</p>
+<p>更有效的方式是观察变化速率：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">watch -d <span class="hljs-built_in">cat</span> /proc/softirqs<br></code></pre></td></tr></table></figure>
+
+<p><code>-d</code> 会高亮发生变化的部分。这样可以迅速看到哪类软中断正在高速增长。</p>
+<h3 id="2-看-CPU-分布是否失衡"><a href="#2-看-CPU-分布是否失衡" class="headerlink" title="2. 看 CPU 分布是否失衡"></a>2. 看 CPU 分布是否失衡</h3><p>同一种软中断如果长期集中在少数 CPU 上，可能带来负载不均衡。</p>
+<p>对于网络中断，常见的系统级优化手段包括：</p>
+<ul>
+<li><code>irqbalance</code>；</li>
+<li><code>smp_affinity</code>；</li>
+<li>合理配置网卡多队列和 CPU 亲和性。</li>
+</ul>
+<p>但不要一看到分布不均就立刻“调均匀”。中断亲和性与应用线程亲和性、NUMA、网卡队列设计是联动的，必须结合实际负载测试。</p>
+<h3 id="3-硬中断在哪里看"><a href="#3-硬中断在哪里看" class="headerlink" title="3. 硬中断在哪里看"></a>3. 硬中断在哪里看</h3><p>硬中断对应：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/interrupts<br></code></pre></td></tr></table></figure>
+
+<p>因此可以记成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">/proc/interrupts  -&gt; 硬中断<br>/proc/softirqs    -&gt; 软中断<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="四、最典型的软中断问题：网络小包"><a href="#四、最典型的软中断问题：网络小包" class="headerlink" title="四、最典型的软中断问题：网络小包"></a>四、最典型的软中断问题：网络小包</h2><p>软中断类型很多，但生产环境中最常见的一类性能问题是网络软中断，尤其是 <code>NET_RX</code>。</p>
+<p>这里有一个非常重要的工程经验：</p>
+<blockquote>
+<p><strong>网络性能不能只看带宽 BPS，还要看包速率 PPS。</strong></p>
+</blockquote>
+<p>即使每秒只有几百 KB，如果都是几十字节的小包，CPU 仍然可能因为需要处理大量网络帧而被软中断拖垮。</p>
+<h3 id="1-实验环境"><a href="#1-实验环境" class="headerlink" title="1. 实验环境"></a>1. 实验环境</h3><p>案例使用两台虚拟机隔离服务端和压测端：</p>
+<pre><code class=" mermaid">flowchart LR
+    C[VM2: Client&lt;br/&gt;192.168.0.2&lt;br/&gt;hping3] --&gt;|TCP SYN| S[VM1: Server&lt;br/&gt;192.168.0.30&lt;br/&gt;Nginx]
+</code></pre>
+
+<p>服务端启动 Nginx：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker run -itd --name=nginx -p 80:80 nginx<br></code></pre></td></tr></table></figure>
+
+<p>验证服务：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">curl http://192.168.0.30/<br></code></pre></td></tr></table></figure>
+
+<p>在隔离的测试环境中，可以使用 <code>hping3</code> 构造高频 SYN 流量：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-comment"># -S: 设置 TCP SYN</span><br><span class="hljs-comment"># -p 80: 目标端口 80</span><br><span class="hljs-comment"># -i u100: 每 100 微秒发送一个包</span><br>hping3 -S -p 80 -i u100 192.168.0.30<br></code></pre></td></tr></table></figure>
+
+<p>这类命令只应在你有权限的实验环境中使用，不应对第三方系统执行。</p>
+<h3 id="2-第一步：top-看整体资源"><a href="#2-第一步：top-看整体资源" class="headerlink" title="2. 第一步：top 看整体资源"></a>2. 第一步：<code>top</code> 看整体资源</h3><p>案例中，<code>top</code> 显示 CPU 并不高：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">%Cpu0 : 0.0 us, 0.0 sy, 0.0 ni, 96.7 id, 0.0 wa, 0.0 hi, 3.3 si, 0.0 st<br>%Cpu1 : 0.0 us, 0.0 sy, 0.0 ni, 95.6 id, 0.0 wa, 0.0 hi, 4.4 si, 0.0 st<br></code></pre></td></tr></table></figure>
+
+<p>但两个 CPU 的非空闲时间几乎都消耗在 <code>si</code> 上，而且进程列表里能看到 <code>ksoftirqd</code>。</p>
+<p>这时正确的结论不是“CPU 才 4%，没问题”，而是：</p>
+<blockquote>
+<p>系统当前有效工作很少，但软中断占了异常突出的一部分，需要继续确认软中断类型。</p>
+</blockquote>
+<h3 id="3-第二步：-proc-softirqs-找软中断类型"><a href="#3-第二步：-proc-softirqs-找软中断类型" class="headerlink" title="3. 第二步：/proc/softirqs 找软中断类型"></a>3. 第二步：<code>/proc/softirqs</code> 找软中断类型</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">watch -d <span class="hljs-built_in">cat</span> /proc/softirqs<br></code></pre></td></tr></table></figure>
+
+<p>案例中 <code>TIMER</code>、<code>SCHED</code>、<code>RCU</code> 都会变化，但 <strong><code>NET_RX</code> 增长最快</strong>。</p>
+<p>这就把问题从“CPU 异常”缩小成了：</p>
+<blockquote>
+<p>网络接收软中断异常。</p>
+</blockquote>
+<h3 id="4-第三步：sar-同时看-PPS-和-BPS"><a href="#4-第三步：sar-同时看-PPS-和-BPS" class="headerlink" title="4. 第三步：sar 同时看 PPS 和 BPS"></a>4. 第三步：<code>sar</code> 同时看 PPS 和 BPS</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">sar -n DEV 1<br></code></pre></td></tr></table></figure>
+
+<p>典型输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">15:03:46 IFACE       rxpck/s   txpck/s   rxkB/s   txkB/s<br>15:03:47 eth0        12607.00   6304.00   664.86   358.11<br></code></pre></td></tr></table></figure>
+
+<p>字段含义：</p>
+<ul>
+<li><code>rxpck/s</code>：每秒接收包数，PPS；</li>
+<li><code>txpck/s</code>：每秒发送包数，PPS；</li>
+<li><code>rxkB/s</code>：每秒接收 KB 数，BPS 的一种表达；</li>
+<li><code>txkB/s</code>：每秒发送 KB 数。</li>
+</ul>
+<p>案例里 <code>eth0</code> 每秒收到约 <code>12607</code> 个包，但只有 <code>664.86 KB/s</code>。</p>
+<p>平均包大小约为：</p>
+<p>$$<br>\frac{664 \times 1024}{12607} \approx 54\ \text{Bytes}<br>$$</p>
+<p>也就是说：</p>
+<blockquote>
+<p>带宽不高，但 PPS 极高，而且包非常小。</p>
+</blockquote>
+<p>这就是典型的 <strong>Small Packet（网络小包）</strong> 问题。</p>
+<h3 id="5-第四步：tcpdump-确认包类型和来源"><a href="#5-第四步：tcpdump-确认包类型和来源" class="headerlink" title="5. 第四步：tcpdump 确认包类型和来源"></a>5. 第四步：<code>tcpdump</code> 确认包类型和来源</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">tcpdump -i eth0 -n tcp port 80<br></code></pre></td></tr></table></figure>
+
+<p>输出类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.0.2.18238 &gt; 192.168.0.30.80: Flags [S], seq ...<br></code></pre></td></tr></table></figure>
+
+<p>可以得到两个关键信息：</p>
+<ul>
+<li>来源：<code>192.168.0.2</code>；</li>
+<li><code>Flags [S]</code>：TCP SYN 包。</li>
+</ul>
+<p>结合前面的高 PPS，就可以形成完整证据链：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">系统响应异常<br>  -&gt; top 发现 si 异常突出<br>  -&gt; /proc/softirqs 发现 NET_RX 增长最快<br>  -&gt; sar 发现高 PPS + 低 BPS<br>  -&gt; 计算得出平均包约 54B<br>  -&gt; tcpdump 发现持续大量 SYN<br>  -&gt; 确认 SYN Flood / 异常小包流量<br></code></pre></td></tr></table></figure>
+
+<h3 id="6-为什么-CPU-只有-4-，SSH-还是很卡"><a href="#6-为什么-CPU-只有-4-，SSH-还是很卡" class="headerlink" title="6. 为什么 CPU 只有 4%，SSH 还是很卡"></a>6. 为什么 CPU 只有 4%，SSH 还是很卡</h3><p>这个案例非常容易被误解。</p>
+<p>终端卡顿不是因为“4% 的软中断就把 CPU 打满了”，而是因为登录本身使用 SSH，SSH 也依赖网络。</p>
+<p>案例中，在异常流量出现前，网络 RTT 基本不到 <code>1 ms</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">0% packet loss<br>rtt min/avg/max/mdev = 0.815/0.914/0.989/0.081 ms<br></code></pre></td></tr></table></figure>
+
+<p>异常流量出现后：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">33% packet loss<br>rtt min/avg/max/mdev = 240.637/245.758/250.880/5.145 ms<br></code></pre></td></tr></table></figure>
+
+<p>所以“终端敲回车很慢”的直接原因是网络延迟和丢包，而不是 CPU 整体已经满载。</p>
+<p>这件事非常值得记住：</p>
+<blockquote>
+<p><strong>用户看到的“系统卡”只是一种现象，真正瓶颈可能来自 CPU、I&#x2F;O、网络、调度，甚至远程访问链路。</strong></p>
+</blockquote>
+<h3 id="7-应用程序也能间接制造软中断问题"><a href="#7-应用程序也能间接制造软中断问题" class="headerlink" title="7. 应用程序也能间接制造软中断问题"></a>7. 应用程序也能间接制造软中断问题</h3><p>软中断运行在内核中，不代表它与应用无关。</p>
+<p>例如，同样发送 <code>1 GB</code> 数据：</p>
+<ul>
+<li>每次发送 <code>1 KB</code>；</li>
+<li>每次发送 <code>32 B</code>；</li>
+</ul>
+<p>后者会制造更多网络包、更高 PPS、更频繁的协议栈处理和中断压力。</p>
+<p>所以软中断高时，不应停在“这是内核问题”这一步，还要继续问：</p>
+<ul>
+<li>谁制造了这些网络包？</li>
+<li>是否存在过小的发送粒度？</li>
+<li>是否存在不必要的轮询、短睡眠或高频系统调用？</li>
+<li>是否存在异常客户端或攻击流量？</li>
+</ul>
+<hr>
+<h2 id="五、从指标出发选择工具，而不是背工具"><a href="#五、从指标出发选择工具，而不是背工具" class="headerlink" title="五、从指标出发选择工具，而不是背工具"></a>五、从指标出发选择工具，而不是背工具</h2><p>Linux 性能工具很多，最有效的记忆方式不是按命令背，而是按“我现在缺哪类证据”选择工具。</p>
+<h3 id="1-指标到工具"><a href="#1-指标到工具" class="headerlink" title="1. 指标到工具"></a>1. 指标到工具</h3><table>
+<thead>
+<tr>
+<th>想看的指标</th>
+<th>常用工具</th>
+<th>主要价值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>平均负载</td>
+<td><code>uptime</code>、<code>top</code></td>
+<td>快速判断整体负载</td>
+</tr>
+<tr>
+<td>系统 CPU</td>
+<td><code>top</code>、<code>vmstat</code>、<code>mpstat</code>、<code>sar</code>、<code>/proc/stat</code></td>
+<td>区分 user&#x2F;system&#x2F;iowait&#x2F;irq&#x2F;softirq</td>
+</tr>
+<tr>
+<td>进程 CPU</td>
+<td><code>top</code>、<code>pidstat</code>、<code>ps</code>、<code>htop</code>、<code>atop</code></td>
+<td>找高 CPU 进程</td>
+</tr>
+<tr>
+<td>每 CPU 使用率</td>
+<td><code>mpstat</code></td>
+<td>观察单核失衡</td>
+</tr>
+<tr>
+<td>系统上下文切换</td>
+<td><code>vmstat</code></td>
+<td>看 <code>cs</code>、<code>r</code>、<code>b</code>、<code>in</code></td>
+</tr>
+<tr>
+<td>进程&#x2F;线程上下文切换</td>
+<td><code>pidstat -w</code></td>
+<td>区分自愿和非自愿切换</td>
+</tr>
+<tr>
+<td>软中断</td>
+<td><code>top</code>、<code>/proc/softirqs</code>、<code>mpstat</code></td>
+<td>看 <code>si</code> 和软中断类型</td>
+</tr>
+<tr>
+<td>硬中断</td>
+<td><code>vmstat</code>、<code>/proc/interrupts</code></td>
+<td>看中断总量和分布</td>
+</tr>
+<tr>
+<td>网络</td>
+<td><code>sar -n</code>、<code>tcpdump</code>、<code>dstat</code></td>
+<td>PPS&#x2F;BPS、抓包、协议和来源</td>
+</tr>
+<tr>
+<td>I&#x2F;O</td>
+<td><code>sar -d</code>、<code>dstat</code></td>
+<td>设备吞吐和等待</td>
+</tr>
+<tr>
+<td>系统调用</td>
+<td><code>strace</code></td>
+<td>看进程进入内核做了什么</td>
+</tr>
+<tr>
+<td>CPU 事件&#x2F;调用链</td>
+<td><code>perf</code></td>
+<td>函数热点、调用栈、缓存等</td>
+</tr>
+<tr>
+<td>短时进程</td>
+<td><code>execsnoop</code></td>
+<td>捕获生命周期很短、top 不易看到的进程</td>
+</tr>
+</tbody></table>
+<h3 id="2-工具到指标"><a href="#2-工具到指标" class="headerlink" title="2. 工具到指标"></a>2. 工具到指标</h3><p>反过来也需要知道每个核心工具擅长什么。</p>
+<h4 id="top"><a href="#top" class="headerlink" title="top"></a><code>top</code></h4><p>适合第一眼看全局：</p>
+<ul>
+<li>Load Average；</li>
+<li>各类 CPU 时间；</li>
+<li>僵尸进程；</li>
+<li>高 CPU 进程；</li>
+<li>进程状态。</li>
+</ul>
+<p>执行后按 <code>1</code> 可以展开每个逻辑 CPU。</p>
+<h4 id="vmstat"><a href="#vmstat" class="headerlink" title="vmstat"></a><code>vmstat</code></h4><p>适合看系统调度和资源整体状态：</p>
+<ul>
+<li><code>r</code>：运行&#x2F;等待 CPU 的任务；</li>
+<li><code>b</code>：不可中断睡眠任务；</li>
+<li><code>in</code>：中断次数；</li>
+<li><code>cs</code>：上下文切换次数；</li>
+<li>CPU 各类时间；</li>
+<li>内存和 swap 基本信息。</li>
+</ul>
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">vmstat 1<br></code></pre></td></tr></table></figure>
+
+<h4 id="pidstat"><a href="#pidstat" class="headerlink" title="pidstat"></a><code>pidstat</code></h4><p>用于把系统级现象落到进程和线程：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">pidstat -u 1<br>pidstat -w 1<br>pidstat -u -t 1<br></code></pre></td></tr></table></figure>
+
+<p>它能观察：</p>
+<ul>
+<li>进程&#x2F;线程用户 CPU；</li>
+<li>系统 CPU；</li>
+<li>CPU 等待；</li>
+<li>自愿上下文切换；</li>
+<li>非自愿上下文切换。</li>
+</ul>
+<h4 id="perf"><a href="#perf" class="headerlink" title="perf"></a><code>perf</code></h4><p>当你已经找到“可疑进程或可疑执行路径”，再用 <code>perf</code> 下钻到函数和调用链，通常更有效。</p>
+<p>常用的核心组合是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">perf record -g -p &lt;PID&gt;<br>perf report<br></code></pre></td></tr></table></figure>
+
+<p>不要把 <code>perf</code> 当成“CPU 问题一键诊断器”。它提供的是采样证据，仍然需要结合前面的系统指标理解。</p>
+<hr>
+<h2 id="六、一套“又快又准”的-CPU-排障决策树"><a href="#六、一套“又快又准”的-CPU-排障决策树" class="headerlink" title="六、一套“又快又准”的 CPU 排障决策树"></a>六、一套“又快又准”的 CPU 排障决策树</h2><p>实际生产环境中，没有必要把所有工具全部跑一遍。</p>
+<p>更合理的方法是先用覆盖面大的工具缩小范围，再按指标分支下钻。</p>
+<pre><code class=" mermaid">flowchart TD
+    A[系统变慢 / CPU异常 / Load升高] --&gt; B[top]
+    B --&gt; C&#123;哪个指标异常?&#125;
+
+    C --&gt;|us 高| D[pidstat 找高 CPU 进程/线程]
+    D --&gt; E[perf 看函数热点]
+
+    C --&gt;|sy 高| F[vmstat 看 cs/in/r/b]
+    F --&gt; G[pidstat -w / -u -t]
+    G --&gt; H[strace / perf]
+
+    C --&gt;|wa 高| I[vmstat 看 b]
+    I --&gt; J[sar -d / dstat]
+    J --&gt; K[定位磁盘与进程]
+
+    C --&gt;|si 高| L[/proc/softirqs]
+    L --&gt; M&#123;软中断类型&#125;
+    M --&gt;|NET_RX/NET_TX| N[sar -n DEV]
+    N --&gt; O[tcpdump]
+    M --&gt;|SCHED| P[检查上下文切换与线程争抢]
+
+    C --&gt;|hi 高| Q[/proc/interrupts]
+    Q --&gt; R[检查设备与 IRQ 分布]
+
+    C --&gt;|Load 高| S[vmstat]
+    S --&gt; T&#123;r 还是 b 高?&#125;
+    T --&gt;|r 高| D
+    T --&gt;|b 高| I
+
+    B --&gt; U&#123;看不到高 CPU 进程?&#125;
+    U --&gt;|存在短时进程| V[execsnoop / perf record]
+</code></pre>
+
+<p>这张图背后的核心不是命令，而是关联关系。</p>
+<h3 id="1-us-高：优先看用户态"><a href="#1-us-高：优先看用户态" class="headerlink" title="1. us 高：优先看用户态"></a>1. <code>us</code> 高：优先看用户态</h3><p>如果 <code>top</code> 显示用户 CPU 高，就应该优先找哪个用户进程消耗 CPU：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">pidstat -u 1<br></code></pre></td></tr></table></figure>
+
+<p>找到目标进程后，再用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">perf record -g -p &lt;PID&gt;<br>perf report<br></code></pre></td></tr></table></figure>
+
+<p>看函数热点。</p>
+<h3 id="2-sy-高：优先看系统调用、调度和内核路径"><a href="#2-sy-高：优先看系统调用、调度和内核路径" class="headerlink" title="2. sy 高：优先看系统调用、调度和内核路径"></a>2. <code>sy</code> 高：优先看系统调用、调度和内核路径</h3><p>系统 CPU 高时，可以结合：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">vmstat 1<br>pidstat -w 1<br>pidstat -u -t 1<br></code></pre></td></tr></table></figure>
+
+<p>判断是否是：</p>
+<ul>
+<li>上下文切换过多；</li>
+<li>高系统调用频率；</li>
+<li>锁竞争；</li>
+<li>短时进程；</li>
+<li>内核函数热点。</li>
+</ul>
+<p>需要看系统调用时使用 <code>strace</code>，需要看用户态和内核态完整热点时使用 <code>perf</code>。</p>
+<h3 id="3-wa-高：进入-I-O-路径"><a href="#3-wa-高：进入-I-O-路径" class="headerlink" title="3. wa 高：进入 I&#x2F;O 路径"></a>3. <code>wa</code> 高：进入 I&#x2F;O 路径</h3><p>如果同时看到大量不可中断进程，优先使用 I&#x2F;O 工具定位设备和相关进程。</p>
+<p>但要记住：<code>iowait</code> 不是“某个进程等待 I&#x2F;O 的比例”，它是一个 CPU 时间指标。</p>
+<h3 id="4-si-高：按软中断类型继续分支"><a href="#4-si-高：按软中断类型继续分支" class="headerlink" title="4. si 高：按软中断类型继续分支"></a>4. <code>si</code> 高：按软中断类型继续分支</h3><p><code>NET_RX</code>、<code>NET_TX</code> 高就继续看网络；<code>SCHED</code> 异常就结合上下文切换和运行队列分析。</p>
+<h3 id="5-Load-高：先区分-r-和-b"><a href="#5-Load-高：先区分-r-和-b" class="headerlink" title="5. Load 高：先区分 r 和 b"></a>5. Load 高：先区分 <code>r</code> 和 <code>b</code></h3><p>Load Average 只是现象。</p>
+<p><code>vmstat</code> 可以帮助你判断：</p>
+<ul>
+<li><code>r</code> 高：大量任务在运行或等 CPU；</li>
+<li><code>b</code> 高：大量任务处于不可中断状态，继续排查 I&#x2F;O。</li>
+</ul>
+<hr>
+<h2 id="七、几个非常容易误解的指标"><a href="#七、几个非常容易误解的指标" class="headerlink" title="七、几个非常容易误解的指标"></a>七、几个非常容易误解的指标</h2><h3 id="1-pidstat-wait-不等于-top-wa"><a href="#1-pidstat-wait-不等于-top-wa" class="headerlink" title="1. pidstat %wait 不等于 top wa"></a>1. <code>pidstat %wait</code> 不等于 <code>top wa</code></h3><p>这是 CPU 性能分析里非常典型的误区。</p>
+<p><code>pidstat</code> 中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">%wait = 进程等待 CPU 调度的时间比例<br></code></pre></td></tr></table></figure>
+
+<p>它表示任务已经就绪，但还没拿到 CPU。</p>
+<p>而 <code>top</code> 中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">wa / iowait = CPU 等待 I/O 的时间比例<br></code></pre></td></tr></table></figure>
+
+<p>两者完全不是一个概念。</p>
+<p>可以记成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">pidstat %wait -&gt; 等 CPU<br> top iowait -&gt; 等 I/O<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-等待-CPU-和等待-I-O-的任务状态不同"><a href="#2-等待-CPU-和等待-I-O-的任务状态不同" class="headerlink" title="2. 等待 CPU 和等待 I&#x2F;O 的任务状态不同"></a>2. 等待 CPU 和等待 I&#x2F;O 的任务状态不同</h3><ul>
+<li>等待 CPU：已经在 Run Queue 中，本质上属于可运行任务；</li>
+<li>等待部分 I&#x2F;O：可能处于不可中断睡眠状态（D state）。</li>
+</ul>
+<p>不要把“可中断&#x2F;不可中断睡眠”“硬中断&#x2F;软中断”“Unix Signal”混成一组概念。</p>
+<h3 id="3-Ctrl-C、Ctrl-Z-是-Signal，不是硬中断-软中断"><a href="#3-Ctrl-C、Ctrl-Z-是-Signal，不是硬中断-软中断" class="headerlink" title="3. Ctrl+C、Ctrl+Z 是 Signal，不是硬中断&#x2F;软中断"></a>3. <code>Ctrl+C</code>、<code>Ctrl+Z</code> 是 Signal，不是硬中断&#x2F;软中断</h3><p>它们属于进程间通信和进程控制中的信号机制：</p>
+<ul>
+<li><code>Ctrl+C</code> 通常触发 <code>SIGINT</code>；</li>
+<li><code>Ctrl+Z</code> 通常触发 <code>SIGTSTP</code>。</li>
+</ul>
+<p>这和内核处理网卡、磁盘设备的硬中断不是一回事。</p>
+<h3 id="4-vmstat-第一行为什么经常特别奇怪"><a href="#4-vmstat-第一行为什么经常特别奇怪" class="headerlink" title="4. vmstat 第一行为什么经常特别奇怪"></a>4. <code>vmstat</code> 第一行为什么经常特别奇怪</h3><p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">vmstat 5<br></code></pre></td></tr></table></figure>
+
+<p>时，第一行并不代表“最近 5 秒”。</p>
+<p>它的 CPU、I&#x2F;O 等部分通常是 <strong>系统启动以来的平均值</strong>；后续行才是每个采样间隔内的平均值。</p>
+<p>因此：</p>
+<blockquote>
+<p>分析瞬时问题时，不要拿 <code>vmstat</code> 第一行和后续行直接比较。</p>
+</blockquote>
+<p>进程和内存相关部分则更接近即时状态。</p>
+<h3 id="5-工具输出不符合常识，第一反应应该是-man"><a href="#5-工具输出不符合常识，第一反应应该是-man" class="headerlink" title="5. 工具输出不符合常识，第一反应应该是 man"></a>5. 工具输出不符合常识，第一反应应该是 <code>man</code></h3><p>不同发行版、不同工具版本，字段和参数可能不同。</p>
+<p>性能分析时一个很重要的习惯是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">man vmstat<br>man pidstat<br>man perf-report<br></code></pre></td></tr></table></figure>
+
+<p>如果一个指标解释不通，不要先怀疑内核“坏了”，先确认工具本身到底在输出什么。</p>
+<hr>
+<h2 id="八、实验为什么经常复现不出来"><a href="#八、实验为什么经常复现不出来" class="headerlink" title="八、实验为什么经常复现不出来"></a>八、实验为什么经常复现不出来</h2><p>性能实验高度依赖：</p>
+<ul>
+<li>CPU 核数；</li>
+<li>内存；</li>
+<li>HDD &#x2F; SATA SSD &#x2F; NVMe；</li>
+<li>内核版本；</li>
+<li>虚拟机与宿主机调度；</li>
+<li>工具版本；</li>
+<li>容器运行模式。</li>
+</ul>
+<p>同一条压力命令，在不同机器上可能出现完全不同的结果。</p>
+<h3 id="1-stress-i-不一定能制造高-iowait"><a href="#1-stress-i-不一定能制造高-iowait" class="headerlink" title="1. stress -i 不一定能制造高 iowait"></a>1. <code>stress -i</code> 不一定能制造高 iowait</h3><p>早期常见的写法：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">stress -i 1 --<span class="hljs-built_in">timeout</span> 600<br></code></pre></td></tr></table></figure>
+
+<p>其中 <code>-i</code> 主要通过 <code>sync()</code> 制造系统调用和刷盘行为。</p>
+<p>问题是：如果页面缓存里本来就没有多少脏数据，<code>sync()</code> 并不会产生足够大的磁盘压力。</p>
+<p>在 SSD 环境下尤其明显，可能看到：</p>
+<ul>
+<li><code>iowait</code> 几乎为 0；</li>
+<li><code>sys</code> 反而升高。</li>
+</ul>
+<p>更可靠的实验方式是使用 <code>stress-ng</code> 同时制造实际文件读写：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">stress-ng -i 1 --hdd 1 --<span class="hljs-built_in">timeout</span> 600<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-磁盘性能差异会彻底改变现象"><a href="#2-磁盘性能差异会彻底改变现象" class="headerlink" title="2. 磁盘性能差异会彻底改变现象"></a>2. 磁盘性能差异会彻底改变现象</h3><p>同一个 I&#x2F;O 压力：</p>
+<ul>
+<li>在机械盘上可能直接把磁盘利用率压到 100%；</li>
+<li>在低端 SSD 上刚好形成明显 iowait；</li>
+<li>在高性能 NVMe 上可能几乎看不到瓶颈。</li>
+</ul>
+<p>因此，“我复现不出来”并不代表分析方法错误。</p>
+<h3 id="3-不要假设磁盘一定是-dev-sdX"><a href="#3-不要假设磁盘一定是-dev-sdX" class="headerlink" title="3. 不要假设磁盘一定是 /dev/sdX"></a>3. 不要假设磁盘一定是 <code>/dev/sdX</code></h3><p>现代云主机和 NVMe 设备常见：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/dev/nvme0n1<br></code></pre></td></tr></table></figure>
+
+<p>如果测试程序只匹配 <code>/dev/sd</code> 或 <code>/dev/xvd</code>，就可能找不到真实块设备。</p>
+<p>示例测试程序后来增加了类似参数：</p>
+<ul>
+<li><code>-d</code>：指定读取磁盘；</li>
+<li><code>-s</code>：每次读取的数据量，默认 <code>67108864</code> 字节，即 <code>64 MB</code>；</li>
+<li><code>-c</code>：子进程读取次数，默认 <code>20</code>。</li>
+</ul>
+<p>示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker run --privileged --name=app -itd \<br>  feisky/app:iowait \<br>  /app -d /dev/sdb -s 67108864 -c 20<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-单核机器无法复现-RES-重调度中断"><a href="#4-单核机器无法复现-RES-重调度中断" class="headerlink" title="4. 单核机器无法复现 RES 重调度中断"></a>4. 单核机器无法复现 RES 重调度中断</h3><p><code>RES</code> 是 Rescheduling Interrupt（重调度中断），用于处理器之间通知和调度，通常依赖 IPI（Inter-Processor Interrupt，处理器间中断）。</p>
+<p>如果系统只有一个逻辑 CPU，就不存在把任务重新调度到另一个 CPU 的意义，因此很难看到 RES 增长。</p>
+<p>但这不代表“没有调度问题”。</p>
+<p>大量线程仍然会在单核 CPU 上争抢时间片，你会看到：</p>
+<ul>
+<li><code>cs</code> 大幅增加；</li>
+<li>非自愿上下文切换上升；</li>
+<li><code>pidstat</code> 的 <code>%wait</code> 很高；</li>
+<li>每个线程真正执行 CPU 的比例反而很低。</li>
+</ul>
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">pidstat -u -t 1<br></code></pre></td></tr></table></figure>
+
+<p>可以直接观察线程等待 CPU 的情况。</p>
+<hr>
+<h2 id="九、perf：从“哪个进程”下钻到“哪个函数”"><a href="#九、perf：从“哪个进程”下钻到“哪个函数”" class="headerlink" title="九、perf：从“哪个进程”下钻到“哪个函数”"></a>九、<code>perf</code>：从“哪个进程”下钻到“哪个函数”</h2><p><code>top</code>、<code>vmstat</code>、<code>pidstat</code> 负责告诉你哪里可疑；<code>perf</code> 的价值是继续回答：</p>
+<blockquote>
+<p>CPU 时间到底消耗在哪条调用链、哪个函数、哪个内核路径上？</p>
+</blockquote>
+<h3 id="1-最重要的两个命令"><a href="#1-最重要的两个命令" class="headerlink" title="1. 最重要的两个命令"></a>1. 最重要的两个命令</h3><p>对于日常 CPU 性能定位，先掌握：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">perf record -g -p &lt;PID&gt;<br>perf report<br></code></pre></td></tr></table></figure>
+
+<p><code>-g</code> 用于采集调用栈。</p>
+<p>也可以先用实时模式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">perf top -g -p &lt;PID&gt;<br></code></pre></td></tr></table></figure>
+
+<p>但线上复盘时，<code>record + report</code> 更便于保存证据。</p>
+<h3 id="2-为什么不能“一上来就-perf”"><a href="#2-为什么不能“一上来就-perf”" class="headerlink" title="2. 为什么不能“一上来就 perf”"></a>2. 为什么不能“一上来就 perf”</h3><p>因为高采样比例不等于性能瓶颈。</p>
+<p>一个典型例子是 <code>swapper</code>。</p>
+<p>很多人看到 <code>perf report</code> 中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">swapper 99%<br></code></pre></td></tr></table></figure>
+
+<p>第一反应是“这就是瓶颈”。</p>
+<p>实际上，<code>swapper</code> 与 swap 分区没有关系。它本质上是 CPU 空闲时运行的 idle task。</p>
+<p>如果调用链主要落在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">do_idle<br></code></pre></td></tr></table></figure>
+
+<p>那 <code>swapper</code> 高反而可能说明 CPU 大部分时间没事做。</p>
+<p>所以：</p>
+<blockquote>
+<p><strong>事件占比大，只能说明采样多，不能单独证明它是问题。</strong></p>
+</blockquote>
+<p>要把 perf 结果和 <code>top</code>、<code>vmstat</code>、<code>pidstat</code> 等系统指标交叉验证。</p>
+<h3 id="3-Children-和-Self"><a href="#3-Children-和-Self" class="headerlink" title="3. Children 和 Self"></a>3. <code>Children</code> 和 <code>Self</code></h3><p><code>perf report</code> 常见两个关键列：</p>
+<ul>
+<li><strong>Self</strong>：当前符号本身消耗的比例；</li>
+<li><strong>Children</strong>：该符号下面所有直接和间接子调用消耗的累计比例。</li>
+</ul>
+<p>因此：</p>
+<ul>
+<li><code>Self</code> 高：函数本身很重；</li>
+<li><code>Children</code> 高但 <code>Self</code> 低：真正成本主要在它调用的其他函数中。</li>
+</ul>
+<h3 id="4-为什么调用栈不显示"><a href="#4-为什么调用栈不显示" class="headerlink" title="4. 为什么调用栈不显示"></a>4. 为什么调用栈不显示</h3><p><code>perf report</code> 的调用图默认存在最小显示阈值。</p>
+<p>资料中的示例里，默认阈值是 <code>0.5%</code>。如果一个事件只有 <code>0.34%</code>，调用栈就可能默认不展开。</p>
+<p>可以降低阈值：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">perf report -g graph,0.3<br></code></pre></td></tr></table></figure>
+
+<p>这时低于默认阈值但高于 <code>0.3%</code> 的调用链就会出现。</p>
+<h3 id="5-为什么只看到-16-进制地址"><a href="#5-为什么只看到-16-进制地址" class="headerlink" title="5. 为什么只看到 16 进制地址"></a>5. 为什么只看到 16 进制地址</h3><p>如果输出是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">0x7fd84a21c96e<br>0x7fd84a21d323<br>...<br></code></pre></td></tr></table></figure>
+
+<p>而不是函数名，通常不是 <code>perf</code> “不会分析”，而是 <strong>符号解析失败</strong>。</p>
+<p>常见原因：</p>
+<ul>
+<li>依赖库不在宿主机文件系统中；</li>
+<li>容器里的库路径宿主机找不到；</li>
+<li>二进制经过 <code>strip</code>，符号表被删除；</li>
+<li>缺少 debug symbols；</li>
+<li>内核符号访问权限受限。</li>
+</ul>
+<p>如果 <code>perf</code> 底部出现类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Failed to open ..., continuing without symbols<br></code></pre></td></tr></table></figure>
+
+<p>就应该沿着符号路径问题排查。</p>
+<p>对于需要长期性能诊断的服务，构建产物是否保留足够的符号信息，是工程可观测性的一部分。</p>
+<hr>
+<h2 id="十、容器里做-perf，难点通常不是采样，而是符号"><a href="#十、容器里做-perf，难点通常不是采样，而是符号" class="headerlink" title="十、容器里做 perf，难点通常不是采样，而是符号"></a>十、容器里做 <code>perf</code>，难点通常不是采样，而是符号</h2><p>容器应用依赖的动态库位于镜像文件系统中，而 <code>perf</code> 往往运行在宿主机。</p>
+<p>因此会出现：</p>
+<blockquote>
+<p>宿主机可以采到地址，但无法用容器内的库文件把地址翻译成函数名。</p>
+</blockquote>
+<h3 id="方案一：在宿主机复制相同依赖路径"><a href="#方案一：在宿主机复制相同依赖路径" class="headerlink" title="方案一：在宿主机复制相同依赖路径"></a>方案一：在宿主机复制相同依赖路径</h3><p>理论上可行，但容易污染宿主机，不推荐。</p>
+<h3 id="方案二：直接在容器内运行-perf"><a href="#方案二：直接在容器内运行-perf" class="headerlink" title="方案二：直接在容器内运行 perf"></a>方案二：直接在容器内运行 <code>perf</code></h3><p>这通常需要较高权限，普通容器可能报：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Operation not permitted<br></code></pre></td></tr></table></figure>
+
+<p>可以通过特权容器或调整 <code>perf_event_paranoid</code> 放开权限，但这会影响安全边界，不适合把“为了分析方便”直接变成生产默认配置。</p>
+<h3 id="方案三：把容器根文件系统作为-symfs"><a href="#方案三：把容器根文件系统作为-symfs" class="headerlink" title="方案三：把容器根文件系统作为 symfs"></a>方案三：把容器根文件系统作为 <code>symfs</code></h3><p>可以先拿到容器 PID：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">PID=$(docker inspect --format <span class="hljs-string">&#x27;&#123;&#123;.State.Pid&#125;&#125;&#x27;</span> phpfpm)<br></code></pre></td></tr></table></figure>
+
+<p>然后将容器根文件系统绑定到一个目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">mkdir</span> /tmp/foo<br>bindfs /proc/<span class="hljs-variable">$PID</span>/root /tmp/foo<br>perf report --symfs /tmp/foo<br></code></pre></td></tr></table></figure>
+
+<p>使用完成后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">umount /tmp/foo/<br></code></pre></td></tr></table></figure>
+
+<p>这里的核心不是 <code>bindfs</code> 本身，而是告诉 <code>perf</code>：</p>
+<blockquote>
+<p>“解析这些地址时，请去容器真正的文件系统里找库和符号。”</p>
+</blockquote>
+<h3 id="方案四：宿主机采样，容器内解析"><a href="#方案四：宿主机采样，容器内解析" class="headerlink" title="方案四：宿主机采样，容器内解析"></a>方案四：宿主机采样，容器内解析</h3><p>先在宿主机：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">perf record -g -p &lt;PID&gt;<br></code></pre></td></tr></table></figure>
+
+<p>采样完成后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">docker <span class="hljs-built_in">cp</span> perf.data phpfpm:/tmp<br>docker <span class="hljs-built_in">exec</span> -it phpfpm bash<br></code></pre></td></tr></table></figure>
+
+<p>容器内安装匹配的 <code>perf</code>，再：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cd</span> /tmp<br>perf report<br></code></pre></td></tr></table></figure>
+
+<p>需要特别注意 <strong>perf 版本与宿主机内核匹配问题</strong>。某些发行版中的 <code>perf</code> 命令本质上会按内核版本选择对应工具，容器用户态和宿主机内核版本不一致时更容易出现兼容问题。</p>
+<hr>
+<h2 id="十一、Java-为什么比普通-ELF-程序更难用-perf-看懂"><a href="#十一、Java-为什么比普通-ELF-程序更难用-perf-看懂" class="headerlink" title="十一、Java 为什么比普通 ELF 程序更难用 perf 看懂"></a>十一、Java 为什么比普通 ELF 程序更难用 <code>perf</code> 看懂</h2><p>Java 服务多了一层 JVM 和 JIT。</p>
+<p>从操作系统看，运行的是 JVM 进程。Java 热点代码经过 JIT 编译后，会动态生成机器码；这些代码并不像普通 ELF 文件那样天然带着静态符号路径。</p>
+<p>因此你可能看到：</p>
+<ul>
+<li>JVM 内部函数；</li>
+<li>地址；</li>
+<li>内核函数；</li>
+<li>但看不到熟悉的 Java 方法名。</li>
+</ul>
+<h3 id="资料给出的-JIT-符号方案"><a href="#资料给出的-JIT-符号方案" class="headerlink" title="资料给出的 JIT 符号方案"></a>资料给出的 JIT 符号方案</h3><p><code>perf_events</code> 可以结合 JIT 符号映射，但需要类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/tmp/perf-&lt;PID&gt;.map<br></code></pre></td></tr></table></figure>
+
+<p>这样的符号映射文件。</p>
+<p><code>perf-map-agent</code> 可以用于生成映射。</p>
+<p>为了得到更完整的栈，资料中的 JDK 方案还要求开启：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">-XX:+PreserveFramePointer<br></code></pre></td></tr></table></figure>
+
+<p>形成的思路是：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[Java 进程] --&gt; B[JIT 动态机器码]
+    B --&gt; C[生成 perf-PID.map]
+    C --&gt; D[perf 采样]
+    D --&gt; E[地址 -&gt; Java/JIT 符号]
+    E --&gt; F[可读调用栈]
+</code></pre>
+
+<p>这里需要把方法论和具体工具分开：</p>
+<blockquote>
+<p>Java 性能问题仍然先从系统指标判断瓶颈属于 CPU、I&#x2F;O、锁、调度还是网络，再选择 JVM 层工具继续下钻。</p>
+</blockquote>
+<p>不要因为服务是 Java，就一开始只盯着 <code>jstack</code>；也不要因为会 <code>perf</code>，就忽略 JVM 自己的运行时信息。</p>
+<p><code>perf-map-agent + PreserveFramePointer</code> 是资料所处时期的一种方案。现代 JDK 和生产环境中，通常还会结合 JFR、async-profiler 等 JVM 侧工具；具体选择应以当前 JDK 版本和线上约束为准。</p>
+<hr>
+<h2 id="十二、性能工具本身也有开销"><a href="#十二、性能工具本身也有开销" class="headerlink" title="十二、性能工具本身也有开销"></a>十二、性能工具本身也有开销</h2><p>性能分析不是完全无侵入的。</p>
+<h3 id="perf-1"><a href="#perf-1" class="headerlink" title="perf"></a><code>perf</code></h3><p><code>perf</code> 需要在内核中采样事件并记录调用栈，因此会引入一定开销。</p>
+<p>大多数常规服务可以接受短时间采样，但对以下场景要更加谨慎：</p>
+<ul>
+<li>极低延迟系统；</li>
+<li>高频交易类工作负载；</li>
+<li>对时钟周期特别敏感的应用；</li>
+<li>本身已经接近资源极限的系统。</li>
+</ul>
+<h3 id="vmstat-pidstat-等"><a href="#vmstat-pidstat-等" class="headerlink" title="vmstat &#x2F; pidstat 等"></a><code>vmstat</code> &#x2F; <code>pidstat</code> 等</h3><p>这类工具主要读取 <code>/proc</code>、<code>/sys</code> 等内核统计数据，通常开销很低，更适合作为第一层观察工具。</p>
+<p>这也是为什么性能分析更推荐：</p>
+<blockquote>
+<p><strong>先用低开销的宽视角工具筛选，再用动态追踪工具定点下钻。</strong></p>
+</blockquote>
+<hr>
+<h2 id="十三、找到瓶颈以后，不要立刻改代码"><a href="#十三、找到瓶颈以后，不要立刻改代码" class="headerlink" title="十三、找到瓶颈以后，不要立刻改代码"></a>十三、找到瓶颈以后，不要立刻改代码</h2><p>性能优化最危险的阶段，往往不是“找不到瓶颈”，而是“刚看到一个可疑点就开始优化”。</p>
+<p>动手前应该回答三个问题。</p>
+<h3 id="1-优化效果如何量化"><a href="#1-优化效果如何量化" class="headerlink" title="1. 优化效果如何量化"></a>1. 优化效果如何量化</h3><p>性能优化应该做前后对比，而不是凭感觉说“快了”。</p>
+<p>可以用一个三步法：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 确定量化指标<br>2. 测试优化前指标<br>3. 测试优化后指标<br></code></pre></td></tr></table></figure>
+
+<p>指标至少应该覆盖两个维度。</p>
+<h4 id="应用维度"><a href="#应用维度" class="headerlink" title="应用维度"></a>应用维度</h4><p>例如 Web 服务：</p>
+<ul>
+<li>吞吐量；</li>
+<li>QPS；</li>
+<li>请求延迟；</li>
+<li>P95 &#x2F; P99；</li>
+<li>错误率。</li>
+</ul>
+<h4 id="系统资源维度"><a href="#系统资源维度" class="headerlink" title="系统资源维度"></a>系统资源维度</h4><p>例如：</p>
+<ul>
+<li>CPU user&#x2F;system&#x2F;softirq；</li>
+<li>Load Average；</li>
+<li>上下文切换；</li>
+<li>I&#x2F;O；</li>
+<li>网络 PPS&#x2F;BPS。</li>
+</ul>
+<p>只看 CPU 从 90% 降到 40%，不能证明业务性能一定更好；只看 QPS 升高，也无法解释成本来自哪里。</p>
+<h3 id="2-多个性能问题同时存在，先优化谁"><a href="#2-多个性能问题同时存在，先优化谁" class="headerlink" title="2. 多个性能问题同时存在，先优化谁"></a>2. 多个性能问题同时存在，先优化谁</h3><p>一个系统可能同时存在：</p>
+<ul>
+<li>system CPU 高；</li>
+<li>上下文切换高；</li>
+<li>iowait 高；</li>
+<li>网络软中断高；</li>
+<li>应用延迟高。</li>
+</ul>
+<p>它们可能不是五个独立问题，而是同一根因的连锁反应。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">过多线程<br>  -&gt; CPU 争抢<br>  -&gt; 非自愿上下文切换升高<br>  -&gt; 调度开销升高<br>  -&gt; system CPU 升高<br>  -&gt; 请求延迟升高<br></code></pre></td></tr></table></figure>
+
+<p>所以优化前先梳理因果关系，优先处理最上游、影响最大的瓶颈。</p>
+<p>一个实用原则是：</p>
+<ul>
+<li>如果某个系统资源已经 100% 饱和，优先解决资源瓶颈；</li>
+<li>如果多个指标都变化，优先分析变化幅度最大且与瓶颈有直接因果关系的指标；</li>
+<li>不要把每一个“异常数字”都当成独立问题。</li>
+</ul>
+<h3 id="3-多种方案都能优化，选哪个"><a href="#3-多种方案都能优化，选哪个" class="headerlink" title="3. 多种方案都能优化，选哪个"></a>3. 多种方案都能优化，选哪个</h3><p>性能提升不是唯一指标，还要考虑：</p>
+<ul>
+<li>实现复杂度；</li>
+<li>可维护性；</li>
+<li>稳定性；</li>
+<li>资源成本；</li>
+<li>可移植性；</li>
+<li>对其他指标的副作用。</li>
+</ul>
+<p>典型例子是 DPDK。</p>
+<p>它可以绕过传统内核网络协议栈以提高包处理能力，但通常需要：</p>
+<ul>
+<li>独占 CPU；</li>
+<li>大页内存；</li>
+<li>持续高 CPU 占用；</li>
+<li>更复杂的运行和维护方式。</li>
+</ul>
+<p>在 CPU 核心很少的机器上，这种优化就可能得不偿失。</p>
+<p>因此性能优化本质上是 <strong>Trade-off（权衡）</strong>，而不是“把一个指标做到极致”。</p>
+<hr>
+<h2 id="十四、性能测试本身必须可信"><a href="#十四、性能测试本身必须可信" class="headerlink" title="十四、性能测试本身必须可信"></a>十四、性能测试本身必须可信</h2><h3 id="1-压测端和服务端尽量分离"><a href="#1-压测端和服务端尽量分离" class="headerlink" title="1. 压测端和服务端尽量分离"></a>1. 压测端和服务端尽量分离</h3><p>如果压测工具和目标服务跑在同一台机器上：</p>
+<ul>
+<li>压测工具自己也会占 CPU；</li>
+<li>会消耗网络和内存；</li>
+<li>可能影响缓存；</li>
+<li>最终测到的是“服务 + 压测器”的混合结果。</li>
+</ul>
+<p>因此 Web 服务性能测试通常至少分两台机器：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Client / Load Generator -&gt; Server<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-优化前后环境必须一致"><a href="#2-优化前后环境必须一致" class="headerlink" title="2. 优化前后环境必须一致"></a>2. 优化前后环境必须一致</h3><p>对比实验要保证：</p>
+<ul>
+<li>CPU&#x2F;内存规格相同；</li>
+<li>内核和关键配置一致；</li>
+<li>外部依赖一致；</li>
+<li>测试参数一致；</li>
+<li>测试时长和预热方式一致。</li>
+</ul>
+<p>否则“优化后更快”可能只是环境变化。</p>
+<h3 id="3-性能结果要看绝对值，也要看趋势"><a href="#3-性能结果要看绝对值，也要看趋势" class="headerlink" title="3. 性能结果要看绝对值，也要看趋势"></a>3. 性能结果要看绝对值，也要看趋势</h3><p>例如某个指标从 <code>1s</code> 降到 <code>1ms</code>，比例上是 1000 倍，但如果它一天只执行一次，对系统整体价值可能很低。</p>
+<p>这也是所谓“二八原则”的工程意义：</p>
+<blockquote>
+<p>把精力集中在真正决定系统整体性能的少数热点上。</p>
+</blockquote>
+<hr>
+<h2 id="十五、应用程序层的-CPU-优化方法"><a href="#十五、应用程序层的-CPU-优化方法" class="headerlink" title="十五、应用程序层的 CPU 优化方法"></a>十五、应用程序层的 CPU 优化方法</h2><h3 id="1-删除不必要的工作"><a href="#1-删除不必要的工作" class="headerlink" title="1. 删除不必要的工作"></a>1. 删除不必要的工作</h3><p>最有效的优化往往不是“让 CPU 执行更快”，而是“根本不要执行”。</p>
+<p>典型方向：</p>
+<ul>
+<li>减少无意义循环；</li>
+<li>减少递归层数；</li>
+<li>减少重复计算；</li>
+<li>减少频繁动态内存分配；</li>
+<li>减少过细粒度日志；</li>
+<li>合并高频小 I&#x2F;O 或小网络包。</li>
+</ul>
+<h3 id="2-编译器优化"><a href="#2-编译器优化" class="headerlink" title="2. 编译器优化"></a>2. 编译器优化</h3><p>例如 GCC：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">gcc -O2 ...<br></code></pre></td></tr></table></figure>
+
+<p>编译器可以进行：</p>
+<ul>
+<li>常量传播；</li>
+<li>死代码删除；</li>
+<li>指令优化；</li>
+<li>循环优化；</li>
+<li>内联等。</li>
+</ul>
+<p>但编译器优化仍然不能替代算法和架构层面的优化。</p>
+<h3 id="3-算法优化"><a href="#3-算法优化" class="headerlink" title="3. 算法优化"></a>3. 算法优化</h3><p>算法复杂度的影响通常远大于指令级微优化。</p>
+<p>例如数据规模较大时：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">O(n^2) -&gt; O(n log n)<br></code></pre></td></tr></table></figure>
+
+<p>往往比微调几个 CPU 指令收益大得多。</p>
+<h3 id="4-异步处理"><a href="#4-异步处理" class="headerlink" title="4. 异步处理"></a>4. 异步处理</h3><p>如果程序大量时间花在“等资源”，可以考虑：</p>
+<ul>
+<li>事件通知；</li>
+<li>异步 I&#x2F;O；</li>
+<li>任务队列；</li>
+<li>批处理。</li>
+</ul>
+<p>一个很典型的原则是：</p>
+<blockquote>
+<p>能被事件通知唤醒，就不要高频轮询。</p>
+</blockquote>
+<p>这与硬件中断诞生的思想其实是同一类设计：避免 CPU 无意义忙等。</p>
+<h3 id="5-多线程替代多进程"><a href="#5-多线程替代多进程" class="headerlink" title="5. 多线程替代多进程"></a>5. 多线程替代多进程</h3><p>在共享大量内存和状态的场景中，多线程通常比多进程切换成本低，因为线程切换不需要切换完整进程地址空间。</p>
+<p>但这不是“线程永远优于进程”。多进程在隔离性、故障边界、安全和架构扩展上也有优势。</p>
+<p>因此选择取决于业务需求，而不是只看上下文切换成本。</p>
+<h3 id="6-善用缓存"><a href="#6-善用缓存" class="headerlink" title="6. 善用缓存"></a>6. 善用缓存</h3><p>缓存本质上是用空间换时间。</p>
+<p>适合缓存：</p>
+<ul>
+<li>热点数据；</li>
+<li>重复计算结果；</li>
+<li>高成本查询结果；</li>
+<li>稳定且复用率高的数据。</li>
+</ul>
+<p>但缓存会引入一致性、失效和内存占用问题，所以同样需要用性能数据证明收益。</p>
+<hr>
+<h2 id="十六、系统层的-CPU-优化方法"><a href="#十六、系统层的-CPU-优化方法" class="headerlink" title="十六、系统层的 CPU 优化方法"></a>十六、系统层的 CPU 优化方法</h2><h3 id="1-CPU-Affinity：把任务绑定到-CPU"><a href="#1-CPU-Affinity：把任务绑定到-CPU" class="headerlink" title="1. CPU Affinity：把任务绑定到 CPU"></a>1. CPU Affinity：把任务绑定到 CPU</h3><p>CPU 绑定可以减少任务在不同核心之间迁移，提高缓存局部性。</p>
+<p>适合：</p>
+<ul>
+<li>延迟敏感服务；</li>
+<li>高频线程；</li>
+<li>网络处理线程；</li>
+<li>NUMA 场景。</li>
+</ul>
+<p>但错误绑定也可能把负载全部压在少数核上。</p>
+<h3 id="2-CPU-独占"><a href="#2-CPU-独占" class="headerlink" title="2. CPU 独占"></a>2. CPU 独占</h3><p>进一步可以把部分 CPU 核只留给关键服务，减少其他进程干扰。</p>
+<p>这类方案适合对抖动和延迟特别敏感的服务，但会牺牲系统整体资源利用率。</p>
+<h3 id="3-调整进程优先级"><a href="#3-调整进程优先级" class="headerlink" title="3. 调整进程优先级"></a>3. 调整进程优先级</h3><p>可以通过 <code>nice</code> &#x2F; <code>renice</code> 调整普通调度优先级。</p>
+<p>原则不是“核心服务全部拉最高”，而是：</p>
+<ul>
+<li>降低非核心后台任务的优先级；</li>
+<li>避免后台任务挤占关键服务。</li>
+</ul>
+<h3 id="4-使用-cgroups-限制-CPU"><a href="#4-使用-cgroups-限制-CPU" class="headerlink" title="4. 使用 cgroups 限制 CPU"></a>4. 使用 cgroups 限制 CPU</h3><p>cgroups 可以限制单个服务的 CPU 使用范围或份额，避免一个异常进程耗尽整机资源。</p>
+<p>在容器和 Kubernetes 环境中，这实际上已经成为资源治理的基础能力。</p>
+<h3 id="5-NUMA-优化"><a href="#5-NUMA-优化" class="headerlink" title="5. NUMA 优化"></a>5. NUMA 优化</h3><p>NUMA（Non-Uniform Memory Access）系统中，每个 node 有更靠近自己的本地内存。</p>
+<p>目标是尽量让：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">CPU -&gt; 本地内存<br></code></pre></td></tr></table></figure>
+
+<p>而不是频繁访问远端 NUMA node。</p>
+<p>因此 CPU 绑核和内存绑定要一起考虑，不能只做其中一半。</p>
+<h3 id="6-中断负载均衡"><a href="#6-中断负载均衡" class="headerlink" title="6. 中断负载均衡"></a>6. 中断负载均衡</h3><p>可以使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">irqbalance<br></code></pre></td></tr></table></figure>
+
+<p>或者配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">smp_affinity<br></code></pre></td></tr></table></figure>
+
+<p>让硬中断在多个 CPU 之间更合理分布。</p>
+<p>但对高性能网络应用来说，完全自动均衡也未必是最优；有时需要把网卡队列、中断 CPU 和应用工作线程进行整体亲和性设计。</p>
+<hr>
+<h2 id="十七、不要过早优化"><a href="#十七、不要过早优化" class="headerlink" title="十七、不要过早优化"></a>十七、不要过早优化</h2><p>“过早优化是万恶之源”不是说性能不重要，而是说：</p>
+<blockquote>
+<p><strong>没有证据的优化，很容易把简单系统变成复杂系统，却没有得到可验证的收益。</strong></p>
+</blockquote>
+<p>过早优化的典型副作用包括：</p>
+<ul>
+<li>代码复杂度上升；</li>
+<li>可维护性下降；</li>
+<li>调试困难；</li>
+<li>新需求难以适配；</li>
+<li>一个指标变好，另一个指标变差；</li>
+<li>系统资源被提前固化。</li>
+</ul>
+<p>比较稳妥的策略是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">先满足当前需求<br>  -&gt; 建立监控和基线<br>  -&gt; 发现瓶颈<br>  -&gt; 收集证据<br>  -&gt; 优化最重要的问题<br>  -&gt; 重新测试<br>  -&gt; 再决定是否继续优化<br></code></pre></td></tr></table></figure>
+
+<p>性能优化应该是迭代过程，而不是一次性“把所有参数调到极致”。</p>
+<hr>
+<h2 id="十八、一份适合线上排障的-CPU-Checklist"><a href="#十八、一份适合线上排障的-CPU-Checklist" class="headerlink" title="十八、一份适合线上排障的 CPU Checklist"></a>十八、一份适合线上排障的 CPU Checklist</h2><p>遇到“机器慢了、CPU 异常、接口延迟上升”时，可以按下面顺序快速走一遍。</p>
+<h3 id="第一层：全局判断"><a href="#第一层：全局判断" class="headerlink" title="第一层：全局判断"></a>第一层：全局判断</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">uptime</span><br>top<br>vmstat 1<br></code></pre></td></tr></table></figure>
+
+<p>确认：</p>
+<ul>
+<li>Load Average；</li>
+<li><code>us/sy/wa/hi/si/st</code>；</li>
+<li><code>r/b</code>；</li>
+<li><code>cs/in</code>；</li>
+<li>是否有 D 状态、僵尸、短时 Running 任务。</li>
+</ul>
+<h3 id="第二层：落到进程和线程"><a href="#第二层：落到进程和线程" class="headerlink" title="第二层：落到进程和线程"></a>第二层：落到进程和线程</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">pidstat -u 1<br>pidstat -w 1<br>pidstat -u -t 1<br></code></pre></td></tr></table></figure>
+
+<p>确认：</p>
+<ul>
+<li>哪个进程 CPU 高；</li>
+<li>哪个线程 CPU 高；</li>
+<li><code>%wait</code> 是否高；</li>
+<li>自愿&#x2F;非自愿上下文切换是否异常。</li>
+</ul>
+<h3 id="第三层：按类型下钻"><a href="#第三层：按类型下钻" class="headerlink" title="第三层：按类型下钻"></a>第三层：按类型下钻</h3><h4 id="用户-CPU-高"><a href="#用户-CPU-高" class="headerlink" title="用户 CPU 高"></a>用户 CPU 高</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">perf record -g -p &lt;PID&gt;<br>perf report<br></code></pre></td></tr></table></figure>
+
+<h4 id="系统-CPU-高"><a href="#系统-CPU-高" class="headerlink" title="系统 CPU 高"></a>系统 CPU 高</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">strace -p &lt;PID&gt;<br>perf record -g -p &lt;PID&gt;<br></code></pre></td></tr></table></figure>
+
+<p>同时结合 <code>vmstat</code> 和 <code>pidstat -w</code>。</p>
+<h4 id="软中断高"><a href="#软中断高" class="headerlink" title="软中断高"></a>软中断高</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">watch -d <span class="hljs-built_in">cat</span> /proc/softirqs<br>sar -n DEV 1<br>tcpdump -i &lt;iface&gt; -n<br></code></pre></td></tr></table></figure>
+
+<h4 id="硬中断高"><a href="#硬中断高" class="headerlink" title="硬中断高"></a>硬中断高</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/interrupts<br></code></pre></td></tr></table></figure>
+
+<p>检查设备和 CPU 分布。</p>
+<h4 id="iowait-高"><a href="#iowait-高" class="headerlink" title="iowait 高"></a>iowait 高</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">sar -d 1<br>dstat<br></code></pre></td></tr></table></figure>
+
+<p>继续定位具体块设备和进程。</p>
+<h4 id="top-找不到明显进程"><a href="#top-找不到明显进程" class="headerlink" title="top 找不到明显进程"></a>top 找不到明显进程</h4><p>考虑：</p>
+<ul>
+<li>短时进程；</li>
+<li>内核线程；</li>
+<li>高频创建&#x2F;退出进程；</li>
+<li><code>execsnoop</code>；</li>
+<li><code>perf record</code> 做时间窗口采样。</li>
+</ul>
+<h3 id="第四层：建立证据链"><a href="#第四层：建立证据链" class="headerlink" title="第四层：建立证据链"></a>第四层：建立证据链</h3><p>不要停在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">“CPU 高”<br></code></pre></td></tr></table></figure>
+
+<p>至少要走到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">指标异常<br>  -&gt; 对应资源/内核机制<br>  -&gt; 具体进程/线程/设备<br>  -&gt; 具体调用链/系统调用/数据包<br>  -&gt; 可复现或可验证的根因<br></code></pre></td></tr></table></figure>
+
+<h3 id="第五层：优化前后对比"><a href="#第五层：优化前后对比" class="headerlink" title="第五层：优化前后对比"></a>第五层：优化前后对比</h3><p>至少同时记录：</p>
+<ul>
+<li>应用吞吐量&#x2F;延迟；</li>
+<li>CPU 指标；</li>
+<li>上下文切换；</li>
+<li>I&#x2F;O 或网络关键指标。</li>
+</ul>
+<p>只有优化前后数据可比较，才叫性能优化；否则更多只是“改了点东西，然后感觉不错”。</p>
+<hr>
+<h2 id="十九、把整套方法压缩成一句话"><a href="#十九、把整套方法压缩成一句话" class="headerlink" title="十九、把整套方法压缩成一句话"></a>十九、把整套方法压缩成一句话</h2><p>Linux CPU 性能分析真正应该掌握的是下面这条主线：</p>
+<blockquote>
+<p><strong>先用 <code>top + vmstat + pidstat</code> 建立系统画像，再根据 user&#x2F;system&#x2F;iowait&#x2F;irq&#x2F;softirq、运行队列和上下文切换选择下一步工具；找到具体进程后用 <code>strace</code> 或 <code>perf</code> 下钻，遇到网络软中断就从 <code>/proc/softirqs -&gt; sar -&gt; tcpdump</code> 建立证据链；优化前先量化指标、确认主瓶颈和权衡成本，优化后用同样的条件重新测试。</strong></p>
+</blockquote>
+<p>命令会变，内核会升级，Java 和容器工具也会继续演进，但这条分析方法不会轻易过时。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Linux/" class="category-chain-item">Linux</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Linux/" class="print-no-link">#Linux</a>
+      
+        <a href="/tags/JVM/" class="print-no-link">#JVM</a>
+      
+        <a href="/tags/Performance/" class="print-no-link">#Performance</a>
+      
+        <a href="/tags/CPU/" class="print-no-link">#CPU</a>
+      
+        <a href="/tags/perf/" class="print-no-link">#perf</a>
+      
+        <a href="/tags/SoftIRQ/" class="print-no-link">#SoftIRQ</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Linux CPU 性能分析与优化：从软中断到 perf 的系统化排障方法</div>
+      <div>https://allendericdalexander.github.io/2026/08/11/devops/linux/performanceOptimization/02linux-cpu-performance-analysis/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月11日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/08/11/devops/linux/performanceOptimization/03linux-memory-management-performance-optimization/" title="Linux 内存管理与性能优化：从虚拟内存、Page Cache 到 Swap、OOM 与泄漏排查">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Linux 内存管理与性能优化：从虚拟内存、Page Cache 到 Swap、OOM 与泄漏排查</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/11/devops/linux/performanceOptimization/01linux-cpu-performance-analysis/" title="Linux CPU 性能分析：从平均负载、上下文切换到 iowait 与僵尸进程">
+                        <span class="hidden-mobile">Linux CPU 性能分析：从平均负载、上下文切换到 iowait 与僵尸进程</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
