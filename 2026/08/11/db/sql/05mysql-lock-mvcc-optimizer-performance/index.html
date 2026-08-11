@@ -1,0 +1,1765 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="从并发控制、MVCC、查询优化器、执行计划、慢查询、索引和缓冲池几个层面，建立一套完整的 MySQL SQL 执行与性能优化知识框架。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从锁、MVCC到查询优化器：一篇文章串起 MySQL SQL 执行与性能优化">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/11/db/sql/05mysql-lock-mvcc-optimizer-performance/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="从并发控制、MVCC、查询优化器、执行计划、慢查询、索引和缓冲池几个层面，建立一套完整的 MySQL SQL 执行与性能优化知识框架。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-11T02:23:00.000Z">
+<meta property="article:modified_time" content="2026-08-11T02:33:47.076Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Buffer Pool">
+<meta property="article:tag" content="EXPLAIN">
+<meta property="article:tag" content="Index">
+<meta property="article:tag" content="InnoDB">
+<meta property="article:tag" content="Lock">
+<meta property="article:tag" content="MVCC">
+<meta property="article:tag" content="MySQL">
+<meta property="article:tag" content="Query Optimizer">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>从锁、MVCC到查询优化器：一篇文章串起 MySQL SQL 执行与性能优化 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="从锁、MVCC到查询优化器：一篇文章串起 MySQL SQL 执行与性能优化"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-11 10:23" pubdate>
+          2026年8月11日 上午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          7.5k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          63 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">从锁、MVCC到查询优化器：一篇文章串起 MySQL SQL 执行与性能优化</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>很多 SQL 问题看起来彼此独立：</p>
+<ul>
+<li>为什么一条 <code>UPDATE</code> 会卡住？</li>
+<li>为什么普通 <code>SELECT</code> 没有阻塞写操作？</li>
+<li>为什么明明建了索引，MySQL 却不走？</li>
+<li>为什么同一条 SQL 在不同数据量下执行计划不同？</li>
+<li>为什么 EXPLAIN 看起来正常，SQL 仍然很慢？</li>
+<li>为什么加内存有时能解决问题，有时却完全没用？</li>
+</ul>
+<p>如果只记零散结论，很容易陷入“背八股”。真正有用的方式，是把数据库运行过程串起来看。</p>
+<p>这几篇文章实际上可以归纳成一条非常清晰的主线：</p>
+<blockquote>
+<p><strong>锁负责解决并发修改的冲突，MVCC 负责提升并发读取能力，查询优化器负责选择执行路径，索引与缓冲池决定数据访问成本，而慢查询、EXPLAIN 等工具负责告诉我们到底慢在哪里。</strong></p>
+</blockquote>
+<p>本文把这几部分重新组织成一套完整的 MySQL &#x2F; InnoDB 底层知识框架。</p>
+<span id="more"></span>
+
+<h1 id="一、先建立整体模型：一条-SQL-到底经历了什么"><a href="#一、先建立整体模型：一条-SQL-到底经历了什么" class="headerlink" title="一、先建立整体模型：一条 SQL 到底经历了什么"></a>一、先建立整体模型：一条 SQL 到底经历了什么</h1><p>从宏观上看，一条 SQL 的执行可以拆成几个层次：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs text">SQL<br> ↓<br>语法分析 / 语义检查<br> ↓<br>逻辑查询优化<br> ↓<br>物理查询优化<br> ↓<br>生成执行计划<br> ↓<br>执行器执行<br> ↓<br>访问索引 / 数据页<br> ↓<br>Buffer Pool / Disk I/O<br> ↓<br>事务、锁、MVCC 保证并发一致性<br></code></pre></td></tr></table></figure>
+
+<p>因此 SQL 性能问题大致也可以归为四类：</p>
+<table>
+<thead>
+<tr>
+<th>层次</th>
+<th>核心问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>并发控制</td>
+<td>是否发生锁等待、死锁、事务冲突</td>
+</tr>
+<tr>
+<td>数据可见性</td>
+<td>当前事务到底应该看到哪个版本的数据</td>
+</tr>
+<tr>
+<td>查询计划</td>
+<td>优化器选择了怎样的扫描、连接和排序方式</td>
+</tr>
+<tr>
+<td>数据访问</td>
+<td>是否走索引、是否回表、是否发生大量磁盘 I&#x2F;O</td>
+</tr>
+</tbody></table>
+<p>理解这四层之后，很多数据库问题就不再是孤立知识点。</p>
+<hr>
+<h1 id="二、锁：数据库为什么需要“限制并发”"><a href="#二、锁：数据库为什么需要“限制并发”" class="headerlink" title="二、锁：数据库为什么需要“限制并发”"></a>二、锁：数据库为什么需要“限制并发”</h1><p>数据库最怕的不是并发，而是<strong>没有控制的并发</strong>。</p>
+<p>订单、库存、余额等数据如果被多个事务同时修改，就可能出现丢失更新、数据覆盖、状态不一致等问题。因此数据库需要通过锁来控制资源访问。</p>
+<p>锁的本质可以理解为：</p>
+<blockquote>
+<p><strong>在某个时间范围内，对某个数据资源的访问权限进行约束。</strong></p>
+</blockquote>
+<h2 id="2-1-按锁粒度划分"><a href="#2-1-按锁粒度划分" class="headerlink" title="2.1 按锁粒度划分"></a>2.1 按锁粒度划分</h2><p>常见粒度包括：</p>
+<ul>
+<li>行锁</li>
+<li>页锁</li>
+<li>表锁</li>
+</ul>
+<p>粒度越小：</p>
+<ul>
+<li>并发能力越高；</li>
+<li>锁管理成本越高；</li>
+<li>同时持有的锁数量也可能越多。</li>
+</ul>
+<p>粒度越大：</p>
+<ul>
+<li>锁管理成本越低；</li>
+<li>但锁冲突概率更高；</li>
+<li>并发能力下降。</li>
+</ul>
+<p>可以粗略理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">锁粒度：<br><br>行锁 &lt; 页锁 &lt; 表锁<br><br>并发能力：<br><br>行锁 &gt; 页锁 &gt; 表锁<br><br>锁管理成本：<br><br>行锁 &gt; 页锁 &gt; 表锁<br></code></pre></td></tr></table></figure>
+
+<p>InnoDB 的高并发能力，很重要的一点就是它能够进行细粒度的行级锁定。</p>
+<hr>
+<h1 id="三、共享锁、排他锁与意向锁"><a href="#三、共享锁、排他锁与意向锁" class="headerlink" title="三、共享锁、排他锁与意向锁"></a>三、共享锁、排他锁与意向锁</h1><p>从数据库管理角度看，最重要的是：</p>
+<ul>
+<li>共享锁（Shared Lock，S Lock）</li>
+<li>排他锁（Exclusive Lock，X Lock）</li>
+</ul>
+<h2 id="3-1-共享锁"><a href="#3-1-共享锁" class="headerlink" title="3.1 共享锁"></a>3.1 共享锁</h2><p>共享锁主要用于读取。</p>
+<p>多个事务可以同时持有同一份数据的共享锁，因此：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">S + S：可以共存<br></code></pre></td></tr></table></figure>
+
+<p>但是持有共享锁的数据不能被其他事务随意修改。</p>
+<p>文章中使用过类似：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> product_comment<br><span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> <span class="hljs-number">912178</span><br>LOCK <span class="hljs-keyword">IN</span> SHARE MODE;<br></code></pre></td></tr></table></figure>
+
+<p>它表达的是：</p>
+<blockquote>
+<p>我要读取这批数据，并且在事务结束前，希望这些记录不要被其他事务修改。</p>
+</blockquote>
+<hr>
+<h2 id="3-2-排他锁"><a href="#3-2-排他锁" class="headerlink" title="3.2 排他锁"></a>3.2 排他锁</h2><p>排他锁用于修改。</p>
+<p>当某事务对一条记录持有排他锁之后，其他事务无法再对该记录获得冲突的锁。</p>
+<p>典型例子：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> product_comment<br><span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> <span class="hljs-number">912178</span><br><span class="hljs-keyword">FOR</span> <span class="hljs-keyword">UPDATE</span>;<br></code></pre></td></tr></table></figure>
+
+<p>以及：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> product_comment<br><span class="hljs-keyword">SET</span> product_id <span class="hljs-operator">=</span> <span class="hljs-number">10002</span><br><span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> <span class="hljs-number">912178</span>;<br></code></pre></td></tr></table></figure>
+
+<p><code>INSERT</code>、<code>UPDATE</code>、<code>DELETE</code> 这类写操作，本质上都需要通过排他性控制保证写入正确性。</p>
+<hr>
+<h2 id="3-3-为什么还需要意向锁"><a href="#3-3-为什么还需要意向锁" class="headerlink" title="3.3 为什么还需要意向锁"></a>3.3 为什么还需要意向锁</h2><p>假设事务 T1 已经锁住了表中的某一行。</p>
+<p>此时事务 T2 想给<strong>整个表</strong>加排他锁。</p>
+<p>如果没有额外机制，数据库就需要检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">第 1 行有没有锁？<br>第 2 行有没有锁？<br>第 3 行有没有锁？<br>……<br></code></pre></td></tr></table></figure>
+
+<p>这显然很低效。</p>
+<p>于是就有了意向锁。</p>
+<p>意向锁可以理解成：</p>
+<blockquote>
+<p><strong>在表级别放一个“里面已经有人锁了部分记录”的标记。</strong></p>
+</blockquote>
+<p>常见的有：</p>
+<ul>
+<li>意向共享锁 IS</li>
+<li>意向排他锁 IX</li>
+</ul>
+<p>例如某个事务准备对表中的部分记录获得排他锁，那么数据库可以先在表上留下 IX。</p>
+<p>这样另一个事务如果想锁整张表，只需要检查表级锁状态，而不需要逐行扫描。</p>
+<p>可以把它理解成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">行锁：真正锁房间<br>意向锁：在大门口挂一块“里面有人”的牌子<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h1 id="四、乐观锁与悲观锁不是具体锁，而是并发控制思想"><a href="#四、乐观锁与悲观锁不是具体锁，而是并发控制思想" class="headerlink" title="四、乐观锁与悲观锁不是具体锁，而是并发控制思想"></a>四、乐观锁与悲观锁不是具体锁，而是并发控制思想</h1><p>这是一个非常容易混淆的地方。</p>
+<p><strong>乐观锁和悲观锁本身不是某一种数据库锁类型，而是两种并发控制思想。</strong></p>
+<h2 id="4-1-悲观锁"><a href="#4-1-悲观锁" class="headerlink" title="4.1 悲观锁"></a>4.1 悲观锁</h2><p>悲观锁假设：</p>
+<blockquote>
+<p>并发冲突很可能发生。</p>
+</blockquote>
+<p>因此在真正操作数据之前，先把资源锁住。</p>
+<p>典型方式：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> account<br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">1</span><br><span class="hljs-keyword">FOR</span> <span class="hljs-keyword">UPDATE</span>;<br></code></pre></td></tr></table></figure>
+
+<p>应用场景通常是：</p>
+<ul>
+<li>写操作多；</li>
+<li>冲突概率高；</li>
+<li>库存扣减；</li>
+<li>金额计算；</li>
+<li>状态流转。</li>
+</ul>
+<p>悲观锁的优点是控制直接，缺点也明显：</p>
+<ul>
+<li>会发生等待；</li>
+<li>降低并发；</li>
+<li>可能出现死锁。</li>
+</ul>
+<hr>
+<h2 id="4-2-乐观锁"><a href="#4-2-乐观锁" class="headerlink" title="4.2 乐观锁"></a>4.2 乐观锁</h2><p>乐观锁假设：</p>
+<blockquote>
+<p>大多数时候并不会发生冲突。</p>
+</blockquote>
+<p>因此读取时不锁数据，真正提交修改的时候再检查数据有没有发生变化。</p>
+<p>最常见的方式是增加一个 <code>version</code> 字段：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> id, balance, version<br><span class="hljs-keyword">FROM</span> account<br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">1</span>;<br></code></pre></td></tr></table></figure>
+
+<p>假设读到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">balance = 1000<br>version = 7<br></code></pre></td></tr></table></figure>
+
+<p>更新时执行：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> account<br><span class="hljs-keyword">SET</span> balance <span class="hljs-operator">=</span> <span class="hljs-number">900</span>,<br>    version <span class="hljs-operator">=</span> version <span class="hljs-operator">+</span> <span class="hljs-number">1</span><br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">1</span><br>  <span class="hljs-keyword">AND</span> version <span class="hljs-operator">=</span> <span class="hljs-number">7</span>;<br></code></pre></td></tr></table></figure>
+
+<p>如果影响行数为 0，说明：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">version 已经不是 7<br>→ 数据被其他事务修改过<br>→ 当前修改失败<br></code></pre></td></tr></table></figure>
+
+<p>除了版本号，也可以使用时间戳实现类似机制。</p>
+<hr>
+<h1 id="五、死锁：真正的问题不是“有等待”，而是“循环等待”"><a href="#五、死锁：真正的问题不是“有等待”，而是“循环等待”" class="headerlink" title="五、死锁：真正的问题不是“有等待”，而是“循环等待”"></a>五、死锁：真正的问题不是“有等待”，而是“循环等待”</h1><p>这里需要特别区分两个概念：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">锁等待 ≠ 死锁<br></code></pre></td></tr></table></figure>
+
+<p>如果事务 A 持有资源，事务 B 等待 A 释放，这只是普通锁等待。</p>
+<p>真正的死锁必须出现类似关系：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">事务 A 持有资源 X，等待资源 Y<br>事务 B 持有资源 Y，等待资源 X<br></code></pre></td></tr></table></figure>
+
+<p>形成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">A → 等 B<br>↑     ↓<br>└─────┘<br></code></pre></td></tr></table></figure>
+
+<p>这才是死锁。</p>
+<p>原文章中的共享锁示例在评论区也被读者指出：如果只是一个事务等待另一个事务释放锁，并没有形成相互等待，那么更准确地说只是<strong>锁等待</strong>；必须进一步形成循环依赖才构成死锁。</p>
+<h2 id="5-1-降低死锁概率的基本原则"><a href="#5-1-降低死锁概率的基本原则" class="headerlink" title="5.1 降低死锁概率的基本原则"></a>5.1 降低死锁概率的基本原则</h2><h3 id="统一资源访问顺序"><a href="#统一资源访问顺序" class="headerlink" title="统一资源访问顺序"></a>统一资源访问顺序</h3><p>例如所有业务都按照：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">账户 A → 账户 B<br></code></pre></td></tr></table></figure>
+
+<p>而不要一部分：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">A → B<br></code></pre></td></tr></table></figure>
+
+<p>另一部分：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">B → A<br></code></pre></td></tr></table></figure>
+
+<h3 id="缩短事务"><a href="#缩短事务" class="headerlink" title="缩短事务"></a>缩短事务</h3><p>事务越长，锁持有时间越长。</p>
+<p>因此尽量不要在事务中执行：</p>
+<ul>
+<li>RPC</li>
+<li>HTTP 请求</li>
+<li>大量计算</li>
+<li>用户交互</li>
+<li>不必要的批量查询</li>
+</ul>
+<h3 id="一次事务不要锁太多资源"><a href="#一次事务不要锁太多资源" class="headerlink" title="一次事务不要锁太多资源"></a>一次事务不要锁太多资源</h3><p>锁的资源越多，形成依赖环的概率越高。</p>
+<hr>
+<h1 id="六、MVCC：为什么数据库可以做到“读不阻塞写”"><a href="#六、MVCC：为什么数据库可以做到“读不阻塞写”" class="headerlink" title="六、MVCC：为什么数据库可以做到“读不阻塞写”"></a>六、MVCC：为什么数据库可以做到“读不阻塞写”</h1><p>如果所有读取都通过锁完成，那么高并发数据库很快就会变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">读等写<br>写等读<br>写等写<br></code></pre></td></tr></table></figure>
+
+<p>这就是 MVCC 要解决的问题。</p>
+<p>MVCC 全称：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Multi-Version Concurrency Control<br></code></pre></td></tr></table></figure>
+
+<p>即：</p>
+<blockquote>
+<p><strong>多版本并发控制。</strong></p>
+</blockquote>
+<p>核心思想非常简单：</p>
+<blockquote>
+<p>不要只保存“现在这一个版本”，还要能够找到数据过去的版本。</p>
+</blockquote>
+<p>这样事务在读取时，不一定要去读最新数据，而可以读取一个符合自己事务可见性规则的历史版本。</p>
+<p>于是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">写事务修改最新版本<br>读事务读取自己的快照版本<br></code></pre></td></tr></table></figure>
+
+<p>很多情况下双方就不必互相阻塞。</p>
+<hr>
+<h1 id="七、快照读与当前读"><a href="#七、快照读与当前读" class="headerlink" title="七、快照读与当前读"></a>七、快照读与当前读</h1><p>理解 MVCC 必须先区分两个概念。</p>
+<h2 id="7-1-快照读"><a href="#7-1-快照读" class="headerlink" title="7.1 快照读"></a>7.1 快照读</h2><p>普通、不加锁的 <code>SELECT</code> 一般属于快照读。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> player<br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">100</span>;<br></code></pre></td></tr></table></figure>
+
+<p>它读取的是：</p>
+<blockquote>
+<p>当前事务按照 MVCC 可见性规则能够看到的数据版本。</p>
+</blockquote>
+<p>它未必等于物理意义上的最新版本。</p>
+<hr>
+<h2 id="7-2-当前读"><a href="#7-2-当前读" class="headerlink" title="7.2 当前读"></a>7.2 当前读</h2><p>当前读要求读取最新数据，并参与锁控制。</p>
+<p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> player<br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">100</span><br><span class="hljs-keyword">FOR</span> <span class="hljs-keyword">UPDATE</span>;<br></code></pre></td></tr></table></figure>
+
+<p>以及：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">INSERT</span> ...<br><span class="hljs-keyword">UPDATE</span> ...<br><span class="hljs-keyword">DELETE</span> ...<br></code></pre></td></tr></table></figure>
+
+<p>这些操作都需要基于当前最新状态执行。</p>
+<p>因此可以这样记：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">普通 SELECT<br>    ↓<br>快照读<br>    ↓<br>MVCC<br><br>SELECT ... FOR UPDATE / DML<br>    ↓<br>当前读<br>    ↓<br>锁<br></code></pre></td></tr></table></figure>
+
+<p>这也是理解“为什么同一个事务里普通 SELECT 和 FOR UPDATE 行为不一样”的关键。</p>
+<hr>
+<h1 id="八、InnoDB-的-MVCC：Undo-Log-Read-View"><a href="#八、InnoDB-的-MVCC：Undo-Log-Read-View" class="headerlink" title="八、InnoDB 的 MVCC：Undo Log + Read View"></a>八、InnoDB 的 MVCC：Undo Log + Read View</h1><p>文章中把 InnoDB MVCC 的核心总结为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">MVCC = Undo Log + Read View<br></code></pre></td></tr></table></figure>
+
+<p>这是一个非常好用的理解模型。</p>
+<h2 id="8-1-行记录中的隐藏信息"><a href="#8-1-行记录中的隐藏信息" class="headerlink" title="8.1 行记录中的隐藏信息"></a>8.1 行记录中的隐藏信息</h2><p>InnoDB 行记录中会维护与 MVCC 有关的信息。</p>
+<p>文章重点介绍了：</p>
+<ul>
+<li><code>db_trx_id</code></li>
+<li><code>db_roll_ptr</code></li>
+<li>隐藏行 ID</li>
+</ul>
+<p>其中：</p>
+<h3 id="db-trx-id"><a href="#db-trx-id" class="headerlink" title="db_trx_id"></a><code>db_trx_id</code></h3><p>记录最后一次插入或更新该行的事务 ID。</p>
+<h3 id="db-roll-ptr"><a href="#db-roll-ptr" class="headerlink" title="db_roll_ptr"></a><code>db_roll_ptr</code></h3><p>指向 Undo Log 中更早的数据版本。</p>
+<p>于是同一条记录就可以形成一条历史版本链：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">最新版本<br>   |<br>   v<br>历史版本 1<br>   |<br>   v<br>历史版本 2<br>   |<br>   v<br>历史版本 3<br></code></pre></td></tr></table></figure>
+
+<p>这就是所谓的多版本。</p>
+<hr>
+<h1 id="九、Undo-Log：历史版本从哪里来"><a href="#九、Undo-Log：历史版本从哪里来" class="headerlink" title="九、Undo Log：历史版本从哪里来"></a>九、Undo Log：历史版本从哪里来</h1><p>假设某条记录经历：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">balance = 1000<br>balance = 900<br>balance = 800<br></code></pre></td></tr></table></figure>
+
+<p>数据库不能简单地覆盖之后就忘掉旧值。</p>
+<p>为了事务回滚以及 MVCC，一些历史信息会被保存在 Undo Log 中。</p>
+<p>通过回滚指针，可以沿着版本链向前查找：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">当前版本<br>  ↓<br>Undo Record<br>  ↓<br>更老的 Undo Record<br>  ↓<br>……<br></code></pre></td></tr></table></figure>
+
+<p>因此：</p>
+<blockquote>
+<p><strong>Undo Log 负责提供“过去的数据版本”。</strong></p>
+</blockquote>
+<p>但是问题又来了：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">历史版本这么多，我到底该看哪个？<br></code></pre></td></tr></table></figure>
+
+<p>这就需要 Read View。</p>
+<hr>
+<h1 id="十、Read-View：决定“哪个版本对我可见”"><a href="#十、Read-View：决定“哪个版本对我可见”" class="headerlink" title="十、Read View：决定“哪个版本对我可见”"></a>十、Read View：决定“哪个版本对我可见”</h1><p>Read View 的职责不是保存数据，而是：</p>
+<blockquote>
+<p><strong>决定一个数据版本对于当前事务是否可见。</strong></p>
+</blockquote>
+<p>文章使用一个简化模型描述 Read View，其中包含：</p>
+<ul>
+<li>当前活跃事务集合；</li>
+<li>活跃事务的上下边界；</li>
+<li>创建 Read View 的事务 ID。</li>
+</ul>
+<p>在读取数据时，大致流程可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs text">读取当前记录<br>      ↓<br>检查该版本的事务 ID<br>      ↓<br>符合当前 Read View？<br>   /             \<br> 是               否<br> |                |<br>返回           沿 Undo Log<br>               找更老版本<br>                   ↓<br>            再做可见性判断<br></code></pre></td></tr></table></figure>
+
+<p>最终找到当前事务应该看到的版本。</p>
+<hr>
+<h1 id="十一、Read-Committed-与-Repeatable-Read-的核心差别"><a href="#十一、Read-Committed-与-Repeatable-Read-的核心差别" class="headerlink" title="十一、Read Committed 与 Repeatable Read 的核心差别"></a>十一、Read Committed 与 Repeatable Read 的核心差别</h1><p>文章对两个隔离级别的差异给出了一个非常重要的观察。</p>
+<h2 id="11-1-Read-Committed"><a href="#11-1-Read-Committed" class="headerlink" title="11.1 Read Committed"></a>11.1 Read Committed</h2><p>在读已提交（RC）下：</p>
+<blockquote>
+<p>一个事务中的多次快照读取可以获得新的 Read View。</p>
+</blockquote>
+<p>因此：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">第一次 SELECT<br>↓<br>别人提交 UPDATE<br>↓<br>第二次 SELECT<br>↓<br>可能看到新值<br></code></pre></td></tr></table></figure>
+
+<p>所以会出现不可重复读。</p>
+<hr>
+<h2 id="11-2-Repeatable-Read"><a href="#11-2-Repeatable-Read" class="headerlink" title="11.2 Repeatable Read"></a>11.2 Repeatable Read</h2><p>在可重复读（RR）下：</p>
+<blockquote>
+<p>事务中的一致性读取会复用事务快照，从而让多次快照读看到一致的数据视图。</p>
+</blockquote>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">T1 第一次 SELECT：balance = 1000<br><br>T2 UPDATE balance = 900<br>T2 COMMIT<br><br>T1 第二次普通 SELECT：仍可能看到 balance = 1000<br></code></pre></td></tr></table></figure>
+
+<p>从应用层面看，这就是“可重复读”。</p>
+<p>需要注意的是：</p>
+<blockquote>
+<p><strong>快照读和当前读是两套不同机制。</strong></p>
+</blockquote>
+<p>普通 SELECT 走 MVCC 快照，而 <code>SELECT ... FOR UPDATE</code> 这类当前读需要锁。</p>
+<hr>
+<h1 id="十二、幻读、Gap-Lock-与-Next-Key-Lock"><a href="#十二、幻读、Gap-Lock-与-Next-Key-Lock" class="headerlink" title="十二、幻读、Gap Lock 与 Next-Key Lock"></a>十二、幻读、Gap Lock 与 Next-Key Lock</h1><p>文章还进一步介绍了 InnoDB 的三类记录范围锁概念：</p>
+<ul>
+<li>Record Lock</li>
+<li>Gap Lock</li>
+<li>Next-Key Lock</li>
+</ul>
+<h2 id="12-1-Record-Lock"><a href="#12-1-Record-Lock" class="headerlink" title="12.1 Record Lock"></a>12.1 Record Lock</h2><p>只锁已经存在的一条索引记录。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">[10]<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="12-2-Gap-Lock"><a href="#12-2-Gap-Lock" class="headerlink" title="12.2 Gap Lock"></a>12.2 Gap Lock</h2><p>锁的是索引记录之间的间隙。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">10      20<br> |------|<br>   GAP<br></code></pre></td></tr></table></figure>
+
+<p>它关注的是：</p>
+<blockquote>
+<p>不允许其他事务在这个范围内插入新的索引记录。</p>
+</blockquote>
+<hr>
+<h2 id="12-3-Next-Key-Lock"><a href="#12-3-Next-Key-Lock" class="headerlink" title="12.3 Next-Key Lock"></a>12.3 Next-Key Lock</h2><p>可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Next-Key Lock = Record Lock + Gap Lock<br></code></pre></td></tr></table></figure>
+
+<p>即：</p>
+<ul>
+<li>锁住已有记录；</li>
+<li>同时锁住相邻范围。</li>
+</ul>
+<p>它的意义就在于范围当前读场景下，可以限制其他事务插入新的满足条件的数据。</p>
+<p>文章将其与 MVCC 一起用于解释 InnoDB 在可重复读隔离级别下如何处理幻读问题。</p>
+<p>可以这样理解：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">快照读的一致性<br>    ↓<br>MVCC / Read View<br><br>当前读的范围稳定性<br>    ↓<br>Record / Gap / Next-Key Lock<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h1 id="十三、为什么-MVCC-能提升并发"><a href="#十三、为什么-MVCC-能提升并发" class="headerlink" title="十三、为什么 MVCC 能提升并发"></a>十三、为什么 MVCC 能提升并发</h1><p>如果没有 MVCC：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">读数据 → 加锁<br>写数据 → 等读锁释放<br></code></pre></td></tr></table></figure>
+
+<p>有了 MVCC：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">读事务<br> ↓<br>历史快照<br><br>写事务<br> ↓<br>最新版本<br></code></pre></td></tr></table></figure>
+
+<p>于是可以做到：</p>
+<ul>
+<li>读不必总是阻塞写；</li>
+<li>写不必总是阻塞普通读取；</li>
+<li>大量 SELECT 不必都转化为锁竞争；</li>
+<li>降低部分死锁发生概率；</li>
+<li>提高数据库吞吐量。</li>
+</ul>
+<p>这也是为什么现代关系型数据库普遍采用某种形式的多版本并发控制。</p>
+<hr>
+<h1 id="十四、查询优化器：SQL-写的是“我要什么”，不是“怎么做”"><a href="#十四、查询优化器：SQL-写的是“我要什么”，不是“怎么做”" class="headerlink" title="十四、查询优化器：SQL 写的是“我要什么”，不是“怎么做”"></a>十四、查询优化器：SQL 写的是“我要什么”，不是“怎么做”</h1><p>理解完并发控制之后，再来看 SQL 执行。</p>
+<p>SQL 是声明式语言。</p>
+<p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> u.name, o.amount<br><span class="hljs-keyword">FROM</span> <span class="hljs-keyword">user</span> u<br><span class="hljs-keyword">JOIN</span> orders o <span class="hljs-keyword">ON</span> u.id <span class="hljs-operator">=</span> o.user_id<br><span class="hljs-keyword">WHERE</span> o.amount <span class="hljs-operator">&gt;</span> <span class="hljs-number">1000</span>;<br></code></pre></td></tr></table></figure>
+
+<p>我们只描述了：</p>
+<blockquote>
+<p>我要哪些数据。</p>
+</blockquote>
+<p>却没有指定：</p>
+<ul>
+<li>先查 user 还是 orders；</li>
+<li>用哪个索引；</li>
+<li>是全表扫描还是范围扫描；</li>
+<li>两张表怎么 JOIN；</li>
+<li>是否需要临时表；</li>
+<li>是否需要排序。</li>
+</ul>
+<p>这些事情需要查询优化器决定。</p>
+<hr>
+<h1 id="十五、一条-SQL-的优化过程"><a href="#十五、一条-SQL-的优化过程" class="headerlink" title="十五、一条 SQL 的优化过程"></a>十五、一条 SQL 的优化过程</h1><p>可以概括为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs text">SQL<br> ↓<br>Parser<br> ↓<br>语法树<br> ↓<br>逻辑优化<br> ↓<br>候选执行方案<br> ↓<br>物理优化<br> ↓<br>执行计划<br> ↓<br>Executor<br></code></pre></td></tr></table></figure>
+
+<h2 id="15-1-逻辑查询优化"><a href="#15-1-逻辑查询优化" class="headerlink" title="15.1 逻辑查询优化"></a>15.1 逻辑查询优化</h2><p>逻辑优化主要做的是：</p>
+<blockquote>
+<p><strong>等价重写。</strong></p>
+</blockquote>
+<p>也就是说，不改变 SQL 的语义，但换一种更容易执行的形式。</p>
+<p>例如：</p>
+<ul>
+<li>谓词简化；</li>
+<li>条件重写；</li>
+<li>子查询优化；</li>
+<li>连接简化；</li>
+<li>外连接消除；</li>
+<li>调整等价条件表达式。</li>
+</ul>
+<p>它的数学基础可以理解为关系代数。</p>
+<hr>
+<h2 id="15-2-物理查询优化"><a href="#15-2-物理查询优化" class="headerlink" title="15.2 物理查询优化"></a>15.2 物理查询优化</h2><p>逻辑上确定“要做什么”以后，还需要决定：</p>
+<blockquote>
+<p>具体用什么算法做。</p>
+</blockquote>
+<p>例如 JOIN 可能存在多种物理实现方式。</p>
+<p>同样一个查询，也可能存在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">全表扫描<br>索引扫描<br>范围扫描<br>不同索引<br>不同 JOIN 顺序<br>不同 JOIN 算法<br></code></pre></td></tr></table></figure>
+
+<p>于是优化器要在这些候选计划中做选择。</p>
+<hr>
+<h1 id="十六、RBO-与-CBO"><a href="#十六、RBO-与-CBO" class="headerlink" title="十六、RBO 与 CBO"></a>十六、RBO 与 CBO</h1><p>文章介绍了两类典型优化思想。</p>
+<h2 id="16-1-RBO：基于规则"><a href="#16-1-RBO：基于规则" class="headerlink" title="16.1 RBO：基于规则"></a>16.1 RBO：基于规则</h2><p>RBO：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Rule-Based Optimizer<br></code></pre></td></tr></table></figure>
+
+<p>核心思想：</p>
+<blockquote>
+<p>使用预定义规则和经验选择执行路径。</p>
+</blockquote>
+<p>可以类比为：</p>
+<blockquote>
+<p>老司机凭经验选路。</p>
+</blockquote>
+<p>特点：</p>
+<ul>
+<li>规则稳定；</li>
+<li>行为相对容易预测；</li>
+<li>不需要复杂代价计算；</li>
+<li>但难以适应不同数据分布。</li>
+</ul>
+<hr>
+<h2 id="16-2-CBO：基于代价"><a href="#16-2-CBO：基于代价" class="headerlink" title="16.2 CBO：基于代价"></a>16.2 CBO：基于代价</h2><p>CBO：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Cost-Based Optimizer<br></code></pre></td></tr></table></figure>
+
+<p>它会估算不同执行方案的 Cost：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Plan A → Cost 100<br>Plan B → Cost 20<br>Plan C → Cost 56<br></code></pre></td></tr></table></figure>
+
+<p>最终选择估算代价较小的方案。</p>
+<p>它更像导航软件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">距离<br>拥堵<br>道路等级<br>历史数据<br>实时情况<br></code></pre></td></tr></table></figure>
+
+<p>综合计算后选择路线。</p>
+<hr>
+<h1 id="十七、CBO-的-Cost-到底是什么"><a href="#十七、CBO-的-Cost-到底是什么" class="headerlink" title="十七、CBO 的 Cost 到底是什么"></a>十七、CBO 的 Cost 到底是什么</h1><p>文章用一个经典模型解释：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Cost ≈ I/O Cost + CPU Cost<br></code></pre></td></tr></table></figure>
+
+<p>进一步还可能考虑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">总代价 =<br>I/O<br>+ CPU<br>+ Memory<br>+ Remote<br>+ ...<br></code></pre></td></tr></table></figure>
+
+<p>其中最值得关注的是 I&#x2F;O 和 CPU。</p>
+<h2 id="17-1-I-O-Cost"><a href="#17-1-I-O-Cost" class="headerlink" title="17.1 I&#x2F;O Cost"></a>17.1 I&#x2F;O Cost</h2><p>例如：</p>
+<ul>
+<li>读取多少数据页；</li>
+<li>读取多少索引页；</li>
+<li>页面是否已经在内存；</li>
+<li>是否需要磁盘随机读取。</li>
+</ul>
+<h2 id="17-2-CPU-Cost"><a href="#17-2-CPU-Cost" class="headerlink" title="17.2 CPU Cost"></a>17.2 CPU Cost</h2><p>例如：</p>
+<ul>
+<li>比较多少个 key；</li>
+<li>判断多少行；</li>
+<li>执行多少表达式；</li>
+<li>做多少排序和计算。</li>
+</ul>
+<p>因此一个执行计划的优劣，不是简单的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">“走索引 = 一定快”<br></code></pre></td></tr></table></figure>
+
+<p>而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">走这个索引的总成本<br>vs<br>直接扫表的总成本<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h1 id="十八、为什么“有索引却不走索引”"><a href="#十八、为什么“有索引却不走索引”" class="headerlink" title="十八、为什么“有索引却不走索引”"></a>十八、为什么“有索引却不走索引”</h1><p>这是理解 CBO 后最自然的结论。</p>
+<p>假设一张表 100 万行，某字段只有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">男<br>女<br></code></pre></td></tr></table></figure>
+
+<p>两个值。</p>
+<p>即使这个字段有索引：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> INDEX idx_gender <span class="hljs-keyword">ON</span> <span class="hljs-keyword">user</span>(gender);<br></code></pre></td></tr></table></figure>
+
+<p>查询：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> <span class="hljs-keyword">user</span><br><span class="hljs-keyword">WHERE</span> gender <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;男&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<p>如果会命中 50 万行：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">索引扫描<br>+<br>大量回表<br></code></pre></td></tr></table></figure>
+
+<p>可能比：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">直接顺序扫描大量数据页<br></code></pre></td></tr></table></figure>
+
+<p>还贵。</p>
+<p>于是优化器完全可能不走这个索引。</p>
+<p>所以真正的问题不是：</p>
+<blockquote>
+<p>为什么 MySQL 不听我的？</p>
+</blockquote>
+<p>而是：</p>
+<blockquote>
+<p><strong>优化器根据统计信息，认为哪条路径成本更低？</strong></p>
+</blockquote>
+<hr>
+<h1 id="十九、CBO-为什么也可能选错"><a href="#十九、CBO-为什么也可能选错" class="headerlink" title="十九、CBO 为什么也可能选错"></a>十九、CBO 为什么也可能选错</h1><p>CBO 并不是“真理机器”。</p>
+<p>它依赖很多输入：</p>
+<ul>
+<li>表统计信息；</li>
+<li>索引基数；</li>
+<li>数据分布；</li>
+<li>优化器参数；</li>
+<li>I&#x2F;O 成本参数；</li>
+<li>内存状态；</li>
+<li>SQL 结构。</li>
+</ul>
+<p>只要估算与真实数据偏差很大，就可能出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">估算最优<br>≠<br>真实执行最优<br></code></pre></td></tr></table></figure>
+
+<p>而且优化器本身也需要消耗 CPU。</p>
+<p>对于复杂 SQL，理论上的 JOIN 组合可能非常多，因此优化器还必须进行搜索空间剪枝。</p>
+<p>所以优化器真正追求的通常不是数学意义上的绝对最优，而是：</p>
+<blockquote>
+<p><strong>在有限优化时间内，找到足够好的执行计划。</strong></p>
+</blockquote>
+<hr>
+<h1 id="二十、索引：B-Tree-为什么成为-InnoDB-的主力结构"><a href="#二十、索引：B-Tree-为什么成为-InnoDB-的主力结构" class="headerlink" title="二十、索引：B+ Tree 为什么成为 InnoDB 的主力结构"></a>二十、索引：B+ Tree 为什么成为 InnoDB 的主力结构</h1><p>文章比较了 B+ Tree 和 Hash。</p>
+<h2 id="20-1-B-Tree-适合"><a href="#20-1-B-Tree-适合" class="headerlink" title="20.1 B+ Tree 适合"></a>20.1 B+ Tree 适合</h2><ul>
+<li>等值查询；</li>
+<li>范围查询；</li>
+<li>排序；</li>
+<li>前缀匹配；</li>
+<li>联合索引。</li>
+</ul>
+<p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">100</span><br></code></pre></td></tr></table></figure>
+
+<p>以及：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> id <span class="hljs-keyword">BETWEEN</span> <span class="hljs-number">100</span> <span class="hljs-keyword">AND</span> <span class="hljs-number">1000</span><br></code></pre></td></tr></table></figure>
+
+<p>都很适合 B+ Tree。</p>
+<hr>
+<h2 id="20-2-Hash-更擅长等值查找"><a href="#20-2-Hash-更擅长等值查找" class="headerlink" title="20.2 Hash 更擅长等值查找"></a>20.2 Hash 更擅长等值查找</h2><p>Hash 的优势在于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">key → hash → bucket<br></code></pre></td></tr></table></figure>
+
+<p>理想情况下定位速度非常快。</p>
+<p>但是 Hash 天然不适合：</p>
+<ul>
+<li>范围查询；</li>
+<li>顺序扫描；</li>
+<li>ORDER BY；</li>
+<li>联合索引前缀查询。</li>
+</ul>
+<p>因为 Hash 之后的数据不再保持原有顺序关系。</p>
+<hr>
+<h1 id="二十一、自适应-Hash-索引：给-B-Tree-再加一层“快捷入口”"><a href="#二十一、自适应-Hash-索引：给-B-Tree-再加一层“快捷入口”" class="headerlink" title="二十一、自适应 Hash 索引：给 B+ Tree 再加一层“快捷入口”"></a>二十一、自适应 Hash 索引：给 B+ Tree 再加一层“快捷入口”</h1><p>InnoDB 的一个有趣机制是 Adaptive Hash Index。</p>
+<p>可以把它理解成：</p>
+<blockquote>
+<p><strong>热点 B+ Tree 访问路径的 Hash 快捷入口。</strong></p>
+</blockquote>
+<p>文章中的思路是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">普通访问：<br><br>查询条件<br> ↓<br>B+ Tree<br> ↓<br>叶子节点<br> ↓<br>数据页<br></code></pre></td></tr></table></figure>
+
+<p>热点访问可能建立：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">查询条件<br> ↓<br>Adaptive Hash<br> ↓<br>快速定位热点页<br></code></pre></td></tr></table></figure>
+
+<p>它不是让开发者手工创建一个新的 Hash 索引，而是由 InnoDB 根据访问模式自行维护。</p>
+<p>因此很适合用一句话记忆：</p>
+<blockquote>
+<p><strong>Adaptive Hash Index 是“索引的索引”。</strong></p>
+</blockquote>
+<hr>
+<h1 id="二十二、联合索引与最左前缀"><a href="#二十二、联合索引与最左前缀" class="headerlink" title="二十二、联合索引与最左前缀"></a>二十二、联合索引与最左前缀</h1><p>假设创建：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql">INDEX idx_xyz(x, y, z)<br></code></pre></td></tr></table></figure>
+
+<p>B+ Tree 中的排序逻辑可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">先按 x 排<br>x 相同时按 y 排<br>x、y 相同时再按 z 排<br></code></pre></td></tr></table></figure>
+
+<p>因此：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> x <span class="hljs-operator">=</span> <span class="hljs-number">1</span><br></code></pre></td></tr></table></figure>
+
+<p>可以使用。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> x <span class="hljs-operator">=</span> <span class="hljs-number">1</span> <span class="hljs-keyword">AND</span> y <span class="hljs-operator">=</span> <span class="hljs-number">2</span><br></code></pre></td></tr></table></figure>
+
+<p>也可以继续缩小范围。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> x <span class="hljs-operator">=</span> <span class="hljs-number">1</span> <span class="hljs-keyword">AND</span> y <span class="hljs-operator">=</span> <span class="hljs-number">2</span> <span class="hljs-keyword">AND</span> z <span class="hljs-operator">=</span> <span class="hljs-number">3</span><br></code></pre></td></tr></table></figure>
+
+<p>可以完整利用联合索引的排序层级。</p>
+<p>但是：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> y <span class="hljs-operator">=</span> <span class="hljs-number">2</span> <span class="hljs-keyword">AND</span> z <span class="hljs-operator">=</span> <span class="hljs-number">3</span><br></code></pre></td></tr></table></figure>
+
+<p>缺少最左侧的 <code>x</code>，无法直接按照这棵树的首层排序快速定位。</p>
+<hr>
+<h2 id="22-1-WHERE-中字段书写顺序不是关键"><a href="#22-1-WHERE-中字段书写顺序不是关键" class="headerlink" title="22.1 WHERE 中字段书写顺序不是关键"></a>22.1 WHERE 中字段书写顺序不是关键</h2><p>下面两个条件逻辑等价：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> x <span class="hljs-operator">=</span> <span class="hljs-number">1</span> <span class="hljs-keyword">AND</span> y <span class="hljs-operator">=</span> <span class="hljs-number">2</span><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> y <span class="hljs-operator">=</span> <span class="hljs-number">2</span> <span class="hljs-keyword">AND</span> x <span class="hljs-operator">=</span> <span class="hljs-number">1</span><br></code></pre></td></tr></table></figure>
+
+<p>查询优化器会进行逻辑重写。</p>
+<p>因此“最左”指的是：</p>
+<blockquote>
+<p><strong>联合索引的列定义顺序。</strong></p>
+</blockquote>
+<p>不是 SQL 文本中 WHERE 条件出现的顺序。</p>
+<hr>
+<h2 id="22-2-遇到范围条件之后怎么办"><a href="#22-2-遇到范围条件之后怎么办" class="headerlink" title="22.2 遇到范围条件之后怎么办"></a>22.2 遇到范围条件之后怎么办</h2><p>按照文章对联合索引的简化解释：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs sql">INDEX(x, y, z)<br><br><span class="hljs-keyword">WHERE</span> x <span class="hljs-operator">=</span> <span class="hljs-number">1</span><br>  <span class="hljs-keyword">AND</span> y <span class="hljs-operator">&gt;</span> <span class="hljs-number">10</span><br>  <span class="hljs-keyword">AND</span> z <span class="hljs-operator">=</span> <span class="hljs-number">3</span><br></code></pre></td></tr></table></figure>
+
+<p><code>x</code> 可以用于等值定位，<code>y</code> 进入范围查找；范围条件之后，<code>z</code> 通常不能继续用于进一步缩小这次 B+ Tree 的连续搜索区间。</p>
+<p>因此设计联合索引时一个常见思路是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">高频等值条件<br>→ 放前面<br><br>范围条件<br>→ 通常放在后面<br></code></pre></td></tr></table></figure>
+
+<p>最终是否真正有效，仍然应该通过 EXPLAIN 和真实数据验证，而不是只背规则。</p>
+<hr>
+<h1 id="二十三、Buffer-Pool：数据库为什么非常吃内存"><a href="#二十三、Buffer-Pool：数据库为什么非常吃内存" class="headerlink" title="二十三、Buffer Pool：数据库为什么非常吃内存"></a>二十三、Buffer Pool：数据库为什么非常吃内存</h1><p>InnoDB 的数据最终存储在磁盘。</p>
+<p>但是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">内存访问速度<br>&gt;&gt;<br>磁盘随机 I/O<br></code></pre></td></tr></table></figure>
+
+<p>如果每次查询都直接访问磁盘，数据库性能会非常差。</p>
+<p>因此 InnoDB 使用 Buffer Pool 缓存大量热点数据。</p>
+<p>文章中列出的 Buffer Pool 内容包括：</p>
+<ul>
+<li>数据页；</li>
+<li>索引页；</li>
+<li>锁相关信息；</li>
+<li>自适应 Hash；</li>
+<li>数据字典相关信息；</li>
+<li>其他内部结构。</li>
+</ul>
+<p>核心目标只有一个：</p>
+<blockquote>
+<p><strong>尽量把高频磁盘访问变成内存访问。</strong></p>
+</blockquote>
+<hr>
+<h1 id="二十四、Buffer-Pool-的两个关键词：局部性与热数据"><a href="#二十四、Buffer-Pool-的两个关键词：局部性与热数据" class="headerlink" title="二十四、Buffer Pool 的两个关键词：局部性与热数据"></a>二十四、Buffer Pool 的两个关键词：局部性与热数据</h1><h2 id="24-1-热数据"><a href="#24-1-热数据" class="headerlink" title="24.1 热数据"></a>24.1 热数据</h2><p>内存不可能无限大。</p>
+<p>假设：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">磁盘数据：500 GB<br>Buffer Pool：32 GB<br></code></pre></td></tr></table></figure>
+
+<p>那么数据库必须决定：</p>
+<blockquote>
+<p>哪些页面更值得留在内存？</p>
+</blockquote>
+<p>答案自然是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">访问频率更高的数据<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="24-2-局部性与预读"><a href="#24-2-局部性与预读" class="headerlink" title="24.2 局部性与预读"></a>24.2 局部性与预读</h2><p>程序访问数据往往具有局部性：</p>
+<blockquote>
+<p>访问某个位置之后，很可能马上访问附近位置。</p>
+</blockquote>
+<p>因此数据库可以进行预读：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">你读 page 100<br>↓<br>系统判断你很可能还会读附近 page<br>↓<br>提前加载<br></code></pre></td></tr></table></figure>
+
+<p>从而减少未来磁盘 I&#x2F;O。</p>
+<hr>
+<h1 id="二十五、Buffer-Pool-和-Query-Cache-不是一回事"><a href="#二十五、Buffer-Pool-和-Query-Cache-不是一回事" class="headerlink" title="二十五、Buffer Pool 和 Query Cache 不是一回事"></a>二十五、Buffer Pool 和 Query Cache 不是一回事</h1><p>这是非常经典的混淆。</p>
+<h2 id="Buffer-Pool-缓存"><a href="#Buffer-Pool-缓存" class="headerlink" title="Buffer Pool 缓存"></a>Buffer Pool 缓存</h2><p>缓存的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">数据页 / 索引页等数据库页面<br></code></pre></td></tr></table></figure>
+
+<p>目标是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">减少磁盘 I/O<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Query-Cache-缓存"><a href="#Query-Cache-缓存" class="headerlink" title="Query Cache 缓存"></a>Query Cache 缓存</h2><p>文章介绍的旧版 Query Cache 缓存的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">SQL 查询结果<br></code></pre></td></tr></table></figure>
+
+<p>即：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">SQL<br>↓<br>之前执行过完全匹配的查询？<br>↓<br>直接返回结果<br></code></pre></td></tr></table></figure>
+
+<p>但是它存在明显问题：</p>
+<ul>
+<li>命中条件苛刻；</li>
+<li>表数据变化后缓存容易失效；</li>
+<li>维护成本高。</li>
+</ul>
+<p>文章也明确指出，MySQL 8.0 已经移除了这一查询缓存机制。</p>
+<p>因此：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Buffer Pool ≠ Query Cache<br></code></pre></td></tr></table></figure>
+
+<p>二者虽然都叫“缓存”，但工作层次完全不同。</p>
+<hr>
+<h1 id="二十六、SQL-慢了以后，正确姿势不是立刻“加索引”"><a href="#二十六、SQL-慢了以后，正确姿势不是立刻“加索引”" class="headerlink" title="二十六、SQL 慢了以后，正确姿势不是立刻“加索引”"></a>二十六、SQL 慢了以后，正确姿势不是立刻“加索引”</h1><p>性能优化最怕的一件事就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">看到慢 SQL<br>↓<br>猜一个索引<br>↓<br>上线<br>↓<br>祈祷<br></code></pre></td></tr></table></figure>
+
+<p>更可靠的方式应该是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">观察<br>↓<br>定位<br>↓<br>分析<br>↓<br>修改<br>↓<br>验证<br></code></pre></td></tr></table></figure>
+
+<p>文章给出的性能分析主线非常值得保留：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">服务器状态<br>↓<br>慢查询日志<br>↓<br>EXPLAIN<br>↓<br>更细粒度执行分析<br>↓<br>索引 / SQL / 参数 / 架构优化<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h1 id="二十七、第一步：先判断到底是什么慢"><a href="#二十七、第一步：先判断到底是什么慢" class="headerlink" title="二十七、第一步：先判断到底是什么慢"></a>二十七、第一步：先判断到底是什么慢</h1><p>SQL 响应时间长，大致可能来自：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">执行时间<br>+<br>等待时间<br></code></pre></td></tr></table></figure>
+
+<p>执行时间长可能是：</p>
+<ul>
+<li>扫描数据过多；</li>
+<li>JOIN 成本高；</li>
+<li>排序量大；</li>
+<li>聚合量大；</li>
+<li>没有合适索引；</li>
+<li>临时表开销大。</li>
+</ul>
+<p>等待时间长可能是：</p>
+<ul>
+<li>锁等待；</li>
+<li>I&#x2F;O 等待；</li>
+<li>资源竞争；</li>
+<li>Buffer Pool 压力；</li>
+<li>并发过高。</li>
+</ul>
+<p>所以看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">SQL took 10s<br></code></pre></td></tr></table></figure>
+
+<p>并不能直接推出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">SQL 本身计算了 10s<br></code></pre></td></tr></table></figure>
+
+<p>它也可能有 9 秒都在等。</p>
+<hr>
+<h1 id="二十八、慢查询日志：先把真正慢的-SQL-抓出来"><a href="#二十八、慢查询日志：先把真正慢的-SQL-抓出来" class="headerlink" title="二十八、慢查询日志：先把真正慢的 SQL 抓出来"></a>二十八、慢查询日志：先把真正慢的 SQL 抓出来</h1><p>文章使用：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SHOW</span> VARIABLES <span class="hljs-keyword">LIKE</span> <span class="hljs-string">&#x27;%slow_query_log%&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<p>查看慢查询日志。</p>
+<p>开启：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SET</span> <span class="hljs-keyword">GLOBAL</span> slow_query_log <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;ON&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<p>设置阈值：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SET</span> <span class="hljs-keyword">GLOBAL</span> long_query_time <span class="hljs-operator">=</span> <span class="hljs-number">3</span>;<br></code></pre></td></tr></table></figure>
+
+<p>当 SQL 执行时间超过阈值后，会被记录。</p>
+<p>这一步解决的是：</p>
+<blockquote>
+<p><strong>到底哪些 SQL 慢？</strong></p>
+</blockquote>
+<p>而不是凭感觉翻项目代码，把所有 SQL 全部优化一遍。</p>
+<p>后者通常成本非常高，而且很容易把时间花在根本不重要的 SQL 上。</p>
+<hr>
+<h1 id="二十九、EXPLAIN：优化器最终到底选了什么计划"><a href="#二十九、EXPLAIN：优化器最终到底选了什么计划" class="headerlink" title="二十九、EXPLAIN：优化器最终到底选了什么计划"></a>二十九、EXPLAIN：优化器最终到底选了什么计划</h1><p>定位慢 SQL 后，下一步通常是：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql">EXPLAIN<br><span class="hljs-keyword">SELECT</span> ...<br></code></pre></td></tr></table></figure>
+
+<p>EXPLAIN 的核心价值是：</p>
+<blockquote>
+<p><strong>把优化器选择的执行计划展示出来。</strong></p>
+</blockquote>
+<p>常见关注字段包括：</p>
+<ul>
+<li><code>table</code></li>
+<li><code>type</code></li>
+<li><code>possible_keys</code></li>
+<li><code>key</code></li>
+<li><code>key_len</code></li>
+<li><code>ref</code></li>
+<li><code>rows</code></li>
+<li><code>filtered</code></li>
+<li><code>Extra</code></li>
+</ul>
+<hr>
+<h1 id="三十、EXPLAIN-的-type-怎么理解"><a href="#三十、EXPLAIN-的-type-怎么理解" class="headerlink" title="三十、EXPLAIN 的 type 怎么理解"></a>三十、EXPLAIN 的 type 怎么理解</h1><p>文章列出的常见访问类型包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">ALL<br>index<br>range<br>index_merge<br>ref<br>eq_ref<br>const<br>system<br></code></pre></td></tr></table></figure>
+
+<p>可以做一个粗粒度理解：</p>
+<h2 id="ALL"><a href="#ALL" class="headerlink" title="ALL"></a>ALL</h2><p>全表扫描。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">整张表逐行看<br></code></pre></td></tr></table></figure>
+
+<p>通常需要重点关注。</p>
+<hr>
+<h2 id="index"><a href="#index" class="headerlink" title="index"></a>index</h2><p>全索引扫描。</p>
+<p>虽然读取的是索引，但仍然可能扫描大量索引记录。</p>
+<hr>
+<h2 id="range"><a href="#range" class="headerlink" title="range"></a>range</h2><p>索引范围扫描。</p>
+<p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">&gt;</span> <span class="hljs-number">1000</span><br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="ref"><a href="#ref" class="headerlink" title="ref"></a>ref</h2><p>通过非唯一索引查找一个或多个匹配值。</p>
+<p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> <span class="hljs-number">100</span><br></code></pre></td></tr></table></figure>
+
+<p>如果 <code>user_id</code> 是普通索引。</p>
+<hr>
+<h2 id="eq-ref"><a href="#eq-ref" class="headerlink" title="eq_ref"></a>eq_ref</h2><p>JOIN 中通过主键或唯一索引查找唯一记录。</p>
+<hr>
+<h2 id="const"><a href="#const" class="headerlink" title="const"></a>const</h2><p>通过主键或唯一索引与常量进行比较，并且最多命中一条记录。</p>
+<p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">100</span><br></code></pre></td></tr></table></figure>
+
+<hr>
+<p>需要注意的是，这些 <code>type</code> 更适合用于理解访问方式，而不是简单当成一个绝对性能排行榜。</p>
+<p>真正分析 SQL 时，还要结合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">rows<br>filtered<br>key<br>Extra<br>实际执行时间<br>数据分布<br></code></pre></td></tr></table></figure>
+
+<p>一起判断。</p>
+<hr>
+<h1 id="三十一、Using-Index：为什么覆盖索引很重要"><a href="#三十一、Using-Index：为什么覆盖索引很重要" class="headerlink" title="三十一、Using Index：为什么覆盖索引很重要"></a>三十一、Using Index：为什么覆盖索引很重要</h1><p>如果 EXPLAIN 的 Extra 中出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Using index<br></code></pre></td></tr></table></figure>
+
+<p>通常说明查询可以直接从索引中获得需要的列。</p>
+<p>例如建立：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql">INDEX idx_user_text(user_id, comment_text)<br></code></pre></td></tr></table></figure>
+
+<p>查询：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> user_id, comment_text<br><span class="hljs-keyword">FROM</span> product_comment<br><span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> <span class="hljs-number">100</span>;<br></code></pre></td></tr></table></figure>
+
+<p>如果所有需要的数据都能从索引叶子节点获得，就可能不必回主键索引再次取整行。</p>
+<p>普通二级索引查询可能是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">二级索引<br> ↓<br>得到主键<br> ↓<br>聚簇索引<br> ↓<br>读取完整行<br></code></pre></td></tr></table></figure>
+
+<p>覆盖索引则可能变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">二级索引<br> ↓<br>直接返回<br></code></pre></td></tr></table></figure>
+
+<p>少一次回表，通常意味着更少的随机访问。</p>
+<hr>
+<h1 id="三十二、SHOW-PROFILE：文章中的细粒度分析工具"><a href="#三十二、SHOW-PROFILE：文章中的细粒度分析工具" class="headerlink" title="三十二、SHOW PROFILE：文章中的细粒度分析工具"></a>三十二、SHOW PROFILE：文章中的细粒度分析工具</h1><p>文章还介绍了：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SET</span> profiling <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;ON&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<p>然后：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SHOW</span> PROFILES;<br><span class="hljs-keyword">SHOW</span> PROFILE;<br></code></pre></td></tr></table></figure>
+
+<p>用于查看 SQL 各阶段耗时，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">starting<br>checking permissions<br>Opening tables<br>optimizing<br>statistics<br>executing<br>Sending data<br>...<br></code></pre></td></tr></table></figure>
+
+<p>这能帮助判断：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">CPU 花在哪里？<br>I/O 花在哪里？<br>等待花在哪里？<br></code></pre></td></tr></table></figure>
+
+<p>不过原文章已经明确提醒：</p>
+<blockquote>
+<p><code>SHOW PROFILE</code> 将被弃用。</p>
+</blockquote>
+<p>所以在现代 MySQL 环境中，更重要的是理解它背后的分析思想：</p>
+<blockquote>
+<p><strong>不要只看总耗时，要拆分 SQL 各阶段到底把时间花在了哪里。</strong></p>
+</blockquote>
+<p>具体使用哪一种工具，应以当前 MySQL 版本支持的性能诊断能力为准。</p>
+<hr>
+<h1 id="三十三、把五篇文章串起来：数据库性能其实是一个完整系统"><a href="#三十三、把五篇文章串起来：数据库性能其实是一个完整系统" class="headerlink" title="三十三、把五篇文章串起来：数据库性能其实是一个完整系统"></a>三十三、把五篇文章串起来：数据库性能其实是一个完整系统</h1><p>现在把前面的知识重新连起来。</p>
+<p>假设线上有一条 SQL 很慢：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> account<br><span class="hljs-keyword">SET</span> balance <span class="hljs-operator">=</span> balance <span class="hljs-operator">-</span> <span class="hljs-number">100</span><br><span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> <span class="hljs-number">10001</span>;<br></code></pre></td></tr></table></figure>
+
+<p>第一步不能直接说：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">加索引！<br></code></pre></td></tr></table></figure>
+
+<p>而应该逐层判断。</p>
+<h2 id="第-1-层：是不是锁等待"><a href="#第-1-层：是不是锁等待" class="headerlink" title="第 1 层：是不是锁等待"></a>第 1 层：是不是锁等待</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">另一个事务是否已经锁住 user_id = 10001？<br></code></pre></td></tr></table></figure>
+
+<p>如果是，那么问题属于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">事务 / 锁<br></code></pre></td></tr></table></figure>
+
+<p>而不一定是查询计划。</p>
+<hr>
+<h2 id="第-2-层：SQL-到底扫描了多少数据"><a href="#第-2-层：SQL-到底扫描了多少数据" class="headerlink" title="第 2 层：SQL 到底扫描了多少数据"></a>第 2 层：SQL 到底扫描了多少数据</h2><p>用 EXPLAIN 看：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">type<br>key<br>rows<br>filtered<br>Extra<br></code></pre></td></tr></table></figure>
+
+<p>如果扫描几十万行，才进入索引或 SQL 结构优化。</p>
+<hr>
+<h2 id="第-3-层：优化器为什么这么选"><a href="#第-3-层：优化器为什么这么选" class="headerlink" title="第 3 层：优化器为什么这么选"></a>第 3 层：优化器为什么这么选</h2><p>如果明明有索引却不用，需要进一步思考：</p>
+<ul>
+<li>索引选择性是否太低；</li>
+<li>统计信息是否导致错误估算；</li>
+<li>回表成本是否太高；</li>
+<li>查询返回比例是否过大；</li>
+<li>联合索引顺序是否不合理。</li>
+</ul>
+<hr>
+<h2 id="第-4-层：是不是-I-O"><a href="#第-4-层：是不是-I-O" class="headerlink" title="第 4 层：是不是 I&#x2F;O"></a>第 4 层：是不是 I&#x2F;O</h2><p>如果执行计划看起来合理，但仍然慢：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Buffer Pool 命中率？<br>磁盘 I/O？<br>数据是否远大于内存？<br>是否突然扫描冷数据？<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="第-5-层：是不是已经到了单库极限"><a href="#第-5-层：是不是已经到了单库极限" class="headerlink" title="第 5 层：是不是已经到了单库极限"></a>第 5 层：是不是已经到了单库极限</h2><p>如果：</p>
+<ul>
+<li>SQL 已优化；</li>
+<li>索引合理；</li>
+<li>参数正常；</li>
+<li>锁竞争已控制；</li>
+<li>硬件没有明显问题；</li>
+</ul>
+<p>仍然到达瓶颈，就需要进入架构层：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">读写分离<br>分库<br>分表<br>缓存<br>拆分热点<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h1 id="三十四、一套更实用的-SQL-排障顺序"><a href="#三十四、一套更实用的-SQL-排障顺序" class="headerlink" title="三十四、一套更实用的 SQL 排障顺序"></a>三十四、一套更实用的 SQL 排障顺序</h1><p>线上遇到 SQL 慢，可以按照下面顺序检查。</p>
+<h2 id="Step-1：确认现象"><a href="#Step-1：确认现象" class="headerlink" title="Step 1：确认现象"></a>Step 1：确认现象</h2><p>先回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">一直慢？<br>偶发慢？<br>高峰期慢？<br>只有某些参数慢？<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Step-2：区分等待和执行"><a href="#Step-2：区分等待和执行" class="headerlink" title="Step 2：区分等待和执行"></a>Step 2：区分等待和执行</h2><p>判断：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Lock Wait？<br>I/O Wait？<br>CPU？<br>真正执行耗时？<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Step-3：定位慢-SQL"><a href="#Step-3：定位慢-SQL" class="headerlink" title="Step 3：定位慢 SQL"></a>Step 3：定位慢 SQL</h2><p>使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">慢查询日志<br>监控平台<br>数据库性能视图<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Step-4：看-EXPLAIN"><a href="#Step-4：看-EXPLAIN" class="headerlink" title="Step 4：看 EXPLAIN"></a>Step 4：看 EXPLAIN</h2><p>重点：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">key<br>type<br>rows<br>filtered<br>Extra<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Step-5：看索引设计"><a href="#Step-5：看索引设计" class="headerlink" title="Step 5：看索引设计"></a>Step 5：看索引设计</h2><p>检查：</p>
+<ul>
+<li>是否满足最左前缀；</li>
+<li>是否存在高选择性索引；</li>
+<li>是否可以构造覆盖索引；</li>
+<li>是否存在大量回表；</li>
+<li>是否出现索引扫描量过大。</li>
+</ul>
+<hr>
+<h2 id="Step-6：看事务和锁"><a href="#Step-6：看事务和锁" class="headerlink" title="Step 6：看事务和锁"></a>Step 6：看事务和锁</h2><p>检查：</p>
+<ul>
+<li>是否有长事务；</li>
+<li>是否有锁等待；</li>
+<li>是否有死锁；</li>
+<li>是否在事务里执行外部 RPC；</li>
+<li>是否访问资源顺序不一致。</li>
+</ul>
+<hr>
+<h2 id="Step-7：看-Buffer-Pool-和-I-O"><a href="#Step-7：看-Buffer-Pool-和-I-O" class="headerlink" title="Step 7：看 Buffer Pool 和 I&#x2F;O"></a>Step 7：看 Buffer Pool 和 I&#x2F;O</h2><p>检查：</p>
+<ul>
+<li>热数据是否能驻留内存；</li>
+<li>是否存在大量冷数据读取；</li>
+<li>是否大量随机 I&#x2F;O；</li>
+<li>是否出现周期性缓存失效。</li>
+</ul>
+<hr>
+<h2 id="Step-8：最后才考虑架构扩展"><a href="#Step-8：最后才考虑架构扩展" class="headerlink" title="Step 8：最后才考虑架构扩展"></a>Step 8：最后才考虑架构扩展</h2><p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">缓存<br>读写分离<br>分库分表<br>水平扩容<br></code></pre></td></tr></table></figure>
+
+<p>不要把架构复杂度当成第一选择。</p>
+<hr>
+<h1 id="三十五、几个值得长期记住的结论"><a href="#三十五、几个值得长期记住的结论" class="headerlink" title="三十五、几个值得长期记住的结论"></a>三十五、几个值得长期记住的结论</h1><h2 id="1-锁的目的不是让数据库变慢，而是保护一致性"><a href="#1-锁的目的不是让数据库变慢，而是保护一致性" class="headerlink" title="1. 锁的目的不是让数据库变慢，而是保护一致性"></a>1. 锁的目的不是让数据库变慢，而是保护一致性</h2><p>没有锁，并发写入的数据正确性就无法保证。</p>
+<p>真正需要优化的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">锁的范围<br>锁的时间<br>锁的顺序<br></code></pre></td></tr></table></figure>
+
+<p>而不是“消灭所有锁”。</p>
+<hr>
+<h2 id="2-MVCC-的本质是空间换并发"><a href="#2-MVCC-的本质是空间换并发" class="headerlink" title="2. MVCC 的本质是空间换并发"></a>2. MVCC 的本质是空间换并发</h2><p>它通过：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">历史版本<br>+<br>可见性判断<br></code></pre></td></tr></table></figure>
+
+<p>降低读写互相阻塞。</p>
+<p>也就是说：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">保存更多版本<br>换取更高并发<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="3-普通-SELECT-与-FOR-UPDATE-完全不是一个世界"><a href="#3-普通-SELECT-与-FOR-UPDATE-完全不是一个世界" class="headerlink" title="3. 普通 SELECT 与 FOR UPDATE 完全不是一个世界"></a>3. 普通 SELECT 与 FOR UPDATE 完全不是一个世界</h2><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">普通 SELECT → 快照读 → MVCC<br><br>FOR UPDATE → 当前读 → Lock<br></code></pre></td></tr></table></figure>
+
+<p>搞清楚这一点，很多事务隔离问题都会突然简单很多。</p>
+<hr>
+<h2 id="4-有索引不代表一定走索引"><a href="#4-有索引不代表一定走索引" class="headerlink" title="4. 有索引不代表一定走索引"></a>4. 有索引不代表一定走索引</h2><p>优化器选择的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">估算总代价较低的方案<br></code></pre></td></tr></table></figure>
+
+<p>而不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">“只要有索引就必须用”<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="5-EXPLAIN-不是-SQL-优化的终点"><a href="#5-EXPLAIN-不是-SQL-优化的终点" class="headerlink" title="5. EXPLAIN 不是 SQL 优化的终点"></a>5. EXPLAIN 不是 SQL 优化的终点</h2><p>EXPLAIN 告诉我们的是：</p>
+<blockquote>
+<p>优化器准备怎么执行。</p>
+</blockquote>
+<p>但真正的慢还可能来自：</p>
+<ul>
+<li>锁等待；</li>
+<li>Buffer Pool；</li>
+<li>I&#x2F;O；</li>
+<li>数据倾斜；</li>
+<li>统计信息；</li>
+<li>高并发；</li>
+<li>运行时资源竞争。</li>
+</ul>
+<hr>
+<h2 id="6-SQL-优化的核心不是“技巧”，而是降低数据访问成本"><a href="#6-SQL-优化的核心不是“技巧”，而是降低数据访问成本" class="headerlink" title="6. SQL 优化的核心不是“技巧”，而是降低数据访问成本"></a>6. SQL 优化的核心不是“技巧”，而是降低数据访问成本</h2><p>无论是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">索引<br>覆盖索引<br>减少回表<br>减少扫描<br>减少 JOIN<br>Buffer Pool<br>MVCC<br></code></pre></td></tr></table></figure>
+
+<p>最终都在做同一件事：</p>
+<blockquote>
+<p><strong>用更少的资源完成同样的数据计算。</strong></p>
+</blockquote>
+<hr>
+<h1 id="三十六、最终知识图谱"><a href="#三十六、最终知识图谱" class="headerlink" title="三十六、最终知识图谱"></a>三十六、最终知识图谱</h1><p>可以用下面这张逻辑图把整组知识串起来：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><code class="hljs text">             ┌──────────────┐<br>             │   SQL 请求    │<br>             └──────┬───────┘<br>                    │<br>                    ▼<br>          ┌──────────────────┐<br>          │ Parser / Analyzer │<br>          └────────┬─────────┘<br>                   │<br>                   ▼<br>        ┌──────────────────────┐<br>        │   Query Optimizer     │<br>        │                      │<br>        │ Logic + Physical     │<br>        │ RBO / CBO            │<br>        └──────────┬───────────┘<br>                   │<br>                   ▼<br>           ┌──────────────┐<br>           │ Execution Plan│<br>           └───────┬──────┘<br>                   │<br>       ┌───────────┴───────────┐<br>       │                       │<br>       ▼                       ▼<br>┌──────────────┐       ┌──────────────┐<br>│    Index      │       │ Buffer Pool  │<br>│ B+Tree / AHI  │       │ Data / Index │<br>└──────┬───────┘       └──────┬───────┘<br>       │                       │<br>       └───────────┬───────────┘<br>                   │<br>                   ▼<br>           ┌──────────────┐<br>           │   InnoDB      │<br>           └───────┬──────┘<br>                   │<br>        ┌──────────┴──────────┐<br>        │                     │<br>        ▼                     ▼<br>  ┌───────────┐         ┌───────────┐<br>  │   Lock    │         │   MVCC    │<br>  │ S/X/Intent│         │ Undo + RV │<br>  └───────────┘         └───────────┘<br></code></pre></td></tr></table></figure>
+
+<p>最终可以用一句话概括：</p>
+<blockquote>
+<p><strong>优化器决定“怎么找”，索引决定“找得快不快”，Buffer Pool 决定“要不要去磁盘找”，MVCC 决定“应该看到哪个版本”，锁决定“谁现在可以改”。</strong></p>
+</blockquote>
+<p>当这五个模块连起来以后，MySQL 的很多底层行为其实就不再神秘了。</p>
+<hr>
+<h1 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h1><p>本文根据以下《SQL 必知必会》系列文章进行知识提取、重组与归纳：</p>
+<ol>
+<li>陈旸：《锁：悲观锁和乐观锁是什么？》</li>
+<li>陈旸：《为什么大部分 RDBMS 都会支持 MVCC？》</li>
+<li>陈旸：《查询优化器是如何工作的？》</li>
+<li>陈旸：《如何使用性能分析工具定位 SQL 执行慢的原因？》</li>
+<li>陈旸：《答疑篇：关于索引以及缓冲池的一些解惑》</li>
+</ol>
+<p>本文并非对原文逐段复述，而是将五篇文章中的核心知识按 <strong>并发控制 → 数据可见性 → 查询优化 → 数据访问 → 性能排障</strong> 的顺序重新组织，形成一套更适合工程实践和长期复习的知识框架。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/" class="category-chain-item">数据库</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/MySQL/" class="category-chain-item">MySQL</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/MySQL/" class="print-no-link">#MySQL</a>
+      
+        <a href="/tags/MVCC/" class="print-no-link">#MVCC</a>
+      
+        <a href="/tags/InnoDB/" class="print-no-link">#InnoDB</a>
+      
+        <a href="/tags/Lock/" class="print-no-link">#Lock</a>
+      
+        <a href="/tags/Query-Optimizer/" class="print-no-link">#Query Optimizer</a>
+      
+        <a href="/tags/EXPLAIN/" class="print-no-link">#EXPLAIN</a>
+      
+        <a href="/tags/Index/" class="print-no-link">#Index</a>
+      
+        <a href="/tags/Buffer-Pool/" class="print-no-link">#Buffer Pool</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>从锁、MVCC到查询优化器：一篇文章串起 MySQL SQL 执行与性能优化</div>
+      <div>https://allendericdalexander.github.io/2026/08/11/db/sql/05mysql-lock-mvcc-optimizer-performance/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月11日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/08/11/db/sql/06database-engineering-reliability-security-local-storage/" title="从主从复制到 SQLite：数据库可靠性、安全性与本地存储的完整知识图谱">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">从主从复制到 SQLite：数据库可靠性、安全性与本地存储的完整知识图谱</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/11/db/sql/04mysql-sql-performance-optimization-index-design/" title="从表设计到磁盘 I/O：一套完整的 MySQL 性能优化与索引设计方法">
+                        <span class="hidden-mobile">从表设计到磁盘 I/O：一套完整的 MySQL 性能优化与索引设计方法</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

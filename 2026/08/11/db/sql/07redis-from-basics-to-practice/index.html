@@ -1,0 +1,1441 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="从 Redis 为什么快开始，系统梳理核心数据类型、连接池、事务与 WATCH 乐观锁、Lua 脚本，以及使用 Sorted Set 构建实时排行榜的完整思路。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Redis 从入门到实战：高性能原理、数据结构、事务、Lua 与排行榜">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/11/db/sql/07redis-from-basics-to-practice/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="从 Redis 为什么快开始，系统梳理核心数据类型、连接池、事务与 WATCH 乐观锁、Lua 脚本，以及使用 Sorted Set 构建实时排行榜的完整思路。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-11T02:26:00.000Z">
+<meta property="article:modified_time" content="2026-08-11T02:33:56.272Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Lua">
+<meta property="article:tag" content="NoSQL">
+<meta property="article:tag" content="Redis">
+<meta property="article:tag" content="事务">
+<meta property="article:tag" content="排行榜">
+<meta property="article:tag" content="缓存">
+<meta property="article:tag" content="高并发">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Redis 从入门到实战：高性能原理、数据结构、事务、Lua 与排行榜 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Redis 从入门到实战：高性能原理、数据结构、事务、Lua 与排行榜"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-11 10:26" pubdate>
+          2026年8月11日 上午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          5.5k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          46 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Redis 从入门到实战：高性能原理、数据结构、事务、Lua 与排行榜</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>Redis 是后端开发中最常见的基础设施之一。</p>
+<p>很多人第一次接触 Redis，会把它简单理解成“一个很快的缓存”。这个理解不能说错，但明显低估了 Redis：它不仅能缓存字符串，还提供 Hash、List、Set、Sorted Set 等丰富的数据结构，并且通过事务、原子命令、Lua 脚本等能力，可以直接解决计数器、秒杀、抢票、排行榜等高并发场景中的核心问题。</p>
+<p>本文结合几篇 Redis 学习资料，对其中的知识重新抽取和组织，尝试回答几个真正重要的问题：</p>
+<ul>
+<li>Redis 为什么快？</li>
+<li>Redis 的核心数据结构应该怎么选？</li>
+<li>Redis 的事务与传统关系型数据库事务有什么不同？</li>
+<li><code>WATCH + MULTI</code> 为什么能解决并发抢票问题？</li>
+<li>Lua 脚本解决了什么问题？</li>
+<li>为什么排行榜几乎是 Sorted Set 的“标准答案”？</li>
+<li>Redis 和 MySQL 应该如何配合，而不是互相替代？</li>
+</ul>
+<span id="more"></span>
+
+<h2 id="1-Redis-是什么？"><a href="#1-Redis-是什么？" class="headerlink" title="1. Redis 是什么？"></a>1. Redis 是什么？</h2><p>Redis 全称可以理解为 <strong>Remote Dictionary Server</strong>，本质上是一种基于 Key-Value 模型的数据存储系统。</p>
+<p>最简单的 Redis 数据可以写成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">key -&gt; value<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">SET name zhangfei<br>GET name<br></code></pre></td></tr></table></figure>
+
+<p>但 Redis 与普通 Key-Value 数据库最大的区别之一，是它的 <code>value</code> 并不局限于一个字符串，而是可以使用多种数据结构。</p>
+<p>因此，更准确地说，Redis 是一个：</p>
+<blockquote>
+<p>以内存为核心、支持丰富数据结构、提供高性能读写与原子操作能力的数据存储系统。</p>
+</blockquote>
+<p>在实际架构中，Redis 经常和 MySQL 等关系型数据库一起使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Client<br>   |<br>Application<br>   |<br>   +------&gt; Redis：高频访问、缓存、计数、排行、并发控制<br>   |<br>   +------&gt; MySQL：核心业务数据、长期持久化、复杂查询<br></code></pre></td></tr></table></figure>
+
+<p>Redis 擅长的是“快”和“实时”，关系型数据库擅长的是“可靠存储”和“复杂关系查询”。</p>
+<p>两者并不是替代关系，而是互补关系。</p>
+<hr>
+<h2 id="2-Redis-为什么这么快？"><a href="#2-Redis-为什么这么快？" class="headerlink" title="2. Redis 为什么这么快？"></a>2. Redis 为什么这么快？</h2><p>资料中把 Redis 的高性能归纳为几个核心因素。</p>
+<h3 id="2-1-基于内存读写"><a href="#2-1-基于内存读写" class="headerlink" title="2.1 基于内存读写"></a>2.1 基于内存读写</h3><p>传统数据库的大量性能成本来自磁盘 I&#x2F;O。</p>
+<p>而 Redis 的主要数据保存在内存中，大部分命令都直接对内存中的数据结构进行操作，因此绕开了磁盘随机 I&#x2F;O 的巨大延迟。</p>
+<p>粗略理解：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">磁盘访问：慢<br>内存访问：快<br></code></pre></td></tr></table></figure>
+
+<p>所以 Redis 天生适合：</p>
+<ul>
+<li>缓存</li>
+<li>Session</li>
+<li>高频计数</li>
+<li>排行榜</li>
+<li>热点数据</li>
+<li>临时状态</li>
+<li>高并发读写</li>
+</ul>
+<p>当然，“数据在内存中”也意味着 Redis 的容量和成本受到内存大小约束，它通常不应该被简单当成无限容量的主数据库。</p>
+<h3 id="2-2-数据结构针对场景进行了专门设计"><a href="#2-2-数据结构针对场景进行了专门设计" class="headerlink" title="2.2 数据结构针对场景进行了专门设计"></a>2.2 数据结构针对场景进行了专门设计</h3><p>Redis 并不是只提供一个简单的 HashMap。</p>
+<p>它为不同场景提供不同的数据结构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">String      -&gt; 简单 KV、缓存、计数器<br>Hash        -&gt; 对象属性<br>List        -&gt; 队列、列表<br>Set         -&gt; 去重、集合运算<br>Sorted Set  -&gt; 排行榜、带权排序<br></code></pre></td></tr></table></figure>
+
+<p>当业务问题与数据结构高度匹配时，很多复杂逻辑可以直接由 Redis 命令完成。</p>
+<p>例如排行榜如果放在普通关系型表中，通常需要：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> score <span class="hljs-keyword">DESC</span><br></code></pre></td></tr></table></figure>
+
+<p>而 Redis Sorted Set 本身就在维护一个有序结构，因此“排序”不是每次查询时临时计算，而是数据结构本身提供的能力。</p>
+<h3 id="2-3-避免大量线程竞争和上下文切换"><a href="#2-3-避免大量线程竞争和上下文切换" class="headerlink" title="2.3 避免大量线程竞争和上下文切换"></a>2.3 避免大量线程竞争和上下文切换</h3><p>资料以经典 Redis 模型解释其性能：核心命令执行采用串行化思路，可以避免大量线程之间的：</p>
+<ul>
+<li>锁竞争</li>
+<li>上下文切换</li>
+<li>临界区协调</li>
+<li>死锁风险</li>
+<li>共享状态同步</li>
+</ul>
+<p>这让 Redis 的执行路径非常直接。</p>
+<p>需要注意的是，现代 Redis 的网络 I&#x2F;O、后台任务等实现已经随着版本发展发生变化，因此不要把“Redis 只有一个线程”理解成整个 Redis 进程内部永远只有一个线程。</p>
+<p>真正应该抓住的是：</p>
+<blockquote>
+<p>Redis 的核心命令执行模型尽可能保持简单、可预测，并避免让多线程锁竞争成为主要瓶颈。</p>
+</blockquote>
+<h3 id="2-4-I-O-多路复用"><a href="#2-4-I-O-多路复用" class="headerlink" title="2.4 I&#x2F;O 多路复用"></a>2.4 I&#x2F;O 多路复用</h3><p>Redis 可以同时面对大量客户端连接，但不需要为每个连接都创建一个独立线程。</p>
+<p>其关键思想是 I&#x2F;O 多路复用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Client A ----\<br>Client B -----\<br>Client C ------&gt; I/O Multiplexing -&gt; Redis Event Loop<br>Client D -----/<br>Client E ----/<br></code></pre></td></tr></table></figure>
+
+<p>一个线程可以监听多个 Socket 的事件，只处理真正已经准备好的连接。</p>
+<p>因此 Redis 能在减少线程开销的同时处理大量并发网络连接。</p>
+<h3 id="2-5-C-语言实现"><a href="#2-5-C-语言实现" class="headerlink" title="2.5 C 语言实现"></a>2.5 C 语言实现</h3><p>Redis 使用 C 语言实现，运行时依赖较少，能够直接使用底层系统能力。</p>
+<p>不过工程上不能简单得出“C 写的所以一定快”的结论。真正决定 Redis 性能的是：</p>
+<blockquote>
+<p>内存访问 + 高效数据结构 + 简单执行模型 + I&#x2F;O 多路复用 + 成熟工程实现。</p>
+</blockquote>
+<hr>
+<h2 id="3-Redis-最核心的五种数据类型"><a href="#3-Redis-最核心的五种数据类型" class="headerlink" title="3. Redis 最核心的五种数据类型"></a>3. Redis 最核心的五种数据类型</h2><p>Redis 的重点不是背命令，而是建立：</p>
+<blockquote>
+<p><strong>业务问题 -&gt; 数据结构</strong></p>
+</blockquote>
+<p>之间的映射。</p>
+<hr>
+<h2 id="4-String：最简单，也最常用"><a href="#4-String：最简单，也最常用" class="headerlink" title="4. String：最简单，也最常用"></a>4. String：最简单，也最常用</h2><p>String 是 Redis 最基础的数据类型。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">SET name zhangfei<br>GET name<br></code></pre></td></tr></table></figure>
+
+<p>除了存字符串，还经常用于数字：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">SET stock 100<br>DECR stock<br>INCR page_view<br></code></pre></td></tr></table></figure>
+
+<p>Redis 的 <code>INCR</code>、<code>DECR</code> 等操作具有原子性，因此对于单纯的计数问题，不一定需要事务。</p>
+<p>典型场景：</p>
+<ul>
+<li>缓存 JSON</li>
+<li>Token</li>
+<li>验证码</li>
+<li>Session ID</li>
+<li>页面访问量</li>
+<li>库存计数</li>
+<li>分布式序列的一部分</li>
+</ul>
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">SET product:1001:stock 500<br>DECR product:1001:stock<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="5-Hash：适合表示对象"><a href="#5-Hash：适合表示对象" class="headerlink" title="5. Hash：适合表示对象"></a>5. Hash：适合表示对象</h2><p>Hash 的结构可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">key -&gt; field -&gt; value<br></code></pre></td></tr></table></figure>
+
+<p>例如用户：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">HSET user:1 username zhangfei<br>HSET user:1 age 28<br></code></pre></td></tr></table></figure>
+
+<p>读取：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">HGET user:1 username<br>HMGET user:1 username age<br></code></pre></td></tr></table></figure>
+
+<p>逻辑结构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">user:1<br> ├── username -&gt; zhangfei<br> └── age      -&gt; 28<br></code></pre></td></tr></table></figure>
+
+<p>Hash 比较适合：</p>
+<ul>
+<li>用户信息</li>
+<li>商品属性</li>
+<li>配置项</li>
+<li>状态对象</li>
+</ul>
+<p>它比把整个对象序列化成 JSON 字符串更灵活，因为可以单独修改某个字段。</p>
+<hr>
+<h2 id="6-List：天然的双端队列"><a href="#6-List：天然的双端队列" class="headerlink" title="6. List：天然的双端队列"></a>6. List：天然的双端队列</h2><p>List 可以从左右两侧插入数据。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">LPUSH heroList zhangfei guanyu liubei<br>RPUSH heroList dianwei lvbu<br></code></pre></td></tr></table></figure>
+
+<p>读取范围：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">LRANGE heroList 0 4<br></code></pre></td></tr></table></figure>
+
+<p>从抽象上可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">LEFT &lt;-&gt; A &lt;-&gt; B &lt;-&gt; C &lt;-&gt; D &lt;-&gt; RIGHT<br></code></pre></td></tr></table></figure>
+
+<p>所以它适合：</p>
+<ul>
+<li>简单消息队列</li>
+<li>时间线</li>
+<li>最新记录</li>
+<li>双端队列</li>
+</ul>
+<p>不过在现代大型消息系统中，如果真正需要消息确认、消费者组、消息重放等能力，更应该考虑 Redis Stream 或专门的 MQ，而不是只靠 List 硬凑。</p>
+<hr>
+<h2 id="7-Set：去重和集合运算"><a href="#7-Set：去重和集合运算" class="headerlink" title="7. Set：去重和集合运算"></a>7. Set：去重和集合运算</h2><p>Set 是无序且元素唯一的集合。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">SADD heroSet zhangfei guanyu liubei dianwei lvbu<br></code></pre></td></tr></table></figure>
+
+<p>删除：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">SREM heroSet liubei<br></code></pre></td></tr></table></figure>
+
+<p>判断元素是否存在：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">SISMEMBER heroSet zhangfei<br></code></pre></td></tr></table></figure>
+
+<p>获取所有元素：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">SMEMBERS heroSet<br></code></pre></td></tr></table></figure>
+
+<p>Set 最重要的不是“存一堆不重复的数据”，而是集合语义。</p>
+<p>它非常适合：</p>
+<ul>
+<li>标签</li>
+<li>用户关注关系</li>
+<li>去重</li>
+<li>黑名单</li>
+<li>共同好友</li>
+<li>权限集合</li>
+<li>已处理 ID 集合</li>
+</ul>
+<p>典型思路：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">用户 A 的关注集合<br>用户 B 的关注集合<br>        |<br>      求交集<br>        |<br>     共同关注<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="8-Sorted-Set：Redis-排行榜核心"><a href="#8-Sorted-Set：Redis-排行榜核心" class="headerlink" title="8. Sorted Set：Redis 排行榜核心"></a>8. Sorted Set：Redis 排行榜核心</h2><p>Sorted Set，也叫 ZSet，可以理解成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">member + score<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">ZADD heroScore 8341 zhangfei<br>ZADD heroScore 7107 guanyu<br>ZADD heroScore 6900 liubei<br></code></pre></td></tr></table></figure>
+
+<p>Redis 会按照 <code>score</code> 维护排序。</p>
+<p>查看分数：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ZSCORE heroScore guanyu<br></code></pre></td></tr></table></figure>
+
+<p>倒序取前三名：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ZREVRANGE heroScore 0 2 WITHSCORES<br></code></pre></td></tr></table></figure>
+
+<p>它特别适合：</p>
+<ul>
+<li>游戏排行榜</li>
+<li>热度榜</li>
+<li>销量榜</li>
+<li>文章排行</li>
+<li>积分榜</li>
+<li>延迟队列</li>
+<li>按时间或权重排序的数据</li>
+</ul>
+<p>从业务角度看，可以把 Sorted Set 理解成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">member                score<br>--------------------------------<br>user:10001             95<br>user:10002             88<br>user:10003             120<br></code></pre></td></tr></table></figure>
+
+<p>Redis 自动维护：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">user:10003  120<br>user:10001   95<br>user:10002   88<br></code></pre></td></tr></table></figure>
+
+<p>这就是它构建实时排行榜的根本原因。</p>
+<hr>
+<h2 id="9-其他-Redis-数据能力"><a href="#9-其他-Redis-数据能力" class="headerlink" title="9. 其他 Redis 数据能力"></a>9. 其他 Redis 数据能力</h2><p>除了五种经典类型，Redis 还提供过或持续扩展了更多能力，例如：</p>
+<ul>
+<li>Bitmap</li>
+<li>HyperLogLog</li>
+<li>Geospatial</li>
+<li>Stream</li>
+</ul>
+<p>它们分别适合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Bitmap       -&gt; 签到、布尔状态、大量 0/1 标记<br>HyperLogLog  -&gt; 大规模基数估算、UV<br>Geospatial   -&gt; 地理位置与距离查询<br>Stream       -&gt; 消息流、消费者组<br></code></pre></td></tr></table></figure>
+
+<p>这也是 Redis 和单纯 Memcached 类缓存系统相比的重要优势之一：</p>
+<blockquote>
+<p>Redis 不只是缓存值，而是在服务端直接提供数据结构能力。</p>
+</blockquote>
+<hr>
+<h2 id="10-为什么应用访问-Redis-要使用连接池？"><a href="#10-为什么应用访问-Redis-要使用连接池？" class="headerlink" title="10. 为什么应用访问 Redis 要使用连接池？"></a>10. 为什么应用访问 Redis 要使用连接池？</h2><p>资料中给出了 Python 直接连接 Redis 的方式：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-keyword">import</span> redis<br><br>r = redis.Redis(<br>    host=<span class="hljs-string">&quot;localhost&quot;</span>,<br>    port=<span class="hljs-number">6379</span><br>)<br></code></pre></td></tr></table></figure>
+
+<p>也给出了连接池：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs python">pool = redis.ConnectionPool(<br>    host=<span class="hljs-string">&quot;localhost&quot;</span>,<br>    port=<span class="hljs-number">6379</span><br>)<br><br>r = redis.Redis(<br>    connection_pool=pool<br>)<br></code></pre></td></tr></table></figure>
+
+<p>连接池解决的问题并不只属于 Redis。</p>
+<p>如果每一次请求都：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">创建 TCP 连接<br>     ↓<br>发送请求<br>     ↓<br>关闭连接<br></code></pre></td></tr></table></figure>
+
+<p>高并发下会产生大量额外开销。</p>
+<p>连接池的思路是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text"> +-------------------+<br> |  Connection Pool  |<br> +-------------------+<br>   /      |       \<br>conn1   conn2    conn3<br>   \      |       /<br>      Application<br></code></pre></td></tr></table></figure>
+
+<p>连接使用完成后不是关闭，而是归还连接池。</p>
+<p>核心收益：</p>
+<ul>
+<li>减少连接创建开销</li>
+<li>减少 TCP 建连成本</li>
+<li>控制最大连接数</li>
+<li>提升连接复用率</li>
+<li>提高高并发下的稳定性</li>
+</ul>
+<hr>
+<h2 id="11-Redis-事务和-MySQL-事务不是一回事"><a href="#11-Redis-事务和-MySQL-事务不是一回事" class="headerlink" title="11. Redis 事务和 MySQL 事务不是一回事"></a>11. Redis 事务和 MySQL 事务不是一回事</h2><p>关系型数据库中，我们经常强调 ACID：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">A - Atomicity    原子性<br>C - Consistency  一致性<br>I - Isolation    隔离性<br>D - Durability   持久性<br></code></pre></td></tr></table></figure>
+
+<p>Redis 也有事务，但不要直接套用 MySQL 事务的全部语义。</p>
+<p>Redis 的事务更接近：</p>
+<blockquote>
+<p>把一组命令先进入队列，然后一次性按顺序执行。</p>
+</blockquote>
+<p>核心命令：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">MULTI     开始事务<br>EXEC      执行事务<br>DISCARD   放弃事务<br>WATCH     监视 Key<br>UNWATCH   取消监视<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash">MULTI<br><br>HSET user:001 hero zhangfei<br>HSET user:002 hero guanyu<br>HSET user:003 hero liubei<br><br>EXEC<br></code></pre></td></tr></table></figure>
+
+<p><code>MULTI</code> 之后，命令不会立即执行，而是进入队列：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">MULTI<br>  |<br>  +-- COMMAND 1 -&gt; QUEUED<br>  +-- COMMAND 2 -&gt; QUEUED<br>  +-- COMMAND 3 -&gt; QUEUED<br>  |<br>EXEC<br>  |<br>一次执行<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="12-Redis-事务为什么不提供传统-Rollback？"><a href="#12-Redis-事务为什么不提供传统-Rollback？" class="headerlink" title="12. Redis 事务为什么不提供传统 Rollback？"></a>12. Redis 事务为什么不提供传统 Rollback？</h2><p>资料特别强调：</p>
+<blockquote>
+<p>Redis 事务并不提供与关系型数据库相同的回滚机制。</p>
+</blockquote>
+<p>这里要区分两类错误。</p>
+<h3 id="12-1-入队阶段就能发现的错误"><a href="#12-1-入队阶段就能发现的错误" class="headerlink" title="12.1 入队阶段就能发现的错误"></a>12.1 入队阶段就能发现的错误</h3><p>例如命令本身语法错误。</p>
+<p>这种问题可能导致整个事务无法正常执行。</p>
+<h3 id="12-2-真正执行时才出现的错误"><a href="#12-2-真正执行时才出现的错误" class="headerlink" title="12.2 真正执行时才出现的错误"></a>12.2 真正执行时才出现的错误</h3><p>例如对错误类型的 Key 使用了不匹配的命令。</p>
+<p>这种情况下，Redis 不会像 MySQL 那样把前面已经执行成功的命令全部回滚，而是继续执行后续命令。</p>
+<p>所以 Redis 事务的设计哲学更偏向：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">简单<br>快速<br>明确<br>把很多错误交给开发阶段发现<br></code></pre></td></tr></table></figure>
+
+<p>而不是实现复杂的数据库级回滚系统。</p>
+<hr>
+<h2 id="13-Redis-持久化：RDB-与-AOF"><a href="#13-Redis-持久化：RDB-与-AOF" class="headerlink" title="13. Redis 持久化：RDB 与 AOF"></a>13. Redis 持久化：RDB 与 AOF</h2><p>虽然 Redis 以内存为中心，但仍然提供持久化能力。</p>
+<h3 id="13-1-RDB"><a href="#13-1-RDB" class="headerlink" title="13.1 RDB"></a>13.1 RDB</h3><p>RDB 可以理解为：</p>
+<blockquote>
+<p>对某一时刻 Redis 中的数据生成快照。</p>
+</blockquote>
+<p>大致过程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Memory<br>  |<br>Snapshot<br>  |<br>RDB File<br></code></pre></td></tr></table></figure>
+
+<p>优点：</p>
+<ul>
+<li>文件紧凑</li>
+<li>适合备份</li>
+<li>恢复速度通常较快</li>
+</ul>
+<p>问题：</p>
+<ul>
+<li>快照之间存在时间窗口</li>
+<li>宕机时可能丢失最近一段数据</li>
+</ul>
+<h3 id="13-2-AOF"><a href="#13-2-AOF" class="headerlink" title="13.2 AOF"></a>13.2 AOF</h3><p>AOF 的核心思想是记录写操作：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">SET a 1<br>INCR counter<br>HSET user:1 age 28<br>...<br></code></pre></td></tr></table></figure>
+
+<p>恢复时可以重放这些写命令。</p>
+<p>资料中提到常见同步策略：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">always<br>everysec<br>no<br></code></pre></td></tr></table></figure>
+
+<p>其中 <code>everysec</code> 是性能和数据安全之间常见的折中方式。</p>
+<p>所以 Redis 的持久化不是一个简单的“有或没有”，而是：</p>
+<blockquote>
+<p>性能、恢复速度和可接受数据丢失窗口之间的权衡。</p>
+</blockquote>
+<hr>
+<h2 id="14-为什么-Redis-单线程执行命令，还需要并发控制？"><a href="#14-为什么-Redis-单线程执行命令，还需要并发控制？" class="headerlink" title="14. 为什么 Redis 单线程执行命令，还需要并发控制？"></a>14. 为什么 Redis 单线程执行命令，还需要并发控制？</h2><p>这是 Redis 初学者非常容易困惑的问题。</p>
+<p>假设 Redis 一次只执行一个命令：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Client A: GET ticket<br>Client B: GET ticket<br>Client A: SET ticket 0<br>Client B: SET ticket 0<br></code></pre></td></tr></table></figure>
+
+<p>每条命令确实没有同时执行。</p>
+<p>但是：</p>
+<blockquote>
+<p><strong>一个业务操作通常包含多条命令。</strong></p>
+</blockquote>
+<p>例如抢票：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 查询票数<br>2. 判断票数 &gt; 0<br>3. 票数减 1<br>4. 保存<br></code></pre></td></tr></table></figure>
+
+<p>多个客户端的这些命令可以交叉：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Client A: GET ticket -&gt; 1<br>Client B: GET ticket -&gt; 1<br>Client A: SET ticket -&gt; 0<br>Client B: SET ticket -&gt; 0<br></code></pre></td></tr></table></figure>
+
+<p>于是两个人都以为自己抢到了最后一张票。</p>
+<p>所以：</p>
+<blockquote>
+<p>单条 Redis 命令原子，不代表由多条命令组成的业务逻辑天然原子。</p>
+</blockquote>
+<p>这就是 Redis 仍然需要事务、原子命令和 Lua 的原因。</p>
+<hr>
+<h2 id="15-WATCH-MULTI：Redis-的乐观锁"><a href="#15-WATCH-MULTI：Redis-的乐观锁" class="headerlink" title="15. WATCH + MULTI：Redis 的乐观锁"></a>15. WATCH + MULTI：Redis 的乐观锁</h2><p>Redis 可以通过：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">WATCH + MULTI + EXEC<br></code></pre></td></tr></table></figure>
+
+<p>实现一种乐观锁语义。</p>
+<p>流程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">WATCH ticket<br>     |<br>读取 ticket<br>     |<br>判断库存<br>     |<br>MULTI<br>     |<br>修改 ticket<br>     |<br>EXEC<br></code></pre></td></tr></table></figure>
+
+<p>如果 <code>WATCH</code> 之后、<code>EXEC</code> 之前，别的客户端修改了这个 Key，那么当前事务执行失败。</p>
+<p>可以把它抽象成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs text">Client A<br>WATCH ticket<br>    |<br>    | ticket version = v1<br>    |<br>    |-------------------------\<br>                               \<br>Client B                        |<br>SET ticket 0                    |<br>ticket version = v2             |<br>                                |<br>Client A                        |<br>EXEC ---------------------------/<br>    |<br>发现已变化<br>    |<br>事务取消<br></code></pre></td></tr></table></figure>
+
+<p>它本质上是一种：</p>
+<blockquote>
+<p><strong>先假设不会冲突，真正提交时再检查冲突。</strong></p>
+</blockquote>
+<p>这就是乐观锁。</p>
+<hr>
+<h2 id="16-抢票场景的核心逻辑"><a href="#16-抢票场景的核心逻辑" class="headerlink" title="16. 抢票场景的核心逻辑"></a>16. 抢票场景的核心逻辑</h2><p>假设库存只有 1：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">SET ticket 1<br></code></pre></td></tr></table></figure>
+
+<p>两个客户端都开始：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">WATCH ticket<br></code></pre></td></tr></table></figure>
+
+<p>客户端 2 先执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">MULTI<br>SET ticket 0<br>EXEC<br></code></pre></td></tr></table></figure>
+
+<p>客户端 2 成功。</p>
+<p>这时候客户端 1 再执行 <code>EXEC</code>，因为 <code>ticket</code> 已经发生修改，所以事务失败。</p>
+<p>最终只会有一个客户端成功。</p>
+<p>需要特别注意：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">WATCH 必须发生在 MULTI 之前<br></code></pre></td></tr></table></figure>
+
+<p>不能：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">MULTI<br>WATCH ticket<br></code></pre></td></tr></table></figure>
+
+<p>因为 <code>WATCH</code> 的目的就是监控事务正式提交之前 Key 是否被修改。</p>
+<hr>
+<h2 id="17-抢票不一定必须使用事务"><a href="#17-抢票不一定必须使用事务" class="headerlink" title="17. 抢票不一定必须使用事务"></a>17. 抢票不一定必须使用事务</h2><p>如果业务只是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">库存 -1<br></code></pre></td></tr></table></figure>
+
+<p>Redis 本身提供原子命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">DECR ticket<br></code></pre></td></tr></table></figure>
+
+<p>因此很多场景可以直接利用原子操作。</p>
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">DECR ticket<br></code></pre></td></tr></table></figure>
+
+<p>返回：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">&gt;= 0   抢票成功<br>&lt; 0    库存不足，需要补偿或恢复<br></code></pre></td></tr></table></figure>
+
+<p>但真实业务通常还有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">库存<br>用户资格<br>限购<br>订单号<br>去重<br>活动状态<br></code></pre></td></tr></table></figure>
+
+<p>这时一个 <code>DECR</code> 就不够了。</p>
+<p>于是 Lua 开始变得非常重要。</p>
+<hr>
+<h2 id="18-Lua：把多条-Redis-命令变成一个整体"><a href="#18-Lua：把多条-Redis-命令变成一个整体" class="headerlink" title="18. Lua：把多条 Redis 命令变成一个整体"></a>18. Lua：把多条 Redis 命令变成一个整体</h2><p>Redis 支持执行 Lua 脚本。</p>
+<p>基本命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">EVAL script numkeys key [key ...] arg [arg ...]<br></code></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">KEYS[1]<br>KEYS[2]<br>...<br></code></pre></td></tr></table></figure>
+
+<p>用于访问 Key。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">ARGV[1]<br>ARGV[2]<br>...<br></code></pre></td></tr></table></figure>
+
+<p>用于访问脚本参数。</p>
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">EVAL <span class="hljs-string">&quot;return &#123;ARGV[1], ARGV[2]&#125;&quot;</span> 0 hello redis<br></code></pre></td></tr></table></figure>
+
+<p>Lua 最大的价值并不是“Redis 里还能写一种语言”。</p>
+<p>真正重要的是：</p>
+<blockquote>
+<p>可以把一组 Redis 操作封装成一个在服务端执行的整体。</p>
+</blockquote>
+<p>这样有两个核心收益。</p>
+<h3 id="18-1-减少网络往返"><a href="#18-1-减少网络往返" class="headerlink" title="18.1 减少网络往返"></a>18.1 减少网络往返</h3><p>原本：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">Client -&gt; Redis: GET<br>Client &lt;- Redis<br><br>Client -&gt; Redis: GET<br>Client &lt;- Redis<br><br>Client -&gt; Redis: SET<br>Client &lt;- Redis<br></code></pre></td></tr></table></figure>
+
+<p>Lua：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Client -&gt; Redis: EVAL script<br>Redis 本地执行多个操作<br>Client &lt;- Redis: result<br></code></pre></td></tr></table></figure>
+
+<p>多次网络 RTT 变成一次。</p>
+<h3 id="18-2-多步操作不被其他命令插入"><a href="#18-2-多步操作不被其他命令插入" class="headerlink" title="18.2 多步操作不被其他命令插入"></a>18.2 多步操作不被其他命令插入</h3><p>Lua 脚本执行时可以把多条 Redis 操作组合在一起完成。</p>
+<p>这特别适合：</p>
+<ul>
+<li>秒杀</li>
+<li>库存扣减</li>
+<li>限流</li>
+<li>分布式锁释放</li>
+<li>多 Key 状态检查</li>
+<li>原子计数</li>
+<li>排行榜批量操作</li>
+</ul>
+<p>例如伪代码：</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs lua"><span class="hljs-keyword">local</span> stock = <span class="hljs-built_in">tonumber</span>(redis.call(<span class="hljs-string">&#x27;GET&#x27;</span>, KEYS[<span class="hljs-number">1</span>]))<br><br><span class="hljs-keyword">if</span> stock &lt;= <span class="hljs-number">0</span> <span class="hljs-keyword">then</span><br>    <span class="hljs-keyword">return</span> <span class="hljs-number">0</span><br><span class="hljs-keyword">end</span><br><br>redis.call(<span class="hljs-string">&#x27;DECR&#x27;</span>, KEYS[<span class="hljs-number">1</span>])<br>redis.call(<span class="hljs-string">&#x27;SADD&#x27;</span>, KEYS[<span class="hljs-number">2</span>], ARGV[<span class="hljs-number">1</span>])<br><br><span class="hljs-keyword">return</span> <span class="hljs-number">1</span><br></code></pre></td></tr></table></figure>
+
+<p>比客户端写：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">GET -&gt; 判断 -&gt; DECR -&gt; SADD<br></code></pre></td></tr></table></figure>
+
+<p>更加适合要求原子语义的高并发场景。</p>
+<hr>
+<h2 id="19-为什么排行榜特别适合-Redis？"><a href="#19-为什么排行榜特别适合-Redis？" class="headerlink" title="19. 为什么排行榜特别适合 Redis？"></a>19. 为什么排行榜特别适合 Redis？</h2><p>假设现在有 10 万玩家：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">user_id<br>score<br>create_time<br></code></pre></td></tr></table></figure>
+
+<p>需求包括：</p>
+<ul>
+<li>查询 Top N</li>
+<li>查询我的排名</li>
+<li>查询我的分数</li>
+<li>修改积分</li>
+<li>更新排名</li>
+<li>查询我前后几名</li>
+<li>玩家加入排行榜</li>
+<li>玩家退出排行榜</li>
+</ul>
+<p>如果全部使用 MySQL，最直观的查询是：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> user_id, score<br><span class="hljs-keyword">FROM</span> user_score<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> score <span class="hljs-keyword">DESC</span>;<br></code></pre></td></tr></table></figure>
+
+<p>MySQL 当然可以完成。</p>
+<p>但是问题在于：</p>
+<blockquote>
+<p>排行榜是一个高频动态排序问题，而关系型数据库的强项主要是持久化、关系和查询，不是把一个不断变化的大集合一直维护成实时排名。</p>
+</blockquote>
+<p>而 Sorted Set 本身就为这个问题而生。</p>
+<hr>
+<h2 id="20-使用-Sorted-Set-构建排行榜"><a href="#20-使用-Sorted-Set-构建排行榜" class="headerlink" title="20. 使用 Sorted Set 构建排行榜"></a>20. 使用 Sorted Set 构建排行榜</h2><p>创建：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">ZADD user_score 100 user:10001<br>ZADD user_score 90  user:10002<br>ZADD user_score 150 user:10003<br></code></pre></td></tr></table></figure>
+
+<p>结果逻辑上为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Rank    Member       Score<br>--------------------------<br>1       user:10003   150<br>2       user:10001   100<br>3       user:10002    90<br></code></pre></td></tr></table></figure>
+
+<h3 id="查询全部排行榜"><a href="#查询全部排行榜" class="headerlink" title="查询全部排行榜"></a>查询全部排行榜</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ZREVRANGE user_score 0 -1 WITHSCORES<br></code></pre></td></tr></table></figure>
+
+<h3 id="查询-Top-10"><a href="#查询-Top-10" class="headerlink" title="查询 Top 10"></a>查询 Top 10</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ZREVRANGE user_score 0 9 WITHSCORES<br></code></pre></td></tr></table></figure>
+
+<h3 id="查询某玩家分数"><a href="#查询某玩家分数" class="headerlink" title="查询某玩家分数"></a>查询某玩家分数</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ZSCORE user_score user:10001<br></code></pre></td></tr></table></figure>
+
+<h3 id="查询某玩家排名"><a href="#查询某玩家排名" class="headerlink" title="查询某玩家排名"></a>查询某玩家排名</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ZREVRANK user_score user:10001<br></code></pre></td></tr></table></figure>
+
+<p>注意排名从 <code>0</code> 开始。</p>
+<p>如果业务显示排名从 1 开始：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">业务排名 = Redis Rank + 1<br></code></pre></td></tr></table></figure>
+
+<h3 id="增加积分"><a href="#增加积分" class="headerlink" title="增加积分"></a>增加积分</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ZINCRBY user_score 10 user:10001<br></code></pre></td></tr></table></figure>
+
+<p>分数变化之后，Redis 会同步维护其有序位置。</p>
+<h3 id="查询某玩家前后-5-名"><a href="#查询某玩家前后-5-名" class="headerlink" title="查询某玩家前后 5 名"></a>查询某玩家前后 5 名</h3><p>先查询排名：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ZREVRANK user_score user:10001<br></code></pre></td></tr></table></figure>
+
+<p>假设结果是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">100<br></code></pre></td></tr></table></figure>
+
+<p>则：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ZREVRANGE user_score 95 105 WITHSCORES<br></code></pre></td></tr></table></figure>
+
+<h3 id="删除玩家"><a href="#删除玩家" class="headerlink" title="删除玩家"></a>删除玩家</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ZREM user_score user:10001<br></code></pre></td></tr></table></figure>
+
+<h3 id="新增玩家"><a href="#新增玩家" class="headerlink" title="新增玩家"></a>新增玩家</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ZADD user_score 80 user:10004<br></code></pre></td></tr></table></figure>
+
+<p>这套 API 几乎完整覆盖了实时排行榜。</p>
+<hr>
+<h2 id="21-并列排行榜与严格排行榜"><a href="#21-并列排行榜与严格排行榜" class="headerlink" title="21. 并列排行榜与严格排行榜"></a>21. 并列排行榜与严格排行榜</h2><p>排行榜还有一个容易被忽略的问题：</p>
+<blockquote>
+<p>两个人分数相同怎么办？</p>
+</blockquote>
+<h3 id="21-1-并列排行榜"><a href="#21-1-并列排行榜" class="headerlink" title="21.1 并列排行榜"></a>21.1 并列排行榜</h3><p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Rank  User   Score<br>1     A      100<br>2     B       90<br>2     C       90<br>4     D       80<br></code></pre></td></tr></table></figure>
+
+<p>相同分数拥有相同业务排名。</p>
+<p>这种业务规则通常需要应用层根据相同 <code>score</code> 进一步处理展示排名。</p>
+<h3 id="21-2-严格排行榜"><a href="#21-2-严格排行榜" class="headerlink" title="21.2 严格排行榜"></a>21.2 严格排行榜</h3><p>严格排行榜要求：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">任何两个人最终都必须有先后顺序<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">score DESC<br>create_time ASC<br></code></pre></td></tr></table></figure>
+
+<p>即：</p>
+<blockquote>
+<p>分数相同，注册更早的用户排名靠前。</p>
+</blockquote>
+<p>MySQL 中非常直观：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> score <span class="hljs-keyword">DESC</span>, create_time <span class="hljs-keyword">ASC</span><br></code></pre></td></tr></table></figure>
+
+<p>Redis Sorted Set 只有一个 <code>score</code>，因此资料采用了将多个排序维度编码进一个分数的办法：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">最终 score = 业务得分 + 时间信息<br></code></pre></td></tr></table></figure>
+
+<p>思路本质上是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">主排序字段 + 次排序字段<br>       ↓<br>映射为一个可比较数值<br>       ↓<br>ZSet Score<br></code></pre></td></tr></table></figure>
+
+<p>不过生产环境中需要非常谨慎地设计这种编码，尤其要考虑：</p>
+<ul>
+<li>浮点数精度</li>
+<li>时间范围</li>
+<li>主排序权重</li>
+<li>score 的安全整数范围</li>
+<li>是否可能发生碰撞</li>
+</ul>
+<p>不要仅仅为了“省一个字段”而把一个难以维护的浮点编码方案直接搬到生产环境。</p>
+<hr>
+<h2 id="22-Redis-排行榜与-MySQL-排行榜怎么选？"><a href="#22-Redis-排行榜与-MySQL-排行榜怎么选？" class="headerlink" title="22. Redis 排行榜与 MySQL 排行榜怎么选？"></a>22. Redis 排行榜与 MySQL 排行榜怎么选？</h2><p>简单来说：</p>
+<h3 id="MySQL-更适合"><a href="#MySQL-更适合" class="headerlink" title="MySQL 更适合"></a>MySQL 更适合</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">完整玩家资料<br>比赛记录<br>历史战绩<br>订单数据<br>长期存档<br>复杂关联查询<br></code></pre></td></tr></table></figure>
+
+<h3 id="Redis-更适合"><a href="#Redis-更适合" class="headerlink" title="Redis 更适合"></a>Redis 更适合</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">实时积分<br>Top N<br>我的排名<br>热榜<br>在线状态<br>实时变化的排序<br></code></pre></td></tr></table></figure>
+
+<p>一个常见组合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs text">                     +----------------+<br>                     |     MySQL      |<br>                     | 玩家完整数据    |<br>                     | 历史战绩        |<br>                     +----------------+<br>                             ^<br>                             |<br>Application ----------------+<br>     |<br>     v<br>+----------------+<br>|     Redis      |<br>| 实时排行榜      |<br>| 热点玩家信息    |<br>+----------------+<br></code></pre></td></tr></table></figure>
+
+<p>例如排行榜页面只需要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">userId<br>nickname<br>avatar<br>score<br>rank<br></code></pre></td></tr></table></figure>
+
+<p>这些高频字段可以直接在 Redis 中准备好。</p>
+<p>用户点击某个玩家进入详情页之后，再查询 MySQL 中更完整的数据。</p>
+<hr>
+<h2 id="23-Redis-中几种并发方案如何选择？"><a href="#23-Redis-中几种并发方案如何选择？" class="headerlink" title="23. Redis 中几种并发方案如何选择？"></a>23. Redis 中几种并发方案如何选择？</h2><p>结合事务、原子命令和 Lua，可以形成一个很实用的判断方式。</p>
+<h3 id="场景一：一个-Key-的简单加减"><a href="#场景一：一个-Key-的简单加减" class="headerlink" title="场景一：一个 Key 的简单加减"></a>场景一：一个 Key 的简单加减</h3><p>优先：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">INCR<br>DECR<br>INCRBY<br>DECRBY<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">DECR stock<br></code></pre></td></tr></table></figure>
+
+<h3 id="场景二：读-判断-写"><a href="#场景二：读-判断-写" class="headerlink" title="场景二：读 -&gt; 判断 -&gt; 写"></a>场景二：读 -&gt; 判断 -&gt; 写</h3><p>可以考虑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">WATCH + MULTI + EXEC<br></code></pre></td></tr></table></figure>
+
+<p>它属于乐观并发控制。</p>
+<p>适合冲突概率不是特别高、逻辑比较简单的场景。</p>
+<h3 id="场景三：多个-Redis-操作必须作为整体"><a href="#场景三：多个-Redis-操作必须作为整体" class="headerlink" title="场景三：多个 Redis 操作必须作为整体"></a>场景三：多个 Redis 操作必须作为整体</h3><p>优先考虑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Lua Script<br></code></pre></td></tr></table></figure>
+
+<p>尤其是高并发核心路径。</p>
+<h3 id="场景四：业务一致性跨-Redis-与-MySQL"><a href="#场景四：业务一致性跨-Redis-与-MySQL" class="headerlink" title="场景四：业务一致性跨 Redis 与 MySQL"></a>场景四：业务一致性跨 Redis 与 MySQL</h3><p>这时已经不是 Redis 单机原子性能够完整解决的问题，需要从系统层面考虑：</p>
+<ul>
+<li>消息队列</li>
+<li>Outbox</li>
+<li>最终一致性</li>
+<li>幂等</li>
+<li>状态机</li>
+<li>补偿机制</li>
+</ul>
+<p>不要试图用一个 Redis 事务解决整个分布式系统的一致性。</p>
+<hr>
+<h2 id="24-从抢票案例真正应该学到什么？"><a href="#24-从抢票案例真正应该学到什么？" class="headerlink" title="24. 从抢票案例真正应该学到什么？"></a>24. 从抢票案例真正应该学到什么？</h2><p>抢票案例表面上是在学：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">WATCH<br>MULTI<br>EXEC<br></code></pre></td></tr></table></figure>
+
+<p>真正应该学到的是：</p>
+<blockquote>
+<p>并发问题通常发生在“读 -&gt; 判断 -&gt; 写”之间。</p>
+</blockquote>
+<p>只要代码里出现：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">if</span> (stock &gt; <span class="hljs-number">0</span>) &#123;<br>    stock--;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>就应该立即警觉：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">“stock &gt; 0” 这个判断成立以后，<br>真正执行 stock-- 之前，<br>其他请求有没有可能修改 stock？<br></code></pre></td></tr></table></figure>
+
+<p>这也是 CAS、乐观锁、版本号、数据库 <code>UPDATE ... WHERE version = ?</code>、Redis <code>WATCH</code> 等机制背后共同的思想。</p>
+<hr>
+<h2 id="25-从排行榜案例真正应该学到什么？"><a href="#25-从排行榜案例真正应该学到什么？" class="headerlink" title="25. 从排行榜案例真正应该学到什么？"></a>25. 从排行榜案例真正应该学到什么？</h2><p>排行榜案例最重要的不是记住：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ZREVRANK<br></code></pre></td></tr></table></figure>
+
+<p>而是理解：</p>
+<blockquote>
+<p>数据结构选对之后，很多业务问题会从“算法问题”变成“命令调用”。</p>
+</blockquote>
+<p>如果使用普通数据库表思考排行榜，首先想到的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">查询<br>排序<br>计算排名<br>分页<br>更新后重新排名<br></code></pre></td></tr></table></figure>
+
+<p>如果用 Sorted Set 思考：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">ZADD<br>ZINCRBY<br>ZREVRANK<br>ZREVRANGE<br></code></pre></td></tr></table></figure>
+
+<p>问题一下子简单很多。</p>
+<p>所以使用 Redis 的核心能力之一，就是：</p>
+<blockquote>
+<p>用数据结构直接表达业务语义。</p>
+</blockquote>
+<hr>
+<h2 id="26-Redis-的工程使用原则"><a href="#26-Redis-的工程使用原则" class="headerlink" title="26. Redis 的工程使用原则"></a>26. Redis 的工程使用原则</h2><p>最后把前面的内容浓缩成几条工程经验。</p>
+<h3 id="26-1-Redis-不只是缓存"><a href="#26-1-Redis-不只是缓存" class="headerlink" title="26.1 Redis 不只是缓存"></a>26.1 Redis 不只是缓存</h3><p>Redis 更准确的定位应该是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">高性能内存数据结构服务<br></code></pre></td></tr></table></figure>
+
+<p>缓存只是它最常见的用途之一。</p>
+<h3 id="26-2-不要把所有数据都塞进-Redis"><a href="#26-2-不要把所有数据都塞进-Redis" class="headerlink" title="26.2 不要把所有数据都塞进 Redis"></a>26.2 不要把所有数据都塞进 Redis</h3><p>Redis 内存昂贵。</p>
+<p>应该优先存：</p>
+<ul>
+<li>热数据</li>
+<li>高频数据</li>
+<li>临时数据</li>
+<li>实时状态</li>
+<li>可以重建的数据</li>
+</ul>
+<h3 id="26-3-多条命令之间存在竞态条件"><a href="#26-3-多条命令之间存在竞态条件" class="headerlink" title="26.3 多条命令之间存在竞态条件"></a>26.3 多条命令之间存在竞态条件</h3><p>即使单条命令原子，也不能自动保证：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">GET<br>判断<br>SET<br></code></pre></td></tr></table></figure>
+
+<p>整体原子。</p>
+<h3 id="26-4-优先使用-Redis-原子命令"><a href="#26-4-优先使用-Redis-原子命令" class="headerlink" title="26.4 优先使用 Redis 原子命令"></a>26.4 优先使用 Redis 原子命令</h3><p>如果一个命令能解决：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">INCR<br>DECR<br>SET NX<br>ZINCRBY<br></code></pre></td></tr></table></figure>
+
+<p>就不要先上复杂事务。</p>
+<h3 id="26-5-多步原子逻辑优先考虑-Lua"><a href="#26-5-多步原子逻辑优先考虑-Lua" class="headerlink" title="26.5 多步原子逻辑优先考虑 Lua"></a>26.5 多步原子逻辑优先考虑 Lua</h3><p>客户端多次请求不仅有并发窗口，还有网络 RTT。</p>
+<p>Lua 往往能够同时解决：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">原子性<br>+<br>网络往返<br></code></pre></td></tr></table></figure>
+
+<h3 id="26-6-Redis-与-MySQL-各自做擅长的事情"><a href="#26-6-Redis-与-MySQL-各自做擅长的事情" class="headerlink" title="26.6 Redis 与 MySQL 各自做擅长的事情"></a>26.6 Redis 与 MySQL 各自做擅长的事情</h3><p>不要纠结：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Redis 还是 MySQL？<br></code></pre></td></tr></table></figure>
+
+<p>更好的问题是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">这部分数据的访问模式是什么？<br></code></pre></td></tr></table></figure>
+
+<p>如果核心需求是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">实时排行、高频计数、缓存、临时状态<br></code></pre></td></tr></table></figure>
+
+<p>Redis 很合适。</p>
+<p>如果核心需求是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">复杂关系、长期持久化、事务、历史记录<br></code></pre></td></tr></table></figure>
+
+<p>MySQL 更合适。</p>
+<hr>
+<h2 id="27-总结"><a href="#27-总结" class="headerlink" title="27. 总结"></a>27. 总结</h2><p>把 Redis 从入门到实战串起来，可以得到这样一条知识主线：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><code class="hljs text">Redis<br>  |<br>  +-- 为什么快<br>  |     |<br>  |     +-- 内存<br>  |     +-- 高效数据结构<br>  |     +-- 简单执行模型<br>  |     +-- I/O 多路复用<br>  |<br>  +-- 数据结构<br>  |     |<br>  |     +-- String<br>  |     +-- Hash<br>  |     +-- List<br>  |     +-- Set<br>  |     +-- Sorted Set<br>  |<br>  +-- 并发<br>  |     |<br>  |     +-- 原子命令<br>  |     +-- WATCH<br>  |     +-- MULTI / EXEC<br>  |     +-- 乐观锁<br>  |<br>  +-- Lua<br>  |     |<br>  |     +-- 多命令原子执行<br>  |     +-- 减少网络 RTT<br>  |<br>  +-- 典型场景<br>        |<br>        +-- 抢票 / 秒杀<br>        +-- 计数器<br>        +-- 排行榜<br>        +-- 实时状态<br></code></pre></td></tr></table></figure>
+
+<p>真正掌握 Redis，不应该停留在：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">SET<br>GET<br></code></pre></td></tr></table></figure>
+
+<p>而应该逐渐建立三个层次的理解：</p>
+<p>第一层是<strong>命令</strong>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">这个命令怎么用？<br></code></pre></td></tr></table></figure>
+
+<p>第二层是<strong>数据结构</strong>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">这个业务应该选什么结构？<br></code></pre></td></tr></table></figure>
+
+<p>第三层是<strong>并发和系统设计</strong>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">多客户端同时操作时，正确性还能不能保证？<br>Redis 和数据库之间的数据应该如何协作？<br></code></pre></td></tr></table></figure>
+
+<p>当你开始从第三层思考 Redis，它就不再只是一个“缓存工具”，而会真正成为系统架构中的高性能数据组件。</p>
+<hr>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p>本文根据以下三篇 Redis 学习资料进行知识抽取、重新组织与工程化整理：</p>
+<ol>
+<li>《初识 Redis：Redis 为什么会这么快？》</li>
+<li>《如何使用 Redis 来实现多用户抢票问题》</li>
+<li>《如何使用 Redis 搭建玩家排行榜？》</li>
+</ol>
+<p>其中性能测试数字、具体命令示例和事务&#x2F;排行榜案例均来自资料中的实验语境；Redis 版本演进较快，生产环境使用时应结合当前版本官方文档确认命令行为与内部实现。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/" class="category-chain-item">数据库</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/Redis/" class="category-chain-item">Redis</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Redis/" class="print-no-link">#Redis</a>
+      
+        <a href="/tags/%E9%AB%98%E5%B9%B6%E5%8F%91/" class="print-no-link">#高并发</a>
+      
+        <a href="/tags/NoSQL/" class="print-no-link">#NoSQL</a>
+      
+        <a href="/tags/%E7%BC%93%E5%AD%98/" class="print-no-link">#缓存</a>
+      
+        <a href="/tags/%E4%BA%8B%E5%8A%A1/" class="print-no-link">#事务</a>
+      
+        <a href="/tags/Lua/" class="print-no-link">#Lua</a>
+      
+        <a href="/tags/%E6%8E%92%E8%A1%8C%E6%A6%9C/" class="print-no-link">#排行榜</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Redis 从入门到实战：高性能原理、数据结构、事务、Lua 与排行榜</div>
+      <div>https://allendericdalexander.github.io/2026/08/11/db/sql/07redis-from-basics-to-practice/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月11日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/08/11/db/sql/08sql-data-pipeline-cleaning-etl-analysis/" title="SQL 数据处理全链路：从数据清洗、ETL 到零售关联分析">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">SQL 数据处理全链路：从数据清洗、ETL 到零售关联分析</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/11/db/sql/06database-engineering-reliability-security-local-storage/" title="从主从复制到 SQLite：数据库可靠性、安全性与本地存储的完整知识图谱">
+                        <span class="hidden-mobile">从主从复制到 SQLite：数据库可靠性、安全性与本地存储的完整知识图谱</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

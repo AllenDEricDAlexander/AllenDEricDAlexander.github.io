@@ -1,0 +1,1281 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="在日常开发中，我们经常把 SQL 理解成“增删改查”的工具。但如果把视角从单个业务系统拉高到整条数据链路，会发现 SQL 实际上贯穿了数据的产生、清洗、集成、分析和展示。 一条比较完整的数据处理链路可以概括为： 1234567891011121314151617业务系统（OLTP）      │      ▼数据抽取 Extract      │      ▼数据清洗 &#x2F; 转换 Transform">
+<meta property="og:type" content="article">
+<meta property="og:title" content="SQL 数据处理全链路：从数据清洗、ETL 到零售关联分析">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/11/db/sql/08sql-data-pipeline-cleaning-etl-analysis/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="在日常开发中，我们经常把 SQL 理解成“增删改查”的工具。但如果把视角从单个业务系统拉高到整条数据链路，会发现 SQL 实际上贯穿了数据的产生、清洗、集成、分析和展示。 一条比较完整的数据处理链路可以概括为： 1234567891011121314151617业务系统（OLTP）      │      ▼数据抽取 Extract      │      ▼数据清洗 &#x2F; 转换 Transform">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-11T02:30:00.000Z">
+<meta property="article:modified_time" content="2026-08-11T02:34:00.285Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Apriori">
+<meta property="article:tag" content="ETL">
+<meta property="article:tag" content="Kettle">
+<meta property="article:tag" content="OLAP">
+<meta property="article:tag" content="OLTP">
+<meta property="article:tag" content="Python">
+<meta property="article:tag" content="Redis">
+<meta property="article:tag" content="SQL">
+<meta property="article:tag" content="SQLite">
+<meta property="article:tag" content="数据清洗">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>SQL 数据处理全链路：从数据清洗、ETL 到零售关联分析 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="SQL 数据处理全链路：从数据清洗、ETL 到零售关联分析"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-11 10:30" pubdate>
+          2026年8月11日 上午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          5.4k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          45 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">SQL 数据处理全链路：从数据清洗、ETL 到零售关联分析</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>在日常开发中，我们经常把 SQL 理解成“增删改查”的工具。但如果把视角从单个业务系统拉高到整条数据链路，会发现 SQL 实际上贯穿了数据的<strong>产生、清洗、集成、分析和展示</strong>。</p>
+<p>一条比较完整的数据处理链路可以概括为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs text">业务系统（OLTP）<br>      │<br>      ▼<br>数据抽取 Extract<br>      │<br>      ▼<br>数据清洗 / 转换 Transform<br>      │<br>      ▼<br>数据加载 Load<br>      │<br>      ▼<br>数据仓库（OLAP）<br>      │<br>      ├── SQL 聚合分析<br>      ├── Excel / BI 可视化<br>      └── SQL + Python 数据挖掘<br></code></pre></td></tr></table></figure>
+
+<p>本文结合几篇 SQL 数据处理相关资料，对其中的知识重新组织，重点梳理以下几个问题：</p>
+<ul>
+<li>OLTP、OLAP 在整条数据链路中分别负责什么；</li>
+<li>如何使用 SQL 做数据质量检查和数据清洗；</li>
+<li>ETL 的 Extract、Transform、Load 分别在做什么；</li>
+<li>Kettle 中 Transformation 与 Job 的关系；</li>
+<li>SQL 如何与 Python 配合完成零售购物篮关联分析；</li>
+<li>SQLite、Redis 等数据库在数据处理体系中分别适合什么场景。</li>
+</ul>
+<span id="more"></span>
+
+<h2 id="1-先建立整体认知：OLTP-与-OLAP"><a href="#1-先建立整体认知：OLTP-与-OLAP" class="headerlink" title="1. 先建立整体认知：OLTP 与 OLAP"></a>1. 先建立整体认知：OLTP 与 OLAP</h2><p>SQL 的使用场景大体可以分为两类：<strong>OLTP</strong> 和 <strong>OLAP</strong>。</p>
+<h3 id="1-1-OLTP：服务在线业务"><a href="#1-1-OLTP：服务在线业务" class="headerlink" title="1.1 OLTP：服务在线业务"></a>1.1 OLTP：服务在线业务</h3><p>OLTP（Online Transaction Processing，联机事务处理）更关注实时性，典型工作包括：</p>
+<ul>
+<li>新增、删除、修改、查询业务数据；</li>
+<li>事务处理；</li>
+<li>SQL 查询优化；</li>
+<li>高并发读写；</li>
+<li>通过主从等架构提升可用性。</li>
+</ul>
+<p>对于互联网业务系统来说，订单、库存、会员、支付、财务流水等数据，首先都是在 OLTP 系统中产生的。</p>
+<h3 id="1-2-OLAP：面向分析和决策"><a href="#1-2-OLAP：面向分析和决策" class="headerlink" title="1.2 OLAP：面向分析和决策"></a>1.2 OLAP：面向分析和决策</h3><p>OLAP（Online Analytical Processing，联机分析处理）更关注分析能力。</p>
+<p>它通常不会像交易系统一样要求毫秒级写入，而是更关注：</p>
+<ul>
+<li>大规模数据聚合；</li>
+<li>报表生成；</li>
+<li>趋势分析；</li>
+<li>数据挖掘；</li>
+<li>为业务决策提供依据。</li>
+</ul>
+<p>问题在于：<strong>业务系统中的原始数据并不天然适合分析。</strong></p>
+<p>数据可能存在空值、重复、单位不统一、字段类型错误、不同系统字段命名不一致等问题。因此，从 OLTP 到 OLAP，中间必须经过清洗、转换和集成。</p>
+<p>这也是 ETL 出现的原因。</p>
+<hr>
+<h2 id="2-数据质量决定分析上限"><a href="#2-数据质量决定分析上限" class="headerlink" title="2. 数据质量决定分析上限"></a>2. 数据质量决定分析上限</h2><p>数据分析中有一个很重要的事实：</p>
+<blockquote>
+<p>模型只能尽可能挖掘已有数据中的信息，但无法凭空修复低质量数据。</p>
+</blockquote>
+<p>因此，在做报表、机器学习或者数据挖掘之前，第一件事通常不是“选什么算法”，而是先确认数据质量。</p>
+<p>资料中把数据清洗需要关注的问题归纳为四个方面，可以记成“<strong>完全合一</strong>”：</p>
+<ol>
+<li><strong>完整性</strong>：数据是否存在缺失；</li>
+<li><strong>全面性</strong>：字段类型、格式、单位等是否符合实际语义；</li>
+<li><strong>合法性</strong>：字段值是否处于合理范围；</li>
+<li><strong>唯一性</strong>：是否存在不应该出现的重复数据。</li>
+</ol>
+<p>下面分别来看。</p>
+<hr>
+<h2 id="3-完整性：先把-NULL-找出来"><a href="#3-完整性：先把-NULL-找出来" class="headerlink" title="3. 完整性：先把 NULL 找出来"></a>3. 完整性：先把 NULL 找出来</h2><p>数据清洗最常遇到的问题就是缺失值。</p>
+<p>假设有一张 <code>titanic_train</code> 表，可以先统计单个字段的 NULL 数量：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-built_in">COUNT</span>(<span class="hljs-operator">*</span>) <span class="hljs-keyword">AS</span> num<br><span class="hljs-keyword">FROM</span> titanic_train<br><span class="hljs-keyword">WHERE</span> Age <span class="hljs-keyword">IS</span> <span class="hljs-keyword">NULL</span>;<br></code></pre></td></tr></table></figure>
+
+<p>如果要一次检查多个字段，可以使用 <code>SUM + CASE WHEN</code>：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span><br>    <span class="hljs-built_in">SUM</span>(<span class="hljs-keyword">CASE</span> <span class="hljs-keyword">WHEN</span> Age <span class="hljs-keyword">IS</span> <span class="hljs-keyword">NULL</span> <span class="hljs-keyword">THEN</span> <span class="hljs-number">1</span> <span class="hljs-keyword">ELSE</span> <span class="hljs-number">0</span> <span class="hljs-keyword">END</span>)   <span class="hljs-keyword">AS</span> age_null_num,<br>    <span class="hljs-built_in">SUM</span>(<span class="hljs-keyword">CASE</span> <span class="hljs-keyword">WHEN</span> Cabin <span class="hljs-keyword">IS</span> <span class="hljs-keyword">NULL</span> <span class="hljs-keyword">THEN</span> <span class="hljs-number">1</span> <span class="hljs-keyword">ELSE</span> <span class="hljs-number">0</span> <span class="hljs-keyword">END</span>) <span class="hljs-keyword">AS</span> cabin_null_num,<br>    <span class="hljs-built_in">SUM</span>(<span class="hljs-keyword">CASE</span> <span class="hljs-keyword">WHEN</span> Embarked <span class="hljs-keyword">IS</span> <span class="hljs-keyword">NULL</span> <span class="hljs-keyword">THEN</span> <span class="hljs-number">1</span> <span class="hljs-keyword">ELSE</span> <span class="hljs-number">0</span> <span class="hljs-keyword">END</span>) <span class="hljs-keyword">AS</span> embarked_null_num<br><span class="hljs-keyword">FROM</span> titanic_train;<br></code></pre></td></tr></table></figure>
+
+<p>这里之所以使用 <code>SUM</code>，本质上是在做布尔计数：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">字段为空     -&gt; 1<br>字段不为空   -&gt; 0<br>最终 SUM     -&gt; NULL 总数<br></code></pre></td></tr></table></figure>
+
+<p>如果字段数量很多，手工写几十个表达式显然不现实。资料中给出的思路是利用 <code>information_schema.COLUMNS</code> 获取字段列表，再通过存储过程和动态 SQL 对每一列逐个检查。</p>
+<p>这类方法的核心不是某一段具体存储过程，而是一个通用思路：</p>
+<blockquote>
+<p><strong>当数据质量规则需要对大量字段重复执行时，把规则程序化，而不是人工复制 SQL。</strong></p>
+</blockquote>
+<hr>
+<h2 id="4-缺失值到底应该怎么处理"><a href="#4-缺失值到底应该怎么处理" class="headerlink" title="4. 缺失值到底应该怎么处理"></a>4. 缺失值到底应该怎么处理</h2><p>发现 NULL 之后，并不是一律填 0。</p>
+<p>资料中总结了三种基本处理方式：</p>
+<ul>
+<li>删除缺失记录；</li>
+<li>使用均值填充；</li>
+<li>使用高频值填充。</li>
+</ul>
+<p>真正的选择标准应该取决于字段含义。</p>
+<h3 id="4-1-均值填充：适合连续数值"><a href="#4-1-均值填充：适合连续数值" class="headerlink" title="4.1 均值填充：适合连续数值"></a>4.1 均值填充：适合连续数值</h3><p>例如 <code>Age</code> 是年龄，可以使用平均年龄进行填充：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> titanic_train<br><span class="hljs-keyword">SET</span> Age <span class="hljs-operator">=</span> (<br>    <span class="hljs-keyword">SELECT</span> ROUND(<span class="hljs-built_in">AVG</span>(Age), <span class="hljs-number">1</span>)<br>    <span class="hljs-keyword">FROM</span> titanic_train2<br>)<br><span class="hljs-keyword">WHERE</span> Age <span class="hljs-keyword">IS</span> <span class="hljs-keyword">NULL</span>;<br></code></pre></td></tr></table></figure>
+
+<p>资料中的例子额外复制了一张临时表 <code>titanic_train2</code>，原因是某些 MySQL 场景下，直接在更新目标表时又从同一目标表子查询，可能触发：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">You can&#x27;t specify target table ... for update in FROM clause<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-2-高频值填充：适合离散分类字段"><a href="#4-2-高频值填充：适合离散分类字段" class="headerlink" title="4.2 高频值填充：适合离散分类字段"></a>4.2 高频值填充：适合离散分类字段</h3><p>例如登船港口 <code>Embarked</code> 只有少量离散值，统计发现 <code>S</code> 出现频率最高，可以用它填充缺失值：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> titanic_train<br><span class="hljs-keyword">SET</span> Embarked <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;S&#x27;</span><br><span class="hljs-keyword">WHERE</span> Embarked <span class="hljs-keyword">IS</span> <span class="hljs-keyword">NULL</span>;<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-3-有些缺失值不应该强行填"><a href="#4-3-有些缺失值不应该强行填" class="headerlink" title="4.3 有些缺失值不应该强行填"></a>4.3 有些缺失值不应该强行填</h3><p><code>Cabin</code> 表示船舱位置，取值分布非常分散，而且缺失数量很大。</p>
+<p>这种字段如果没有可靠的推断依据，使用平均值或者最高频值都没有业务意义。此时保留 NULL，反而比“为了完整而完整”更合理。</p>
+<p>所以，数据清洗的一个核心原则是：</p>
+<blockquote>
+<p><strong>缺失值处理不是 SQL 技巧问题，而是字段语义问题。</strong></p>
+</blockquote>
+<hr>
+<h2 id="5-CSV-导入时，要特别小心“空字符串”和-NULL"><a href="#5-CSV-导入时，要特别小心“空字符串”和-NULL" class="headerlink" title="5. CSV 导入时，要特别小心“空字符串”和 NULL"></a>5. CSV 导入时，要特别小心“空字符串”和 NULL</h2><p>资料中的实践还暴露出一个非常容易踩坑的问题：CSV 中的空值进入 MySQL 后，不一定会自动变成真正的 <code>NULL</code>。</p>
+<p>例如年龄为空时，如果目标字段是数值类型：</p>
+<ul>
+<li>严格模式下可能直接导入失败；</li>
+<li>非严格模式下可能被转换成 <code>0</code>；</li>
+<li>字符字段则可能变成空字符串 <code>&#39;&#39;</code>。</li>
+</ul>
+<p>这会让后续数据清洗产生误判。</p>
+<p>更稳妥的导入方式，是在 <code>LOAD DATA</code> 时显式使用用户变量和 <code>NULLIF</code>：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs sql">LOAD DATA INFILE <span class="hljs-string">&#x27;/path/train.csv&#x27;</span><br><span class="hljs-keyword">INTO</span> <span class="hljs-keyword">TABLE</span> titanic_train<br>FIELDS TERMINATED <span class="hljs-keyword">BY</span> <span class="hljs-string">&#x27;,&#x27;</span><br>OPTIONALLY ENCLOSED <span class="hljs-keyword">BY</span> <span class="hljs-string">&#x27;&quot;&#x27;</span><br>ESCAPED <span class="hljs-keyword">BY</span> <span class="hljs-string">&#x27;&quot;&#x27;</span><br>LINES TERMINATED <span class="hljs-keyword">BY</span> <span class="hljs-string">&#x27;\n&#x27;</span><br>IGNORE <span class="hljs-number">1</span> LINES<br>(<br>    passenger_id,<br>    survived,<br>    pclass,<br>    name,<br>    sex,<br>    <span class="hljs-variable">@age</span>,<br>    sibsp,<br>    parch,<br>    ticket,<br>    fare,<br>    <span class="hljs-variable">@cabin</span>,<br>    embarked<br>)<br><span class="hljs-keyword">SET</span><br>    age <span class="hljs-operator">=</span> <span class="hljs-built_in">NULLIF</span>(<span class="hljs-variable">@age</span>, <span class="hljs-string">&#x27;&#x27;</span>),<br>    cabin <span class="hljs-operator">=</span> <span class="hljs-built_in">NULLIF</span>(<span class="hljs-variable">@cabin</span>, <span class="hljs-string">&#x27;&#x27;</span>);<br></code></pre></td></tr></table></figure>
+
+<p>这里：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-built_in">NULLIF</span>(<span class="hljs-variable">@age</span>, <span class="hljs-string">&#x27;&#x27;</span>)<br></code></pre></td></tr></table></figure>
+
+<p>表示如果读取到的是空字符串，就转换为真正的 <code>NULL</code>。</p>
+<p>这个细节非常重要，因为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">0 != NULL<br>&#x27;&#x27; != NULL<br></code></pre></td></tr></table></figure>
+
+<p>一旦导入阶段把空值“污染”成 0，后面的平均值、最小值、分布统计都会被影响。</p>
+<hr>
+<h2 id="6-全面性：字段类型也属于数据质量"><a href="#6-全面性：字段类型也属于数据质量" class="headerlink" title="6. 全面性：字段类型也属于数据质量"></a>6. 全面性：字段类型也属于数据质量</h2><p>通过 CSV 工具直接导入数据库时，有一种常见现象：所有字段都被创建成 <code>VARCHAR(255)</code>。</p>
+<p>但从业务含义上看：</p>
+<ul>
+<li><code>PassengerId</code> 应该是整数；</li>
+<li><code>Survived</code> 应该是整数或离散标识；</li>
+<li><code>Pclass</code> 应该是整数；</li>
+<li><code>Age</code>、<code>Fare</code> 应该是数值类型。</li>
+</ul>
+<p>因此清洗不仅要修改“数据值”，还应该修复表结构。</p>
+<p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">ALTER TABLE</span> titanic_train<br>    MODIFY PassengerId <span class="hljs-type">INT</span> <span class="hljs-keyword">NOT NULL</span>;<br><br><span class="hljs-keyword">ALTER TABLE</span> titanic_train<br>    MODIFY Survived <span class="hljs-type">INT</span> <span class="hljs-keyword">NOT NULL</span>;<br><br><span class="hljs-keyword">ALTER TABLE</span> titanic_train<br>    MODIFY Pclass <span class="hljs-type">INT</span> <span class="hljs-keyword">NOT NULL</span>;<br><br><span class="hljs-keyword">ALTER TABLE</span> titanic_train<br>    MODIFY Age <span class="hljs-type">DECIMAL</span>(<span class="hljs-number">5</span>,<span class="hljs-number">2</span>) <span class="hljs-keyword">NOT NULL</span>;<br><br><span class="hljs-keyword">ALTER TABLE</span> titanic_train<br>    MODIFY Fare <span class="hljs-type">DECIMAL</span>(<span class="hljs-number">7</span>,<span class="hljs-number">4</span>) <span class="hljs-keyword">NOT NULL</span>;<br></code></pre></td></tr></table></figure>
+
+<p>如果某个字段在业务上不允许为空，也应该增加 <code>NOT NULL</code> 约束。</p>
+<p>数据库约束的价值在于：</p>
+<blockquote>
+<p><strong>不要只在清洗阶段修数据，还要让数据库结构阻止同类脏数据再次进入。</strong></p>
+</blockquote>
+<hr>
+<h2 id="7-合法性与唯一性"><a href="#7-合法性与唯一性" class="headerlink" title="7. 合法性与唯一性"></a>7. 合法性与唯一性</h2><h3 id="7-1-合法性"><a href="#7-1-合法性" class="headerlink" title="7.1 合法性"></a>7.1 合法性</h3><p>合法性检查关注的是“这个值虽然不为空，但它是不是合理”。</p>
+<p>典型检查包括：</p>
+<ul>
+<li>数值是否越界；</li>
+<li>日期是否合理；</li>
+<li>金额是否出现非法负值；</li>
+<li>枚举字段是否出现未知值；</li>
+<li>单位是否统一；</li>
+<li>格式是否符合约定。</li>
+</ul>
+<p>例如年龄字段即使全部非空，也仍然可能出现 <code>-3</code>、<code>500</code> 这样的非法数据。</p>
+<h3 id="7-2-唯一性"><a href="#7-2-唯一性" class="headerlink" title="7.2 唯一性"></a>7.2 唯一性</h3><p>唯一性关注重复记录。</p>
+<p>如果存在天然业务主键，例如乘客 ID、订单 ID、交易 ID，可以通过主键或者唯一索引把重复数据挡在数据库层。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">ALTER TABLE</span> titanic_train<br><span class="hljs-keyword">ADD</span> <span class="hljs-keyword">PRIMARY KEY</span> (PassengerId);<br></code></pre></td></tr></table></figure>
+
+<p>如果无法添加主键，至少也应该使用聚合检查：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> PassengerId, <span class="hljs-built_in">COUNT</span>(<span class="hljs-operator">*</span>) <span class="hljs-keyword">AS</span> cnt<br><span class="hljs-keyword">FROM</span> titanic_train<br><span class="hljs-keyword">GROUP</span> <span class="hljs-keyword">BY</span> PassengerId<br><span class="hljs-keyword">HAVING</span> <span class="hljs-built_in">COUNT</span>(<span class="hljs-operator">*</span>) <span class="hljs-operator">&gt;</span> <span class="hljs-number">1</span>;<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="8-从数据清洗继续向前：ETL"><a href="#8-从数据清洗继续向前：ETL" class="headerlink" title="8. 从数据清洗继续向前：ETL"></a>8. 从数据清洗继续向前：ETL</h2><p>当数据来自多个系统时，问题会比单表清洗更复杂。</p>
+<p>不同数据源可能：</p>
+<ul>
+<li>使用不同 DBMS；</li>
+<li>字段命名不同；</li>
+<li>字段类型不同；</li>
+<li>数据存在冗余；</li>
+<li>同一个实体在多个系统重复出现；</li>
+<li>输出格式要求不同。</li>
+</ul>
+<p>因此需要数据集成，而数据集成中最经典的过程就是 <strong>ETL</strong>。</p>
+<p>ETL 分别表示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">E = Extract    抽取<br>T = Transform  转换<br>L = Load       加载<br></code></pre></td></tr></table></figure>
+
+<p>整个过程可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">OLTP 数据源<br>   │<br>   ├── Extract：把数据取出来<br>   │<br>   ├── Transform：清洗、映射、验证、过滤<br>   │<br>   └── Load：写入目标系统<br>          │<br>          ▼<br>      OLAP / 数据仓库<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="9-Extract：全量抽取与增量抽取"><a href="#9-Extract：全量抽取与增量抽取" class="headerlink" title="9. Extract：全量抽取与增量抽取"></a>9. Extract：全量抽取与增量抽取</h2><p>抽取阶段首先要搞清楚数据在哪里。</p>
+<p>需要确认：</p>
+<ul>
+<li>数据源使用什么 DBMS；</li>
+<li>是结构化还是非结构化数据；</li>
+<li>表结构如何；</li>
+<li>数据规模如何；</li>
+<li>数据变化频率如何。</li>
+</ul>
+<p>资料中区分了两种抽取方式。</p>
+<h3 id="全量抽取"><a href="#全量抽取" class="headerlink" title="全量抽取"></a>全量抽取</h3><p>每次把整个数据集重新读取一遍。</p>
+<p>优点是逻辑简单，缺点是数据量大时成本很高。</p>
+<h3 id="增量抽取"><a href="#增量抽取" class="headerlink" title="增量抽取"></a>增量抽取</h3><p>只获取上一次同步之后发生变化的数据。</p>
+<p>其价值在于动态捕捉数据源变化，并将变化持续同步到目标系统。</p>
+<p>因此，在持续运行的数据集成任务中，增量抽取通常更重要。</p>
+<hr>
+<h2 id="10-Transform：真正的数据加工区"><a href="#10-Transform：真正的数据加工区" class="headerlink" title="10. Transform：真正的数据加工区"></a>10. Transform：真正的数据加工区</h2><p>Transform 是 ETL 中最“重”的部分。</p>
+<p>常见工作包括：</p>
+<ul>
+<li>字段映射；</li>
+<li>类型转换；</li>
+<li>数据清洗；</li>
+<li>数据验证；</li>
+<li>数据过滤；</li>
+<li>多表关联；</li>
+<li>衍生字段计算；</li>
+<li>编码转换；</li>
+<li>去重。</li>
+</ul>
+<p>可以把它理解成数据流水线：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs text">原始数据<br>   │<br>   ▼<br>字段映射<br>   │<br>   ▼<br>清洗<br>   │<br>   ▼<br>验证<br>   │<br>   ▼<br>过滤 / 关联 / 衍生<br>   │<br>   ▼<br>标准数据<br></code></pre></td></tr></table></figure>
+
+<p>ETL 的目的并不只是“搬数据”，而是把不同来源、不同质量、不同规范的数据转换成统一标准。</p>
+<hr>
+<h2 id="11-Load：把转换结果送到目标系统"><a href="#11-Load：把转换结果送到目标系统" class="headerlink" title="11. Load：把转换结果送到目标系统"></a>11. Load：把转换结果送到目标系统</h2><p>数据转换完成之后，需要加载到目标位置。</p>
+<p>如果目标是关系型数据库，可以：</p>
+<ul>
+<li>直接执行 SQL 插入；</li>
+<li>批量加载；</li>
+<li>根据主键进行插入或更新。</li>
+</ul>
+<p>如果目标是文件，也可以输出为 TXT、CSV 等格式。</p>
+<p>因此，Load 的目标并不一定是数据库，也可能是下游分析系统需要的文件。</p>
+<hr>
+<h2 id="12-Kettle：把-ETL-做成可视化数据流"><a href="#12-Kettle：把-ETL-做成可视化数据流" class="headerlink" title="12. Kettle：把 ETL 做成可视化数据流"></a>12. Kettle：把 ETL 做成可视化数据流</h2><p>资料使用 Kettle 演示 ETL。</p>
+<p>Kettle 由 Java 开发，可以通过可视化方式搭建数据转换流程。</p>
+<p>其中有三个重要组件：</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Spoon</td>
+<td>图形化设计转换和作业</td>
+</tr>
+<tr>
+<td>Pan</td>
+<td>命令行执行 Transformation</td>
+</tr>
+<tr>
+<td>Kitchen</td>
+<td>命令行执行 Job</td>
+</tr>
+</tbody></table>
+<p>最容易混淆的是 <strong>Transformation</strong> 和 <strong>Job</strong>。</p>
+<h3 id="Transformation：数据转换"><a href="#Transformation：数据转换" class="headerlink" title="Transformation：数据转换"></a>Transformation：数据转换</h3><p>Transformation 对应 <code>.ktr</code> 文件。</p>
+<p>它关注一条具体的数据处理流水线，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">表输入 -&gt; 字段转换 -&gt; 过滤 -&gt; 插入/更新<br></code></pre></td></tr></table></figure>
+
+<h3 id="Job：工作流编排"><a href="#Job：工作流编排" class="headerlink" title="Job：工作流编排"></a>Job：工作流编排</h3><p>Job 对应 <code>.kjb</code> 文件。</p>
+<p>它负责更高层的流程控制，可以组织多个 Transformation。</p>
+<p>可以简单理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Job<br>├── Transformation A<br>├── Transformation B<br>└── Transformation C<br></code></pre></td></tr></table></figure>
+
+<p>也就是说：</p>
+<blockquote>
+<p><strong>Transformation 解决“数据怎么变”，Job 解决“整个任务怎么跑”。</strong></p>
+</blockquote>
+<hr>
+<h2 id="13-Kettle-示例一：两个-MySQL-数据库之间同步表"><a href="#13-Kettle-示例一：两个-MySQL-数据库之间同步表" class="headerlink" title="13. Kettle 示例一：两个 MySQL 数据库之间同步表"></a>13. Kettle 示例一：两个 MySQL 数据库之间同步表</h2><p>资料中的第一个示例是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">test1.heros  ---&gt;  test2.heros<br></code></pre></td></tr></table></figure>
+
+<p>目标库中已经存在表结构，只需要同步数据。</p>
+<p>核心流程只有两个组件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">表输入<br>  │<br>  ▼<br>插入 / 更新<br></code></pre></td></tr></table></figure>
+
+<h3 id="第一步：表输入"><a href="#第一步：表输入" class="headerlink" title="第一步：表输入"></a>第一步：表输入</h3><p>从 <code>test1</code> 查询：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> heros;<br></code></pre></td></tr></table></figure>
+
+<h3 id="第二步：插入-更新"><a href="#第二步：插入-更新" class="headerlink" title="第二步：插入 &#x2F; 更新"></a>第二步：插入 &#x2F; 更新</h3><p>目标连接指向 <code>test2</code>，目标表为 <code>heros</code>。</p>
+<p>以 <code>id</code> 作为匹配条件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">source.id = target.id<br></code></pre></td></tr></table></figure>
+
+<p>然后配置需要更新的字段。</p>
+<p>这样，当目标表中不存在对应 <code>id</code> 时可以插入，存在时则进行更新。</p>
+<p>这个案例本质上就是最基础的数据库同步模型：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Source Query -&gt; Key Match -&gt; Insert / Update<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="14-Kettle-示例二：把交易流水加工成业务语义"><a href="#14-Kettle-示例二：把交易流水加工成业务语义" class="headerlink" title="14. Kettle 示例二：把交易流水加工成业务语义"></a>14. Kettle 示例二：把交易流水加工成业务语义</h2><p>第二个例子更有代表性。</p>
+<p>有两张表：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">account：账户信息<br>trade：交易流水<br></code></pre></td></tr></table></figure>
+
+<p><code>trade</code> 中只有：</p>
+<ul>
+<li>打款账户 <code>account_id1</code>；</li>
+<li>收款账户 <code>account_id2</code>；</li>
+<li>转账金额 <code>amount</code>。</li>
+</ul>
+<p>而输出文件还需要增加一列 <code>value</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">收款账户是个人 -&gt; 对私客户发生的交易<br>收款账户是公司 -&gt; 对公客户发生的交易<br></code></pre></td></tr></table></figure>
+
+<p>整个数据流可以抽象为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs text">trade 表输入<br>     │<br>     ▼<br>account 表查询<br>     │<br>     ▼<br>获取 customer_type<br>     │<br>     ▼<br>过滤记录<br>   ┌─┴───────────┐<br>   │             │<br>公司账户       个人账户<br>   │             │<br>增加常量       增加常量<br>   │             │<br>   └──────┬──────┘<br>          ▼<br>      文本文件输出<br></code></pre></td></tr></table></figure>
+
+<p>这正是 Transform 的典型工作：</p>
+<blockquote>
+<p>原始数据库里并没有最终业务字段，但可以通过关联、判断和转换得到新的业务语义。</p>
+</blockquote>
+<p>例如最终输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">account_id1;account_id2;amount;value<br>322202020312335;622202020312337;200.0;对私客户发生的交易<br>322202020312335;322202020312336;100.0;对公客户发生的交易<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="15-清洗、集成完成之后，才真正进入分析阶段"><a href="#15-清洗、集成完成之后，才真正进入分析阶段" class="headerlink" title="15. 清洗、集成完成之后，才真正进入分析阶段"></a>15. 清洗、集成完成之后，才真正进入分析阶段</h2><p>到这里，数据已经经历了：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">采集 -&gt; 清洗 -&gt; 集成 -&gt; 标准化<br></code></pre></td></tr></table></figure>
+
+<p>接下来才是 OLAP 分析。</p>
+<p>资料中列举了五种通过 SQL 进入数据分析或机器学习的方式：</p>
+<ol>
+<li>SQL Server + Analysis Services；</li>
+<li>PostgreSQL + MADlib；</li>
+<li>BigQuery ML；</li>
+<li>SQLFlow；</li>
+<li>SQL + Python。</li>
+</ol>
+<p>这些方式背后其实可以分成两种思路。</p>
+<h3 id="思路一：把机器学习能力集成进数据平台"><a href="#思路一：把机器学习能力集成进数据平台" class="headerlink" title="思路一：把机器学习能力集成进数据平台"></a>思路一：把机器学习能力集成进数据平台</h3><p>例如通过 SQL 直接调用模型训练、分类、聚类、关联规则等能力。</p>
+<p>优点是数据无需频繁搬运，SQL 使用者也可以直接进入分析流程。</p>
+<h3 id="思路二：SQL-与算法层解耦"><a href="#思路二：SQL-与算法层解耦" class="headerlink" title="思路二：SQL 与算法层解耦"></a>思路二：SQL 与算法层解耦</h3><p>也就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">SQL 负责取数<br>Python 负责分析<br></code></pre></td></tr></table></figure>
+
+<p>资料更推荐用这个方式完成复杂分析，因为 Python 在算法调参、数据预处理、模型组合方面更灵活。</p>
+<hr>
+<h2 id="16-零售分析：什么是购物篮关联分析"><a href="#16-零售分析：什么是购物篮关联分析" class="headerlink" title="16. 零售分析：什么是购物篮关联分析"></a>16. 零售分析：什么是购物篮关联分析</h2><p>资料使用了一个面包店零售数据集来说明关联分析。</p>
+<p>数据包含：</p>
+<ul>
+<li><code>Date</code>：日期；</li>
+<li><code>Time</code>：时间；</li>
+<li><code>Transaction</code>：交易 ID；</li>
+<li><code>Item</code>：商品名称。</li>
+</ul>
+<p>数据一共有 21293 条记录。</p>
+<p>原始数据中还存在典型的数据质量问题：</p>
+<ul>
+<li>交易 ID 并不完全连续；</li>
+<li>同一交易中商品可能重复；</li>
+<li><code>Item</code> 存在 <code>NONE</code>；</li>
+<li>商品大小写格式不统一。</li>
+</ul>
+<p>这恰好说明了一件事：</p>
+<blockquote>
+<p><strong>数据分析算法之前，仍然需要数据清洗。</strong></p>
+</blockquote>
+<hr>
+<h2 id="17-Apriori-的两个核心指标：支持度与置信度"><a href="#17-Apriori-的两个核心指标：支持度与置信度" class="headerlink" title="17. Apriori 的两个核心指标：支持度与置信度"></a>17. Apriori 的两个核心指标：支持度与置信度</h2><p>购物篮分析的目标，是寻找经常一起出现的商品组合。</p>
+<p>资料使用 Apriori 算法查找频繁项集。</p>
+<h3 id="17-1-支持度-Support"><a href="#17-1-支持度-Support" class="headerlink" title="17.1 支持度 Support"></a>17.1 支持度 Support</h3><p>支持度描述某个商品组合在所有订单中出现的频率。</p>
+<p>例如有 5 笔订单，其中牛奶出现 4 次：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Support(牛奶) = 4 / 5 = 0.8<br></code></pre></td></tr></table></figure>
+
+<p>如果“牛奶 + 面包”同时出现 3 次：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Support(牛奶, 面包) = 3 / 5 = 0.6<br></code></pre></td></tr></table></figure>
+
+<p>当项集支持度大于等于设定的最小支持度时，就可以称为频繁项集。</p>
+<h3 id="17-2-置信度-Confidence"><a href="#17-2-置信度-Confidence" class="headerlink" title="17.2 置信度 Confidence"></a>17.2 置信度 Confidence</h3><p>置信度是一个条件概率概念。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">牛奶出现 4 次<br>牛奶 + 啤酒同时出现 2 次<br></code></pre></td></tr></table></figure>
+
+<p>则：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Confidence(牛奶 -&gt; 啤酒) = 2 / 4 = 0.5<br></code></pre></td></tr></table></figure>
+
+<p>表示购买牛奶的订单中，有 50% 同时购买了啤酒。</p>
+<p>反过来，如果啤酒出现 3 次：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Confidence(啤酒 -&gt; 牛奶) = 2 / 3 ≈ 0.67<br></code></pre></td></tr></table></figure>
+
+<p>注意：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Confidence(A -&gt; B) != Confidence(B -&gt; A)<br></code></pre></td></tr></table></figure>
+
+<p>因为分母不同。</p>
+<hr>
+<h2 id="18-SQL-Python-完成关联分析"><a href="#18-SQL-Python-完成关联分析" class="headerlink" title="18. SQL + Python 完成关联分析"></a>18. SQL + Python 完成关联分析</h2><p>资料中的整体实现可以拆成三个阶段：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">MySQL<br>  │<br>  ▼<br>SQLAlchemy 查询<br>  │<br>  ▼<br>Pandas 数据预处理<br>  │<br>  ▼<br>efficient_apriori<br>  │<br>  ▼<br>频繁项集 + 关联规则<br></code></pre></td></tr></table></figure>
+
+<h3 id="18-1-从数据库加载数据"><a href="#18-1-从数据库加载数据" class="headerlink" title="18.1 从数据库加载数据"></a>18.1 从数据库加载数据</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-keyword">import</span> sqlalchemy <span class="hljs-keyword">as</span> sql<br><span class="hljs-keyword">import</span> pandas <span class="hljs-keyword">as</span> pd<br><br>engine = sql.create_engine(<br>    <span class="hljs-string">&#x27;mysql+pymysql://root:password@localhost/wucai&#x27;</span><br>)<br><br>data = pd.read_sql_query(<br>    <span class="hljs-string">&#x27;SELECT * FROM bread_basket&#x27;</span>,<br>    engine<br>)<br></code></pre></td></tr></table></figure>
+
+<h3 id="18-2-清洗-Item"><a href="#18-2-清洗-Item" class="headerlink" title="18.2 清洗 Item"></a>18.2 清洗 Item</h3><p>统一为小写：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs python">data[<span class="hljs-string">&#x27;Item&#x27;</span>] = data[<span class="hljs-string">&#x27;Item&#x27;</span>].<span class="hljs-built_in">str</span>.lower()<br></code></pre></td></tr></table></figure>
+
+<p>删除无效的 <code>none</code>：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs python">data = data.drop(<br>    data[data.Item == <span class="hljs-string">&#x27;none&#x27;</span>].index<br>)<br></code></pre></td></tr></table></figure>
+
+<h3 id="18-3-按交易聚合，并在订单内去重"><a href="#18-3-按交易聚合，并在订单内去重" class="headerlink" title="18.3 按交易聚合，并在订单内去重"></a>18.3 按交易聚合，并在订单内去重</h3><p>购物篮算法需要的输入是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">订单1 -&gt; &#123;bread, coffee&#125;<br>订单2 -&gt; &#123;cake, coffee, tea&#125;<br>订单3 -&gt; &#123;bread, pastry&#125;<br></code></pre></td></tr></table></figure>
+
+<p>因此可以按 <code>Transaction</code> 分组，把每笔订单的商品转换成集合：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs python">transactions = <span class="hljs-built_in">list</span>(<br>    data.groupby(<span class="hljs-string">&#x27;Transaction&#x27;</span>)<br>        .agg(<span class="hljs-keyword">lambda</span> x: <span class="hljs-built_in">set</span>(x.Item.values))[<span class="hljs-string">&#x27;Item&#x27;</span>]<br>)<br></code></pre></td></tr></table></figure>
+
+<p>这里使用 <code>set</code> 非常关键，因为同一订单中重复出现同一个商品，并不应该被当成多个独立商品参与项集计算。</p>
+<h3 id="18-4-执行-Apriori"><a href="#18-4-执行-Apriori" class="headerlink" title="18.4 执行 Apriori"></a>18.4 执行 Apriori</h3><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-keyword">from</span> efficient_apriori <span class="hljs-keyword">import</span> apriori<br><br>itemsets, rules = apriori(<br>    transactions,<br>    min_support=<span class="hljs-number">0.02</span>,<br>    min_confidence=<span class="hljs-number">0.5</span><br>)<br><br><span class="hljs-built_in">print</span>(<span class="hljs-string">&#x27;频繁项集：&#x27;</span>, itemsets)<br><span class="hljs-built_in">print</span>(<span class="hljs-string">&#x27;关联规则：&#x27;</span>, rules)<br></code></pre></td></tr></table></figure>
+
+<p>资料中的参数是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">最小支持度    0.02<br>最小置信度    0.5<br></code></pre></td></tr></table></figure>
+
+<p>在示例结果中：</p>
+<ul>
+<li>1 个商品组成的频繁项集有 19 种；</li>
+<li>2 个商品组成的频繁项集有 14 种；</li>
+<li>得到 8 条关联规则；</li>
+<li>多条规则都指向 <code>coffee</code>，例如 <code>cake -&gt; coffee</code>、<code>cookies -&gt; coffee</code> 等。</li>
+</ul>
+<p>这就是从数据库中的交易流水，逐步得到可用于商品组合分析的关联规则。</p>
+<hr>
+<h2 id="19-SQLite：轻量数据库同样可以成为分析数据源"><a href="#19-SQLite：轻量数据库同样可以成为分析数据源" class="headerlink" title="19. SQLite：轻量数据库同样可以成为分析数据源"></a>19. SQLite：轻量数据库同样可以成为分析数据源</h2><p>资料还给出了 SQLite + Python 的例子：读取本地聊天记录并生成词云。</p>
+<p>流程可以抽象成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs text">SQLite<br>  │<br>  ▼<br>读取聊天表<br>  │<br>  ▼<br>提取 Message<br>  │<br>  ▼<br>移除 HTML 标签<br>  │<br>  ▼<br>移除停用词<br>  │<br>  ▼<br>jieba 分词<br>  │<br>  ▼<br>WordCloud<br></code></pre></td></tr></table></figure>
+
+<p>核心查询思路是先找出聊天相关数据表：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> name<br><span class="hljs-keyword">FROM</span> sqlite_master<br><span class="hljs-keyword">WHERE</span> type <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;table&#x27;</span><br>  <span class="hljs-keyword">AND</span> name <span class="hljs-keyword">LIKE</span> <span class="hljs-string">&#x27;Chat%&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<p>然后遍历每张表，读取消息字段。</p>
+<p>这个示例说明：</p>
+<blockquote>
+<p>SQL 并不只服务于大型 MySQL、PostgreSQL 数据库，本地 SQLite 文件同样可以成为 Python 数据分析的数据入口。</p>
+</blockquote>
+<hr>
+<h2 id="20-Redis：它在数据体系中的位置不是“替代-MySQL”"><a href="#20-Redis：它在数据体系中的位置不是“替代-MySQL”" class="headerlink" title="20. Redis：它在数据体系中的位置不是“替代 MySQL”"></a>20. Redis：它在数据体系中的位置不是“替代 MySQL”</h2><p>资料中还对 Redis 与 MongoDB、MySQL 的定位进行了讨论。</p>
+<p>Redis 的特点是：</p>
+<ul>
+<li>Key-Value 模型；</li>
+<li>数据主要在内存中操作；</li>
+<li>读写速度高；</li>
+<li>支持字符串、哈希、列表、集合、有序集合等数据结构；</li>
+<li>支持持久化，但通常更常见的定位仍然是缓存和高性能数据结构服务。</li>
+</ul>
+<p>而 MongoDB 更偏向文档数据库，承担长期数据存储的职责。</p>
+<p>在典型业务系统中，可以把 MySQL 和 Redis 的关系理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">          高频访问<br>客户端  -----------&gt; Redis<br>                    │<br>                    │ miss<br>                    ▼<br>                  MySQL<br></code></pre></td></tr></table></figure>
+
+<p>Redis 适合保存：</p>
+<ul>
+<li>热点数据；</li>
+<li>实时排行榜；</li>
+<li>高并发计数；</li>
+<li>临时状态。</li>
+</ul>
+<p>MySQL 更适合保存：</p>
+<ul>
+<li>完整业务数据；</li>
+<li>持久化实体；</li>
+<li>需要事务和复杂查询的数据。</li>
+</ul>
+<h3 id="Redis-DECR-的原子计数例子"><a href="#Redis-DECR-的原子计数例子" class="headerlink" title="Redis DECR 的原子计数例子"></a>Redis DECR 的原子计数例子</h3><p>资料还给出了一个抢票思路：用 Redis 的 <code>DECR</code> 对库存做原子减一。</p>
+<p>逻辑非常简单：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">DECR ticket_count<br>      │<br>      ├── 结果 &gt;= 0：抢票成功<br>      └── 结果 &lt; 0 ：票已售罄<br></code></pre></td></tr></table></figure>
+
+<p>Python 伪代码：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs python">temp = redis_client.decr(<span class="hljs-string">&#x27;ticket_count&#x27;</span>)<br><br><span class="hljs-keyword">if</span> temp &gt;= <span class="hljs-number">0</span>:<br>    <span class="hljs-built_in">print</span>(<span class="hljs-string">&#x27;抢票成功&#x27;</span>)<br><span class="hljs-keyword">else</span>:<br>    <span class="hljs-built_in">print</span>(<span class="hljs-string">&#x27;抢票失败&#x27;</span>)<br></code></pre></td></tr></table></figure>
+
+<p>这个例子体现了 Redis 的另一个价值：</p>
+<blockquote>
+<p>某些高并发场景不需要复杂关系模型，只需要一个足够快并且具备原子语义的数据操作。</p>
+</blockquote>
+<hr>
+<h2 id="21-把四部分知识串起来"><a href="#21-把四部分知识串起来" class="headerlink" title="21. 把四部分知识串起来"></a>21. 把四部分知识串起来</h2><p>把数据清洗、数据集成、数据分析和 DBMS 选型放在一起后，可以得到一条完整的数据处理思路。</p>
+<h3 id="第一阶段：业务系统产生数据"><a href="#第一阶段：业务系统产生数据" class="headerlink" title="第一阶段：业务系统产生数据"></a>第一阶段：业务系统产生数据</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">OLTP<br>MySQL / PostgreSQL / 业务数据库<br></code></pre></td></tr></table></figure>
+
+<p>重点是：</p>
+<ul>
+<li>正确性；</li>
+<li>实时性；</li>
+<li>事务；</li>
+<li>高并发。</li>
+</ul>
+<h3 id="第二阶段：数据清洗"><a href="#第二阶段：数据清洗" class="headerlink" title="第二阶段：数据清洗"></a>第二阶段：数据清洗</h3><p>按照“完全合一”检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">完整性 -&gt; NULL / 缺失值<br>全面性 -&gt; 类型 / 格式 / 单位<br>合法性 -&gt; 范围 / 业务规则<br>唯一性 -&gt; 重复记录<br></code></pre></td></tr></table></figure>
+
+<h3 id="第三阶段：数据集成"><a href="#第三阶段：数据集成" class="headerlink" title="第三阶段：数据集成"></a>第三阶段：数据集成</h3><p>通过 ETL：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Extract -&gt; Transform -&gt; Load<br></code></pre></td></tr></table></figure>
+
+<p>把不同数据库、不同格式的数据统一起来。</p>
+<h3 id="第四阶段：OLAP-分析"><a href="#第四阶段：OLAP-分析" class="headerlink" title="第四阶段：OLAP 分析"></a>第四阶段：OLAP 分析</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">SQL 聚合<br>BI 报表<br>SQL + Python<br>机器学习 / 数据挖掘<br></code></pre></td></tr></table></figure>
+
+<h3 id="第五阶段：展示和反馈"><a href="#第五阶段：展示和反馈" class="headerlink" title="第五阶段：展示和反馈"></a>第五阶段：展示和反馈</h3><p>可以通过：</p>
+<ul>
+<li>Excel 数据透视表；</li>
+<li>数据透视图；</li>
+<li>Python 可视化；</li>
+<li>BI 工具；</li>
+<li>数据挖掘结果。</li>
+</ul>
+<p>最终让数据重新服务业务决策。</p>
+<hr>
+<h2 id="22-一套可复用的数据处理-Checklist"><a href="#22-一套可复用的数据处理-Checklist" class="headerlink" title="22. 一套可复用的数据处理 Checklist"></a>22. 一套可复用的数据处理 Checklist</h2><p>以后面对一份陌生数据，可以按下面的顺序快速检查。</p>
+<h3 id="数据源"><a href="#数据源" class="headerlink" title="数据源"></a>数据源</h3><ul>
+<li>数据来自哪个系统？</li>
+<li>OLTP 还是分析库？</li>
+<li>是 MySQL、PostgreSQL、SQLite 还是其他 DBMS？</li>
+<li>数据量多大？</li>
+<li>需要全量还是增量抽取？</li>
+</ul>
+<h3 id="数据质量"><a href="#数据质量" class="headerlink" title="数据质量"></a>数据质量</h3><ul>
+<li>NULL 有多少？</li>
+<li>空字符串有没有被误当成有效值？</li>
+<li>字段类型是否合理？</li>
+<li>单位是否统一？</li>
+<li>枚举值是否合法？</li>
+<li>是否存在重复记录？</li>
+<li>是否有业务主键？</li>
+</ul>
+<h3 id="数据转换"><a href="#数据转换" class="headerlink" title="数据转换"></a>数据转换</h3><ul>
+<li>是否需要字段映射？</li>
+<li>是否需要关联维表？</li>
+<li>是否需要衍生字段？</li>
+<li>是否需要过滤无效数据？</li>
+<li>是否需要统一编码和格式？</li>
+</ul>
+<h3 id="数据加载"><a href="#数据加载" class="headerlink" title="数据加载"></a>数据加载</h3><ul>
+<li>目标是数据库、数据仓库还是文件？</li>
+<li>是 Insert、Update 还是 Upsert？</li>
+<li>是否需要周期性调度？</li>
+</ul>
+<h3 id="数据分析"><a href="#数据分析" class="headerlink" title="数据分析"></a>数据分析</h3><ul>
+<li>SQL 聚合是否足够？</li>
+<li>是否需要 Python？</li>
+<li>是否需要关联分析、分类、聚类等算法？</li>
+<li>分析前是否已经再次确认数据质量？</li>
+</ul>
+<hr>
+<h2 id="23-总结"><a href="#23-总结" class="headerlink" title="23. 总结"></a>23. 总结</h2><p>这几篇资料看似分别在讲 SQLite、Redis、数据清洗、Kettle 和 Apriori，但把它们串起来后，本质上讲的是同一件事：<strong>数据如何从业务系统一步步变成可用于决策的信息。</strong></p>
+<p>可以把整套思路压缩成一句话：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">OLTP 负责产生可靠的业务数据，<br>SQL 负责查询和清洗，<br>ETL 负责集成和转换，<br>OLAP 负责聚合分析，<br>Python 负责更灵活的数据挖掘，<br>Redis / SQLite 等 DBMS 则根据场景承担各自最擅长的角色。<br></code></pre></td></tr></table></figure>
+
+<p>真正值得掌握的并不是某一条 SQL 或某一个 ETL 工具，而是这条完整的数据链路。</p>
+<p>当遇到一份数据时，不要急着问“应该用什么算法”，更应该先问：</p>
+<blockquote>
+<p><strong>数据从哪里来？质量怎么样？如何统一？最终要回答什么业务问题？</strong></p>
+</blockquote>
+<p>这四个问题想清楚之后，SQL 才真正从“查询语言”变成数据工程和数据分析之间的连接器。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/" class="category-chain-item">数据库</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Redis/" class="print-no-link">#Redis</a>
+      
+        <a href="/tags/SQL/" class="print-no-link">#SQL</a>
+      
+        <a href="/tags/SQLite/" class="print-no-link">#SQLite</a>
+      
+        <a href="/tags/OLTP/" class="print-no-link">#OLTP</a>
+      
+        <a href="/tags/OLAP/" class="print-no-link">#OLAP</a>
+      
+        <a href="/tags/%E6%95%B0%E6%8D%AE%E6%B8%85%E6%B4%97/" class="print-no-link">#数据清洗</a>
+      
+        <a href="/tags/ETL/" class="print-no-link">#ETL</a>
+      
+        <a href="/tags/Kettle/" class="print-no-link">#Kettle</a>
+      
+        <a href="/tags/Python/" class="print-no-link">#Python</a>
+      
+        <a href="/tags/Apriori/" class="print-no-link">#Apriori</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>SQL 数据处理全链路：从数据清洗、ETL 到零售关联分析</div>
+      <div>https://allendericdalexander.github.io/2026/08/11/db/sql/08sql-data-pipeline-cleaning-etl-analysis/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月11日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/11/db/sql/07redis-from-basics-to-practice/" title="Redis 从入门到实战：高性能原理、数据结构、事务、Lua 与排行榜">
+                        <span class="hidden-mobile">Redis 从入门到实战：高性能原理、数据结构、事务、Lua 与排行榜</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

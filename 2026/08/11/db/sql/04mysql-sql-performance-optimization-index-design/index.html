@@ -1,0 +1,1751 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="很多 SQL 优化文章会从「给 WHERE 条件加索引」开始，但如果只停留在这一层，很容易形成一种错觉：慢 SQL &#x3D; 缺索引，数据库优化 &#x3D; 加索引。 实际上，数据库性能问题是一条完整链路上的结果：  表怎么设计 → SQL 怎么写 → 索引怎么组织 → B+ 树怎么定位 → 数据页怎么读取 → Buffer Pool 是否命中 → 最终产生多少 I&#x2F;O。  真正理">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从表设计到磁盘 I&#x2F;O：一套完整的 MySQL 性能优化与索引设计方法">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/11/db/sql/04mysql-sql-performance-optimization-index-design/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="很多 SQL 优化文章会从「给 WHERE 条件加索引」开始，但如果只停留在这一层，很容易形成一种错觉：慢 SQL &#x3D; 缺索引，数据库优化 &#x3D; 加索引。 实际上，数据库性能问题是一条完整链路上的结果：  表怎么设计 → SQL 怎么写 → 索引怎么组织 → B+ 树怎么定位 → 数据页怎么读取 → Buffer Pool 是否命中 → 最终产生多少 I&#x2F;O。  真正理">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-11T02:21:00.000Z">
+<meta property="article:modified_time" content="2026-08-11T02:33:39.881Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="B+树">
+<meta property="article:tag" content="InnoDB">
+<meta property="article:tag" content="MySQL">
+<meta property="article:tag" content="SQL">
+<meta property="article:tag" content="性能优化">
+<meta property="article:tag" content="数据库优化">
+<meta property="article:tag" content="索引">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>从表设计到磁盘 I/O：一套完整的 MySQL 性能优化与索引设计方法 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="从表设计到磁盘 I/O：一套完整的 MySQL 性能优化与索引设计方法"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-11 10:21" pubdate>
+          2026年8月11日 上午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          7.7k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          65 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">从表设计到磁盘 I/O：一套完整的 MySQL 性能优化与索引设计方法</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>很多 SQL 优化文章会从「给 WHERE 条件加索引」开始，但如果只停留在这一层，很容易形成一种错觉：<strong>慢 SQL &#x3D; 缺索引，数据库优化 &#x3D; 加索引</strong>。</p>
+<p>实际上，数据库性能问题是一条完整链路上的结果：</p>
+<blockquote>
+<p><strong>表怎么设计 → SQL 怎么写 → 索引怎么组织 → B+ 树怎么定位 → 数据页怎么读取 → Buffer Pool 是否命中 → 最终产生多少 I&#x2F;O。</strong></p>
+</blockquote>
+<p>真正理解这条链路以后，很多看似零散的知识点会自动串起来：为什么要做范式设计、为什么又要反范式；为什么 MySQL 选择 B+ 树而不是二叉树；为什么联合索引有最左匹配；为什么覆盖索引能减少回表；为什么索引越多反而可能越慢；以及为什么 SQL 优化最终绕不开磁盘 I&#x2F;O。</p>
+<p>本文基于一组关于数据库调优、范式、索引、B+ 树、Hash、数据页和磁盘 I&#x2F;O 的文章进行重新整理，目标不是逐篇复述，而是形成一套可以直接用于实际开发和排查问题的知识体系。</p>
+<span id="more"></span>
+
+<h2 id="一、先建立一个总框架：数据库优化到底在优化什么"><a href="#一、先建立一个总框架：数据库优化到底在优化什么" class="headerlink" title="一、先建立一个总框架：数据库优化到底在优化什么"></a>一、先建立一个总框架：数据库优化到底在优化什么</h2><p>数据库调优的直接目标通常可以归结为两个：</p>
+<ul>
+<li><strong>更低的响应时间</strong></li>
+<li><strong>更高的吞吐量</strong></li>
+</ul>
+<p>但在实际系统里，“让数据库更快”过于模糊。真正进行性能分析时，需要先知道瓶颈发生在哪里。</p>
+<p>可以把数据库优化拆成六个层次：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">数据库选型<br>   ↓<br>表结构设计<br>   ↓<br>SQL 逻辑优化<br>   ↓<br>索引与执行计划优化<br>   ↓<br>缓存与内存优化<br>   ↓<br>数据库架构优化<br></code></pre></td></tr></table></figure>
+
+<p>对应到工程实践，大致可以这样理解：</p>
+<table>
+<thead>
+<tr>
+<th>层次</th>
+<th>主要问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>DBMS 选型</td>
+<td>当前业务更适合关系型、KV、搜索、列式还是其他存储</td>
+</tr>
+<tr>
+<td>表结构</td>
+<td>字段类型、主键、范式、冗余、冷热数据是否合理</td>
+</tr>
+<tr>
+<td>SQL 逻辑</td>
+<td>是否存在无效计算、重复扫描、不必要 JOIN、子查询问题</td>
+</tr>
+<tr>
+<td>物理查询</td>
+<td>是否命中合理索引、访问路径是否正确、扫描行数是否过大</td>
+</tr>
+<tr>
+<td>缓存层</td>
+<td>热点数据是否反复打数据库，Buffer Pool 是否充分利用</td>
+</tr>
+<tr>
+<td>架构层</td>
+<td>是否需要读写分离、分库分表、归档、数据仓库等</td>
+</tr>
+</tbody></table>
+<p>所以，一条 SQL 很慢时，不应该第一反应就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">加索引！<br></code></pre></td></tr></table></figure>
+
+<p>更合理的问题是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">慢在哪里？<br>是扫描数据太多？<br>是 JOIN 太重？<br>是索引不合适？<br>是回表太多？<br>是随机 I/O 太多？<br>还是表本身已经不适合当前业务？<br></code></pre></td></tr></table></figure>
+
+<h3 id="1-1-如何发现数据库瓶颈"><a href="#1-1-如何发现数据库瓶颈" class="headerlink" title="1.1 如何发现数据库瓶颈"></a>1.1 如何发现数据库瓶颈</h3><p>常见的入口有四类：</p>
+<ol>
+<li><p><strong>用户反馈</strong><br>页面慢、接口超时、报表卡顿，往往是最直接的信号。</p>
+</li>
+<li><p><strong>应用与数据库日志</strong><br>慢 SQL、锁等待、超时、死锁、连接池耗尽等问题都可以留下线索。</p>
+</li>
+<li><p><strong>服务器资源监控</strong><br>CPU、内存、磁盘 I&#x2F;O、网络吞吐是判断资源瓶颈的重要指标。</p>
+</li>
+<li><p><strong>数据库内部状态</strong><br>活跃会话、锁等待、事务状态、Buffer Pool、执行计划等指标可以进一步定位问题。</p>
+</li>
+</ol>
+<p>数据库优化不是“凭感觉改 SQL”，而是一个：</p>
+<blockquote>
+<p><strong>观察 → 定位 → 修改 → 验证</strong></p>
+</blockquote>
+<p>的闭环。</p>
+<hr>
+<h2 id="二、表设计：范式不是教条，而是控制数据依赖关系"><a href="#二、表设计：范式不是教条，而是控制数据依赖关系" class="headerlink" title="二、表设计：范式不是教条，而是控制数据依赖关系"></a>二、表设计：范式不是教条，而是控制数据依赖关系</h2><p>性能优化其实从建表那一刻就已经开始了。</p>
+<p>如果表设计本身有问题，后面再怎么优化 SQL，往往也只能修修补补。</p>
+<h3 id="2-1-什么是范式"><a href="#2-1-什么是范式" class="headerlink" title="2.1 什么是范式"></a>2.1 什么是范式</h3><p>关系型数据库常见范式包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">1NF → 2NF → 3NF → BCNF → 4NF → 5NF<br></code></pre></td></tr></table></figure>
+
+<p>在业务开发中，最常接触的是：</p>
+<ul>
+<li>1NF</li>
+<li>2NF</li>
+<li>3NF</li>
+<li>BCNF</li>
+<li>反范式</li>
+</ul>
+<p>通常业务表设计以 <strong>3NF 作为重要参考</strong>，而不是机械追求更高范式。</p>
+<h3 id="2-2-1NF：字段必须保持原子性"><a href="#2-2-1NF：字段必须保持原子性" class="headerlink" title="2.2 1NF：字段必须保持原子性"></a>2.2 1NF：字段必须保持原子性</h3><p>第一范式关注的是：</p>
+<blockquote>
+<p><strong>一个字段应该表达一个不可继续拆分的属性。</strong></p>
+</blockquote>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">错误：<br>user_address = &quot;浙江省杭州市西湖区&quot;<br><br>视业务需要拆分：<br>province<br>city<br>district<br></code></pre></td></tr></table></figure>
+
+<p>当然，“是否应该拆”仍然取决于业务是否需要独立查询和处理这些属性。</p>
+<h3 id="2-3-2NF：非主属性必须完全依赖候选键"><a href="#2-3-2NF：非主属性必须完全依赖候选键" class="headerlink" title="2.3 2NF：非主属性必须完全依赖候选键"></a>2.3 2NF：非主属性必须完全依赖候选键</h3><p>第二范式主要解决<strong>部分依赖</strong>。</p>
+<p>假设有一张球员比赛表：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">player_game(<br>    player_id,<br>    game_id,<br>    player_name,<br>    age,<br>    game_time,<br>    game_address,<br>    score<br>)<br></code></pre></td></tr></table></figure>
+
+<p>候选键是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">(player_id, game_id)<br></code></pre></td></tr></table></figure>
+
+<p>但是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">player_id → player_name, age<br>game_id   → game_time, game_address<br></code></pre></td></tr></table></figure>
+
+<p>也就是说，一部分字段只依赖联合键中的一部分。</p>
+<p>这会造成：</p>
+<ul>
+<li>数据冗余</li>
+<li>插入异常</li>
+<li>删除异常</li>
+<li>更新异常</li>
+</ul>
+<p>更合理的结构是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs text">player<br>- player_id<br>- player_name<br>- age<br><br>game<br>- game_id<br>- game_time<br>- game_address<br><br>player_game<br>- player_id<br>- game_id<br>- score<br></code></pre></td></tr></table></figure>
+
+<p>一句话理解 2NF：</p>
+<blockquote>
+<p><strong>一张表尽量只描述一个独立的业务对象或关系。</strong></p>
+</blockquote>
+<h3 id="2-4-3NF：消除非主属性之间的传递依赖"><a href="#2-4-3NF：消除非主属性之间的传递依赖" class="headerlink" title="2.4 3NF：消除非主属性之间的传递依赖"></a>2.4 3NF：消除非主属性之间的传递依赖</h3><p>假设：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">player_id → team_name<br>team_name → coach_name<br></code></pre></td></tr></table></figure>
+
+<p>那么：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">player_id → team_name → coach_name<br></code></pre></td></tr></table></figure>
+
+<p><code>coach_name</code> 是通过另一个非主属性 <code>team_name</code> 间接依赖主键的，这就是传递依赖。</p>
+<p>更合理的设计：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">player<br>- player_id<br>- player_name<br>- team_id<br><br>team<br>- team_id<br>- team_name<br>- coach_name<br></code></pre></td></tr></table></figure>
+
+<p>可以把前三个范式简单记成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">1NF：字段不可再分<br>2NF：不能只依赖联合键的一部分<br>3NF：不能通过其他普通字段间接依赖主键<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="三、3NF-仍然不够：BCNF-与反范式"><a href="#三、3NF-仍然不够：BCNF-与反范式" class="headerlink" title="三、3NF 仍然不够：BCNF 与反范式"></a>三、3NF 仍然不够：BCNF 与反范式</h2><h3 id="3-1-为什么符合-3NF-仍然可能有问题"><a href="#3-1-为什么符合-3NF-仍然可能有问题" class="headerlink" title="3.1 为什么符合 3NF 仍然可能有问题"></a>3.1 为什么符合 3NF 仍然可能有问题</h3><p>假设一张仓库库存表：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">warehouse_keeper(<br>    warehouse_name,<br>    keeper_name,<br>    product_name,<br>    quantity<br>)<br></code></pre></td></tr></table></figure>
+
+<p>业务规则：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">warehouse_name ↔ keeper_name<br>(warehouse_name, product_name) → quantity<br></code></pre></td></tr></table></figure>
+
+<p>即：</p>
+<ul>
+<li>一个仓库只有一个管理员；</li>
+<li>一个管理员只管理一个仓库。</li>
+</ul>
+<p>候选键可能有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">(warehouse_name, product_name)<br>(keeper_name, product_name)<br></code></pre></td></tr></table></figure>
+
+<p>这张表即使满足 3NF，仍然可能出现：</p>
+<ul>
+<li>新仓库还没有商品时无法插入；</li>
+<li>修改管理员要改多条记录；</li>
+<li>最后一件商品删除时，仓库与管理员信息也可能一起丢失。</li>
+</ul>
+<p>BCNF 在 3NF 的基础上继续处理候选键之间的依赖问题。</p>
+<p>可以拆成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">warehouse<br>- warehouse_name<br>- keeper_name<br><br>inventory<br>- warehouse_name<br>- product_name<br>- quantity<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-2-为什么又需要反范式"><a href="#3-2-为什么又需要反范式" class="headerlink" title="3.2 为什么又需要反范式"></a>3.2 为什么又需要反范式</h3><p>数据库设计并不是范式越高越好。</p>
+<p>范式化的优势是：</p>
+<ul>
+<li>冗余少</li>
+<li>数据一致性高</li>
+<li>更新逻辑清晰</li>
+</ul>
+<p>代价是：</p>
+<ul>
+<li>表会越来越多</li>
+<li>JOIN 增多</li>
+<li>查询链路更长</li>
+<li>查询时可能产生更多随机 I&#x2F;O</li>
+</ul>
+<p>反范式的核心思想就是：</p>
+<blockquote>
+<p><strong>允许可控冗余，用空间换时间。</strong></p>
+</blockquote>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">product_comment<br>- comment_id<br>- product_id<br>- user_id<br>- comment_text<br></code></pre></td></tr></table></figure>
+
+<p>如果展示评论时每次都需要：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span><br>    p.comment_text,<br>    p.comment_time,<br>    u.user_name<br><span class="hljs-keyword">FROM</span> product_comment p<br><span class="hljs-keyword">LEFT</span> <span class="hljs-keyword">JOIN</span> <span class="hljs-keyword">user</span> u<br>    <span class="hljs-keyword">ON</span> p.user_id <span class="hljs-operator">=</span> u.user_id<br><span class="hljs-keyword">WHERE</span> p.product_id <span class="hljs-operator">=</span> <span class="hljs-number">10001</span><br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> p.comment_id <span class="hljs-keyword">DESC</span><br>LIMIT <span class="hljs-number">1000</span>;<br></code></pre></td></tr></table></figure>
+
+<p>那么可以在评论表中冗余：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">user_name<br></code></pre></td></tr></table></figure>
+
+<p>把多表 JOIN 变成单表查询。</p>
+<p>这就是典型的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">更多存储空间<br>        ↓<br>减少 JOIN<br>        ↓<br>减少访问路径<br>        ↓<br>降低查询成本<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-3-反范式适合什么场景"><a href="#3-3-反范式适合什么场景" class="headerlink" title="3.3 反范式适合什么场景"></a>3.3 反范式适合什么场景</h3><p>比较常见的场景：</p>
+<ul>
+<li>订单历史快照</li>
+<li>收货人姓名、电话、地址</li>
+<li>报表宽表</li>
+<li>OLAP &#x2F; 数据仓库</li>
+<li>高频读取、低频修改的数据</li>
+<li>可以接受最终一致性的场景</li>
+</ul>
+<p>例如订单中的地址不应该始终指向用户当前地址。</p>
+<p>用户今天修改地址，不应该改变三年前订单中的收货地址。</p>
+<p>因此订单表保存：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">receiver_name<br>receiver_phone<br>receiver_address<br></code></pre></td></tr></table></figure>
+
+<p>虽然属于冗余，但这种冗余本身就是业务数据。</p>
+<h3 id="3-4-范式与反范式的本质"><a href="#3-4-范式与反范式的本质" class="headerlink" title="3.4 范式与反范式的本质"></a>3.4 范式与反范式的本质</h3><p>不要问：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">范式和反范式谁更正确？<br></code></pre></td></tr></table></figure>
+
+<p>应该问：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">这个数据更偏向写一致性，还是读性能？<br>这个字段是事实本身，还是可以重新计算出来的数据？<br>更新频率高不高？<br>冗余数据如何同步？<br></code></pre></td></tr></table></figure>
+
+<p>数据库设计从来不是追求“最标准”，而是追求：</p>
+<blockquote>
+<p><strong>成本可控的正确设计。</strong></p>
+</blockquote>
+<hr>
+<h2 id="四、索引到底是什么"><a href="#四、索引到底是什么" class="headerlink" title="四、索引到底是什么"></a>四、索引到底是什么</h2><p>数据库索引可以类比一本书的目录。</p>
+<p>如果没有目录，要找一个知识点，只能：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">第 1 页<br>第 2 页<br>第 3 页<br>……<br></code></pre></td></tr></table></figure>
+
+<p>数据库也是一样。</p>
+<p>没有合适索引时，最典型的代价就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">全表扫描<br></code></pre></td></tr></table></figure>
+
+<p>索引本质上是：</p>
+<blockquote>
+<p><strong>帮助数据库快速定位数据的数据结构。</strong></p>
+</blockquote>
+<p>但索引不是免费的。</p>
+<p>增加索引意味着同时增加：</p>
+<ul>
+<li>存储空间</li>
+<li>INSERT 维护成本</li>
+<li>UPDATE 维护成本</li>
+<li>DELETE 维护成本</li>
+<li>Buffer Pool 压力</li>
+<li>优化器索引选择成本</li>
+</ul>
+<p>因此：</p>
+<blockquote>
+<p><strong>索引不是越多越好，而是让最重要的查询路径变短。</strong></p>
+</blockquote>
+<hr>
+<h2 id="五、什么时候应该建索引"><a href="#五、什么时候应该建索引" class="headerlink" title="五、什么时候应该建索引"></a>五、什么时候应该建索引</h2><p>以下场景通常值得优先考虑索引。</p>
+<h3 id="5-1-唯一字段"><a href="#5-1-唯一字段" class="headerlink" title="5.1 唯一字段"></a>5.1 唯一字段</h3><p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">username<br>email<br>order_no<br></code></pre></td></tr></table></figure>
+
+<p>可以使用：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">UNIQUE</span> INDEX uk_user_email<br><span class="hljs-keyword">ON</span> <span class="hljs-keyword">user</span>(email);<br></code></pre></td></tr></table></figure>
+
+<p>索引在这里同时承担：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">查询加速 + 数据约束<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-2-高频-WHERE-条件"><a href="#5-2-高频-WHERE-条件" class="headerlink" title="5.2 高频 WHERE 条件"></a>5.2 高频 WHERE 条件</h3><p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> product_comment<br><span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> <span class="hljs-number">785110</span>;<br></code></pre></td></tr></table></figure>
+
+<p>如果表很大，<code>user_id</code> 又经常作为查询条件，那么它通常是非常明确的索引候选列。</p>
+<h3 id="5-3-UPDATE-DELETE-的过滤条件"><a href="#5-3-UPDATE-DELETE-的过滤条件" class="headerlink" title="5.3 UPDATE &#x2F; DELETE 的过滤条件"></a>5.3 UPDATE &#x2F; DELETE 的过滤条件</h3><p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> product_comment<br><span class="hljs-keyword">SET</span> product_id <span class="hljs-operator">=</span> <span class="hljs-number">10002</span><br><span class="hljs-keyword">WHERE</span> comment_id <span class="hljs-operator">=</span> <span class="hljs-number">123456</span>;<br></code></pre></td></tr></table></figure>
+
+<p>数据库首先还是要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">找到这条数据<br></code></pre></td></tr></table></figure>
+
+<p>再做 UPDATE。</p>
+<p>因此 UPDATE &#x2F; DELETE 的 WHERE 条件同样需要关注索引。</p>
+<h3 id="5-4-JOIN-条件"><a href="#5-4-JOIN-条件" class="headerlink" title="5.4 JOIN 条件"></a>5.4 JOIN 条件</h3><p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> ...<br><span class="hljs-keyword">FROM</span> order_detail d<br><span class="hljs-keyword">JOIN</span> orders o<br>    <span class="hljs-keyword">ON</span> d.order_id <span class="hljs-operator">=</span> o.id<br><span class="hljs-keyword">WHERE</span> o.user_id <span class="hljs-operator">=</span> ?;<br></code></pre></td></tr></table></figure>
+
+<p>需要重点关注：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">d.order_id<br>o.id<br>o.user_id<br></code></pre></td></tr></table></figure>
+
+<p>并且 JOIN 两端字段类型应该一致。</p>
+<p>不要一边：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">BIGINT<br></code></pre></td></tr></table></figure>
+
+<p>另一边：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">VARCHAR<br></code></pre></td></tr></table></figure>
+
+<p>然后指望优化器替你擦屁股。</p>
+<h3 id="5-5-GROUP-BY-ORDER-BY"><a href="#5-5-GROUP-BY-ORDER-BY" class="headerlink" title="5.5 GROUP BY &#x2F; ORDER BY"></a>5.5 GROUP BY &#x2F; ORDER BY</h3><p>B+ 树索引天然具有顺序性，因此合适的索引可以降低排序成本。</p>
+<p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> user_id, <span class="hljs-built_in">COUNT</span>(<span class="hljs-operator">*</span>)<br><span class="hljs-keyword">FROM</span> product_comment<br><span class="hljs-keyword">GROUP</span> <span class="hljs-keyword">BY</span> user_id;<br></code></pre></td></tr></table></figure>
+
+<p><code>user_id</code> 上有索引时，可以更高效地完成分组。</p>
+<h3 id="5-6-DISTINCT"><a href="#5-6-DISTINCT" class="headerlink" title="5.6 DISTINCT"></a>5.6 DISTINCT</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-keyword">DISTINCT</span> user_id<br><span class="hljs-keyword">FROM</span> product_comment;<br></code></pre></td></tr></table></figure>
+
+<p>如果 <code>user_id</code> 已有合适索引，数据库可以利用索引中的有序数据完成去重。</p>
+<hr>
+<h2 id="六、什么时候不要急着建索引"><a href="#六、什么时候不要急着建索引" class="headerlink" title="六、什么时候不要急着建索引"></a>六、什么时候不要急着建索引</h2><h3 id="6-1-表本身非常小"><a href="#6-1-表本身非常小" class="headerlink" title="6.1 表本身非常小"></a>6.1 表本身非常小</h3><p>几十、几百行的数据，即使全表扫描也非常快。</p>
+<p>这时：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">扫描表<br></code></pre></td></tr></table></figure>
+
+<p>可能比：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">访问索引 → 再访问数据<br></code></pre></td></tr></table></figure>
+
+<p>更简单。</p>
+<p>文章中给出了“小于 1000 行”这样的经验例子，但它并不是绝对阈值。</p>
+<p>真正应该关注的是：</p>
+<ul>
+<li>表大小</li>
+<li>数据页数量</li>
+<li>查询频率</li>
+<li>Buffer Pool 命中情况</li>
+<li>实际执行计划</li>
+</ul>
+<h3 id="6-2-区分度太差"><a href="#6-2-区分度太差" class="headerlink" title="6.2 区分度太差"></a>6.2 区分度太差</h3><p>典型例子：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">gender = 0 / 1<br>deleted = 0 / 1<br>status = 0 / 1<br></code></pre></td></tr></table></figure>
+
+<p>如果一个条件命中整张表 50% 甚至 90% 的数据，优化器很可能认为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">走索引再回表<br></code></pre></td></tr></table></figure>
+
+<p>还不如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">直接全表扫描<br></code></pre></td></tr></table></figure>
+
+<p>但是要注意：</p>
+<blockquote>
+<p><strong>低基数字段不能简单等价于“不能建索引”。</strong></p>
+</blockquote>
+<p>如果数据分布极度倾斜，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">100 万人<br>999990 个 value = 0<br>10 个 value = 1<br></code></pre></td></tr></table></figure>
+
+<p>而业务经常查询：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> <span class="hljs-keyword">value</span> <span class="hljs-operator">=</span> <span class="hljs-number">1</span><br></code></pre></td></tr></table></figure>
+
+<p>那么这个字段仍然可能非常适合索引。</p>
+<p>真正决定索引价值的不是“有几个值”，而是：</p>
+<blockquote>
+<p><strong>目标查询最终要过滤掉多少数据。</strong></p>
+</blockquote>
+<h3 id="6-3-高频更新字段"><a href="#6-3-高频更新字段" class="headerlink" title="6.3 高频更新字段"></a>6.3 高频更新字段</h3><p>如果一个字段每秒被大量更新，而它的索引又很少被查询使用，那么维护这个索引可能得不偿失。</p>
+<h3 id="6-4-查询根本不用这个字段"><a href="#6-4-查询根本不用这个字段" class="headerlink" title="6.4 查询根本不用这个字段"></a>6.4 查询根本不用这个字段</h3><p>SELECT 出来的字段并不等于必须建索引。</p>
+<p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> id, name, age, address<br><span class="hljs-keyword">FROM</span> <span class="hljs-keyword">user</span><br><span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> ?;<br></code></pre></td></tr></table></figure>
+
+<p>真正负责定位的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">user_id<br></code></pre></td></tr></table></figure>
+
+<p>不能因为 SELECT 里出现了 <code>address</code> 就给 <code>address</code> 建索引。</p>
+<hr>
+<h2 id="七、索引的几种常见分类"><a href="#七、索引的几种常见分类" class="headerlink" title="七、索引的几种常见分类"></a>七、索引的几种常见分类</h2><h3 id="7-1-从约束角度"><a href="#7-1-从约束角度" class="headerlink" title="7.1 从约束角度"></a>7.1 从约束角度</h3><p>常见有：</p>
+<ul>
+<li>普通索引</li>
+<li>唯一索引</li>
+<li>主键索引</li>
+<li>全文索引</li>
+</ul>
+<h3 id="7-2-从物理组织方式"><a href="#7-2-从物理组织方式" class="headerlink" title="7.2 从物理组织方式"></a>7.2 从物理组织方式</h3><p>可以理解为：</p>
+<ul>
+<li>聚集索引</li>
+<li>二级索引 &#x2F; 辅助索引</li>
+</ul>
+<p>在 InnoDB 中，主键对应聚簇 B+ 树。</p>
+<p>二级索引的叶子节点保存的通常不是完整数据行，而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">二级索引键 + 主键值<br></code></pre></td></tr></table></figure>
+
+<p>因此很多查询会经历：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">二级索引<br>   ↓<br>找到主键<br>   ↓<br>主键 B+ 树<br>   ↓<br>找到完整记录<br></code></pre></td></tr></table></figure>
+
+<p>这个过程就是：</p>
+<blockquote>
+<p><strong>回表。</strong></p>
+</blockquote>
+<hr>
+<h2 id="八、联合索引为什么强调最左匹配"><a href="#八、联合索引为什么强调最左匹配" class="headerlink" title="八、联合索引为什么强调最左匹配"></a>八、联合索引为什么强调最左匹配</h2><p>假设建立：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> INDEX idx_xyz<br><span class="hljs-keyword">ON</span> table_name(x, y, z);<br></code></pre></td></tr></table></figure>
+
+<p>索引内部并不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">分别维护 x、y、z 三棵树<br></code></pre></td></tr></table></figure>
+
+<p>而是按照组合键排序：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">先 x<br>x 相同再 y<br>x、y 都相同再 z<br></code></pre></td></tr></table></figure>
+
+<p>可以想象成电话簿：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">姓 → 名 → 其他信息<br></code></pre></td></tr></table></figure>
+
+<p>因此它天然适合：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> x <span class="hljs-operator">=</span> ?<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> x <span class="hljs-operator">=</span> ? <span class="hljs-keyword">AND</span> y <span class="hljs-operator">=</span> ?<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> x <span class="hljs-operator">=</span> ? <span class="hljs-keyword">AND</span> y <span class="hljs-operator">=</span> ? <span class="hljs-keyword">AND</span> z <span class="hljs-operator">=</span> ?<br></code></pre></td></tr></table></figure>
+
+<p>但如果直接查询：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> y <span class="hljs-operator">=</span> ?<br></code></pre></td></tr></table></figure>
+
+<p>就失去了 <code>x</code> 这一层的有序前提。</p>
+<p>这就是所谓：</p>
+<blockquote>
+<p><strong>最左前缀原则。</strong></p>
+</blockquote>
+<h3 id="8-1-SQL-条件书写顺序不等于索引顺序"><a href="#8-1-SQL-条件书写顺序不等于索引顺序" class="headerlink" title="8.1 SQL 条件书写顺序不等于索引顺序"></a>8.1 SQL 条件书写顺序不等于索引顺序</h3><p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> z <span class="hljs-operator">=</span> <span class="hljs-number">3</span><br>  <span class="hljs-keyword">AND</span> x <span class="hljs-operator">=</span> <span class="hljs-number">1</span><br>  <span class="hljs-keyword">AND</span> y <span class="hljs-operator">=</span> <span class="hljs-number">2</span><br></code></pre></td></tr></table></figure>
+
+<p>优化器通常可以进行条件重写。</p>
+<p>因此真正关键的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">联合索引自身的列顺序<br></code></pre></td></tr></table></figure>
+
+<p>而不是你在 WHERE 中把 <code>x</code> 写在第一行还是第三行。</p>
+<h3 id="8-2-联合索引的顺序怎么设计"><a href="#8-2-联合索引的顺序怎么设计" class="headerlink" title="8.2 联合索引的顺序怎么设计"></a>8.2 联合索引的顺序怎么设计</h3><p>通常要综合考虑：</p>
+<ul>
+<li>等值条件</li>
+<li>过滤能力</li>
+<li>范围条件</li>
+<li>ORDER BY</li>
+<li>GROUP BY</li>
+<li>查询覆盖</li>
+</ul>
+<p>不要机械套：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">区分度最高的永远放最左<br></code></pre></td></tr></table></figure>
+
+<p>因为真实索引设计是为具体访问模式服务的。</p>
+<hr>
+<h2 id="九、为什么-MySQL-主要使用-B-树做索引"><a href="#九、为什么-MySQL-主要使用-B-树做索引" class="headerlink" title="九、为什么 MySQL 主要使用 B+ 树做索引"></a>九、为什么 MySQL 主要使用 B+ 树做索引</h2><p>理解索引最关键的一点不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">B+ 树查找复杂度低<br></code></pre></td></tr></table></figure>
+
+<p>而是：</p>
+<blockquote>
+<p><strong>数据库真正昂贵的是磁盘 I&#x2F;O。</strong></p>
+</blockquote>
+<h3 id="9-1-为什么普通二叉树不适合数据库索引"><a href="#9-1-为什么普通二叉树不适合数据库索引" class="headerlink" title="9.1 为什么普通二叉树不适合数据库索引"></a>9.1 为什么普通二叉树不适合数据库索引</h3><p>二叉搜索树的问题在于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">每个节点最多 2 个孩子<br></code></pre></td></tr></table></figure>
+
+<p>即使使用 AVL 等平衡结构，在海量数据下，树依然容易变得很高。</p>
+<p>如果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">访问一个树节点<br>≈<br>读取一个磁盘页<br></code></pre></td></tr></table></figure>
+
+<p>那么树越高意味着：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">更多磁盘 I/O<br></code></pre></td></tr></table></figure>
+
+<p>数据库更喜欢：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">矮胖<br></code></pre></td></tr></table></figure>
+
+<p>而不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">瘦高<br></code></pre></td></tr></table></figure>
+
+<h3 id="9-2-B-树解决了什么"><a href="#9-2-B-树解决了什么" class="headerlink" title="9.2 B 树解决了什么"></a>9.2 B 树解决了什么</h3><p>B 树是多路搜索树。</p>
+<p>一个节点不再只有两个分支，而是可以保存很多键和很多子节点。</p>
+<p>假设一个节点可以指向 100 个子节点，那么 3 层结构理论上就已经可以覆盖非常大的数据量。</p>
+<p>树高下降意味着：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">根节点<br>  ↓ 1 次 I/O<br>中间节点<br>  ↓ 1 次 I/O<br>叶子节点<br>  ↓ 1 次 I/O<br></code></pre></td></tr></table></figure>
+
+<p>定位数据可能只需要很少的页面读取。</p>
+<h3 id="9-3-B-树相比-B-树的关键区别"><a href="#9-3-B-树相比-B-树的关键区别" class="headerlink" title="9.3 B+ 树相比 B 树的关键区别"></a>9.3 B+ 树相比 B 树的关键区别</h3><p>B+ 树中：</p>
+<ul>
+<li>非叶子节点主要保存索引键和页面指针；</li>
+<li>数据最终位于叶子节点；</li>
+<li>叶子节点之间保持有序链式连接。</li>
+</ul>
+<p>因此它有几个明显优势。</p>
+<h4 id="优势一：树可以更矮"><a href="#优势一：树可以更矮" class="headerlink" title="优势一：树可以更矮"></a>优势一：树可以更矮</h4><p>中间节点不需要携带完整数据，同一个数据页可以塞进更多索引项：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">单页更多 key<br>    ↓<br>分叉更多<br>    ↓<br>树高更低<br>    ↓<br>I/O 更少<br></code></pre></td></tr></table></figure>
+
+<h4 id="优势二：查询性能更稳定"><a href="#优势二：查询性能更稳定" class="headerlink" title="优势二：查询性能更稳定"></a>优势二：查询性能更稳定</h4><p>最终数据都在叶子节点，所以通常都会走：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Root → Branch → Leaf<br></code></pre></td></tr></table></figure>
+
+<p>查询路径更可预测。</p>
+<h4 id="优势三：范围查询非常适合"><a href="#优势三：范围查询非常适合" class="headerlink" title="优势三：范围查询非常适合"></a>优势三：范围查询非常适合</h4><p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> id <span class="hljs-keyword">BETWEEN</span> <span class="hljs-number">10000</span> <span class="hljs-keyword">AND</span> <span class="hljs-number">20000</span><br></code></pre></td></tr></table></figure>
+
+<p>先找到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">id = 10000<br></code></pre></td></tr></table></figure>
+
+<p>然后沿着叶子页继续向后扫描即可。</p>
+<p>这也是 B+ 树相比 Hash 更适合通用数据库索引的重要原因。</p>
+<hr>
+<h2 id="十、Hash-索引：等值查询很快，但能力太单一"><a href="#十、Hash-索引：等值查询很快，但能力太单一" class="headerlink" title="十、Hash 索引：等值查询很快，但能力太单一"></a>十、Hash 索引：等值查询很快，但能力太单一</h2><p>Hash 的基本模型：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">key<br> ↓<br>Hash(key)<br> ↓<br>bucket<br> ↓<br>record<br></code></pre></td></tr></table></figure>
+
+<p>理想情况下，等值查询可以接近：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">O(1)<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">key = user_10001<br></code></pre></td></tr></table></figure>
+
+<p>直接通过 Hash 定位 bucket。</p>
+<h3 id="10-1-Hash-冲突"><a href="#10-1-Hash-冲突" class="headerlink" title="10.1 Hash 冲突"></a>10.1 Hash 冲突</h3><p>不同 key 可能计算出相同 Hash 值：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">keyA ─┐<br>      ├─→ bucket 101<br>keyB ─┘<br></code></pre></td></tr></table></figure>
+
+<p>此时需要继续在 bucket 中比较具体 key。</p>
+<p>冲突越多，性能越差。</p>
+<h3 id="10-2-Hash-索引为什么没有取代-B-树"><a href="#10-2-Hash-索引为什么没有取代-B-树" class="headerlink" title="10.2 Hash 索引为什么没有取代 B+ 树"></a>10.2 Hash 索引为什么没有取代 B+ 树</h3><p>因为 Hash 数据天然无序。</p>
+<p>它很适合：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> ?<br></code></pre></td></tr></table></figure>
+
+<p>但不适合：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">&gt;</span> ?<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> id <span class="hljs-keyword">BETWEEN</span> ? <span class="hljs-keyword">AND</span> ?<br></code></pre></td></tr></table></figure>
+
+<p>也无法天然利用：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> id<br></code></pre></td></tr></table></figure>
+
+<p>对于联合键，也不存在 B+ 树那种自然的最左前缀扫描能力。</p>
+<p>可以简单对比：</p>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>B+ 树</th>
+<th>Hash</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>等值查询</td>
+<td>好</td>
+<td>非常好</td>
+</tr>
+<tr>
+<td>范围查询</td>
+<td>好</td>
+<td>不适合</td>
+</tr>
+<tr>
+<td>ORDER BY</td>
+<td>可利用顺序</td>
+<td>不适合</td>
+</tr>
+<tr>
+<td>最左前缀</td>
+<td>支持</td>
+<td>不具备同类能力</td>
+</tr>
+<tr>
+<td>模糊前缀匹配</td>
+<td>部分场景可用</td>
+<td>不适合</td>
+</tr>
+<tr>
+<td>通用数据库索引</td>
+<td>很适合</td>
+<td>场景受限</td>
+</tr>
+</tbody></table>
+<h3 id="10-3-InnoDB-的自适应-Hash"><a href="#10-3-InnoDB-的自适应-Hash" class="headerlink" title="10.3 InnoDB 的自适应 Hash"></a>10.3 InnoDB 的自适应 Hash</h3><p>InnoDB 的主要索引结构仍然是 B+ 树。</p>
+<p>但对于一些非常热点的访问模式，存储引擎可以自动建立自适应 Hash 结构，加速热点页面定位。</p>
+<p>可以把它粗略理解成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">B+ 树仍然是主结构<br>        +<br>热点路径增加 Hash 快速通道<br></code></pre></td></tr></table></figure>
+
+<p>这不是让开发者手工把 InnoDB 索引改成 Hash，而是存储引擎内部的优化策略。</p>
+<hr>
+<h2 id="十一、从数据页理解-B-树，很多问题一下就通了"><a href="#十一、从数据页理解-B-树，很多问题一下就通了" class="headerlink" title="十一、从数据页理解 B+ 树，很多问题一下就通了"></a>十一、从数据页理解 B+ 树，很多问题一下就通了</h2><p>数据库不会每次只从磁盘读取一行。</p>
+<p>真正的最小 I&#x2F;O 单位是：</p>
+<blockquote>
+<p><strong>页 Page</strong></p>
+</blockquote>
+<p>InnoDB 默认页大小通常为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">16KB<br></code></pre></td></tr></table></figure>
+
+<h3 id="11-1-InnoDB-的存储层级"><a href="#11-1-InnoDB-的存储层级" class="headerlink" title="11.1 InnoDB 的存储层级"></a>11.1 InnoDB 的存储层级</h3><p>可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Tablespace<br>   ↓<br>Segment<br>   ↓<br>Extent<br>   ↓<br>Page<br>   ↓<br>Row<br></code></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<ul>
+<li>一个页可以存多行；</li>
+<li>一个区由多个连续页组成；</li>
+<li>段由多个区组成；</li>
+<li>表空间是更高层的逻辑容器。</li>
+</ul>
+<h3 id="11-2-数据页为什么重要"><a href="#11-2-数据页为什么重要" class="headerlink" title="11.2 数据页为什么重要"></a>11.2 数据页为什么重要</h3><p>当你查询一条记录：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> <span class="hljs-keyword">user</span><br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">100</span>;<br></code></pre></td></tr></table></figure>
+
+<p>数据库不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">从磁盘读取这一行<br></code></pre></td></tr></table></figure>
+
+<p>而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">找到这一行所在的数据页<br>        ↓<br>把整个页读入内存<br>        ↓<br>在页内找到具体记录<br></code></pre></td></tr></table></figure>
+
+<p>所以数据库优化里常常不是简单考虑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">扫描多少行<br></code></pre></td></tr></table></figure>
+
+<p>还要考虑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">最终访问多少页<br></code></pre></td></tr></table></figure>
+
+<h3 id="11-3-数据页内部也有自己的索引机制"><a href="#11-3-数据页内部也有自己的索引机制" class="headerlink" title="11.3 数据页内部也有自己的索引机制"></a>11.3 数据页内部也有自己的索引机制</h3><p>一个数据页内部会保存：</p>
+<ul>
+<li>文件头</li>
+<li>页头</li>
+<li>用户记录</li>
+<li>空闲空间</li>
+<li>页目录</li>
+<li>文件尾等结构</li>
+</ul>
+<p>记录之间可以使用链式方式组织，但纯链表查找太慢，因此页目录会将记录进行分组，并通过槽位进行近似二分定位。</p>
+<p>于是一次 B+ 树查询可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 从根页开始<br>2. 逐层找到目标叶子页<br>3. 将目标页加载到 Buffer Pool<br>4. 通过页目录快速定位记录所在分组<br>5. 在分组内部找到最终记录<br></code></pre></td></tr></table></figure>
+
+<p>这就是索引从“抽象数据结构”落到磁盘页之后的真实含义。</p>
+<hr>
+<h2 id="十二、聚簇索引与二级索引为什么会产生“回表”"><a href="#十二、聚簇索引与二级索引为什么会产生“回表”" class="headerlink" title="十二、聚簇索引与二级索引为什么会产生“回表”"></a>十二、聚簇索引与二级索引为什么会产生“回表”</h2><p>假设：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">PRIMARY KEY(id)<br><br>INDEX idx_user_id(user_id)<br></code></pre></td></tr></table></figure>
+
+<p>执行：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> id, user_id, user_name, address<br><span class="hljs-keyword">FROM</span> <span class="hljs-keyword">user</span><br><span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> <span class="hljs-number">10001</span>;<br></code></pre></td></tr></table></figure>
+
+<p>二级索引大致可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">user_id → id<br></code></pre></td></tr></table></figure>
+
+<p>第一步：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">idx_user_id<br>↓<br>得到主键 id<br></code></pre></td></tr></table></figure>
+
+<p>第二步：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">PRIMARY KEY B+ tree<br>↓<br>得到 user_name、address 等完整记录<br></code></pre></td></tr></table></figure>
+
+<p>第二次访问主键树就是回表。</p>
+<p>如果一次查询匹配 10 万条记录，那么大量回表可能变成非常昂贵的随机访问。</p>
+<p>这也是为什么：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">索引命中了<br></code></pre></td></tr></table></figure>
+
+<p>并不等于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">SQL 一定快<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十三、覆盖索引：为什么宽索引有时反而更快"><a href="#十三、覆盖索引：为什么宽索引有时反而更快" class="headerlink" title="十三、覆盖索引：为什么宽索引有时反而更快"></a>十三、覆盖索引：为什么宽索引有时反而更快</h2><p>假设查询：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> user_id, product_id, comment_text<br><span class="hljs-keyword">FROM</span> product_comment<br><span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> ?;<br></code></pre></td></tr></table></figure>
+
+<p>只有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">INDEX(user_id)<br></code></pre></td></tr></table></figure>
+
+<p>时，需要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">二级索引 → 主键 → 回表<br></code></pre></td></tr></table></figure>
+
+<p>如果建立：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">INDEX(user_id, product_id, comment_text)<br></code></pre></td></tr></table></figure>
+
+<p>那么查询需要的列已经全部在索引里。</p>
+<p>这时可以：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">直接从索引返回结果<br></code></pre></td></tr></table></figure>
+
+<p>这种情况就是：</p>
+<blockquote>
+<p><strong>覆盖索引。</strong></p>
+</blockquote>
+<h3 id="13-1-窄索引-vs-宽索引"><a href="#13-1-窄索引-vs-宽索引" class="headerlink" title="13.1 窄索引 vs 宽索引"></a>13.1 窄索引 vs 宽索引</h3><p>窄索引：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">(user_id)<br></code></pre></td></tr></table></figure>
+
+<p>优点：</p>
+<ul>
+<li>单页可以存更多索引项；</li>
+<li>B+ 树更紧凑；</li>
+<li>写入维护成本更低。</li>
+</ul>
+<p>宽索引：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">(user_id, product_id, comment_text)<br></code></pre></td></tr></table></figure>
+
+<p>优点：</p>
+<ul>
+<li>可能减少回表；</li>
+<li>特定查询可以直接由索引完成。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>索引更大；</li>
+<li>单页容纳 key 更少；</li>
+<li>占用更多 Buffer Pool；</li>
+<li>INSERT &#x2F; UPDATE 维护成本更高；</li>
+<li>更容易产生页分裂。</li>
+</ul>
+<p>所以覆盖索引不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">把 SELECT 所有字段全部塞进联合索引<br></code></pre></td></tr></table></figure>
+
+<p>而应该判断：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">减少的回表成本<br>是否大于<br>索引膨胀和维护成本<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十四、选择性：决定一个索引能过滤掉多少数据"><a href="#十四、选择性：决定一个索引能过滤掉多少数据" class="headerlink" title="十四、选择性：决定一个索引能过滤掉多少数据"></a>十四、选择性：决定一个索引能过滤掉多少数据</h2><p>索引最核心的价值不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">这个字段有没有索引<br></code></pre></td></tr></table></figure>
+
+<p>而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">通过这个条件最终能排除多少数据<br></code></pre></td></tr></table></figure>
+
+<p>可以用一个简单概念理解：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">选择性 ≈ 满足条件的记录数 / 总记录数<br></code></pre></td></tr></table></figure>
+
+<p>假设：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">gender = male          → 100%<br>team_id = 1001         → 54%<br>height = 2.08          → 14%<br>name = &#x27;某个具体姓名&#x27; → 2%<br></code></pre></td></tr></table></figure>
+
+<p>显然：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">name<br></code></pre></td></tr></table></figure>
+
+<p>比：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">gender<br></code></pre></td></tr></table></figure>
+
+<p>有更强的过滤能力。</p>
+<h3 id="14-1-联合条件也要看相关性"><a href="#14-1-联合条件也要看相关性" class="headerlink" title="14.1 联合条件也要看相关性"></a>14.1 联合条件也要看相关性</h3><p>假设：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">city<br>area_code<br></code></pre></td></tr></table></figure>
+
+<p>两个字段高度相关。</p>
+<p>把它们组合在一起，不一定能大幅提高过滤能力。</p>
+<p>理想的联合条件应该尽量同时满足：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">业务高频<br>+<br>具有过滤能力<br>+<br>字段之间不是完全重复表达同一信息<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十五、所谓“三星索引”，本质是在优化三件事"><a href="#十五、所谓“三星索引”，本质是在优化三件事" class="headerlink" title="十五、所谓“三星索引”，本质是在优化三件事"></a>十五、所谓“三星索引”，本质是在优化三件事</h2><p>一种理想化的索引设计思路，可以归纳为三个目标。</p>
+<h3 id="第一颗星：尽量缩小扫描范围"><a href="#第一颗星：尽量缩小扫描范围" class="headerlink" title="第一颗星：尽量缩小扫描范围"></a>第一颗星：尽量缩小扫描范围</h3><p>把 WHERE 中高价值的等值条件组织到索引前部。</p>
+<p>目标：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">最小化需要扫描的索引片<br></code></pre></td></tr></table></figure>
+
+<h3 id="第二颗星：避免额外排序"><a href="#第二颗星：避免额外排序" class="headerlink" title="第二颗星：避免额外排序"></a>第二颗星：避免额外排序</h3><p>将常用的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">ORDER BY<br>GROUP BY<br></code></pre></td></tr></table></figure>
+
+<p>顺序纳入索引设计。</p>
+<p>目标：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">尽量利用 B+ 树已有顺序<br></code></pre></td></tr></table></figure>
+
+<p>而不是重新 filesort。</p>
+<h3 id="第三颗星：减少回表"><a href="#第三颗星：减少回表" class="headerlink" title="第三颗星：减少回表"></a>第三颗星：减少回表</h3><p>让高频查询尽量被索引覆盖。</p>
+<p>目标：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Index Only / Covering Index<br></code></pre></td></tr></table></figure>
+
+<h3 id="15-1-为什么不可能给所有-SQL-都做“三星索引”"><a href="#15-1-为什么不可能给所有-SQL-都做“三星索引”" class="headerlink" title="15.1 为什么不可能给所有 SQL 都做“三星索引”"></a>15.1 为什么不可能给所有 SQL 都做“三星索引”</h3><p>因为理想查询索引往往意味着：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">更多索引列<br>+<br>更多联合索引<br>+<br>更大的索引文件<br></code></pre></td></tr></table></figure>
+
+<p>查询可能变快，但写入成本会变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">INSERT 一行<br>↓<br>不仅修改数据页<br>↓<br>还要维护 N 棵索引树<br></code></pre></td></tr></table></figure>
+
+<p>因此：</p>
+<blockquote>
+<p><strong>对单条 SELECT 最优的索引，不一定是对整个系统最优的索引。</strong></p>
+</blockquote>
+<p>数据库设计最终是在平衡：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">查询性能<br>写入性能<br>磁盘空间<br>Buffer Pool<br>维护复杂度<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十六、常见索引失效场景"><a href="#十六、常见索引失效场景" class="headerlink" title="十六、常见索引失效场景"></a>十六、常见索引失效场景</h2><p>“已经建索引”与“执行时会使用索引”完全是两件事。</p>
+<h3 id="16-1-对索引列做计算"><a href="#16-1-对索引列做计算" class="headerlink" title="16.1 对索引列做计算"></a>16.1 对索引列做计算</h3><p>不推荐：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">+</span> <span class="hljs-number">1</span> <span class="hljs-operator">=</span> <span class="hljs-number">1000</span><br></code></pre></td></tr></table></figure>
+
+<p>更合理：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">999</span><br></code></pre></td></tr></table></figure>
+
+<p>原则：</p>
+<blockquote>
+<p><strong>尽量让索引列保持原样参与比较。</strong></p>
+</blockquote>
+<h3 id="16-2-对索引列套函数"><a href="#16-2-对索引列套函数" class="headerlink" title="16.2 对索引列套函数"></a>16.2 对索引列套函数</h3><p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> <span class="hljs-type">DATE</span>(create_time) <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;2026-08-11&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>这种写法通常会破坏普通 B+ 树索引直接按照 <code>create_time</code> 排序定位的能力。</p>
+<p>更适合改成范围：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> create_time <span class="hljs-operator">&gt;=</span> <span class="hljs-string">&#x27;2026-08-11 00:00:00&#x27;</span><br>  <span class="hljs-keyword">AND</span> create_time <span class="hljs-operator">&lt;</span>  <span class="hljs-string">&#x27;2026-08-12 00:00:00&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>这类 SQL 重写非常重要。</p>
+<h3 id="16-3-LIKE-前面是通配符"><a href="#16-3-LIKE-前面是通配符" class="headerlink" title="16.3 LIKE 前面是通配符"></a>16.3 LIKE 前面是通配符</h3><p>可以利用前缀有序性：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> name <span class="hljs-keyword">LIKE</span> <span class="hljs-string">&#x27;Mario%&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>但：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> name <span class="hljs-keyword">LIKE</span> <span class="hljs-string">&#x27;%Mario&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>无法从字符串最左侧开始定位，普通 B+ 树索引通常很难发挥作用。</p>
+<h3 id="16-4-OR-两侧条件差异太大"><a href="#16-4-OR-两侧条件差异太大" class="headerlink" title="16.4 OR 两侧条件差异太大"></a>16.4 OR 两侧条件差异太大</h3><p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> indexed_col <span class="hljs-operator">=</span> ?<br>   <span class="hljs-keyword">OR</span> no_index_col <span class="hljs-operator">=</span> ?<br></code></pre></td></tr></table></figure>
+
+<p>优化器可能直接选择全表扫描。</p>
+<p>有些场景可以使用 index merge，但它并不意味着“OR 随便写都没问题”。</p>
+<p>对于核心 SQL，仍然应该用 EXPLAIN 看真实执行计划。</p>
+<h3 id="16-5-联合索引缺失左侧列"><a href="#16-5-联合索引缺失左侧列" class="headerlink" title="16.5 联合索引缺失左侧列"></a>16.5 联合索引缺失左侧列</h3><p>索引：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">(a, b, c)<br></code></pre></td></tr></table></figure>
+
+<p>查询：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> b <span class="hljs-operator">=</span> ? <span class="hljs-keyword">AND</span> c <span class="hljs-operator">=</span> ?<br></code></pre></td></tr></table></figure>
+
+<p>通常无法像：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> a <span class="hljs-operator">=</span> ?<br></code></pre></td></tr></table></figure>
+
+<p>那样直接使用最左前缀进行定位。</p>
+<hr>
+<h2 id="十七、Buffer-Pool：数据库为什么不是每次都读磁盘"><a href="#十七、Buffer-Pool：数据库为什么不是每次都读磁盘" class="headerlink" title="十七、Buffer Pool：数据库为什么不是每次都读磁盘"></a>十七、Buffer Pool：数据库为什么不是每次都读磁盘</h2><p>磁盘 I&#x2F;O 相比内存访问昂贵得多。</p>
+<p>因此 InnoDB 会使用 Buffer Pool 缓存：</p>
+<ul>
+<li>数据页</li>
+<li>索引页</li>
+<li>热点页面</li>
+<li>部分内部结构</li>
+</ul>
+<p>执行查询时，大致过程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">需要 Page X<br>    ↓<br>Buffer Pool 里有？<br>   / \<br> 是   否<br> |    |<br>直接  从存储读取<br>访问  加入 Buffer Pool<br></code></pre></td></tr></table></figure>
+
+<p>这就是数据库性能中非常重要的一条规律：</p>
+<blockquote>
+<p><strong>热点数据在哪里，比它理论上在磁盘的什么位置更重要。</strong></p>
+</blockquote>
+<h3 id="17-1-脏页"><a href="#17-1-脏页" class="headerlink" title="17.1 脏页"></a>17.1 脏页</h3><p>UPDATE 并不意味着每次都立即把数据同步写回最终数据页。</p>
+<p>修改通常先发生在 Buffer Pool 中。</p>
+<p>被修改、尚未与磁盘数据页保持一致的页面称为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Dirty Page<br></code></pre></td></tr></table></figure>
+
+<p>数据库会通过 checkpoint 等机制分批刷新。</p>
+<p>这样可以避免：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">每次修改一次<br>就做一次昂贵的随机磁盘写<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十八、随机-I-O-与顺序-I-O-的差距"><a href="#十八、随机-I-O-与顺序-I-O-的差距" class="headerlink" title="十八、随机 I&#x2F;O 与顺序 I&#x2F;O 的差距"></a>十八、随机 I&#x2F;O 与顺序 I&#x2F;O 的差距</h2><p>传统磁盘访问中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">随机读取一个页面<br></code></pre></td></tr></table></figure>
+
+<p>往往需要：</p>
+<ul>
+<li>寻道</li>
+<li>旋转</li>
+<li>等待</li>
+<li>传输</li>
+</ul>
+<p>如果一次只随机读一个页，成本很高。</p>
+<p>但是顺序扫描时：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Page 100<br>Page 101<br>Page 102<br>Page 103<br>...<br></code></pre></td></tr></table></figure>
+
+<p>数据库可以批量读取连续页面。</p>
+<p>因此经常出现一种有趣现象：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">读取 1 个随机页<br></code></pre></td></tr></table></figure>
+
+<p>与：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">顺序读取一批页<br></code></pre></td></tr></table></figure>
+
+<p>相比，后者平均到单页上的成本可能低得多。</p>
+<p>这也是为什么优化器有时会判断：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">返回数据比例太高<br>↓<br>走二级索引需要大量随机回表<br>↓<br>不如直接顺序扫描整张表<br></code></pre></td></tr></table></figure>
+
+<p>于是你会看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">明明有索引<br>却没有使用<br></code></pre></td></tr></table></figure>
+
+<p>这不一定是优化器傻了。</p>
+<p>很多时候，它是在做：</p>
+<blockquote>
+<p><strong>随机 I&#x2F;O 与顺序 I&#x2F;O 的成本比较。</strong></p>
+</blockquote>
+<hr>
+<h2 id="十九、为什么“命中索引”仍然可能很慢"><a href="#十九、为什么“命中索引”仍然可能很慢" class="headerlink" title="十九、为什么“命中索引”仍然可能很慢"></a>十九、为什么“命中索引”仍然可能很慢</h2><p>一条 SQL：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">possible_keys 有值<br>key 也有值<br></code></pre></td></tr></table></figure>
+
+<p>只能证明：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">使用了某个索引<br></code></pre></td></tr></table></figure>
+
+<p>不能证明它是高效查询。</p>
+<p>还要继续关注：</p>
+<ul>
+<li>扫描多少索引记录</li>
+<li>返回多少记录</li>
+<li>是否大量回表</li>
+<li>是否 filesort</li>
+<li>是否临时表</li>
+<li>是否多表嵌套循环</li>
+<li>是否读取大量数据页</li>
+<li>是否命中 Buffer Pool</li>
+</ul>
+<p>例如一个查询：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> status <span class="hljs-operator">=</span> <span class="hljs-number">1</span><br></code></pre></td></tr></table></figure>
+
+<p>即使 <code>status</code> 有索引，但如果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">95% 数据 status = 1<br></code></pre></td></tr></table></figure>
+
+<p>那么：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">索引扫描 + 95% 回表<br></code></pre></td></tr></table></figure>
+
+<p>可能比全表扫描更慢。</p>
+<hr>
+<h2 id="二十、把这些知识落地：一套可执行的慢-SQL-优化流程"><a href="#二十、把这些知识落地：一套可执行的慢-SQL-优化流程" class="headerlink" title="二十、把这些知识落地：一套可执行的慢 SQL 优化流程"></a>二十、把这些知识落地：一套可执行的慢 SQL 优化流程</h2><p>实际开发时，可以按照下面的顺序排查。</p>
+<h3 id="Step-1：先明确业务目标"><a href="#Step-1：先明确业务目标" class="headerlink" title="Step 1：先明确业务目标"></a>Step 1：先明确业务目标</h3><p>先问：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">这条 SQL 正常应该返回多少行？<br>现在返回多少行？<br>允许的响应时间是多少？<br>每秒调用多少次？<br></code></pre></td></tr></table></figure>
+
+<p>没有业务目标就没有所谓“快”与“慢”。</p>
+<h3 id="Step-2：检查-SQL-本身"><a href="#Step-2：检查-SQL-本身" class="headerlink" title="Step 2：检查 SQL 本身"></a>Step 2：检查 SQL 本身</h3><p>重点看：</p>
+<ul>
+<li>SELECT 是否取了大量无用列</li>
+<li>是否存在 <code>SELECT *</code></li>
+<li>WHERE 是否足够提前过滤</li>
+<li>是否存在无意义 DISTINCT</li>
+<li>是否存在不必要 JOIN</li>
+<li>是否对索引列做函数</li>
+<li>是否有大范围 LIKE</li>
+<li>是否可以拆分复杂查询</li>
+</ul>
+<h3 id="Step-3：看执行计划"><a href="#Step-3：看执行计划" class="headerlink" title="Step 3：看执行计划"></a>Step 3：看执行计划</h3><p>至少关注：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">访问方式<br>使用索引<br>估算扫描行<br>过滤比例<br>排序<br>临时表<br>JOIN 顺序<br></code></pre></td></tr></table></figure>
+
+<p>不要只看：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">key != NULL<br></code></pre></td></tr></table></figure>
+
+<h3 id="Step-4：分析索引"><a href="#Step-4：分析索引" class="headerlink" title="Step 4：分析索引"></a>Step 4：分析索引</h3><p>判断：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">现有单列索引能否合并成联合索引？<br>联合索引顺序是否与查询模式一致？<br>是否存在高价值覆盖索引？<br>是否存在大量无效索引？<br>是否因为字段区分度太差导致索引收益低？<br></code></pre></td></tr></table></figure>
+
+<h3 id="Step-5：判断是否有大量回表"><a href="#Step-5：判断是否有大量回表" class="headerlink" title="Step 5：判断是否有大量回表"></a>Step 5：判断是否有大量回表</h3><p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> order_detail<br><span class="hljs-keyword">WHERE</span> shop_id <span class="hljs-operator">=</span> ?<br>  <span class="hljs-keyword">AND</span> biz_date <span class="hljs-keyword">BETWEEN</span> ? <span class="hljs-keyword">AND</span> ?;<br></code></pre></td></tr></table></figure>
+
+<p>即使：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">(shop_id, biz_date)<br></code></pre></td></tr></table></figure>
+
+<p>命中了索引，如果结果有几十万行，又查询大量字段，回表仍然可能非常重。</p>
+<p>此时应该重新思考：</p>
+<ul>
+<li>返回的数据是不是太多</li>
+<li>能否分页</li>
+<li>能否做覆盖索引</li>
+<li>能否做汇总表</li>
+<li>是否应该走离线报表</li>
+</ul>
+<h3 id="Step-6：看表设计"><a href="#Step-6：看表设计" class="headerlink" title="Step 6：看表设计"></a>Step 6：看表设计</h3><p>如果一个查询永远需要 JOIN 七八张表才能得到常用页面数据，那么问题可能已经不再是索引，而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">读模型设计<br></code></pre></td></tr></table></figure>
+
+<p>可以考虑：</p>
+<ul>
+<li>冗余字段</li>
+<li>宽表</li>
+<li>汇总表</li>
+<li>历史快照</li>
+<li>Redis</li>
+<li>ES</li>
+<li>OLAP</li>
+</ul>
+<h3 id="Step-7：看-I-O-与缓存"><a href="#Step-7：看-I-O-与缓存" class="headerlink" title="Step 7：看 I&#x2F;O 与缓存"></a>Step 7：看 I&#x2F;O 与缓存</h3><p>高频数据是否能够稳定命中 Buffer Pool？</p>
+<p>如果数据集远大于内存，随机访问又非常多，那么再漂亮的 SQL 也可能频繁打磁盘。</p>
+<h3 id="Step-8：最后再考虑架构级手段"><a href="#Step-8：最后再考虑架构级手段" class="headerlink" title="Step 8：最后再考虑架构级手段"></a>Step 8：最后再考虑架构级手段</h3><p>只有单库本身已经到了合理极限，才继续考虑：</p>
+<ul>
+<li>读写分离</li>
+<li>分区</li>
+<li>垂直拆分</li>
+<li>水平分片</li>
+<li>冷热分离</li>
+<li>历史数据归档</li>
+</ul>
+<p>不要一上来就：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">分库分表<br></code></pre></td></tr></table></figure>
+
+<p>否则只是把一个 SQL 问题升级成一个分布式系统问题。</p>
+<hr>
+<h2 id="二十一、一个更实用的索引设计原则"><a href="#二十一、一个更实用的索引设计原则" class="headerlink" title="二十一、一个更实用的索引设计原则"></a>二十一、一个更实用的索引设计原则</h2><p>如果让我把整套内容压缩成实际工作中的几个原则，我会保留下面这些。</p>
+<h3 id="原则-1：索引首先服务于访问模式，而不是字段本身"><a href="#原则-1：索引首先服务于访问模式，而不是字段本身" class="headerlink" title="原则 1：索引首先服务于访问模式，而不是字段本身"></a>原则 1：索引首先服务于访问模式，而不是字段本身</h3><p>不要问：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">这个字段要不要建索引？<br></code></pre></td></tr></table></figure>
+
+<p>应该问：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">哪些 SQL 会用它？<br>怎么用？<br>一次返回多少数据？<br>调用频率多高？<br></code></pre></td></tr></table></figure>
+
+<h3 id="原则-2：过滤能力比“字段类型”更重要"><a href="#原则-2：过滤能力比“字段类型”更重要" class="headerlink" title="原则 2：过滤能力比“字段类型”更重要"></a>原则 2：过滤能力比“字段类型”更重要</h3><p>不要看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">status<br>gender<br>deleted<br></code></pre></td></tr></table></figure>
+
+<p>就机械判断“不适合索引”。</p>
+<p>先看：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">真实数据分布<br>+<br>业务查询目标<br></code></pre></td></tr></table></figure>
+
+<h3 id="原则-3：优先设计联合索引，而不是无限堆单列索引"><a href="#原则-3：优先设计联合索引，而不是无限堆单列索引" class="headerlink" title="原则 3：优先设计联合索引，而不是无限堆单列索引"></a>原则 3：优先设计联合索引，而不是无限堆单列索引</h3><p>一个高频 SQL：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> tenant_id <span class="hljs-operator">=</span> ?<br>  <span class="hljs-keyword">AND</span> biz_type <span class="hljs-operator">=</span> ?<br>  <span class="hljs-keyword">AND</span> biz_date <span class="hljs-keyword">BETWEEN</span> ? <span class="hljs-keyword">AND</span> ?<br></code></pre></td></tr></table></figure>
+
+<p>更应该思考：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">(tenant_id, biz_type, biz_date)<br></code></pre></td></tr></table></figure>
+
+<p>而不是无脑建立：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">idx_tenant_id<br>idx_biz_type<br>idx_biz_date<br></code></pre></td></tr></table></figure>
+
+<h3 id="原则-4：索引列越少越好，但够用更重要"><a href="#原则-4：索引列越少越好，但够用更重要" class="headerlink" title="原则 4：索引列越少越好，但够用更重要"></a>原则 4：索引列越少越好，但够用更重要</h3><p>这是一个平衡：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">太窄 → 回表多<br>太宽 → 索引膨胀<br></code></pre></td></tr></table></figure>
+
+<p>最合理的是：</p>
+<blockquote>
+<p><strong>用最少的列覆盖最重要的访问路径。</strong></p>
+</blockquote>
+<h3 id="原则-5：不要迷信“索引命中”"><a href="#原则-5：不要迷信“索引命中”" class="headerlink" title="原则 5：不要迷信“索引命中”"></a>原则 5：不要迷信“索引命中”</h3><p>最终性能来自：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">扫描范围<br>+<br>回表次数<br>+<br>排序成本<br>+<br>JOIN 成本<br>+<br>访问页数量<br>+<br>缓存命中<br></code></pre></td></tr></table></figure>
+
+<p>不是来自：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">EXPLAIN 里 key 有值<br></code></pre></td></tr></table></figure>
+
+<h3 id="原则-6：优化一定要验证"><a href="#原则-6：优化一定要验证" class="headerlink" title="原则 6：优化一定要验证"></a>原则 6：优化一定要验证</h3><p>任何优化都应该：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">优化前执行计划<br>优化前耗时<br>优化前扫描规模<br><br>          ↓<br><br>修改 SQL / 索引<br><br>          ↓<br><br>优化后执行计划<br>优化后耗时<br>优化后扫描规模<br></code></pre></td></tr></table></figure>
+
+<p>没有对比的优化，只能叫猜。</p>
+<hr>
+<h2 id="二十二、最终把整个知识链串起来"><a href="#二十二、最终把整个知识链串起来" class="headerlink" title="二十二、最终把整个知识链串起来"></a>二十二、最终把整个知识链串起来</h2><p>最后把全文压缩成一条链：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs text">业务查询模式<br>      ↓<br>决定表结构<br>      ↓<br>范式控制一致性<br>反范式控制查询成本<br>      ↓<br>索引决定如何定位数据<br>      ↓<br>B+ 树降低树高与随机 I/O<br>      ↓<br>联合索引利用有序前缀<br>      ↓<br>覆盖索引减少回表<br>      ↓<br>数据最终按 Page 读取<br>      ↓<br>Buffer Pool 降低磁盘访问<br>      ↓<br>优化器比较不同访问路径成本<br>      ↓<br>选择最终执行计划<br></code></pre></td></tr></table></figure>
+
+<p>所以 SQL 性能优化真正优化的，并不是一句 SQL 文本，而是：</p>
+<blockquote>
+<p><strong>让数据库以更低的成本找到、更少的数据页，并尽可能少做无意义的随机访问。</strong></p>
+</blockquote>
+<p>当你开始从“访问路径”和“I&#x2F;O 成本”看 SQL，而不是只从“语法”和“有没有索引”看 SQL 时，数据库优化才算真正进入了下一层。</p>
+<hr>
+<h2 id="二十三、日常排查-Checklist"><a href="#二十三、日常排查-Checklist" class="headerlink" title="二十三、日常排查 Checklist"></a>二十三、日常排查 Checklist</h2><p>最后给一份可以直接放在工作里的清单。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs text">[ ] 这条 SQL 一次应该返回多少行？<br>[ ] 是否 SELECT 了不需要的字段？<br>[ ] WHERE 是否足够提前过滤数据？<br>[ ] WHERE 条件列是否有合适索引？<br>[ ] 是否对索引列做了函数或表达式？<br>[ ] LIKE 是否以 % 开头？<br>[ ] 联合索引是否符合主要查询模式？<br>[ ] 联合索引最左侧字段是否可用？<br>[ ] 是否存在大量回表？<br>[ ] 是否可以做覆盖索引？<br>[ ] 字段选择性是否足够？<br>[ ] 是否存在 GROUP BY / ORDER BY filesort？<br>[ ] JOIN 字段类型是否一致？<br>[ ] JOIN 表是否过多？<br>[ ] 是否存在大量无效单列索引？<br>[ ] 是否读取了远超业务需要的数据？<br>[ ] 是否应该分页或做汇总表？<br>[ ] 是否应该采用反范式或历史快照？<br>[ ] 热点数据是否能稳定命中 Buffer Pool？<br>[ ] 优化前后是否使用 EXPLAIN 和耗时进行对比？<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="参考内容"><a href="#参考内容" class="headerlink" title="参考内容"></a>参考内容</h2><p>本文根据以下主题文章重新整理并进行知识体系化归纳：</p>
+<ol>
+<li>数据库调优的目标与六个维度</li>
+<li>1NF、2NF、3NF 与数据库范式</li>
+<li>BCNF 与反范式设计</li>
+<li>索引的作用、类型与使用场景</li>
+<li>B 树与 B+ 树索引原理</li>
+<li>Hash 索引与 B+ 树的差异</li>
+<li>索引的创建原则与常见失效场景</li>
+<li>InnoDB 数据页与 B+ 树查询过程</li>
+<li>Buffer Pool、随机 I&#x2F;O 与顺序 I&#x2F;O</li>
+<li>宽索引、覆盖索引、过滤因子与三星索引</li>
+</ol>
+<p>其中部分文章中的具体性能数字、经验阈值与数据库版本相关，实际项目中应以当前数据库版本、真实数据分布以及执行计划为准。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/" class="category-chain-item">数据库</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/MySQL/" class="print-no-link">#MySQL</a>
+      
+        <a href="/tags/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/" class="print-no-link">#性能优化</a>
+      
+        <a href="/tags/%E7%B4%A2%E5%BC%95/" class="print-no-link">#索引</a>
+      
+        <a href="/tags/SQL/" class="print-no-link">#SQL</a>
+      
+        <a href="/tags/%E6%95%B0%E6%8D%AE%E5%BA%93%E4%BC%98%E5%8C%96/" class="print-no-link">#数据库优化</a>
+      
+        <a href="/tags/B-%E6%A0%91/" class="print-no-link">#B+树</a>
+      
+        <a href="/tags/InnoDB/" class="print-no-link">#InnoDB</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>从表设计到磁盘 I/O：一套完整的 MySQL 性能优化与索引设计方法</div>
+      <div>https://allendericdalexander.github.io/2026/08/11/db/sql/04mysql-sql-performance-optimization-index-design/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月11日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/08/11/db/sql/05mysql-lock-mvcc-optimizer-performance/" title="从锁、MVCC到查询优化器：一篇文章串起 MySQL SQL 执行与性能优化">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">从锁、MVCC到查询优化器：一篇文章串起 MySQL SQL 执行与性能优化</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/10/db/sql/03mysql-view-transaction-stored-procedure-cursor/" title="从查询封装到一致性边界：MySQL View、事务、存储过程与游标实战">
+                        <span class="hidden-mobile">从查询封装到一致性边界：MySQL View、事务、存储过程与游标实战</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

@@ -1,0 +1,1268 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="系统梳理 MySQL 中视图、事务、存储过程和游标的核心概念、常用语法、工程边界与常见坑，并结合 MySQL 8.4 官方文档补充现代实践。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从查询封装到一致性边界：MySQL View、事务、存储过程与游标实战">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/10/db/sql/03mysql-view-transaction-stored-procedure-cursor/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="系统梳理 MySQL 中视图、事务、存储过程和游标的核心概念、常用语法、工程边界与常见坑，并结合 MySQL 8.4 官方文档补充现代实践。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-10T10:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-10T10:00:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Cursor">
+<meta property="article:tag" content="MySQL">
+<meta property="article:tag" content="SQL">
+<meta property="article:tag" content="Stored Procedure">
+<meta property="article:tag" content="Transaction">
+<meta property="article:tag" content="View">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>从查询封装到一致性边界：MySQL View、事务、存储过程与游标实战 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="从查询封装到一致性边界：MySQL View、事务、存储过程与游标实战"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-10 18:00" pubdate>
+          2026年8月10日 晚上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          6.1k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          51 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">从查询封装到一致性边界：MySQL View、事务、存储过程与游标实战</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>SQL 学到 <code>SELECT / JOIN / GROUP BY</code> 之后，很容易产生一种错觉：数据库无非就是“把 SQL 写得更复杂”。但真正进入业务系统后，会不断遇到另外四类问题：<strong>复杂查询如何复用、多个写操作如何保证一致、数据库内部如何封装一段流程、必须逐行处理时该怎么办</strong>。</p>
+<p>这四类问题，分别对应 <strong>View（视图）</strong>、<strong>Transaction（事务）</strong>、<strong>Stored Procedure（存储过程）</strong> 和 <strong>Cursor（游标）</strong>。</p>
+<p>本文以提供的《SQL 必知必会》相关资料为主线，并结合 MySQL 8.4 官方文档补充当前实现细节，同时修正几个老资料里容易误导的点。</p>
+<span id="more"></span>
+
+<h2 id="1-先建立整体认识：四个概念分别解决什么问题"><a href="#1-先建立整体认识：四个概念分别解决什么问题" class="headerlink" title="1. 先建立整体认识：四个概念分别解决什么问题"></a>1. 先建立整体认识：四个概念分别解决什么问题</h2><p>可以先把它们放到一张图里理解：</p>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>核心问题</th>
+<th>思维方式</th>
+<th>是否直接保存业务数据</th>
+<th>典型用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>View</td>
+<td>如何封装和复用查询</td>
+<td>面向集合</td>
+<td>否</td>
+<td>报表、权限隔离、复杂 JOIN 封装</td>
+</tr>
+<tr>
+<td>Transaction</td>
+<td>多条操作如何成为一个一致性单元</td>
+<td>一致性边界</td>
+<td>不额外保存业务数据</td>
+<td>转账、扣库存、结算、状态流转</td>
+</tr>
+<tr>
+<td>Stored Procedure</td>
+<td>如何把数据库内的一段流程封装起来</td>
+<td>面向过程 + SQL</td>
+<td>保存的是程序定义</td>
+<td>批处理、数据库侧封装、遗留系统</td>
+</tr>
+<tr>
+<td>Cursor</td>
+<td>如何逐行处理结果集</td>
+<td>面向过程</td>
+<td>否</td>
+<td>每行规则不同、无法自然集合化的处理</td>
+</tr>
+</tbody></table>
+<p>一句话记忆：</p>
+<blockquote>
+<p><strong>View 管“怎么看”，Transaction 管“一起成不成功”，Stored Procedure 管“数据库里怎么执行一段流程”，Cursor 管“结果集如何一行一行处理”。</strong></p>
+</blockquote>
+<p>工程上还有一个非常重要的优先级：</p>
+<blockquote>
+<p><strong>能用集合 SQL 解决，就优先使用集合 SQL；只有确实需要逐行状态和分支时，再考虑游标。</strong></p>
+</blockquote>
+<hr>
+<h1 id="2-View：把查询封装成一个稳定的数据接口"><a href="#2-View：把查询封装成一个稳定的数据接口" class="headerlink" title="2. View：把查询封装成一个稳定的数据接口"></a>2. View：把查询封装成一个稳定的数据接口</h1><h2 id="2-1-View-到底是什么"><a href="#2-1-View-到底是什么" class="headerlink" title="2.1 View 到底是什么"></a>2.1 View 到底是什么</h2><p>视图可以理解为一个<strong>有名字的查询定义</strong>。查询视图时，数据库根据视图背后的 <code>SELECT</code> 生成结果集，因此它表现得像一张表，但普通视图本身并不是另一份独立业务数据。</p>
+<p>这也是为什么资料里把 View 称为“虚拟表”：应用不需要知道底层到底连接了几张表，只需要面向一个稳定的查询接口。</p>
+<p>例如订单系统中，页面经常需要展示订单、用户和已支付金额：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">OR</span> REPLACE <span class="hljs-keyword">VIEW</span> v_order_summary <span class="hljs-keyword">AS</span><br><span class="hljs-keyword">SELECT</span><br>    o.id <span class="hljs-keyword">AS</span> order_id,<br>    o.order_no,<br>    o.user_id,<br>    u.nickname,<br>    o.order_amount,<br>    <span class="hljs-built_in">COALESCE</span>(<span class="hljs-built_in">SUM</span>(p.pay_amount), <span class="hljs-number">0</span>) <span class="hljs-keyword">AS</span> paid_amount,<br>    o.status,<br>    o.created_at<br><span class="hljs-keyword">FROM</span> orders o<br><span class="hljs-keyword">JOIN</span> users u <span class="hljs-keyword">ON</span> u.id <span class="hljs-operator">=</span> o.user_id<br><span class="hljs-keyword">LEFT</span> <span class="hljs-keyword">JOIN</span> payment p<br>       <span class="hljs-keyword">ON</span> p.order_id <span class="hljs-operator">=</span> o.id<br>      <span class="hljs-keyword">AND</span> p.status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;SUCCESS&#x27;</span><br><span class="hljs-keyword">GROUP</span> <span class="hljs-keyword">BY</span><br>    o.id,<br>    o.order_no,<br>    o.user_id,<br>    u.nickname,<br>    o.order_amount,<br>    o.status,<br>    o.created_at;<br></code></pre></td></tr></table></figure>
+
+<p>以后查询端只需要：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> v_order_summary<br><span class="hljs-keyword">WHERE</span> created_at <span class="hljs-operator">&gt;=</span> <span class="hljs-string">&#x27;2026-08-01&#x27;</span><br>  <span class="hljs-keyword">AND</span> status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;PAID&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<p>复杂的 JOIN、聚合、字段别名都被收进了 View。</p>
+<h2 id="2-2-View-最有价值的几个场景"><a href="#2-2-View-最有价值的几个场景" class="headerlink" title="2.2 View 最有价值的几个场景"></a>2.2 View 最有价值的几个场景</h2><h3 id="2-2-1-封装复杂-JOIN"><a href="#2-2-1-封装复杂-JOIN" class="headerlink" title="2.2.1 封装复杂 JOIN"></a>2.2.1 封装复杂 JOIN</h3><p>当很多报表都重复使用同一段关联逻辑时，把公共查询封装为视图，可以减少 SQL 重复。</p>
+<p>但“能复用”不代表要无限嵌套。<code>view_a -&gt; view_b -&gt; view_c -&gt; view_d</code> 这种依赖链太长后，排查执行计划和字段来源会变得痛苦。视图是抽象，不是俄罗斯套娃大赛。</p>
+<h3 id="2-2-2-控制暴露字段"><a href="#2-2-2-控制暴露字段" class="headerlink" title="2.2.2 控制暴露字段"></a>2.2.2 控制暴露字段</h3><p>假设员工表中同时存在姓名、部门、手机号、身份证、薪资等字段，而普通业务只允许看到姓名和部门，可以建立一个只暴露必要字段的视图：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">VIEW</span> v_employee_public <span class="hljs-keyword">AS</span><br><span class="hljs-keyword">SELECT</span><br>    id,<br>    employee_no,<br>    employee_name,<br>    department_id<br><span class="hljs-keyword">FROM</span> employee;<br></code></pre></td></tr></table></figure>
+
+<p>再通过数据库权限控制让某个账号只访问该视图，而不是直接访问基础表。</p>
+<h3 id="2-2-3-格式化和计算字段"><a href="#2-2-3-格式化和计算字段" class="headerlink" title="2.2.3 格式化和计算字段"></a>2.2.3 格式化和计算字段</h3><p>视图不只用于“少看几列”，也可以把常用表达式封装起来：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">VIEW</span> v_product_price <span class="hljs-keyword">AS</span><br><span class="hljs-keyword">SELECT</span><br>    id,<br>    product_name,<br>    price,<br>    discount_rate,<br>    ROUND(price <span class="hljs-operator">*</span> discount_rate, <span class="hljs-number">2</span>) <span class="hljs-keyword">AS</span> sale_price<br><span class="hljs-keyword">FROM</span> product;<br></code></pre></td></tr></table></figure>
+
+<p>这样调用方不用每次重复写计算公式。</p>
+<h2 id="2-3-创建、修改和删除视图"><a href="#2-3-创建、修改和删除视图" class="headerlink" title="2.3 创建、修改和删除视图"></a>2.3 创建、修改和删除视图</h2><h3 id="创建"><a href="#创建" class="headerlink" title="创建"></a>创建</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">VIEW</span> view_name <span class="hljs-keyword">AS</span><br><span class="hljs-keyword">SELECT</span> ...;<br></code></pre></td></tr></table></figure>
+
+<p>MySQL 还支持：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">OR</span> REPLACE <span class="hljs-keyword">VIEW</span> view_name <span class="hljs-keyword">AS</span><br><span class="hljs-keyword">SELECT</span> ...;<br></code></pre></td></tr></table></figure>
+
+<h3 id="修改"><a href="#修改" class="headerlink" title="修改"></a>修改</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">ALTER</span> <span class="hljs-keyword">VIEW</span> view_name <span class="hljs-keyword">AS</span><br><span class="hljs-keyword">SELECT</span> ...;<br></code></pre></td></tr></table></figure>
+
+<h3 id="删除"><a href="#删除" class="headerlink" title="删除"></a>删除</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">DROP</span> <span class="hljs-keyword">VIEW</span> IF <span class="hljs-keyword">EXISTS</span> view_name;<br></code></pre></td></tr></table></figure>
+
+<h2 id="2-4-MySQL-的-View-Algorithm：MERGE、TEMPTABLE、UNDEFINED"><a href="#2-4-MySQL-的-View-Algorithm：MERGE、TEMPTABLE、UNDEFINED" class="headerlink" title="2.4 MySQL 的 View Algorithm：MERGE、TEMPTABLE、UNDEFINED"></a>2.4 MySQL 的 View Algorithm：MERGE、TEMPTABLE、UNDEFINED</h2><p>MySQL 的 <code>CREATE VIEW</code> 支持一个非标准扩展：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> ALGORITHM <span class="hljs-operator">=</span> <span class="hljs-keyword">MERGE</span> <span class="hljs-keyword">VIEW</span> v_xxx <span class="hljs-keyword">AS</span><br><span class="hljs-keyword">SELECT</span> ...;<br></code></pre></td></tr></table></figure>
+
+<p>三个值可以先这样理解：</p>
+<ul>
+<li><code>MERGE</code>：尽量把外层查询和视图定义合并后优化；</li>
+<li><code>TEMPTABLE</code>：把视图结果先物化为临时结果再供外层使用；</li>
+<li><code>UNDEFINED</code>：不强制指定，由 MySQL 决定。</li>
+</ul>
+<p>多数业务代码不需要刻意指定它，但看到历史 SQL 中的 <code>ALGORITHM</code> 时要知道它控制的是<strong>视图的处理方式</strong>，不是“给视图建索引”。MySQL 普通视图本身没有索引，真正能利用的是基础表上的索引。</p>
+<h2 id="2-5-View-能不能-UPDATE"><a href="#2-5-View-能不能-UPDATE" class="headerlink" title="2.5 View 能不能 UPDATE"></a>2.5 View 能不能 UPDATE</h2><p>答案不是简单的“能”或“不能”。</p>
+<p>MySQL 支持<strong>可更新视图</strong>，前提是视图中的一行能够明确映射到基础表中的一行。包含复杂聚合、<code>GROUP BY</code>、某些连接或其他破坏一一映射关系的结构时，通常就不能直接更新。</p>
+<p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">VIEW</span> v_active_user <span class="hljs-keyword">AS</span><br><span class="hljs-keyword">SELECT</span> id, nickname, status<br><span class="hljs-keyword">FROM</span> users<br><span class="hljs-keyword">WHERE</span> status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;ACTIVE&#x27;</span><br><span class="hljs-keyword">WITH</span> <span class="hljs-keyword">CHECK</span> OPTION;<br></code></pre></td></tr></table></figure>
+
+<p><code>WITH CHECK OPTION</code> 的意义是：通过这个视图进行 <code>INSERT / UPDATE</code> 后，行仍然必须满足视图的 <code>WHERE status = &#39;ACTIVE&#39;</code> 条件。</p>
+<p>换句话说，视图既可以作为“读接口”，在合适条件下也能成为受约束的写入口；不过工程中一般仍建议把复杂写逻辑放在明确的业务层或事务中，而不是依赖视图的隐式更新能力。</p>
+<h2 id="2-6-View、临时表和-CTE-怎么选"><a href="#2-6-View、临时表和-CTE-怎么选" class="headerlink" title="2.6 View、临时表和 CTE 怎么选"></a>2.6 View、临时表和 CTE 怎么选</h2><table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>View</th>
+<th>Temporary Table</th>
+<th>CTE (<code>WITH</code>)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>定义生命周期</td>
+<td>持久保存在数据库元数据中</td>
+<td>一般随会话&#x2F;连接</td>
+<td>单条 SQL</td>
+</tr>
+<tr>
+<td>是否存放中间数据</td>
+<td>普通视图不单独存</td>
+<td>是</td>
+<td>通常是逻辑查询表达式</td>
+</tr>
+<tr>
+<td>复用范围</td>
+<td>跨 SQL、跨会话</td>
+<td>当前会话</td>
+<td>当前 SQL</td>
+</tr>
+<tr>
+<td>适合场景</td>
+<td>稳定查询接口</td>
+<td>多步骤中间计算</td>
+<td>提升单条复杂 SQL 可读性</td>
+</tr>
+</tbody></table>
+<p>一个简单判断：</p>
+<ul>
+<li>这是一个长期稳定的查询接口：<strong>View</strong>；</li>
+<li>这是一次流程中的中间结果：<strong>临时表</strong>；</li>
+<li>只是想把一条 SQL 拆清楚：优先考虑 <strong>CTE</strong>。</li>
+</ul>
+<hr>
+<h1 id="3-Transaction：把多条-SQL-变成一个一致性单元"><a href="#3-Transaction：把多条-SQL-变成一个一致性单元" class="headerlink" title="3. Transaction：把多条 SQL 变成一个一致性单元"></a>3. Transaction：把多条 SQL 变成一个一致性单元</h1><h2 id="3-1-事务的本质：不是“几条-SQL-放在一起”，而是一个一致性边界"><a href="#3-1-事务的本质：不是“几条-SQL-放在一起”，而是一个一致性边界" class="headerlink" title="3.1 事务的本质：不是“几条 SQL 放在一起”，而是一个一致性边界"></a>3.1 事务的本质：不是“几条 SQL 放在一起”，而是一个一致性边界</h2><p>最经典的例子是转账：</p>
+<ol>
+<li>A 账户减 100；</li>
+<li>B 账户加 100。</li>
+</ol>
+<p>如果第一步成功、第二步失败，数据就坏了。事务要求这两个动作被当成同一个逻辑单元：<strong>全部成功，或者全部撤销</strong>。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">START</span> TRANSACTION;<br><br><span class="hljs-keyword">UPDATE</span> account<br><span class="hljs-keyword">SET</span> balance <span class="hljs-operator">=</span> balance <span class="hljs-operator">-</span> <span class="hljs-number">100</span><br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">1</span>;<br><br><span class="hljs-keyword">UPDATE</span> account<br><span class="hljs-keyword">SET</span> balance <span class="hljs-operator">=</span> balance <span class="hljs-operator">+</span> <span class="hljs-number">100</span><br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">2</span>;<br><br><span class="hljs-keyword">COMMIT</span>;<br></code></pre></td></tr></table></figure>
+
+<p>发生异常时：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">ROLLBACK</span>;<br></code></pre></td></tr></table></figure>
+
+<h2 id="3-2-ACID-四个特性"><a href="#3-2-ACID-四个特性" class="headerlink" title="3.2 ACID 四个特性"></a>3.2 ACID 四个特性</h2><h3 id="Atomicity-原子性"><a href="#Atomicity-原子性" class="headerlink" title="Atomicity - 原子性"></a>Atomicity - 原子性</h3><p>事务中的操作是一个不可分割的整体。出现失败时，要把该事务产生的修改撤销到事务开始前的状态。</p>
+<h3 id="Consistency-一致性"><a href="#Consistency-一致性" class="headerlink" title="Consistency - 一致性"></a>Consistency - 一致性</h3><p>事务前后都必须满足业务和数据库约束。</p>
+<p>比如“账户余额不能无缘无故消失”“订单实付不能为负”“唯一键不能出现重复”，这些才是一致性的具体内容。</p>
+<h3 id="Isolation-隔离性"><a href="#Isolation-隔离性" class="headerlink" title="Isolation - 隔离性"></a>Isolation - 隔离性</h3><p>多个事务并发执行时，数据库需要控制彼此能看到什么、会互相等待什么，从而避免并发异常。</p>
+<h3 id="Durability-持久性"><a href="#Durability-持久性" class="headerlink" title="Durability - 持久性"></a>Durability - 持久性</h3><p>事务一旦成功提交，结果应当具有持久性。InnoDB 会结合日志机制、缓冲等保证崩溃恢复能力。</p>
+<h2 id="3-3-MySQL-默认-autocommit-到底意味着什么"><a href="#3-3-MySQL-默认-autocommit-到底意味着什么" class="headerlink" title="3.3 MySQL 默认 autocommit 到底意味着什么"></a>3.3 MySQL 默认 autocommit 到底意味着什么</h2><p>MySQL 新连接默认开启 <code>autocommit</code>。在 InnoDB 中，这意味着没有显式事务时，通常每条 SQL 都独立形成一个事务。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> @<span class="hljs-variable">@autocommit</span>;<br></code></pre></td></tr></table></figure>
+
+<p>显式事务是更推荐的多语句写法：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">START</span> TRANSACTION;<br><br><span class="hljs-keyword">UPDATE</span> inventory<br><span class="hljs-keyword">SET</span> available_qty <span class="hljs-operator">=</span> available_qty <span class="hljs-operator">-</span> <span class="hljs-number">1</span><br><span class="hljs-keyword">WHERE</span> sku_id <span class="hljs-operator">=</span> <span class="hljs-number">10001</span><br>  <span class="hljs-keyword">AND</span> available_qty <span class="hljs-operator">&gt;</span> <span class="hljs-number">0</span>;<br><br><span class="hljs-keyword">INSERT INTO</span> order_item(order_id, sku_id, qty)<br><span class="hljs-keyword">VALUES</span> (<span class="hljs-number">90001</span>, <span class="hljs-number">10001</span>, <span class="hljs-number">1</span>);<br><br><span class="hljs-keyword">COMMIT</span>;<br></code></pre></td></tr></table></figure>
+
+<p>即使 <code>autocommit = 1</code>，只要显式执行 <code>START TRANSACTION</code>，后面的多条语句仍然会等到 <code>COMMIT / ROLLBACK</code> 才结束事务。</p>
+<h2 id="3-4-SAVEPOINT：不是所有失败都必须从头回滚"><a href="#3-4-SAVEPOINT：不是所有失败都必须从头回滚" class="headerlink" title="3.4 SAVEPOINT：不是所有失败都必须从头回滚"></a>3.4 SAVEPOINT：不是所有失败都必须从头回滚</h2><p>复杂事务中可以设置保存点：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">START</span> TRANSACTION;<br><br><span class="hljs-keyword">UPDATE</span> orders<br><span class="hljs-keyword">SET</span> status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;PROCESSING&#x27;</span><br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">90001</span>;<br><br><span class="hljs-keyword">SAVEPOINT</span> after_order_status;<br><br><span class="hljs-keyword">INSERT INTO</span> order_operation_log(order_id, operation)<br><span class="hljs-keyword">VALUES</span> (<span class="hljs-number">90001</span>, <span class="hljs-string">&#x27;CREATE_SETTLEMENT_LOG&#x27;</span>);<br><br><span class="hljs-comment">-- 如果后续某个非核心步骤失败</span><br><span class="hljs-keyword">ROLLBACK</span> <span class="hljs-keyword">TO</span> <span class="hljs-keyword">SAVEPOINT</span> after_order_status;<br><br><span class="hljs-keyword">COMMIT</span>;<br></code></pre></td></tr></table></figure>
+
+<p>相关命令：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SAVEPOINT</span> sp_name;<br><span class="hljs-keyword">ROLLBACK</span> <span class="hljs-keyword">TO</span> <span class="hljs-keyword">SAVEPOINT</span> sp_name;<br><span class="hljs-keyword">RELEASE</span> <span class="hljs-keyword">SAVEPOINT</span> sp_name;<br></code></pre></td></tr></table></figure>
+
+<p>需要注意，SAVEPOINT 不是“子事务”，它只是当前事务内部的一个回滚标记。</p>
+<h2 id="3-5-最容易踩的坑：DDL-可能让事务提前结束"><a href="#3-5-最容易踩的坑：DDL-可能让事务提前结束" class="headerlink" title="3.5 最容易踩的坑：DDL 可能让事务提前结束"></a>3.5 最容易踩的坑：DDL 可能让事务提前结束</h2><p>很多人会写出类似代码：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">START</span> TRANSACTION;<br><span class="hljs-keyword">UPDATE</span> account <span class="hljs-keyword">SET</span> balance <span class="hljs-operator">=</span> balance <span class="hljs-operator">-</span> <span class="hljs-number">100</span> <span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">1</span>;<br><br><span class="hljs-keyword">ALTER TABLE</span> account <span class="hljs-keyword">ADD</span> <span class="hljs-keyword">COLUMN</span> remark <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">255</span>);<br><br><span class="hljs-keyword">ROLLBACK</span>;<br></code></pre></td></tr></table></figure>
+
+<p>然后期待 <code>UPDATE</code> 也一起撤销。</p>
+<p><strong>不要这样想。</strong> MySQL 8.4 虽然支持 atomic DDL，但 atomic DDL 不等于 transactional DDL。很多 DDL 会隐式结束当前事务，相当于先发生一次提交。</p>
+<p>所以业务事务中不要混入 <code>CREATE / ALTER / DROP</code> 之类 DDL。</p>
+<h2 id="3-6-并发事务的三类经典异常"><a href="#3-6-并发事务的三类经典异常" class="headerlink" title="3.6 并发事务的三类经典异常"></a>3.6 并发事务的三类经典异常</h2><h3 id="脏读-Dirty-Read"><a href="#脏读-Dirty-Read" class="headerlink" title="脏读 Dirty Read"></a>脏读 Dirty Read</h3><p>事务 A 读到了事务 B <strong>尚未提交</strong>的数据。B 随后回滚，于是 A 读到的内容从未真正生效。</p>
+<h3 id="不可重复读-Non-repeatable-Read"><a href="#不可重复读-Non-repeatable-Read" class="headerlink" title="不可重复读 Non-repeatable Read"></a>不可重复读 Non-repeatable Read</h3><p>同一个事务里，两次读取<strong>同一行</strong>，结果发生变化。典型原因是另一个事务已经提交了对该行的 <code>UPDATE / DELETE</code>。</p>
+<h3 id="幻读-Phantom-Read"><a href="#幻读-Phantom-Read" class="headerlink" title="幻读 Phantom Read"></a>幻读 Phantom Read</h3><p>同一个事务按一个范围条件重复查询，结果集的<strong>行集合</strong>发生变化，典型场景是其他事务插入了满足条件的新行。</p>
+<p>一个实用区分：</p>
+<blockquote>
+<p>不可重复读更关注“这条记录的内容变了”；幻读更关注“这个范围里的记录集合变了”。</p>
+</blockquote>
+<h2 id="3-7-四种隔离级别"><a href="#3-7-四种隔离级别" class="headerlink" title="3.7 四种隔离级别"></a>3.7 四种隔离级别</h2><p>SQL 标准定义了四种常见隔离级别：</p>
+<table>
+<thead>
+<tr>
+<th>隔离级别</th>
+<th>脏读</th>
+<th>不可重复读</th>
+<th>幻读</th>
+<th>并发能力</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>READ UNCOMMITTED</td>
+<td>可能</td>
+<td>可能</td>
+<td>可能</td>
+<td>高</td>
+</tr>
+<tr>
+<td>READ COMMITTED</td>
+<td>避免</td>
+<td>可能</td>
+<td>可能</td>
+<td>较高</td>
+</tr>
+<tr>
+<td>REPEATABLE READ</td>
+<td>避免</td>
+<td>避免</td>
+<td>标准层面不要求完全避免</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>SERIALIZABLE</td>
+<td>避免</td>
+<td>避免</td>
+<td>避免</td>
+<td>低</td>
+</tr>
+</tbody></table>
+<p>但这里必须加一个 <strong>MySQL&#x2F;InnoDB 特别说明</strong>：</p>
+<p>MySQL 8.4 的 InnoDB 默认隔离级别是 <code>REPEATABLE READ</code>。普通一致性读会使用事务快照；对于锁定读、<code>UPDATE</code>、<code>DELETE</code> 等范围操作，InnoDB 还会使用 gap lock &#x2F; next-key lock 等机制阻止特定范围内的并发插入。因此，不能只拿一张 SQL 标准表，就机械地推断每一种 InnoDB 查询一定会出现什么现象。</p>
+<p>查看当前隔离级别：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> @<span class="hljs-variable">@transaction_isolation</span>;<br></code></pre></td></tr></table></figure>
+
+<p>修改当前会话：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SET</span> SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;<br></code></pre></td></tr></table></figure>
+
+<h2 id="3-8-普通-SELECT-与锁定读"><a href="#3-8-普通-SELECT-与锁定读" class="headerlink" title="3.8 普通 SELECT 与锁定读"></a>3.8 普通 SELECT 与锁定读</h2><p>如果只是读一个一致性快照，普通 <code>SELECT</code> 通常不需要对读到的行加排他锁。</p>
+<p>但如果你的业务逻辑是：</p>
+<ol>
+<li>先查余额；</li>
+<li>判断余额足够；</li>
+<li>再扣余额；</li>
+</ol>
+<p>那么普通 <code>SELECT</code> 可能不够，因为另一个事务可能在你查询后改变这行数据。可以使用锁定读：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">START</span> TRANSACTION;<br><br><span class="hljs-keyword">SELECT</span> balance<br><span class="hljs-keyword">FROM</span> account<br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">1</span><br><span class="hljs-keyword">FOR</span> <span class="hljs-keyword">UPDATE</span>;<br><br><span class="hljs-keyword">UPDATE</span> account<br><span class="hljs-keyword">SET</span> balance <span class="hljs-operator">=</span> balance <span class="hljs-operator">-</span> <span class="hljs-number">100</span><br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">1</span>;<br><br><span class="hljs-keyword">COMMIT</span>;<br></code></pre></td></tr></table></figure>
+
+<p><code>FOR UPDATE</code> 不是“让查询更安全”的万能按钮，它意味着更强的锁竞争。应该只在业务确实需要“读后写并保持这段期间的排他控制”时使用。</p>
+<h2 id="3-9-工程里写事务的几个原则"><a href="#3-9-工程里写事务的几个原则" class="headerlink" title="3.9 工程里写事务的几个原则"></a>3.9 工程里写事务的几个原则</h2><ol>
+<li><strong>事务尽量短。</strong> 不要在事务里做 HTTP 调用、发消息、等用户输入。</li>
+<li><strong>访问顺序尽量一致。</strong> 多个业务都按相同顺序锁资源，可以降低死锁概率。</li>
+<li><strong>WHERE 条件要有合适索引。</strong> 扫描范围越大，可能锁住的范围也越大。</li>
+<li><strong>死锁要设计重试。</strong> 死锁不是简单等价于数据库坏了，它是并发系统中的一种可预期冲突。</li>
+<li><strong>不要把长批处理塞进一个巨型事务。</strong> 巨型事务的 undo、锁持有时间和回滚成本都很高。</li>
+</ol>
+<hr>
+<h1 id="4-Stored-Procedure：把数据库侧的一段流程封装起来"><a href="#4-Stored-Procedure：把数据库侧的一段流程封装起来" class="headerlink" title="4. Stored Procedure：把数据库侧的一段流程封装起来"></a>4. Stored Procedure：把数据库侧的一段流程封装起来</h1><h2 id="4-1-存储过程是什么"><a href="#4-1-存储过程是什么" class="headerlink" title="4.1 存储过程是什么"></a>4.1 存储过程是什么</h2><p>存储过程是保存在数据库服务端的一段程序化 SQL。它不仅可以执行查询，还可以包含变量、条件判断、循环、异常处理等流程控制。</p>
+<p>基本形式：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs sql">DELIMITER <span class="hljs-operator">/</span><span class="hljs-operator">/</span><br><br><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">PROCEDURE</span> proc_name(<span class="hljs-keyword">IN</span> p_id <span class="hljs-type">BIGINT</span>, <span class="hljs-keyword">OUT</span> p_result <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">32</span>))<br><span class="hljs-keyword">BEGIN</span><br>    <span class="hljs-comment">-- SQL / IF / LOOP / HANDLER ...</span><br>    <span class="hljs-keyword">SET</span> p_result <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;OK&#x27;</span>;<br><span class="hljs-keyword">END</span> <span class="hljs-operator">/</span><span class="hljs-operator">/</span><br><br>DELIMITER ;<br></code></pre></td></tr></table></figure>
+
+<p>调用：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CALL</span> proc_name(<span class="hljs-number">10001</span>, <span class="hljs-variable">@result</span>);<br><span class="hljs-keyword">SELECT</span> <span class="hljs-variable">@result</span>;<br></code></pre></td></tr></table></figure>
+
+<h2 id="4-2-IN、OUT、INOUT"><a href="#4-2-IN、OUT、INOUT" class="headerlink" title="4.2 IN、OUT、INOUT"></a>4.2 IN、OUT、INOUT</h2><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">PROCEDURE</span> demo(<br>    <span class="hljs-keyword">IN</span> p_user_id <span class="hljs-type">BIGINT</span>,<br>    <span class="hljs-keyword">OUT</span> p_total <span class="hljs-type">DECIMAL</span>(<span class="hljs-number">18</span>, <span class="hljs-number">2</span>),<br>    <span class="hljs-keyword">INOUT</span> p_counter <span class="hljs-type">INT</span><br>)<br><span class="hljs-keyword">BEGIN</span><br>    ...<br><span class="hljs-keyword">END</span>;<br></code></pre></td></tr></table></figure>
+
+<ul>
+<li><code>IN</code>：调用者传入；</li>
+<li><code>OUT</code>：过程内部赋值，再返回给调用者；</li>
+<li><code>INOUT</code>：既传入初始值，也把修改后的值带回。</li>
+</ul>
+<h2 id="4-3-DELIMITER-到底是什么"><a href="#4-3-DELIMITER-到底是什么" class="headerlink" title="4.3 DELIMITER 到底是什么"></a>4.3 DELIMITER 到底是什么</h2><p><code>DELIMITER</code> 不是业务 SQL 的一部分，它主要是 MySQL 客户端用于改变“这一整条语句在哪里结束”的客户端命令。</p>
+<p>存储过程内部本身有大量 <code>;</code>：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">BEGIN</span><br>    <span class="hljs-keyword">SET</span> a <span class="hljs-operator">=</span> <span class="hljs-number">1</span>;<br>    <span class="hljs-keyword">SET</span> b <span class="hljs-operator">=</span> <span class="hljs-number">2</span>;<br><span class="hljs-keyword">END</span><br></code></pre></td></tr></table></figure>
+
+<p>如果客户端仍把第一个 <code>;</code> 当成 <code>CREATE PROCEDURE</code> 的结尾，就无法把整个过程体一次发送给服务器。因此命令行常这样写：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs sql">DELIMITER $$<br><br><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">PROCEDURE</span> p()<br><span class="hljs-keyword">BEGIN</span><br>    <span class="hljs-keyword">SELECT</span> <span class="hljs-number">1</span>;<br>    <span class="hljs-keyword">SELECT</span> <span class="hljs-number">2</span>;<br><span class="hljs-keyword">END</span> $$<br><br>DELIMITER ;<br></code></pre></td></tr></table></figure>
+
+<p>不同 IDE&#x2F;数据库工具可能替你处理这个细节，所以有时在 Navicat、DataGrip 等工具里看不到手写 <code>DELIMITER</code>。</p>
+<h2 id="4-4-流程控制"><a href="#4-4-流程控制" class="headerlink" title="4.4 流程控制"></a>4.4 流程控制</h2><p>存储程序可以包含：</p>
+<ul>
+<li><code>IF / ELSEIF / ELSE</code>；</li>
+<li><code>CASE</code>；</li>
+<li><code>LOOP / LEAVE / ITERATE</code>；</li>
+<li><code>WHILE</code>；</li>
+<li><code>REPEAT ... UNTIL</code>；</li>
+<li><code>DECLARE</code> 局部变量；</li>
+<li><code>SELECT ... INTO</code>；</li>
+<li><code>HANDLER</code> 异常&#x2F;条件处理。</li>
+</ul>
+<p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql">IF p_amount <span class="hljs-operator">&lt;=</span> <span class="hljs-number">0</span> <span class="hljs-keyword">THEN</span><br>    SIGNAL <span class="hljs-keyword">SQLSTATE</span> <span class="hljs-string">&#x27;45000&#x27;</span><br>        <span class="hljs-keyword">SET</span> MESSAGE_TEXT <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;amount must be positive&#x27;</span>;<br><span class="hljs-keyword">END</span> IF;<br></code></pre></td></tr></table></figure>
+
+<h2 id="4-5-一个带事务与异常处理的存储过程"><a href="#4-5-一个带事务与异常处理的存储过程" class="headerlink" title="4.5 一个带事务与异常处理的存储过程"></a>4.5 一个带事务与异常处理的存储过程</h2><p>下面用积分转移演示“存储过程 + 事务”：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><code class="hljs sql">DELIMITER $$<br><br><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">PROCEDURE</span> transfer_points(<br>    <span class="hljs-keyword">IN</span> p_from <span class="hljs-type">BIGINT</span>,<br>    <span class="hljs-keyword">IN</span> p_to <span class="hljs-type">BIGINT</span>,<br>    <span class="hljs-keyword">IN</span> p_amount <span class="hljs-type">INT</span><br>)<br><span class="hljs-keyword">BEGIN</span><br>    <span class="hljs-keyword">DECLARE</span> v_balance <span class="hljs-type">INT</span>;<br><br>    <span class="hljs-keyword">DECLARE</span> EXIT HANDLER <span class="hljs-keyword">FOR</span> <span class="hljs-keyword">SQLEXCEPTION</span><br>    <span class="hljs-keyword">BEGIN</span><br>        <span class="hljs-keyword">ROLLBACK</span>;<br>        RESIGNAL;<br>    <span class="hljs-keyword">END</span>;<br><br>    IF p_amount <span class="hljs-operator">&lt;=</span> <span class="hljs-number">0</span> <span class="hljs-keyword">THEN</span><br>        SIGNAL <span class="hljs-keyword">SQLSTATE</span> <span class="hljs-string">&#x27;45000&#x27;</span><br>            <span class="hljs-keyword">SET</span> MESSAGE_TEXT <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;p_amount must be positive&#x27;</span>;<br>    <span class="hljs-keyword">END</span> IF;<br><br>    <span class="hljs-keyword">START</span> TRANSACTION;<br><br>    <span class="hljs-keyword">SELECT</span> points<br>      <span class="hljs-keyword">INTO</span> v_balance<br>      <span class="hljs-keyword">FROM</span> user_points<br>     <span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> p_from<br>     <span class="hljs-keyword">FOR</span> <span class="hljs-keyword">UPDATE</span>;<br><br>    IF v_balance <span class="hljs-operator">&lt;</span> p_amount <span class="hljs-keyword">THEN</span><br>        SIGNAL <span class="hljs-keyword">SQLSTATE</span> <span class="hljs-string">&#x27;45000&#x27;</span><br>            <span class="hljs-keyword">SET</span> MESSAGE_TEXT <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;insufficient points&#x27;</span>;<br>    <span class="hljs-keyword">END</span> IF;<br><br>    <span class="hljs-keyword">UPDATE</span> user_points<br>       <span class="hljs-keyword">SET</span> points <span class="hljs-operator">=</span> points <span class="hljs-operator">-</span> p_amount<br>     <span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> p_from;<br><br>    <span class="hljs-keyword">UPDATE</span> user_points<br>       <span class="hljs-keyword">SET</span> points <span class="hljs-operator">=</span> points <span class="hljs-operator">+</span> p_amount<br>     <span class="hljs-keyword">WHERE</span> user_id <span class="hljs-operator">=</span> p_to;<br><br>    <span class="hljs-keyword">COMMIT</span>;<br><span class="hljs-keyword">END</span> $$<br><br>DELIMITER ;<br></code></pre></td></tr></table></figure>
+
+<p>这里有一个特别容易混淆的点：</p>
+<blockquote>
+<p><strong>存储过程里的 <code>BEGIN ... END</code> 是复合语句块，不代表开启事务。</strong></p>
+</blockquote>
+<p>在 stored program 中如果需要显式开始事务，应使用 <code>START TRANSACTION</code>。</p>
+<h2 id="4-6-老资料里一个需要修正的点：ALTER-PROCEDURE-不能改过程体"><a href="#4-6-老资料里一个需要修正的点：ALTER-PROCEDURE-不能改过程体" class="headerlink" title="4.6 老资料里一个需要修正的点：ALTER PROCEDURE 不能改过程体"></a>4.6 老资料里一个需要修正的点：ALTER PROCEDURE 不能改过程体</h2><p>有些教程会写“更新存储过程使用 <code>ALTER PROCEDURE</code>”，这句话不够严谨。</p>
+<p>在 MySQL 8.4 中，<code>ALTER PROCEDURE</code> 可以修改 procedure 的特征，例如 <code>COMMENT</code>、<code>SQL SECURITY</code> 等，<strong>但不能修改参数列表，也不能修改过程体</strong>。</p>
+<p>如果要修改参数或 SQL 逻辑，通常需要：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">DROP</span> <span class="hljs-keyword">PROCEDURE</span> IF <span class="hljs-keyword">EXISTS</span> transfer_points;<br></code></pre></td></tr></table></figure>
+
+<p>然后重新：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">PROCEDURE</span> transfer_points(...)<br><span class="hljs-keyword">BEGIN</span><br>    ...<br><span class="hljs-keyword">END</span>;<br></code></pre></td></tr></table></figure>
+
+<p>所以生产环境里更应该把 procedure 的 DDL 脚本纳入 Git 和数据库迁移体系，而不是只在数据库 GUI 里手改。</p>
+<h2 id="4-7-存储过程的优点"><a href="#4-7-存储过程的优点" class="headerlink" title="4.7 存储过程的优点"></a>4.7 存储过程的优点</h2><h3 id="封装"><a href="#封装" class="headerlink" title="封装"></a>封装</h3><p>把一段复杂数据库操作集中起来，调用方只需要 <code>CALL</code>。</p>
+<h3 id="权限边界"><a href="#权限边界" class="headerlink" title="权限边界"></a>权限边界</h3><p>可以通过 routine 的执行权限与 <code>SQL SECURITY</code> 设计数据库侧的受控入口。</p>
+<h3 id="减少多次往返"><a href="#减少多次往返" class="headerlink" title="减少多次往返"></a>减少多次往返</h3><p>如果一个流程原本需要应用与数据库多次交互，封装在服务器端有时能减少网络往返。</p>
+<h3 id="适合数据库中心型系统"><a href="#适合数据库中心型系统" class="headerlink" title="适合数据库中心型系统"></a>适合数据库中心型系统</h3><p>一些遗留系统、ETL、定时批处理、强数据库逻辑系统仍然大量使用存储过程。</p>
+<h2 id="4-8-存储过程的代价"><a href="#4-8-存储过程的代价" class="headerlink" title="4.8 存储过程的代价"></a>4.8 存储过程的代价</h2><h3 id="数据库绑定更重"><a href="#数据库绑定更重" class="headerlink" title="数据库绑定更重"></a>数据库绑定更重</h3><p>MySQL、Oracle、SQL Server 的存储程序语法和能力差异很大，迁移成本高。</p>
+<h3 id="测试与调试体验通常弱于应用代码"><a href="#测试与调试体验通常弱于应用代码" class="headerlink" title="测试与调试体验通常弱于应用代码"></a>测试与调试体验通常弱于应用代码</h3><p>Java 中可以用 IDE、单测、mock、覆盖率、静态分析；复杂 stored procedure 的工程生态通常没这么顺手。</p>
+<h3 id="业务逻辑容易分裂"><a href="#业务逻辑容易分裂" class="headerlink" title="业务逻辑容易分裂"></a>业务逻辑容易分裂</h3><p>一半规则在 Java，一半规则在 Procedure，时间久了很容易出现“这个状态到底是谁改的”的考古现场。</p>
+<h3 id="扩容维度不同"><a href="#扩容维度不同" class="headerlink" title="扩容维度不同"></a>扩容维度不同</h3><p>应用层通常更容易横向扩容；把大量 CPU 密集或流程性逻辑压到数据库上，会让数据库成为更重的计算节点。</p>
+<p>因此现代互联网应用里更常见的策略是：</p>
+<blockquote>
+<p><strong>核心业务流程放应用层；数据库负责数据一致性、约束和高效集合运算。只有确实适合数据库侧执行的流程，才使用存储过程。</strong></p>
+</blockquote>
+<hr>
+<h1 id="5-Cursor：当集合-SQL-不够自然时，再逐行处理"><a href="#5-Cursor：当集合-SQL-不够自然时，再逐行处理" class="headerlink" title="5. Cursor：当集合 SQL 不够自然时，再逐行处理"></a>5. Cursor：当集合 SQL 不够自然时，再逐行处理</h1><h2 id="5-1-从“集合思维”到“逐行思维”"><a href="#5-1-从“集合思维”到“逐行思维”" class="headerlink" title="5.1 从“集合思维”到“逐行思维”"></a>5.1 从“集合思维”到“逐行思维”</h2><p>SQL 天生擅长表达：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">我要哪些数据？<br></code></pre></td></tr></table></figure>
+
+<p>而不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">先处理第 1 行，再处理第 2 行，然后根据当前状态决定下一步。<br></code></pre></td></tr></table></figure>
+
+<p>例如统计总生命值：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-built_in">SUM</span>(hp_max)<br><span class="hljs-keyword">FROM</span> hero;<br></code></pre></td></tr></table></figure>
+
+<p>这一行 SQL 已经完成任务，完全没必要拿游标循环 100 万行去自己累加。</p>
+<p>但如果每一行都需要非常不同的分支，且规则又依赖逐行过程状态，游标就有价值。</p>
+<h2 id="5-2-MySQL-Cursor-的特性"><a href="#5-2-MySQL-Cursor-的特性" class="headerlink" title="5.2 MySQL Cursor 的特性"></a>5.2 MySQL Cursor 的特性</h2><p>MySQL 的 server-side cursor 主要用在 stored program 中，并具有几个重要限制：</p>
+<ul>
+<li><strong>只读</strong>：不能通过 cursor 本身直接更新它所指向的行；</li>
+<li><strong>不可滚动</strong>：只能向前 <code>FETCH</code>，不能随意跳到上一行；</li>
+<li><strong>asensitive</strong>：服务器可能直接使用底层数据，也可能生成内部临时结果，应用不应依赖具体实现。</li>
+</ul>
+<h2 id="5-3-正确的声明顺序"><a href="#5-3-正确的声明顺序" class="headerlink" title="5.3 正确的声明顺序"></a>5.3 正确的声明顺序</h2><p>MySQL 对 stored program 中的 <code>DECLARE</code> 顺序有要求：</p>
+<ol>
+<li>局部变量 &#x2F; condition；</li>
+<li>cursor；</li>
+<li>handler。</li>
+</ol>
+<p>例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">DECLARE</span> done <span class="hljs-type">BOOLEAN</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-literal">FALSE</span>;<br><span class="hljs-keyword">DECLARE</span> v_id <span class="hljs-type">BIGINT</span>;<br><span class="hljs-keyword">DECLARE</span> v_amount <span class="hljs-type">DECIMAL</span>(<span class="hljs-number">18</span>, <span class="hljs-number">2</span>);<br><br><span class="hljs-keyword">DECLARE</span> cur <span class="hljs-keyword">CURSOR</span> <span class="hljs-keyword">FOR</span><br><span class="hljs-keyword">SELECT</span> id, amount<br><span class="hljs-keyword">FROM</span> settlement_detail;<br><br><span class="hljs-keyword">DECLARE</span> CONTINUE HANDLER <span class="hljs-keyword">FOR</span> <span class="hljs-keyword">NOT</span> FOUND<br><span class="hljs-keyword">SET</span> done <span class="hljs-operator">=</span> <span class="hljs-literal">TRUE</span>;<br></code></pre></td></tr></table></figure>
+
+<h2 id="5-4-游标的标准使用流程"><a href="#5-4-游标的标准使用流程" class="headerlink" title="5.4 游标的标准使用流程"></a>5.4 游标的标准使用流程</h2><p>在 MySQL stored program 中，可以记成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">DECLARE -&gt; OPEN -&gt; FETCH -&gt; LOOP -&gt; CLOSE<br></code></pre></td></tr></table></figure>
+
+<h3 id="1-声明"><a href="#1-声明" class="headerlink" title="1. 声明"></a>1. 声明</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">DECLARE</span> cur_order <span class="hljs-keyword">CURSOR</span> <span class="hljs-keyword">FOR</span><br><span class="hljs-keyword">SELECT</span> id, order_amount<br><span class="hljs-keyword">FROM</span> orders<br><span class="hljs-keyword">WHERE</span> status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;WAIT_PROCESS&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<h3 id="2-打开"><a href="#2-打开" class="headerlink" title="2. 打开"></a>2. 打开</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">OPEN</span> cur_order;<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-获取当前行"><a href="#3-获取当前行" class="headerlink" title="3. 获取当前行"></a>3. 获取当前行</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">FETCH</span> cur_order <span class="hljs-keyword">INTO</span> v_id, v_amount;<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-循环处理"><a href="#4-循环处理" class="headerlink" title="4. 循环处理"></a>4. 循环处理</h3><p>配合 <code>NOT FOUND</code> handler 判断结果集结束。</p>
+<h3 id="5-关闭"><a href="#5-关闭" class="headerlink" title="5. 关闭"></a>5. 关闭</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CLOSE</span> cur_order;<br></code></pre></td></tr></table></figure>
+
+<h2 id="5-5-老资料里另一个要修正的点：MySQL-Cursor-不需要-DEALLOCATE"><a href="#5-5-老资料里另一个要修正的点：MySQL-Cursor-不需要-DEALLOCATE" class="headerlink" title="5.5 老资料里另一个要修正的点：MySQL Cursor 不需要 DEALLOCATE"></a>5.5 老资料里另一个要修正的点：MySQL Cursor 不需要 DEALLOCATE</h2><p>部分旧教程会把 Cursor 生命周期写成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">DECLARE -&gt; OPEN -&gt; FETCH -&gt; CLOSE -&gt; DEALLOCATE<br></code></pre></td></tr></table></figure>
+
+<p>甚至写出：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">DEALLOCATE</span> <span class="hljs-keyword">PREPARE</span> cur_xxx;<br></code></pre></td></tr></table></figure>
+
+<p>这是把<strong>预处理语句</strong>和<strong>游标</strong>混在了一起。</p>
+<p><code>DEALLOCATE PREPARE</code> 是释放 prepared statement 的语法，不是释放 MySQL stored-program cursor 的语法。MySQL 游标使用 <code>CLOSE cursor_name</code>；如果没有显式关闭，在所属 <code>BEGIN ... END</code> 块结束时也会自动关闭。</p>
+<p>所以不要给 Cursor 强行多安排一个不存在的“葬礼仪式”。</p>
+<h2 id="5-6-一个完整-Cursor-例子"><a href="#5-6-一个完整-Cursor-例子" class="headerlink" title="5.6 一个完整 Cursor 例子"></a>5.6 一个完整 Cursor 例子</h2><p>假设我们确实有一类“逐订单调整费率”的离线任务：不同金额区间采取不同规则，并且为了演示需要逐行更新。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><code class="hljs sql">DELIMITER $$<br><br><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">PROCEDURE</span> adjust_order_fee()<br><span class="hljs-keyword">BEGIN</span><br>    <span class="hljs-keyword">DECLARE</span> done <span class="hljs-type">BOOLEAN</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-literal">FALSE</span>;<br>    <span class="hljs-keyword">DECLARE</span> v_id <span class="hljs-type">BIGINT</span>;<br>    <span class="hljs-keyword">DECLARE</span> v_amount <span class="hljs-type">DECIMAL</span>(<span class="hljs-number">18</span>, <span class="hljs-number">2</span>);<br>    <span class="hljs-keyword">DECLARE</span> v_rate <span class="hljs-type">DECIMAL</span>(<span class="hljs-number">8</span>, <span class="hljs-number">4</span>);<br><br>    <span class="hljs-keyword">DECLARE</span> cur_order <span class="hljs-keyword">CURSOR</span> <span class="hljs-keyword">FOR</span><br>        <span class="hljs-keyword">SELECT</span> id, order_amount<br>        <span class="hljs-keyword">FROM</span> orders<br>        <span class="hljs-keyword">WHERE</span> status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;WAIT_PROCESS&#x27;</span><br>        <span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> id;<br><br>    <span class="hljs-keyword">DECLARE</span> CONTINUE HANDLER <span class="hljs-keyword">FOR</span> <span class="hljs-keyword">NOT</span> FOUND<br>        <span class="hljs-keyword">SET</span> done <span class="hljs-operator">=</span> <span class="hljs-literal">TRUE</span>;<br><br>    <span class="hljs-keyword">OPEN</span> cur_order;<br><br>    read_loop: LOOP<br>        <span class="hljs-keyword">FETCH</span> cur_order <span class="hljs-keyword">INTO</span> v_id, v_amount;<br><br>        IF done <span class="hljs-keyword">THEN</span><br>            LEAVE read_loop;<br>        <span class="hljs-keyword">END</span> IF;<br><br>        IF v_amount <span class="hljs-operator">&gt;=</span> <span class="hljs-number">10000</span> <span class="hljs-keyword">THEN</span><br>            <span class="hljs-keyword">SET</span> v_rate <span class="hljs-operator">=</span> <span class="hljs-number">0.0050</span>;<br>        ELSEIF v_amount <span class="hljs-operator">&gt;=</span> <span class="hljs-number">1000</span> <span class="hljs-keyword">THEN</span><br>            <span class="hljs-keyword">SET</span> v_rate <span class="hljs-operator">=</span> <span class="hljs-number">0.0080</span>;<br>        <span class="hljs-keyword">ELSE</span><br>            <span class="hljs-keyword">SET</span> v_rate <span class="hljs-operator">=</span> <span class="hljs-number">0.0100</span>;<br>        <span class="hljs-keyword">END</span> IF;<br><br>        <span class="hljs-keyword">UPDATE</span> orders<br>           <span class="hljs-keyword">SET</span> service_fee <span class="hljs-operator">=</span> ROUND(v_amount <span class="hljs-operator">*</span> v_rate, <span class="hljs-number">2</span>)<br>         <span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> v_id;<br>    <span class="hljs-keyword">END</span> LOOP;<br><br>    <span class="hljs-keyword">CLOSE</span> cur_order;<br><span class="hljs-keyword">END</span> $$<br><br>DELIMITER ;<br></code></pre></td></tr></table></figure>
+
+<p>不过先别急着为 Cursor 鼓掌。这个例子其实仍然可以集合化：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> orders<br><span class="hljs-keyword">SET</span> service_fee <span class="hljs-operator">=</span> ROUND(<br>    order_amount <span class="hljs-operator">*</span><br>    <span class="hljs-keyword">CASE</span><br>        <span class="hljs-keyword">WHEN</span> order_amount <span class="hljs-operator">&gt;=</span> <span class="hljs-number">10000</span> <span class="hljs-keyword">THEN</span> <span class="hljs-number">0.0050</span><br>        <span class="hljs-keyword">WHEN</span> order_amount <span class="hljs-operator">&gt;=</span> <span class="hljs-number">1000</span> <span class="hljs-keyword">THEN</span> <span class="hljs-number">0.0080</span><br>        <span class="hljs-keyword">ELSE</span> <span class="hljs-number">0.0100</span><br>    <span class="hljs-keyword">END</span>,<br>    <span class="hljs-number">2</span><br>)<br><span class="hljs-keyword">WHERE</span> status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;WAIT_PROCESS&#x27;</span>;<br></code></pre></td></tr></table></figure>
+
+<p>第二种往往更简单，也更容易让优化器整体优化。</p>
+<p>这就是游标真正应该遵守的原则：</p>
+<blockquote>
+<p><strong>不是“能不能用 Cursor”，而是“这个问题有没有更好的集合表达”。</strong></p>
+</blockquote>
+<h2 id="5-7-Cursor-适合什么场景"><a href="#5-7-Cursor-适合什么场景" class="headerlink" title="5.7 Cursor 适合什么场景"></a>5.7 Cursor 适合什么场景</h2><p>比较合理的场景包括：</p>
+<ul>
+<li>每一行都需要复杂分支，集合 SQL 难以清晰表达；</li>
+<li>后一行处理依赖前一行产生的过程状态；</li>
+<li>需要调用 stored program 内特定的逐行流程；</li>
+<li>数据量可控的后台管理&#x2F;迁移任务。</li>
+</ul>
+<p>不适合的典型场景：</p>
+<ul>
+<li><code>SUM / COUNT / AVG</code> 等聚合；</li>
+<li>可以用 <code>CASE WHEN</code> 完成的批量更新；</li>
+<li>可以用 <code>JOIN / EXISTS / CTE / Window Function</code> 完成的集合运算；</li>
+<li>高并发 OLTP 主链路中的大结果集逐行处理。</li>
+</ul>
+<hr>
+<h1 id="6-把四个概念放回一个真实业务流程"><a href="#6-把四个概念放回一个真实业务流程" class="headerlink" title="6. 把四个概念放回一个真实业务流程"></a>6. 把四个概念放回一个真实业务流程</h1><p>假设有一套订单结算系统，可以这样分层：</p>
+<h2 id="6-1-View：给报表一个稳定查询模型"><a href="#6-1-View：给报表一个稳定查询模型" class="headerlink" title="6.1 View：给报表一个稳定查询模型"></a>6.1 View：给报表一个稳定查询模型</h2><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">VIEW</span> v_settlement_report <span class="hljs-keyword">AS</span><br><span class="hljs-keyword">SELECT</span><br>    s.id,<br>    s.settlement_no,<br>    s.merchant_id,<br>    s.total_amount,<br>    s.status,<br>    s.settlement_date<br><span class="hljs-keyword">FROM</span> settlement s<br><span class="hljs-keyword">WHERE</span> s.deleted <span class="hljs-operator">=</span> <span class="hljs-number">0</span>;<br></code></pre></td></tr></table></figure>
+
+<p>报表只依赖 View，不关心底层表后续如何拆分字段。</p>
+<h2 id="6-2-Transaction：保证一次结算状态变更的原子性"><a href="#6-2-Transaction：保证一次结算状态变更的原子性" class="headerlink" title="6.2 Transaction：保证一次结算状态变更的原子性"></a>6.2 Transaction：保证一次结算状态变更的原子性</h2><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">START</span> TRANSACTION;<br><br><span class="hljs-keyword">UPDATE</span> settlement<br><span class="hljs-keyword">SET</span> status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;SETTLED&#x27;</span><br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> <span class="hljs-number">10001</span><br>  <span class="hljs-keyword">AND</span> status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;WAIT_SETTLE&#x27;</span>;<br><br><span class="hljs-keyword">INSERT INTO</span> settlement_log(settlement_id, action)<br><span class="hljs-keyword">VALUES</span> (<span class="hljs-number">10001</span>, <span class="hljs-string">&#x27;SETTLED&#x27;</span>);<br><br><span class="hljs-keyword">COMMIT</span>;<br></code></pre></td></tr></table></figure>
+
+<p>状态修改和日志写入必须同生共死。</p>
+<h2 id="6-3-Stored-Procedure：数据库侧批处理入口"><a href="#6-3-Stored-Procedure：数据库侧批处理入口" class="headerlink" title="6.3 Stored Procedure：数据库侧批处理入口"></a>6.3 Stored Procedure：数据库侧批处理入口</h2><p>如果是一个数据库中心型的离线批处理，可以封装：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CALL</span> settle_by_date(<span class="hljs-string">&#x27;2026-08-10&#x27;</span>);<br></code></pre></td></tr></table></figure>
+
+<p>过程内部统一处理当日满足条件的数据。</p>
+<h2 id="6-4-Cursor：只处理无法自然集合化的特殊行"><a href="#6-4-Cursor：只处理无法自然集合化的特殊行" class="headerlink" title="6.4 Cursor：只处理无法自然集合化的特殊行"></a>6.4 Cursor：只处理无法自然集合化的特殊行</h2><p>假设 99% 的结算规则都能一条 SQL 处理，只有 1% 的特殊商户规则必须逐行判断，那就只让 Cursor 处理那 1%，而不是把所有记录都拖进逐行循环。</p>
+<p>这套分工的核心不是“把数据库功能都用一遍”，而是<strong>每种能力只承担它最擅长的职责</strong>。</p>
+<hr>
+<h1 id="7-高频误区与面试易错点"><a href="#7-高频误区与面试易错点" class="headerlink" title="7. 高频误区与面试易错点"></a>7. 高频误区与面试易错点</h1><h2 id="7-1-View-会不会保存数据"><a href="#7-1-View-会不会保存数据" class="headerlink" title="7.1 View 会不会保存数据"></a>7.1 View 会不会保存数据</h2><p>普通 MySQL View 保存的是查询定义，不是另一份独立结果数据。查询时它表现为虚拟表。</p>
+<p>不要把普通 View 和“物化视图”混为一谈；MySQL 8.4 本身没有提供通用的原生 materialized view 功能。</p>
+<h2 id="7-2-View-一定比直接写-SQL-快吗"><a href="#7-2-View-一定比直接写-SQL-快吗" class="headerlink" title="7.2 View 一定比直接写 SQL 快吗"></a>7.2 View 一定比直接写 SQL 快吗</h2><p>不一定。</p>
+<p>View 首先是<strong>抽象和复用机制</strong>，不是性能加速器。优化器最终仍要处理它背后的查询及基础表。是否快取决于查询结构、谓词下推、基础表索引、统计信息等。</p>
+<h2 id="7-3-BEGIN…END-就是事务吗"><a href="#7-3-BEGIN…END-就是事务吗" class="headerlink" title="7.3 BEGIN…END 就是事务吗"></a>7.3 BEGIN…END 就是事务吗</h2><p>不是。</p>
+<p>存储程序中的：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">BEGIN</span><br>    ...<br><span class="hljs-keyword">END</span><br></code></pre></td></tr></table></figure>
+
+<p>是代码块。</p>
+<p>事务应该显式使用：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">START</span> TRANSACTION;<br>...<br><span class="hljs-keyword">COMMIT</span>;<br></code></pre></td></tr></table></figure>
+
+<h2 id="7-4-一条-SQL-报错，MySQL-会自动把整个事务都回滚吗"><a href="#7-4-一条-SQL-报错，MySQL-会自动把整个事务都回滚吗" class="headerlink" title="7.4 一条 SQL 报错，MySQL 会自动把整个事务都回滚吗"></a>7.4 一条 SQL 报错，MySQL 会自动把整个事务都回滚吗</h2><p>不能简单这样理解。</p>
+<p>不同错误的行为可能不同。应用程序应明确处理异常，并在需要时显式 <code>ROLLBACK</code>。不要把“语句失败”想当然地等价成“整个事务已经替你回滚完成”。</p>
+<h2 id="7-5-隔离级别越高越好吗"><a href="#7-5-隔离级别越高越好吗" class="headerlink" title="7.5 隔离级别越高越好吗"></a>7.5 隔离级别越高越好吗</h2><p>不是。</p>
+<p>更高隔离通常意味着更强的并发控制和更高的等待&#x2F;冲突成本。隔离级别实际上是在<strong>一致性、可重复性、吞吐量</strong>之间做选择。</p>
+<h2 id="7-6-Stored-Procedure-一定比应用层-SQL-快吗"><a href="#7-6-Stored-Procedure-一定比应用层-SQL-快吗" class="headerlink" title="7.6 Stored Procedure 一定比应用层 SQL 快吗"></a>7.6 Stored Procedure 一定比应用层 SQL 快吗</h2><p>也不是。</p>
+<p>它可能减少客户端与数据库的往返，但流程逻辑本身仍然消耗数据库资源。是否应该使用，更多是架构边界、可维护性、扩展方式和运维体系的问题，而不是一句“存储过程预编译所以一定快”。</p>
+<h2 id="7-7-Cursor-会自动更省内存吗"><a href="#7-7-Cursor-会自动更省内存吗" class="headerlink" title="7.7 Cursor 会自动更省内存吗"></a>7.7 Cursor 会自动更省内存吗</h2><p>不能把它当成通用的“百万行省内存神器”。Cursor 有自己的服务器端实现和资源成本，而且逐行处理常常会牺牲集合优化能力。真正的大数据量任务要综合考虑批量处理、分页、流式读取、集合 SQL、临时表以及应用侧处理。</p>
+<hr>
+<h1 id="8-一张速查表"><a href="#8-一张速查表" class="headerlink" title="8. 一张速查表"></a>8. 一张速查表</h1><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>优先考虑</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>多个地方反复写同一段复杂查询</td>
+<td>View</td>
+</tr>
+<tr>
+<td>想限制调用方只能看部分字段</td>
+<td>View + 权限</td>
+</tr>
+<tr>
+<td>两个 UPDATE 必须一起成功</td>
+<td>Transaction</td>
+</tr>
+<tr>
+<td>需要失败后撤销一组写操作</td>
+<td>Transaction</td>
+</tr>
+<tr>
+<td>同一事务中先读后写关键资源</td>
+<td>Transaction + 合适的锁定读</td>
+</tr>
+<tr>
+<td>想把数据库侧的一段流程封成 <code>CALL</code></td>
+<td>Stored Procedure</td>
+</tr>
+<tr>
+<td>需要 <code>IF / LOOP / HANDLER</code> 等数据库内流程控制</td>
+<td>Stored Procedure</td>
+</tr>
+<tr>
+<td>结果集必须逐行处理</td>
+<td>Cursor</td>
+</tr>
+<tr>
+<td><code>SUM / CASE / JOIN / Window Function</code> 能解决</td>
+<td>不要急着用 Cursor</td>
+</tr>
+</tbody></table>
+<hr>
+<h1 id="9-总结"><a href="#9-总结" class="headerlink" title="9. 总结"></a>9. 总结</h1><p>把这四个概念串起来之后，SQL 会从“查询语言”变成一套更完整的数据处理体系：</p>
+<ul>
+<li><strong>View</strong> 提供查询抽象，让复杂 SQL 可以成为稳定的数据接口；</li>
+<li><strong>Transaction</strong> 定义一致性边界，用 ACID、隔离和锁保证并发写操作可控；</li>
+<li><strong>Stored Procedure</strong> 让数据库具备更强的过程化封装能力，但需要权衡可移植性和维护成本；</li>
+<li><strong>Cursor</strong> 为 SQL 增加逐行处理能力，但应该是集合方案无法自然解决时的后手。</li>
+</ul>
+<p>真正值得形成肌肉记忆的是下面四句话：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">查询需要复用        -&gt; View<br>多条写操作要同生共死 -&gt; Transaction<br>数据库侧要封装流程    -&gt; Stored Procedure<br>必须一行一行处理      -&gt; Cursor<br></code></pre></td></tr></table></figure>
+
+<p>以及最后一条工程原则：</p>
+<blockquote>
+<p><strong>数据库最擅长集合运算。不要为了“会用高级语法”而把一个能用一条 SQL 解决的问题改造成循环。</strong></p>
+</blockquote>
+<hr>
+<h1 id="10-资料来源与延伸阅读"><a href="#10-资料来源与延伸阅读" class="headerlink" title="10. 资料来源与延伸阅读"></a>10. 资料来源与延伸阅读</h1><p>本文主体知识整理自提供的《SQL 必知必会》相关资料：</p>
+<ol>
+<li>《视图在 SQL 中的作用是什么，它是怎样工作的？》</li>
+<li>《什么是存储过程，在实际项目中用得多么？》</li>
+<li>《什么是事务处理，如何使用 COMMIT 和 ROLLBACK 进行操作？》</li>
+<li>《初识事务隔离：隔离的级别有哪些，它们都解决了哪些异常问题？》</li>
+<li>《游标：当我们需要逐条处理数据时，该怎么做？》</li>
+</ol>
+<p>为避免旧资料与当前 MySQL 实现差异造成误解，本文同时参考 MySQL 8.4 官方文档：</p>
+<ul>
+<li>Views: <a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/8.4/en/views.html">https://dev.mysql.com/doc/refman/8.4/en/views.html</a></li>
+<li>CREATE VIEW: <a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/8.4/en/create-view.html">https://dev.mysql.com/doc/refman/8.4/en/create-view.html</a></li>
+<li>InnoDB Transaction Model: <a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-model.html">https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-model.html</a></li>
+<li>Transaction Isolation Levels: <a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html">https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html</a></li>
+<li>autocommit, Commit, and Rollback: <a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/8.4/en/innodb-autocommit-commit-rollback.html">https://dev.mysql.com/doc/refman/8.4/en/innodb-autocommit-commit-rollback.html</a></li>
+<li>Atomic DDL: <a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/8.4/en/atomic-ddl.html">https://dev.mysql.com/doc/refman/8.4/en/atomic-ddl.html</a></li>
+<li>Stored Routine Syntax: <a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/8.4/en/stored-routines-syntax.html">https://dev.mysql.com/doc/refman/8.4/en/stored-routines-syntax.html</a></li>
+<li>ALTER PROCEDURE: <a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/8.4/en/alter-procedure.html">https://dev.mysql.com/doc/refman/8.4/en/alter-procedure.html</a></li>
+<li>BEGIN … END: <a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/8.4/en/begin-end.html">https://dev.mysql.com/doc/refman/8.4/en/begin-end.html</a></li>
+<li>Cursors: <a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/8.4/en/cursors.html">https://dev.mysql.com/doc/refman/8.4/en/cursors.html</a></li>
+</ul>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/" class="category-chain-item">数据库</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/MySQL/" class="category-chain-item">MySQL</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/MySQL/" class="print-no-link">#MySQL</a>
+      
+        <a href="/tags/SQL/" class="print-no-link">#SQL</a>
+      
+        <a href="/tags/View/" class="print-no-link">#View</a>
+      
+        <a href="/tags/Transaction/" class="print-no-link">#Transaction</a>
+      
+        <a href="/tags/Stored-Procedure/" class="print-no-link">#Stored Procedure</a>
+      
+        <a href="/tags/Cursor/" class="print-no-link">#Cursor</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>从查询封装到一致性边界：MySQL View、事务、存储过程与游标实战</div>
+      <div>https://allendericdalexander.github.io/2026/08/10/db/sql/03mysql-view-transaction-stored-procedure-cursor/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月10日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/08/11/db/sql/04mysql-sql-performance-optimization-index-design/" title="从表设计到磁盘 I/O：一套完整的 MySQL 性能优化与索引设计方法">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">从表设计到磁盘 I/O：一套完整的 MySQL 性能优化与索引设计方法</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/10/db/sql/02sql-from-ddl-to-join/" title="SQL 从建表到多表查询：一篇串起 DDL、SELECT、WHERE、聚合、子查询与 JOIN">
+                        <span class="hidden-mobile">SQL 从建表到多表查询：一篇串起 DDL、SELECT、WHERE、聚合、子查询与 JOIN</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
