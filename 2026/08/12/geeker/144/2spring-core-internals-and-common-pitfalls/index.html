@@ -1,0 +1,1507 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="Spring 好用的地方，恰恰也是它最容易让人掉坑的地方：大量重复、繁琐的对象创建、依赖装配、生命周期管理、代理增强和 Web 请求分发工作都被框架接管了。开发者只需要写几个注解，程序往往就能运行；但一旦包结构、Bean 数量、代理方式、初始化时机或监听体系发生变化，那些平时看不见的约定就会突然暴露出来。 理解 Spring，不能只停留在“这个注解怎么用”。更有效的方式，是建立一条完整的运行链路：">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从 Bean 到 Web 请求：Spring 核心运行机制、AOP、事件与常见陷阱">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/12/geeker/144/2spring-core-internals-and-common-pitfalls/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="Spring 好用的地方，恰恰也是它最容易让人掉坑的地方：大量重复、繁琐的对象创建、依赖装配、生命周期管理、代理增强和 Web 请求分发工作都被框架接管了。开发者只需要写几个注解，程序往往就能运行；但一旦包结构、Bean 数量、代理方式、初始化时机或监听体系发生变化，那些平时看不见的约定就会突然暴露出来。 理解 Spring，不能只停留在“这个注解怎么用”。更有效的方式，是建立一条完整的运行链路：">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-12T09:38:00.000Z">
+<meta property="article:modified_time" content="2026-08-12T12:19:21.644Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="AOP">
+<meta property="article:tag" content="ApplicationEvent">
+<meta property="article:tag" content="Bean">
+<meta property="article:tag" content="DI">
+<meta property="article:tag" content="DispatcherServlet">
+<meta property="article:tag" content="IoC">
+<meta property="article:tag" content="Spring">
+<meta property="article:tag" content="Spring Boot">
+<meta property="article:tag" content="Spring MVC">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>从 Bean 到 Web 请求：Spring 核心运行机制、AOP、事件与常见陷阱 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="从 Bean 到 Web 请求：Spring 核心运行机制、AOP、事件与常见陷阱"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-12 17:38" pubdate>
+          2026年8月12日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          9.6k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          80 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">从 Bean 到 Web 请求：Spring 核心运行机制、AOP、事件与常见陷阱</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>Spring 好用的地方，恰恰也是它最容易让人掉坑的地方：大量重复、繁琐的对象创建、依赖装配、生命周期管理、代理增强和 Web 请求分发工作都被框架接管了。开发者只需要写几个注解，程序往往就能运行；但一旦包结构、Bean 数量、代理方式、初始化时机或监听体系发生变化，那些平时看不见的约定就会突然暴露出来。</p>
+<p>理解 Spring，不能只停留在“这个注解怎么用”。更有效的方式，是建立一条完整的运行链路：<strong>Bean 如何被发现、如何被创建、如何寻找依赖、如何完成初始化、何时变成代理对象、事件如何广播，以及一个 HTTP 请求最终如何找到 Controller 方法。</strong></p>
+<p>本文围绕这条主线，把 Bean 定义、依赖注入、生命周期、AOP、Spring 事件和 Spring MVC 请求处理串成一套完整的知识体系。</p>
+<blockquote>
+<p>文中涉及的部分源码类名、调用栈和示例来自 Spring 5.x &#x2F; Spring Boot 2.x 时代的实现。理解这些源码的目的，是建立运行模型，而不是把内部实现细节当成永远不变的 API 契约。尤其是 AOP Advice 的内部排序等细节，工程代码应尽量通过显式配置表达意图，不要依赖某个版本的偶然实现。</p>
+</blockquote>
+<h1 id="1-Spring-到底替我们做了什么"><a href="#1-Spring-到底替我们做了什么" class="headerlink" title="1. Spring 到底替我们做了什么"></a>1. Spring 到底替我们做了什么</h1><p>传统 Java 代码中，一个对象依赖另一个对象时，最直观的写法是自己创建：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">Service</span> &#123;<br>    <span class="hljs-keyword">private</span> <span class="hljs-type">ComponentA</span> <span class="hljs-variable">component</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ComponentA</span>(<span class="hljs-string">&quot;first component&quot;</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这种方式的问题不在于 <code>new</code> 本身，而在于<strong>对象创建、依赖关系和业务逻辑耦合在了一起</strong>。一旦 <code>ComponentA</code> 的构造方式变化，所有创建它的地方都可能跟着变化；如果还要处理单例、测试替身、统一日志、事务、权限、监控等横切能力，代码会越来越难维护。</p>
+<p>Spring 的核心思路可以简化成一个“对象中介”：</p>
+<ol>
+<li>扫描或读取配置，确定哪些对象由容器管理；</li>
+<li>创建这些对象，也就是创建 Bean；</li>
+<li>根据 Bean 之间的依赖关系完成装配；</li>
+<li>在初始化阶段执行必要的扩展逻辑；</li>
+<li>如果对象需要 AOP，则返回代理对象；</li>
+<li>在运行期间提供 Bean 查找、事件广播、Web 请求分发等能力；</li>
+<li>容器关闭时执行需要的销毁逻辑。</li>
+</ol>
+<p>可以把它抽象成下面的流程：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[扫描配置与注解] --&gt; B[生成 BeanDefinition]
+    B --&gt; C[实例化 Bean]
+    C --&gt; D[依赖注入 populateBean]
+    D --&gt; E[初始化 initializeBean]
+    E --&gt; F&#123;需要 AOP?&#125;
+    F -- 否 --&gt; G[暴露原始 Bean]
+    F -- 是 --&gt; H[创建 Proxy]
+    H --&gt; I[暴露代理 Bean]
+    G --&gt; J[运行期使用]
+    I --&gt; J
+    J --&gt; K[事件 / Web / 业务调用]
+    K --&gt; L[容器关闭]
+    L --&gt; M[销毁回调]
+</code></pre>
+
+<p>真正值得记住的不是每个内部方法，而是这几个阶段之间的先后关系。</p>
+<h1 id="2-Bean-是整个-Spring-运行模型的起点"><a href="#2-Bean-是整个-Spring-运行模型的起点" class="headerlink" title="2. Bean 是整个 Spring 运行模型的起点"></a>2. Bean 是整个 Spring 运行模型的起点</h1><p>Spring Boot、Spring MVC、Spring AOP 乃至更上层的 Spring Cloud，本质上都建立在 Bean 容器之上。一个 Controller 能不能处理请求，一个 Service 能不能被注入，一个切面能不能生效，第一步都要先回答：<strong>这个类有没有成为 Bean，以及拿到的到底是不是预期的 Bean。</strong></p>
+<h2 id="2-1-SpringBootApplication-默认扫描哪里"><a href="#2-1-SpringBootApplication-默认扫描哪里" class="headerlink" title="2.1 @SpringBootApplication 默认扫描哪里"></a>2.1 <code>@SpringBootApplication</code> 默认扫描哪里</h2><p>一个最常见的 Spring Boot 程序如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.example.application;<br><br><span class="hljs-meta">@SpringBootApplication</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">Application</span> &#123;<br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> &#123;<br>        SpringApplication.run(Application.class, args);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><code>@SpringBootApplication</code> 组合了多个注解，其中包含组件扫描能力。关键点在于：当没有显式指定扫描包时，扫描范围以启动类所在包为基础向下扫描。</p>
+<p>因此下面的结构通常没有问题：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">com.example.application<br>├── Application.java<br>└── HelloWorldController.java<br></code></pre></td></tr></table></figure>
+
+<p>但如果把 Controller 移到启动类扫描范围之外：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">com.example.application.Application<br>com.example.controller.HelloWorldController<br></code></pre></td></tr></table></figure>
+
+<p>即使 Controller 代码一行都没改，也可能因为没有被组件扫描发现而无法注册成 Bean。</p>
+<p>更稳妥的做法有两种。</p>
+<p>显式指定扫描范围：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@SpringBootApplication(scanBasePackages = &#123;</span><br><span class="hljs-meta">        &quot;com.example.application&quot;,</span><br><span class="hljs-meta">        &quot;com.example.controller&quot;</span><br><span class="hljs-meta">&#125;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">Application</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>或者使用 <code>@ComponentScan</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@SpringBootApplication</span><br><span class="hljs-meta">@ComponentScan(&#123;</span><br><span class="hljs-meta">        &quot;com.example.application&quot;,</span><br><span class="hljs-meta">        &quot;com.example.controller&quot;</span><br><span class="hljs-meta">&#125;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">Application</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>需要注意一个容易被忽略的点：<strong>一旦自己显式配置扫描范围，就要确认原来默认能够扫描到的包没有被漏掉。</strong> 修复“新包扫描不到”的同时又把旧包排除，是很典型的二次故障。</p>
+<p>工程上最简单的规避方式，是让启动类位于项目业务包的根包位置，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">com.example.demo<br>├── DemoApplication.java<br>├── controller<br>├── service<br>├── repository<br>└── config<br></code></pre></td></tr></table></figure>
+
+<p>这样大多数场景甚至不需要额外配置扫描范围。</p>
+<h2 id="2-2-BeanDefinition、实例和-Bean-不是一回事"><a href="#2-2-BeanDefinition、实例和-Bean-不是一回事" class="headerlink" title="2.2 BeanDefinition、实例和 Bean 不是一回事"></a>2.2 BeanDefinition、实例和 Bean 不是一回事</h2><p>组件扫描发现类以后，Spring 首先得到的不是业务对象实例，而是描述这个 Bean 的元数据，也就是 <code>BeanDefinition</code>。之后才根据这些元数据完成实例化、属性填充、初始化和代理增强。</p>
+<p>这个区分非常重要，因为很多问题其实发生在不同阶段：</p>
+<ul>
+<li>“扫描不到”发生在 BeanDefinition 发现阶段；</li>
+<li>“构造器参数找不到”发生在实例化阶段；</li>
+<li><code>@Autowired</code> 字段为空发生在依赖填充阶段之前；</li>
+<li><code>@PostConstruct</code> 属于初始化阶段；</li>
+<li>AOP Proxy 通常在初始化后由 BeanPostProcessor 包装出来；</li>
+<li>销毁方法则在容器关闭时执行。</li>
+</ul>
+<p>把这些阶段混成一个“Spring 创建对象”的黑盒，就很容易对执行时机产生错误预期。</p>
+<h1 id="3-Bean-创建的核心链路：实例化、填充、初始化"><a href="#3-Bean-创建的核心链路：实例化、填充、初始化" class="headerlink" title="3. Bean 创建的核心链路：实例化、填充、初始化"></a>3. Bean 创建的核心链路：实例化、填充、初始化</h1><p>Spring 创建 Bean 时，有一条非常关键的主线：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">createBeanInstance<br>    -&gt; populateBean<br>    -&gt; initializeBean<br></code></pre></td></tr></table></figure>
+
+<p>可以把它理解为：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant BF as BeanFactory
+    participant Bean as Bean 实例
+    participant BPP as BeanPostProcessor
+
+    BF-&gt;&gt;BF: createBeanInstance()
+    BF-&gt;&gt;Bean: 调用构造器创建对象
+    BF-&gt;&gt;BF: populateBean()
+    BF-&gt;&gt;BPP: 解析 @Autowired / @Value 等
+    BPP-&gt;&gt;Bean: 设置依赖字段/方法
+    BF-&gt;&gt;BF: initializeBean()
+    BF-&gt;&gt;BPP: BeforeInitialization
+    BPP-&gt;&gt;Bean: @PostConstruct 等
+    BF-&gt;&gt;Bean: InitializingBean.afterPropertiesSet()
+    BF-&gt;&gt;BPP: AfterInitialization
+    BPP--&gt;&gt;BF: 可能返回 AOP Proxy
+</code></pre>
+
+<p>这条顺序解释了大量常见问题。</p>
+<h1 id="4-构造器依赖：Spring-会自动去容器里找参数"><a href="#4-构造器依赖：Spring-会自动去容器里找参数" class="headerlink" title="4. 构造器依赖：Spring 会自动去容器里找参数"></a>4. 构造器依赖：Spring 会自动去容器里找参数</h1><p>假设一个 Bean 只有下面这个构造器：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ServiceImpl</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> String serviceName;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">ServiceImpl</span><span class="hljs-params">(String serviceName)</span> &#123;<br>        <span class="hljs-built_in">this</span>.serviceName = serviceName;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>对于普通 Java，我们会自然地想到：调用时自己传一个字符串即可。但对于由 Spring 创建的 Bean，构造器参数本身就是依赖。Spring 需要为 <code>String serviceName</code> 找到一个可装配的 Bean。</p>
+<p>如果容器中没有符合要求的 <code>String</code> Bean，创建 <code>ServiceImpl</code> 就可能失败。可以显式提供：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Configuration</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ServiceConfiguration</span> &#123;<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> String <span class="hljs-title function_">serviceName</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;MyServiceName&quot;</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>Spring 内部最终会把构造器参数包装成依赖描述，再通过类似 <code>resolveDependency(...)</code> 的流程寻找候选 Bean。</p>
+<p>这里有一个非常重要的边界：<strong>“找不到依赖一定报错”并不总成立。</strong></p>
+<p>例如构造参数是集合：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ServiceImpl</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> List&lt;String&gt; serviceNames;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">ServiceImpl</span><span class="hljs-params">(List&lt;String&gt; serviceNames)</span> &#123;<br>        <span class="hljs-built_in">this</span>.serviceNames = serviceNames;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果没有任何 <code>String</code> Bean，Spring 在某些构造器装配场景中会对数组、集合、Map 做 fallback，传入空容器，而不是直接失败。</p>
+<p>所以看到“依赖不存在”时，不要只凭直觉判断结果，要先确认：</p>
+<ul>
+<li>依赖是不是必选；</li>
+<li>目标是不是数组、集合或 Map；</li>
+<li>是否存在 fallback；</li>
+<li>当前走的是字段注入、构造器注入还是工厂方法参数解析。</li>
+</ul>
+<h1 id="5-为什么更推荐构造器注入"><a href="#5-为什么更推荐构造器注入" class="headerlink" title="5. 为什么更推荐构造器注入"></a>5. 为什么更推荐构造器注入</h1><p>一个很经典的错误是：在构造器里使用字段注入的对象。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LightMgrService</span> &#123;<br><br>    <span class="hljs-meta">@Autowired</span><br>    <span class="hljs-keyword">private</span> LightService lightService;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">LightMgrService</span><span class="hljs-params">()</span> &#123;<br>        lightService.check(); <span class="hljs-comment">// NullPointerException</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>原因并不神秘：构造器执行发生在 <code>createBeanInstance()</code>，字段注入发生在后面的 <code>populateBean()</code>。构造器执行时，<code>lightService</code> 还没来得及被注入。</p>
+<p>改成构造器注入即可让依赖在对象创建时就存在：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LightMgrService</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> LightService lightService;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">LightMgrService</span><span class="hljs-params">(LightService lightService)</span> &#123;<br>        <span class="hljs-built_in">this</span>.lightService = lightService;<br>        <span class="hljs-built_in">this</span>.lightService.check();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这也是构造器注入在工程实践中更可靠的原因之一：</p>
+<ul>
+<li>必需依赖在对象构造完成时就已经满足；</li>
+<li>字段可以声明为 <code>final</code>；</li>
+<li>更容易测试；</li>
+<li>不会出现“构造器执行时依赖还没填充”的时间差。</li>
+</ul>
+<p>如果某段逻辑确实要求在<strong>依赖注入完成之后</strong>执行，可以使用生命周期回调。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LightMgrService</span> &#123;<br><br>    <span class="hljs-meta">@Autowired</span><br>    <span class="hljs-keyword">private</span> LightService lightService;<br><br>    <span class="hljs-meta">@PostConstruct</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">init</span><span class="hljs-params">()</span> &#123;<br>        lightService.check();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>也可以实现 <code>InitializingBean</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LightMgrService</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">InitializingBean</span> &#123;<br><br>    <span class="hljs-meta">@Autowired</span><br>    <span class="hljs-keyword">private</span> LightService lightService;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">afterPropertiesSet</span><span class="hljs-params">()</span> &#123;<br>        lightService.check();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>两者都发生在依赖填充之后，但业务代码通常应优先考虑更低耦合的生命周期表达方式，不必为了初始化动作主动绑定大量 Spring 专有接口。</p>
+<h1 id="6-Autowired-到底怎样决定注入谁"><a href="#6-Autowired-到底怎样决定注入谁" class="headerlink" title="6. @Autowired 到底怎样决定注入谁"></a>6. <code>@Autowired</code> 到底怎样决定注入谁</h1><p>字段注入可以抽象成两步：</p>
+<ol>
+<li>找出需要注入的字段或方法；</li>
+<li>根据依赖描述寻找候选 Bean，并通过反射把结果写进去。</li>
+</ol>
+<p>负责处理 <code>@Autowired</code> 的关键扩展之一是 <code>AutowiredAnnotationBeanPostProcessor</code>。它会在 Bean 填充阶段找到带有注入注解的成员，然后调用 BeanFactory 去解析依赖。</p>
+<h2 id="6-1-一个接口有多个实现时为什么会报错"><a href="#6-1-一个接口有多个实现时为什么会报错" class="headerlink" title="6.1 一个接口有多个实现时为什么会报错"></a>6.1 一个接口有多个实现时为什么会报错</h2><p>假设：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">interface</span> <span class="hljs-title class_">DataService</span> &#123;<br>    <span class="hljs-keyword">void</span> <span class="hljs-title function_">deleteStudent</span><span class="hljs-params">(<span class="hljs-type">int</span> id)</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>同时存在两个实现：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Repository</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">OracleDataService</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">DataService</span> &#123;<br>&#125;<br><br><span class="hljs-meta">@Repository</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CassandraDataService</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">DataService</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>而使用方只有：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Autowired</span><br><span class="hljs-keyword">private</span> DataService dataService;<br></code></pre></td></tr></table></figure>
+
+<p>Spring 根据类型能够找到两个候选 Bean，却必须给单值字段选出一个，典型结果就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">required a single bean, but 2 were found<br></code></pre></td></tr></table></figure>
+
+<p>候选决策可以理解成类似下面的优先级判断：</p>
+<ol>
+<li>是否存在明确的 <code>@Primary</code>；</li>
+<li>是否有优先级信息；</li>
+<li>Bean 名是否与依赖名称精确匹配；</li>
+<li>如果依然无法唯一确定，则失败。</li>
+</ol>
+<p>例如给默认实现加 <code>@Primary</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Repository</span><br><span class="hljs-meta">@Primary</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">OracleDataService</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">DataService</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>或者显式使用 <code>@Qualifier</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Autowired</span><br><span class="hljs-meta">@Qualifier(&quot;cassandraDataService&quot;)</span><br><span class="hljs-keyword">private</span> DataService dataService;<br></code></pre></td></tr></table></figure>
+
+<p>如果业务本来就需要全部实现，则不要强行“选一个”，直接注入集合更加自然：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Autowired</span><br><span class="hljs-keyword">private</span> List&lt;DataService&gt; dataServices;<br></code></pre></td></tr></table></figure>
+
+<p>这里的核心思维不是“背哪个注解能消除报错”，而是先问清楚业务语义：<strong>到底需要一个默认实现、一个指定实现，还是全部实现。</strong></p>
+<h1 id="7-Bean-名称并不是永远“类名首字母小写”"><a href="#7-Bean-名称并不是永远“类名首字母小写”" class="headerlink" title="7. Bean 名称并不是永远“类名首字母小写”"></a>7. Bean 名称并不是永远“类名首字母小写”</h1><p>显式按名称引用 Bean 时，一个不起眼的命名规则就可能导致 <code>NoSuchBeanDefinitionException</code>。</p>
+<p>对于没有显式指定名称的注解 Bean，Spring 会通过 <code>AnnotationBeanNameGenerator</code> 生成默认 Bean 名。其中会使用类似 <code>Introspector.decapitalize(...)</code> 的规则。</p>
+<p>普通类：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">CassandraDataService<br></code></pre></td></tr></table></figure>
+
+<p>默认名通常是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">cassandraDataService<br></code></pre></td></tr></table></figure>
+
+<p>但如果类名开头连续两个字符都是大写，例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">SQLiteDataService<br></code></pre></td></tr></table></figure>
+
+<p><code>decapitalize</code> 不会简单地把第一个字符变小写，默认名可能仍然保持：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">SQLiteDataService<br></code></pre></td></tr></table></figure>
+
+<p>因此下面这种写法可能匹配不到：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Qualifier(&quot;sQLiteDataService&quot;)</span><br></code></pre></td></tr></table></figure>
+
+<p>如果 Bean 名是重要契约，最稳妥的方式是直接显式命名：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Repository(&quot;sqliteDataService&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SQLiteDataService</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">DataService</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>然后引用方统一使用这个名字：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Qualifier(&quot;sqliteDataService&quot;)</span><br></code></pre></td></tr></table></figure>
+
+<h2 id="7-1-内部类的默认-Bean-名更容易让人意外"><a href="#7-1-内部类的默认-Bean-名更容易让人意外" class="headerlink" title="7.1 内部类的默认 Bean 名更容易让人意外"></a>7.1 内部类的默认 Bean 名更容易让人意外</h2><p>假设在 <code>StudentController</code> 中定义内部类：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">StudentController</span> &#123;<br><br>    <span class="hljs-meta">@Repository</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">InnerClassDataService</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">DataService</span> &#123;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>经过内部类短类名处理后，默认 Bean 名并不只是简单的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">innerClassDataService<br></code></pre></td></tr></table></figure>
+
+<p>在课程案例对应的命名规则下，得到的是带外部类信息的名字：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">studentController.InnerClassDataService<br></code></pre></td></tr></table></figure>
+
+<p>因此更推荐直接给内部 Bean 指定稳定名称，而不是让调用方依赖内部命名算法。</p>
+<h1 id="8-Value-不只是“从-application-properties-取字符串”"><a href="#8-Value-不只是“从-application-properties-取字符串”" class="headerlink" title="8. @Value 不只是“从 application.properties 取字符串”"></a>8. <code>@Value</code> 不只是“从 application.properties 取字符串”</h1><p><code>@Value</code> 常被当成配置文件注入工具，但它的能力远不止如此。</p>
+<p>注入普通字符串：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Value(&quot;我是字符串&quot;)</span><br><span class="hljs-keyword">private</span> String text;<br></code></pre></td></tr></table></figure>
+
+<p>读取占位符：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Value(&quot;$&#123;app.server.ip&#125;&quot;)</span><br><span class="hljs-keyword">private</span> String ip;<br></code></pre></td></tr></table></figure>
+
+<p>读取其他 Bean 属性或表达式：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Value(&quot;#&#123;student.name&#125;&quot;)</span><br><span class="hljs-keyword">private</span> String studentName;<br></code></pre></td></tr></table></figure>
+
+<p>甚至可以得到 Bean：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Value(&quot;#&#123;student&#125;&quot;)</span><br><span class="hljs-keyword">private</span> Student student;<br></code></pre></td></tr></table></figure>
+
+<p>其工作流程可以概括为：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[发现 @Value] --&gt; B[取得注解字符串]
+    B --&gt; C[解析占位符/表达式]
+    C --&gt; D[得到值或对象]
+    D --&gt; E[类型转换]
+    E --&gt; F[写入目标字段]
+</code></pre>
+
+<h2 id="8-1-配置同名冲突：-username-为什么不是配置文件里的值"><a href="#8-1-配置同名冲突：-username-为什么不是配置文件里的值" class="headerlink" title="8.1 配置同名冲突：${username} 为什么不是配置文件里的值"></a>8.1 配置同名冲突：<code>${username}</code> 为什么不是配置文件里的值</h2><p>假设配置文件中有：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">username</span>=<span class="hljs-string">admin</span><br><span class="hljs-attr">password</span>=<span class="hljs-string">pass</span><br></code></pre></td></tr></table></figure>
+
+<p>代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Value(&quot;$&#123;username&#125;&quot;)</span><br><span class="hljs-keyword">private</span> String username;<br></code></pre></td></tr></table></figure>
+
+<p>最终值未必来自 <code>application.properties</code>。Spring 的属性解析是针对一组有顺序的 <code>PropertySource</code> 进行查找，系统环境变量、JVM 系统属性、配置文件等都可能参与解析。</p>
+<p>如果系统环境中已经存在同名 <code>USERNAME</code> &#x2F; <code>username</code>，就可能先命中系统级配置。</p>
+<p>即便改成：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">user.name</span>=<span class="hljs-string">admin</span><br></code></pre></td></tr></table></figure>
+
+<p>也未必安全，因为 JVM 自身就存在 <code>user.name</code> 这样的系统属性。</p>
+<p>因此配置项应该使用<strong>业务命名空间前缀</strong>，例如：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">student-system.account.username</span>=<span class="hljs-string">admin</span><br><span class="hljs-attr">student-system.account.password</span>=<span class="hljs-string">pass</span><br></code></pre></td></tr></table></figure>
+
+<p>而不是使用过于通用的：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">username</span>=<span class="hljs-string">admin</span><br><span class="hljs-attr">name</span>=<span class="hljs-string">demo</span><br><span class="hljs-attr">path</span>=<span class="hljs-string">/tmp</span><br><span class="hljs-attr">user.name</span>=<span class="hljs-string">admin</span><br></code></pre></td></tr></table></figure>
+
+<p>对于大量同类配置，工程上还应优先考虑结构化配置绑定，而不是让大量分散的 <code>@Value</code> 充斥业务类。</p>
+<h1 id="9-集合注入：收集所有-Bean-与直接注入一个集合-Bean-是两回事"><a href="#9-集合注入：收集所有-Bean-与直接注入一个集合-Bean-是两回事" class="headerlink" title="9. 集合注入：收集所有 Bean 与直接注入一个集合 Bean 是两回事"></a>9. 集合注入：收集所有 Bean 与直接注入一个集合 Bean 是两回事</h1><p>Spring 可以自动收集某个类型的所有 Bean：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Bean</span><br><span class="hljs-keyword">public</span> Student <span class="hljs-title function_">student1</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Student</span>(<span class="hljs-number">1</span>, <span class="hljs-string">&quot;xie&quot;</span>);<br>&#125;<br><br><span class="hljs-meta">@Bean</span><br><span class="hljs-keyword">public</span> Student <span class="hljs-title function_">student2</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Student</span>(<span class="hljs-number">2</span>, <span class="hljs-string">&quot;fang&quot;</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>然后：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-title function_">StudentController</span><span class="hljs-params">(List&lt;Student&gt; students)</span> &#123;<br>    <span class="hljs-built_in">this</span>.students = students;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>Spring 会解析 <code>List&lt;Student&gt;</code> 的泛型元素类型 <code>Student</code>，寻找所有 <code>Student</code> Bean，再组装成目标 List。</p>
+<p>但另一种写法是直接定义一个 <code>List&lt;Student&gt;</code> Bean：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Bean</span><br><span class="hljs-keyword">public</span> List&lt;Student&gt; <span class="hljs-title function_">students</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-keyword">return</span> List.of(<br>            <span class="hljs-keyword">new</span> <span class="hljs-title class_">Student</span>(<span class="hljs-number">3</span>, <span class="hljs-string">&quot;liu&quot;</span>),<br>            <span class="hljs-keyword">new</span> <span class="hljs-title class_">Student</span>(<span class="hljs-number">4</span>, <span class="hljs-string">&quot;fu&quot;</span>)<br>    );<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这两种语义不同：</p>
+<ul>
+<li><strong>收集式</strong>：找出容器里所有 <code>Student</code> Bean；</li>
+<li><strong>直接式</strong>：把容器中的某个 <code>List&lt;Student&gt;</code> Bean 当成整体依赖。</li>
+</ul>
+<p>课程案例对应实现里，解析多元素依赖会优先尝试收集式；只要能收集到元素，就会直接返回，不再继续用后面的“直接 List Bean”覆盖结果。</p>
+<p>因此不要让两种方式混在同一个依赖点上，然后期待 Spring 自动合并。</p>
+<h2 id="9-1-集合顺序如何控制"><a href="#9-1-集合顺序如何控制" class="headerlink" title="9.1 集合顺序如何控制"></a>9.1 集合顺序如何控制</h2><p>如果业务依赖集合执行顺序，应显式提供顺序信息。例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Bean</span><br><span class="hljs-meta">@Order(2)</span><br><span class="hljs-keyword">public</span> Student <span class="hljs-title function_">student1</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Student</span>(<span class="hljs-number">1</span>, <span class="hljs-string">&quot;xie&quot;</span>);<br>&#125;<br><br><span class="hljs-meta">@Bean</span><br><span class="hljs-meta">@Order(1)</span><br><span class="hljs-keyword">public</span> Student <span class="hljs-title function_">student2</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Student</span>(<span class="hljs-number">2</span>, <span class="hljs-string">&quot;fang&quot;</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>也可以让对象实现 <code>Ordered</code> &#x2F; <code>PriorityOrdered</code> 等排序契约。原则很简单：<strong>顺序是业务语义时，就应该把顺序写成显式契约，而不是依赖 Bean 扫描或声明的偶然顺序。</strong></p>
+<h1 id="10-Prototype-为什么注入到-Singleton-后“不再变化”"><a href="#10-Prototype-为什么注入到-Singleton-后“不再变化”" class="headerlink" title="10. Prototype 为什么注入到 Singleton 后“不再变化”"></a>10. Prototype 为什么注入到 Singleton 后“不再变化”</h1><p>下面这个 Bean 被定义为 Prototype：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-meta">@Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ServiceImpl</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>然后注入单例 Controller：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@RestController</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">HelloWorldController</span> &#123;<br><br>    <span class="hljs-meta">@Autowired</span><br>    <span class="hljs-keyword">private</span> ServiceImpl serviceImpl;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>很多人会直觉认为：既然 <code>ServiceImpl</code> 是 Prototype，每次 HTTP 请求应该得到新对象。</p>
+<p>实际上不是。</p>
+<p><code>HelloWorldController</code> 默认是 Singleton，创建 Controller 时，字段注入只执行一次。当时容器为了满足依赖创建了一个 Prototype <code>ServiceImpl</code>，随后这个引用就被写进 Controller 字段。以后请求访问的是同一个 Controller，自然也一直拿着同一个字段引用。</p>
+<p>Prototype 的语义更准确地说是：<strong>每次向容器请求该 Bean 时创建新实例，而不是“任何地方每次使用这个 Java 字段时都自动创建新实例”。</strong></p>
+<h2 id="10-1-需要每次拿新对象怎么办"><a href="#10-1-需要每次拿新对象怎么办" class="headerlink" title="10.1 需要每次拿新对象怎么办"></a>10.1 需要每次拿新对象怎么办</h2><p>方法一：每次主动从容器取：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@RestController</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">HelloWorldController</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ApplicationContext applicationContext;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">HelloWorldController</span><span class="hljs-params">(ApplicationContext applicationContext)</span> &#123;<br>        <span class="hljs-built_in">this</span>.applicationContext = applicationContext;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> ServiceImpl <span class="hljs-title function_">getServiceImpl</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> applicationContext.getBean(ServiceImpl.class);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>方法二：使用 <code>@Lookup</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@RestController</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">HelloWorldController</span> &#123;<br><br>    <span class="hljs-meta">@Lookup</span><br>    <span class="hljs-keyword">public</span> ServiceImpl <span class="hljs-title function_">getServiceImpl</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> <span class="hljs-literal">null</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><code>@Lookup</code> 方法的代码体并不是关键。Spring 会为类生成方法覆盖，真正调用时通过 BeanFactory 获取目标 Bean。其本质是 <strong>Method Injection（方法注入）</strong>。</p>
+<p>方法三：使用 Scoped Proxy：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-meta">@Scope(</span><br><span class="hljs-meta">        value = ConfigurableBeanFactory.SCOPE_PROTOTYPE,</span><br><span class="hljs-meta">        proxyMode = ScopedProxyMode.TARGET_CLASS</span><br><span class="hljs-meta">)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ServiceImpl</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>此时注入的是代理对象，真正使用时再向容器获取对应作用域中的目标实例。</p>
+<p>不同方式各有取舍。业务代码如果大量直接依赖 <code>ApplicationContext#getBean()</code>，会把容器 API 侵入业务逻辑；能通过合理的对象边界解决时，优先从设计上降低作用域混用。</p>
+<h1 id="11-Bean-生命周期：为什么-Bean-可能意外调用-shutdown"><a href="#11-Bean-生命周期：为什么-Bean-可能意外调用-shutdown" class="headerlink" title="11. Bean 生命周期：为什么 @Bean 可能意外调用 shutdown()"></a>11. Bean 生命周期：为什么 <code>@Bean</code> 可能意外调用 <code>shutdown()</code></h1><p>Bean 的销毁阶段还有一个非常隐蔽的约定。</p>
+<p>假设：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LightService</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">shutdown</span><span class="hljs-params">()</span> &#123;<br>        System.out.println(<span class="hljs-string">&quot;shutting down all lights&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果这个类通过组件扫描注册：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LightService</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>仅仅因为存在一个叫 <code>shutdown</code> 的方法，并不意味着 Spring 一定会在容器关闭时调用它。</p>
+<p>但如果改成：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Configuration</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">BeanConfiguration</span> &#123;<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> LightService <span class="hljs-title function_">lightService</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">LightService</span>();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>课程案例对应的 <code>@Bean</code> 默认销毁策略会尝试推断销毁方法。在没有显式配置时，Spring 会检查 <code>close</code> 或 <code>shutdown</code> 这类约定方法，并可能把它注册为销毁回调。</p>
+<p>于是一个本来只是业务含义的 <code>shutdown()</code>，可能在容器关闭时被自动执行。</p>
+<p>如果明确不希望自动推断：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Bean(destroyMethod = &quot;&quot;)</span><br><span class="hljs-keyword">public</span> LightService <span class="hljs-title function_">lightService</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">LightService</span>();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>另一方面，如果 Bean 实现了 <code>AutoCloseable</code> &#x2F; <code>Closeable</code>，则其 <code>close()</code> 本来就是明确的资源释放契约：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LightService</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">AutoCloseable</span> &#123;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">close</span><span class="hljs-params">()</span> &#123;<br>        System.out.println(<span class="hljs-string">&quot;turn off all lights&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这种方式比“碰巧有一个名为 shutdown 的业务方法”更加清晰。</p>
+<h1 id="12-BeanPostProcessor：Spring-扩展能力的关键插槽"><a href="#12-BeanPostProcessor：Spring-扩展能力的关键插槽" class="headerlink" title="12. BeanPostProcessor：Spring 扩展能力的关键插槽"></a>12. BeanPostProcessor：Spring 扩展能力的关键插槽</h1><p>前面的 <code>@Autowired</code>、<code>@PostConstruct</code>、AOP 其实都不断出现同一个角色：<code>BeanPostProcessor</code>。</p>
+<p>Spring 并不是把所有行为硬编码进 BeanFactory，而是在 Bean 生命周期不同阶段调用一组后置处理器，从而让不同功能以插件方式参与 Bean 创建。</p>
+<p>典型角色包括：</p>
+<ul>
+<li><code>AutowiredAnnotationBeanPostProcessor</code>：处理依赖注入；</li>
+<li><code>CommonAnnotationBeanPostProcessor</code> &#x2F; <code>InitDestroyAnnotationBeanPostProcessor</code>：处理生命周期注解；</li>
+<li><code>AnnotationAwareAspectJAutoProxyCreator</code>：判断 Bean 是否需要 AOP，并在合适阶段包装成代理对象。</li>
+</ul>
+<p>因此看 Spring 源码时，一个很高效的思路是：</p>
+<blockquote>
+<p>当某个注解看起来“神奇地生效”时，先找是谁扫描它，再看对应扩展是在 Bean 生命周期哪个阶段被调用。</p>
+</blockquote>
+<h1 id="13-Spring-AOP-的本质：把-Bean-换成代理对象"><a href="#13-Spring-AOP-的本质：把-Bean-换成代理对象" class="headerlink" title="13. Spring AOP 的本质：把 Bean 换成代理对象"></a>13. Spring AOP 的本质：把 Bean 换成代理对象</h1><p>AOP（Aspect Oriented Programming，面向切面编程）解决的是横切逻辑与业务逻辑的解耦问题，例如：</p>
+<ul>
+<li>日志；</li>
+<li>性能统计；</li>
+<li>监控；</li>
+<li>权限校验；</li>
+<li>异常处理；</li>
+<li>统一认证。</li>
+</ul>
+<p>Spring AOP 的核心不是“修改了原对象的方法”，而是：<strong>当容器认为某个 Bean 需要增强时，向调用方暴露一个 Proxy。调用 Proxy 方法时，先执行拦截器链，再进入真正目标对象。</strong></p>
+<pre><code class=" mermaid">flowchart LR
+    Caller[调用方] --&gt; Proxy[Spring Proxy]
+    Proxy --&gt; Advice1[Advice / Interceptor]
+    Advice1 --&gt; Target[Target Bean]
+    Target --&gt; Advice2[后置逻辑]
+    Advice2 --&gt; Caller
+</code></pre>
+
+<h2 id="13-1-JDK-动态代理与-CGLIB"><a href="#13-1-JDK-动态代理与-CGLIB" class="headerlink" title="13.1 JDK 动态代理与 CGLIB"></a>13.1 JDK 动态代理与 CGLIB</h2><p>Spring AOP 常见两类代理方式：</p>
+<table>
+<thead>
+<tr>
+<th>方式</th>
+<th>核心思路</th>
+<th>典型限制</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>JDK Dynamic Proxy</td>
+<td>基于接口创建代理</td>
+<td>主要围绕接口类型工作</td>
+</tr>
+<tr>
+<td>CGLIB Proxy</td>
+<td>生成目标类子类并覆盖可代理方法</td>
+<td>受类&#x2F;方法可继承、可覆盖等条件影响</td>
+</tr>
+</tbody></table>
+<p>Spring Boot 项目一般通过 AOP Starter 引入相关能力：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-aop<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>代理创建通常发生在 Bean 初始化的后置处理阶段。<code>AnnotationAwareAspectJAutoProxyCreator</code> 会判断一个 Bean 是否命中 Advisor，如果需要，则通过 <code>ProxyFactory</code> 创建代理并替换原始 Bean 的对外暴露对象。</p>
+<h1 id="14-为什么-this-xxx-不会触发-Spring-AOP"><a href="#14-为什么-this-xxx-不会触发-Spring-AOP" class="headerlink" title="14. 为什么 this.xxx() 不会触发 Spring AOP"></a>14. 为什么 <code>this.xxx()</code> 不会触发 Spring AOP</h1><p>这是 Spring AOP 最经典的边界问题之一。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ElectricService</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">charge</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        System.out.println(<span class="hljs-string">&quot;Electric charging ...&quot;</span>);<br>        <span class="hljs-built_in">this</span>.pay();<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">pay</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>        System.out.println(<span class="hljs-string">&quot;Pay with alipay ...&quot;</span>);<br>        Thread.sleep(<span class="hljs-number">1000</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>切面拦截 <code>pay()</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Aspect</span><br><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">AopConfig</span> &#123;<br><br>    <span class="hljs-meta">@Around(&quot;execution(* com.example.ElectricService.pay(..))&quot;)</span><br>    <span class="hljs-keyword">public</span> Object <span class="hljs-title function_">recordPayPerformance</span><span class="hljs-params">(ProceedingJoinPoint joinPoint)</span> <span class="hljs-keyword">throws</span> Throwable &#123;<br>        <span class="hljs-type">long</span> <span class="hljs-variable">start</span> <span class="hljs-operator">=</span> System.currentTimeMillis();<br>        <span class="hljs-keyword">try</span> &#123;<br>            <span class="hljs-keyword">return</span> joinPoint.proceed();<br>        &#125; <span class="hljs-keyword">finally</span> &#123;<br>            <span class="hljs-type">long</span> <span class="hljs-variable">end</span> <span class="hljs-operator">=</span> System.currentTimeMillis();<br>            System.out.println(<span class="hljs-string">&quot;pay cost(ms): &quot;</span> + (end - start));<br>        &#125;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>从外部拿到的 <code>ElectricService</code> 是代理对象：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Caller -&gt; Proxy -&gt; charge()<br></code></pre></td></tr></table></figure>
+
+<p>但是进入目标对象的 <code>charge()</code> 后，<code>this</code> 指向目标对象自身：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Target.charge() -&gt; this.pay()<br></code></pre></td></tr></table></figure>
+
+<p>这一步没有重新经过 Proxy，因此 <code>pay()</code> 不会进入 AOP 拦截器链。</p>
+<p>这就是 <strong>self-invocation（自调用）绕过代理</strong>。</p>
+<h2 id="14-1-如何解决"><a href="#14-1-如何解决" class="headerlink" title="14.1 如何解决"></a>14.1 如何解决</h2><p>最优先的方案通常是重新划分对象职责，让需要增强的方法通过另一个 Bean 的边界调用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">PaymentService</span> &#123;<br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">pay</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-comment">// ...</span><br>    &#125;<br>&#125;<br><br><span class="hljs-meta">@Service</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ElectricService</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> PaymentService paymentService;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">ElectricService</span><span class="hljs-params">(PaymentService paymentService)</span> &#123;<br>        <span class="hljs-built_in">this</span>.paymentService = paymentService;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">charge</span><span class="hljs-params">()</span> &#123;<br>        paymentService.pay();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果确实需要当前代理，可以暴露 Proxy：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@EnableAspectJAutoProxy(exposeProxy = true)</span><br><span class="hljs-meta">@Configuration</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">AopConfiguration</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>然后：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">charge</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>    <span class="hljs-type">ElectricService</span> <span class="hljs-variable">proxy</span> <span class="hljs-operator">=</span> (ElectricService) AopContext.currentProxy();<br>    proxy.pay();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>课程材料还讨论了“自己注入自己”的方式。这个方法在一些环境下会受到循环依赖策略影响，也会让对象依赖关系变得晦涩，因此不应作为首选设计。</p>
+<p>核心原则只有一句：<strong>想让 Spring AOP 生效，调用必须穿过 Spring Proxy 边界。</strong></p>
+<h1 id="15-为什么给类加了-AOP-后，直接读-public-字段反而可能空指针"><a href="#15-为什么给类加了-AOP-后，直接读-public-字段反而可能空指针" class="headerlink" title="15. 为什么给类加了 AOP 后，直接读 public 字段反而可能空指针"></a>15. 为什么给类加了 AOP 后，直接读 <code>public</code> 字段反而可能空指针</h1><p>下面的代码看起来很普通：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">AdminUserService</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">final</span> <span class="hljs-type">User</span> <span class="hljs-variable">adminUser</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">User</span>(<span class="hljs-string">&quot;202101166&quot;</span>);<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">login</span><span class="hljs-params">()</span> &#123;<br>        System.out.println(<span class="hljs-string">&quot;admin user login...&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>业务代码直接访问：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">String</span> <span class="hljs-variable">payNum</span> <span class="hljs-operator">=</span> adminUserService.adminUser.getPayNum();<br></code></pre></td></tr></table></figure>
+
+<p>没有 AOP 时可能运行正常。但当 <code>AdminUserService</code> 因为某个切面变成 CGLIB Proxy 后，课程案例展示了一个非常反直觉的现象：代理实例上的字段可能没有经过目标类正常的成员初始化，直接读取代理字段时得到 <code>null</code>。</p>
+<p>其原因与代理实例的创建方式有关。Spring 的 CGLIB 代理在课程对应版本中会优先尝试使用 Objenesis，而 Objenesis 可以绕开普通构造过程创建对象。其底层可能借助序列化式反射构造能力，这种实例化路径和正常调用构造器并不相同。</p>
+<p>因此，不要把代理对象理解成“目标对象完整复制了一份，只是方法前后加点代码”。</p>
+<p>更稳妥的写法是遵守封装边界，通过方法获取状态：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">AdminUserService</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">User</span> <span class="hljs-variable">adminUser</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">User</span>(<span class="hljs-string">&quot;202101166&quot;</span>);<br><br>    <span class="hljs-keyword">public</span> User <span class="hljs-title function_">getAdminUser</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> adminUser;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>调用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">String</span> <span class="hljs-variable">payNum</span> <span class="hljs-operator">=</span> adminUserService.getAdminUser().getPayNum();<br></code></pre></td></tr></table></figure>
+
+<p>代理方法调用会被拦截器接管，再委托给真正的 Target 对象；Target 的成员字段已经正常初始化，因此能够得到正确结果。</p>
+<p>这也给出一个很实际的编码原则：<strong>不要把 Spring Bean 的 public 字段当作稳定调用接口，尤其当这个 Bean 未来可能被 AOP、事务、缓存、权限等代理机制包装。</strong></p>
+<h1 id="16-AOP-Advice-的执行顺序：不要依赖“代码写在前面”"><a href="#16-AOP-Advice-的执行顺序：不要依赖“代码写在前面”" class="headerlink" title="16. AOP Advice 的执行顺序：不要依赖“代码写在前面”"></a>16. AOP Advice 的执行顺序：不要依赖“代码写在前面”</h1><p>当同一个目标方法命中多个增强时，顺序就会成为业务问题。</p>
+<p>例如权限校验耗时 1 秒：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Before(&quot;execution(* com.example.ElectricService.charge(..))&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">checkAuthority</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> Exception &#123;<br>    Thread.sleep(<span class="hljs-number">1000</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>同时又用 <code>@Around</code> 统计 <code>charge()</code> 耗时。如果 Around 把 Before 包在里面，那么统计结果自然会包含鉴权时间。</p>
+<p>课程源码对应版本中，同一个 Aspect 内部会先对 Advice 方法进行排序，其中不同 Advice 类型存在内部顺序，同类型时还可能继续按方法名比较。这能解释某些“明明方法写在后面却先执行”的现象。</p>
+<p>但工程上<strong>不应该把内部方法名排序当成业务契约</strong>。更清晰的方式是：</p>
+<ol>
+<li>把职责不同的增强拆成不同 Aspect；</li>
+<li>使用 <code>@Order</code> 显式表达切面优先级。</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Aspect</span><br><span class="hljs-meta">@Component</span><br><span class="hljs-meta">@Order(1)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">AuthorityAspect</span> &#123;<br><br>    <span class="hljs-meta">@Before(&quot;execution(* com.example.ElectricService.charge(..))&quot;)</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">validateAuthority</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-comment">// 权限校验</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Aspect</span><br><span class="hljs-meta">@Component</span><br><span class="hljs-meta">@Order(2)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">LoggingAspect</span> &#123;<br><br>    <span class="hljs-meta">@Before(&quot;execution(* com.example.ElectricService.charge(..))&quot;)</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">recordInvoke</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-comment">// 调用日志</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>显式顺序的好处不只是“当前能跑对”，更重要的是代码读者能直接理解设计意图，也减少对框架内部版本细节的依赖。</p>
+<h1 id="17-Spring-事件：本质上是监听器模式"><a href="#17-Spring-事件：本质上是监听器模式" class="headerlink" title="17. Spring 事件：本质上是监听器模式"></a>17. Spring 事件：本质上是监听器模式</h1><p>Spring Event 可以抽象成三个角色：</p>
+<ol>
+<li>Event：事件对象；</li>
+<li>Multicaster：事件广播器；</li>
+<li>Listener：监听器。</li>
+</ol>
+<pre><code class=" mermaid">flowchart LR
+    Publisher[事件发布方] --&gt; Event[Event]
+    Event --&gt; M[ApplicationEventMulticaster]
+    M --&gt; L1[Listener A]
+    M --&gt; L2[Listener B]
+    M --&gt; L3[Listener C]
+</code></pre>
+
+<p>最经典的监听器接口是：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">interface</span> <span class="hljs-title class_">ApplicationListener</span>&lt;E <span class="hljs-keyword">extends</span> <span class="hljs-title class_">ApplicationEvent</span>&gt;<br>        <span class="hljs-keyword">extends</span> <span class="hljs-title class_">EventListener</span> &#123;<br><br>    <span class="hljs-keyword">void</span> <span class="hljs-title function_">onApplicationEvent</span><span class="hljs-params">(E event)</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这套模型看起来简单，但常见错误集中在三个问题上：</p>
+<ul>
+<li>这个事件到底有没有被发布；</li>
+<li>发布事件和监听器是不是处于同一个广播体系；</li>
+<li>一个监听器失败会不会影响其他监听器。</li>
+</ul>
+<h1 id="18-一个-Event-类存在，不代表启动时一定会发布它"><a href="#18-一个-Event-类存在，不代表启动时一定会发布它" class="headerlink" title="18. 一个 Event 类存在，不代表启动时一定会发布它"></a>18. 一个 Event 类存在，不代表启动时一定会发布它</h1><p><code>ContextStartedEvent</code> 是 Spring 存在的事件，但 Spring Boot 常规启动并不等价于调用 <code>ApplicationContext#start()</code>。</p>
+<p>课程案例里，<code>ContextStartedEvent</code> 的发布发生在：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Override</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">start</span><span class="hljs-params">()</span> &#123;<br>    getLifecycleProcessor().start();<br>    publishEvent(<span class="hljs-keyword">new</span> <span class="hljs-title class_">ContextStartedEvent</span>(<span class="hljs-built_in">this</span>));<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>而 Spring Boot 启动主线更关注的是创建 Context、准备 Context、Refresh Context。Refresh 完成时会发布的是 <code>ContextRefreshedEvent</code>。</p>
+<p>因此监听启动完成类事件时，第一步不是“看名字像不像”，而是查清楚：<strong>到底哪段代码发布了它，这段代码在当前启动路径上会不会执行。</strong></p>
+<p>如果确实需要处理 <code>ContextStartedEvent</code>，就必须真的调用 <code>start()</code>；如果只是想处理容器 Refresh 完成，则应该监听与 Refresh 生命周期对应的事件。</p>
+<p>事件排查的第一个公式：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Listener 不执行<br>    -&gt; 先确认 Event 是否真的 publish<br>    -&gt; 再确认 Listener 是否进入了对应 Multicaster<br></code></pre></td></tr></table></figure>
+
+<h1 id="19-Spring-Boot-启动早期事件与普通容器事件可能不是同一套监听体系"><a href="#19-Spring-Boot-启动早期事件与普通容器事件可能不是同一套监听体系" class="headerlink" title="19. Spring Boot 启动早期事件与普通容器事件可能不是同一套监听体系"></a>19. Spring Boot 启动早期事件与普通容器事件可能不是同一套监听体系</h1><p><code>ApplicationEnvironmentPreparedEvent</code> 发生得很早，环境已经准备，但 ApplicationContext 还没有完成普通 Bean 创建。</p>
+<p>课程案例对应的早期事件由启动阶段的 <code>EventPublishingRunListener</code> 和它持有的 <code>initialMulticaster</code> 广播。这个广播器的监听器来源与 Context 完成之后的普通 <code>applicationEventMulticaster</code> 不完全相同。</p>
+<p>这意味着：仅仅把一个监听器写成 <code>@Component</code>，并不保证它在<strong>容器尚未扫描创建该 Bean 之前</strong>就能接收到早期事件。</p>
+<p>课程给出的思路包括：</p>
+<ul>
+<li>在构建 <code>SpringApplication</code> 时显式添加 Listener；</li>
+<li>使用当时 Spring Boot 的工厂加载机制，把监听器放进启动阶段能够预先加载的配置体系。</li>
+</ul>
+<p>关键不是死记 <code>spring.factories</code> 文件，而是理解时间轴：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">环境准备事件<br>    ↓<br>ApplicationContext 尚未完成普通 Bean 扫描<br>    ↓<br>@Component Listener 此时可能还不存在<br></code></pre></td></tr></table></figure>
+
+<p>所以处理框架启动早期事件时，一定要确认 Listener 的注册时间早于 Event 发布时间。</p>
+<h1 id="20-Spring-事件默认是同步的：一个监听器抛异常可能阻塞后续监听器"><a href="#20-Spring-事件默认是同步的：一个监听器抛异常可能阻塞后续监听器" class="headerlink" title="20. Spring 事件默认是同步的：一个监听器抛异常可能阻塞后续监听器"></a>20. Spring 事件默认是同步的：一个监听器抛异常可能阻塞后续监听器</h1><p>假设有两个监听器：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-meta">@Order(1)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">FirstListener</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">ApplicationListener</span>&lt;MyEvent&gt; &#123;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">onApplicationEvent</span><span class="hljs-params">(MyEvent event)</span> &#123;<br>        <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">RuntimeException</span>(<span class="hljs-string">&quot;listener failed&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-meta">@Order(2)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SecondListener</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">ApplicationListener</span>&lt;MyEvent&gt; &#123;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">onApplicationEvent</span><span class="hljs-params">(MyEvent event)</span> &#123;<br>        System.out.println(<span class="hljs-string">&quot;second listener&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><code>SimpleApplicationEventMulticaster</code> 的核心结构可以简化成：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Executor</span> <span class="hljs-variable">executor</span> <span class="hljs-operator">=</span> getTaskExecutor();<br><br><span class="hljs-keyword">for</span> (ApplicationListener&lt;?&gt; listener : getApplicationListeners(event, type)) &#123;<br>    <span class="hljs-keyword">if</span> (executor != <span class="hljs-literal">null</span>) &#123;<br>        executor.execute(() -&gt; invokeListener(listener, event));<br>    &#125; <span class="hljs-keyword">else</span> &#123;<br>        invokeListener(listener, event);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>没有 Executor 时，事件发布线程会顺序调用 Listener。如果第一个 Listener 的异常直接向外传播，后面的 Listener 就没有机会执行。</p>
+<p>解决思路之一，是监听器自己隔离异常；更统一的方式，是给 Multicaster 设置 <code>ErrorHandler</code>。</p>
+<p>例如课程中使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java">simpleApplicationEventMulticaster.setErrorHandler(<br>        TaskUtils.LOG_AND_SUPPRESS_ERROR_HANDLER<br>);<br></code></pre></td></tr></table></figure>
+
+<p>这样单个监听器失败不会直接打断整个广播链路。</p>
+<h2 id="20-1-异步事件"><a href="#20-1-异步事件" class="headerlink" title="20.1 异步事件"></a>20.1 异步事件</h2><p>如果希望 Listener 不阻塞发布线程，可以给 Multicaster 设置线程池：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">ExecutorService</span> <span class="hljs-variable">executor</span> <span class="hljs-operator">=</span> Executors.newCachedThreadPool();<br><br>simpleApplicationEventMulticaster.setTaskExecutor(executor);<br></code></pre></td></tr></table></figure>
+
+<p>此时事件发布线程和处理线程分离。</p>
+<p>不过异步化不是免费的：一旦跨线程，原线程上的调用上下文、错误传播方式、执行顺序等都会发生变化。因此“想快一点”不是唯一判断标准，应该先明确事件是否允许异步、是否要求顺序、是否要求发布者感知处理失败。</p>
+<h1 id="21-从-Spring-Core-走向-Spring-Web：一个-HTTP-请求到底发生了什么"><a href="#21-从-Spring-Core-走向-Spring-Web：一个-HTTP-请求到底发生了什么" class="headerlink" title="21. 从 Spring Core 走向 Spring Web：一个 HTTP 请求到底发生了什么"></a>21. 从 Spring Core 走向 Spring Web：一个 HTTP 请求到底发生了什么</h1><p>Spring MVC 的 Controller 看起来极其简单：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@RestController</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">HelloWorldController</span> &#123;<br><br>    <span class="hljs-meta">@RequestMapping(path = &quot;hi&quot;, method = RequestMethod.GET)</span><br>    <span class="hljs-keyword">public</span> String <span class="hljs-title function_">hi</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;helloworld&quot;</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>背后至少需要完成三件事：</p>
+<ol>
+<li>底层服务器解析 HTTP 请求；</li>
+<li>根据 Path、HTTP Method 等信息找到 Java Handler；</li>
+<li>解析参数并反射调用目标方法。</li>
+</ol>
+<p>如果把整个流程展开，可以得到：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant Client as Client
+    participant Server as Tomcat/Jetty
+    participant Filter as Servlet Filter Chain
+    participant DS as DispatcherServlet
+    participant HM as HandlerMapping
+    participant HA as HandlerAdapter
+    participant C as Controller
+
+    Client-&gt;&gt;Server: HTTP Request
+    Server-&gt;&gt;Server: NIO 接收与协议解析
+    Server-&gt;&gt;Filter: 进入工作线程
+    Filter-&gt;&gt;DS: Servlet service()
+    DS-&gt;&gt;HM: getHandler(request)
+    HM--&gt;&gt;DS: HandlerExecutionChain
+    DS-&gt;&gt;HA: getHandlerAdapter(handler)
+    HA-&gt;&gt;C: 解析参数并调用方法
+    C--&gt;&gt;HA: Return Value
+    HA--&gt;&gt;DS: ModelAndView / Response
+    DS--&gt;&gt;Filter: 写回响应
+    Filter--&gt;&gt;Server: Response
+    Server--&gt;&gt;Client: HTTP Response
+</code></pre>
+
+<h2 id="21-1-通信层不是-Spring-自己完成的"><a href="#21-1-通信层不是-Spring-自己完成的" class="headerlink" title="21.1 通信层不是 Spring 自己完成的"></a>21.1 通信层不是 Spring 自己完成的</h2><p>Spring MVC 本身并不直接承担底层 Socket 通信。Spring Boot Web 应用通常通过内嵌 Servlet 容器提供通信能力，例如 Tomcat 或 Jetty。</p>
+<p>课程示例中，<code>spring-boot-starter-web</code> 默认间接引入 Tomcat。若要切换 Jetty，可以排除 Tomcat 再引入 Jetty：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-web<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">exclusions</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">exclusion</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>            <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-tomcat<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>        <span class="hljs-tag">&lt;/<span class="hljs-name">exclusion</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">exclusions</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-jetty<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>Tomcat 收到连接后，通过 NIO Endpoint 监听事件，再把请求交给工作线程，随后进入 Servlet Filter Chain，最终到达 <code>DispatcherServlet</code>。</p>
+<h1 id="22-DispatcherServlet：Spring-MVC-的中央调度器"><a href="#22-DispatcherServlet：Spring-MVC-的中央调度器" class="headerlink" title="22. DispatcherServlet：Spring MVC 的中央调度器"></a>22. <code>DispatcherServlet</code>：Spring MVC 的中央调度器</h1><p><code>DispatcherServlet</code> 本质上是一个 Servlet。一个请求进入 Spring MVC 后，核心逻辑可以简化成：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">protected</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">doDispatch</span><span class="hljs-params">(HttpServletRequest request,</span><br><span class="hljs-params">                          HttpServletResponse response)</span> <span class="hljs-keyword">throws</span> Exception &#123;<br><br>    <span class="hljs-type">HandlerExecutionChain</span> <span class="hljs-variable">mappedHandler</span> <span class="hljs-operator">=</span> getHandler(request);<br><br>    <span class="hljs-type">HandlerAdapter</span> <span class="hljs-variable">handlerAdapter</span> <span class="hljs-operator">=</span><br>            getHandlerAdapter(mappedHandler.getHandler());<br><br>    handlerAdapter.handle(<br>            request,<br>            response,<br>            mappedHandler.getHandler()<br>    );<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里有两个核心问题。</p>
+<h2 id="22-1-怎么找到-Controller-方法"><a href="#22-1-怎么找到-Controller-方法" class="headerlink" title="22.1 怎么找到 Controller 方法"></a>22.1 怎么找到 Controller 方法</h2><p><code>HandlerMapping</code> 负责根据当前请求寻找 Handler。对于注解式 Controller，关键组件之一是 <code>RequestMappingHandlerMapping</code>。</p>
+<p>它内部维护的映射可以抽象成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">GET /hi<br>    -&gt; HelloWorldController#hi()<br></code></pre></td></tr></table></figure>
+
+<p>这和自己实现一个 <code>Map&lt;RequestKey, Method&gt;</code> 的思路本质相同，只是 Spring MVC 的匹配维度和规则复杂得多。</p>
+<h2 id="22-2-找到方法后怎么执行"><a href="#22-2-找到方法后怎么执行" class="headerlink" title="22.2 找到方法后怎么执行"></a>22.2 找到方法后怎么执行</h2><p>匹配到 Controller 方法后，需要解析方法参数，再进行反射调用。课程源码链路最终进入类似 <code>InvocableHandlerMethod#doInvoke</code> 的位置，通过反射调用目标方法。</p>
+<p>因此一个 Controller 请求的本质仍然可以压缩成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">解析 HTTP<br>    -&gt; 找 Handler<br>    -&gt; 解析参数<br>    -&gt; 反射调用 Java 方法<br>    -&gt; 处理返回值<br></code></pre></td></tr></table></figure>
+
+<h1 id="23-RequestMappingHandlerMapping-的映射是什么时候建立的"><a href="#23-RequestMappingHandlerMapping-的映射是什么时候建立的" class="headerlink" title="23. RequestMappingHandlerMapping 的映射是什么时候建立的"></a>23. <code>RequestMappingHandlerMapping</code> 的映射是什么时候建立的</h1><p>请求到达时如果再扫描所有 Controller，性能显然无法接受，所以映射关系是在应用启动时预先构建的。</p>
+<p><code>RequestMappingHandlerMapping</code> 初始化完成后，会扫描候选 Bean，判断它们是不是 Handler，再解析方法级映射。</p>
+<p>课程对应实现中，判断 Handler 的逻辑大体类似：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Override</span><br><span class="hljs-keyword">protected</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">isHandler</span><span class="hljs-params">(Class&lt;?&gt; beanType)</span> &#123;<br>    <span class="hljs-keyword">return</span> AnnotatedElementUtils.hasAnnotation(beanType, Controller.class)<br>            || AnnotatedElementUtils.hasAnnotation(beanType, RequestMapping.class);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果是 Handler，则继续检测方法并注册映射。</p>
+<p>这也把 Spring Core 与 Spring MVC 串起来了：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Controller 能处理 HTTP 请求<br>    ↓<br>首先必须被组件扫描发现<br>    ↓<br>成为 Spring Bean<br>    ↓<br>RequestMappingHandlerMapping 才有机会扫描它<br>    ↓<br>建立 URL -&gt; HandlerMethod 映射<br></code></pre></td></tr></table></figure>
+
+<p>所以最开始那个“把 Controller 移出扫描包后接口 404”的问题，本质上不仅仅是组件扫描问题，它直接破坏了后续整个 MVC Handler 注册链。</p>
+<h1 id="24-一张图串起-Spring-Core、AOP、事件和-Web"><a href="#24-一张图串起-Spring-Core、AOP、事件和-Web" class="headerlink" title="24. 一张图串起 Spring Core、AOP、事件和 Web"></a>24. 一张图串起 Spring Core、AOP、事件和 Web</h1><p>前面的知识点看似分散，其实都围绕 Bean 容器形成一条非常清晰的链路：</p>
+<pre><code class=" mermaid">flowchart TD
+    A[SpringApplication.run] --&gt; B[创建/刷新 ApplicationContext]
+    B --&gt; C[扫描组件]
+    C --&gt; D[注册 BeanDefinition]
+    D --&gt; E[实例化 Bean]
+    E --&gt; F[解析构造器依赖]
+    F --&gt; G[populateBean 字段/方法注入]
+    G --&gt; H[initializeBean 生命周期回调]
+    H --&gt; I&#123;命中 AOP Advisor?&#125;
+    I -- 是 --&gt; J[创建 Proxy Bean]
+    I -- 否 --&gt; K[暴露原始 Bean]
+    J --&gt; L[容器可用]
+    K --&gt; L
+    L --&gt; M[RequestMappingHandlerMapping 扫描 Controller]
+    L --&gt; N[ApplicationEvent Listener 参与事件系统]
+    M --&gt; O[HTTP Request -&gt; DispatcherServlet]
+    O --&gt; P[HandlerMapping -&gt; HandlerAdapter]
+    P --&gt; Q[Controller / Service 调用]
+    Q --&gt; R[AOP Proxy 拦截横切逻辑]
+</code></pre>
+
+<p>只要这张图在脑子里，很多问题都能迅速归类。</p>
+<h1 id="25-常见故障应该怎样定位"><a href="#25-常见故障应该怎样定位" class="headerlink" title="25. 常见故障应该怎样定位"></a>25. 常见故障应该怎样定位</h1><h2 id="25-1-Bean-根本不存在"><a href="#25-1-Bean-根本不存在" class="headerlink" title="25.1 Bean 根本不存在"></a>25.1 Bean 根本不存在</h2><p>典型现象：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">NoSuchBeanDefinitionException<br></code></pre></td></tr></table></figure>
+
+<p>优先排查：</p>
+<ul>
+<li>包是否在组件扫描范围；</li>
+<li>注解是否能让它成为组件；</li>
+<li><code>@Bean</code> 配置类有没有被加载；</li>
+<li>条件配置是否成立；</li>
+<li>Bean 名是否与 <code>@Qualifier</code> 一致。</li>
+</ul>
+<h2 id="25-2-Bean-太多，Spring-不知道选谁"><a href="#25-2-Bean-太多，Spring-不知道选谁" class="headerlink" title="25.2 Bean 太多，Spring 不知道选谁"></a>25.2 Bean 太多，Spring 不知道选谁</h2><p>典型现象：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">required a single bean, but 2 were found<br></code></pre></td></tr></table></figure>
+
+<p>优先排查：</p>
+<ul>
+<li>业务到底应该选一个还是全部；</li>
+<li>是否需要 <code>@Primary</code>；</li>
+<li>是否应该使用 <code>@Qualifier</code>；</li>
+<li>是否可以改成 <code>List&lt;T&gt;</code> &#x2F; <code>Map&lt;String, T&gt;</code>。</li>
+</ul>
+<h2 id="25-3-构造器里字段为空"><a href="#25-3-构造器里字段为空" class="headerlink" title="25.3 构造器里字段为空"></a>25.3 构造器里字段为空</h2><p>优先想到生命周期顺序：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">构造器执行<br>    -&gt; 字段注入<br>    -&gt; 初始化回调<br></code></pre></td></tr></table></figure>
+
+<p>如果构造阶段就需要依赖，使用构造器注入。</p>
+<h2 id="25-4-加了切面却不生效"><a href="#25-4-加了切面却不生效" class="headerlink" title="25.4 加了切面却不生效"></a>25.4 加了切面却不生效</h2><p>优先问：调用有没有穿过 Proxy？</p>
+<p>最典型的错误就是：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-built_in">this</span>.method();<br></code></pre></td></tr></table></figure>
+
+<p>如果是同类自调用，Spring Proxy 根本没有参与第二次调用。</p>
+<h2 id="25-5-加-AOP-后对象行为突然变了"><a href="#25-5-加-AOP-后对象行为突然变了" class="headerlink" title="25.5 加 AOP 后对象行为突然变了"></a>25.5 加 AOP 后对象行为突然变了</h2><p>优先区分：</p>
+<ul>
+<li>当前引用是目标对象还是代理对象；</li>
+<li>直接访问的是字段还是方法；</li>
+<li>CGLIB&#x2F;JDK Proxy 的类型边界是什么；</li>
+<li>对象是不是通过正常构造器创建。</li>
+</ul>
+<h2 id="25-6-事件监听器不执行"><a href="#25-6-事件监听器不执行" class="headerlink" title="25.6 事件监听器不执行"></a>25.6 事件监听器不执行</h2><p>按照固定顺序检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">事件有没有真正 publish？<br>    ↓<br>Listener 注册时机是否早于事件？<br>    ↓<br>Listener 和 Event 是否属于同一 Multicaster？<br>    ↓<br>前面的 Listener 是否抛异常中断了链路？<br></code></pre></td></tr></table></figure>
+
+<h2 id="25-7-Controller-接口失效"><a href="#25-7-Controller-接口失效" class="headerlink" title="25.7 Controller 接口失效"></a>25.7 Controller 接口失效</h2><p>沿着 MVC 注册链反查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Controller 是不是 Bean？<br>    ↓<br>RequestMappingHandlerMapping 是否识别它？<br>    ↓<br>URL / HTTP Method 是否匹配？<br>    ↓<br>DispatcherServlet 是否走到对应 Handler？<br></code></pre></td></tr></table></figure>
+
+<h1 id="26-阅读-Spring-源码时最值得记住的入口"><a href="#26-阅读-Spring-源码时最值得记住的入口" class="headerlink" title="26. 阅读 Spring 源码时最值得记住的入口"></a>26. 阅读 Spring 源码时最值得记住的入口</h1><p>不需要一开始就通读 Spring 源码。围绕问题找到“关键入口”，效率更高。</p>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>关键入口&#x2F;角色</th>
+<th>主要关注点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>组件扫描</td>
+<td><code>ComponentScanAnnotationParser</code>、扫描器</td>
+<td>扫描哪些包</td>
+</tr>
+<tr>
+<td>Bean 名生成</td>
+<td><code>AnnotationBeanNameGenerator</code></td>
+<td>默认 Bean 名如何产生</td>
+</tr>
+<tr>
+<td>Bean 创建</td>
+<td><code>AbstractAutowireCapableBeanFactory#doCreateBean</code></td>
+<td>生命周期总入口</td>
+</tr>
+<tr>
+<td>构造器实例化</td>
+<td><code>createBeanInstance</code>、<code>ConstructorResolver</code></td>
+<td>构造器选择、参数解析</td>
+</tr>
+<tr>
+<td>字段依赖注入</td>
+<td><code>AutowiredAnnotationBeanPostProcessor</code></td>
+<td>注入点发现与执行</td>
+</tr>
+<tr>
+<td>依赖选择</td>
+<td><code>DefaultListableBeanFactory#doResolveDependency</code></td>
+<td>候选 Bean、优先级、多元素依赖</td>
+</tr>
+<tr>
+<td><code>@Value</code></td>
+<td><code>PropertySourcesPropertyResolver</code> 等</td>
+<td>PropertySource 查找与转换</td>
+</tr>
+<tr>
+<td>初始化回调</td>
+<td><code>initializeBean</code></td>
+<td><code>@PostConstruct</code>、InitializingBean</td>
+</tr>
+<tr>
+<td>销毁逻辑</td>
+<td><code>DisposableBeanAdapter</code></td>
+<td>close&#x2F;shutdown&#x2F;DisposableBean</td>
+</tr>
+<tr>
+<td>AOP 代理</td>
+<td><code>AnnotationAwareAspectJAutoProxyCreator</code></td>
+<td>何时需要代理</td>
+</tr>
+<tr>
+<td>CGLIB Proxy</td>
+<td><code>CglibAopProxy</code></td>
+<td>代理实例和方法拦截</td>
+</tr>
+<tr>
+<td>Spring Event</td>
+<td><code>SimpleApplicationEventMulticaster</code></td>
+<td>Listener 获取、同步&#x2F;异步、异常处理</td>
+</tr>
+<tr>
+<td>MVC 调度</td>
+<td><code>DispatcherServlet#doDispatch</code></td>
+<td>Handler 查找与调用</td>
+</tr>
+<tr>
+<td>MVC 映射</td>
+<td><code>RequestMappingHandlerMapping</code></td>
+<td>Controller 映射注册</td>
+</tr>
+<tr>
+<td>Controller 调用</td>
+<td><code>InvocableHandlerMethod#doInvoke</code></td>
+<td>反射调用 HandlerMethod</td>
+</tr>
+</tbody></table>
+<p>源码学习真正有效的方法不是记住调用栈，而是建立三个问题：</p>
+<ol>
+<li><strong>这个功能在哪个生命周期阶段发生？</strong></li>
+<li><strong>谁负责扫描、决策或代理？</strong></li>
+<li><strong>最终对象、依赖或 Handler 是怎么被选出来的？</strong></li>
+</ol>
+<h1 id="27-工程实践中的一组稳定原则"><a href="#27-工程实践中的一组稳定原则" class="headerlink" title="27. 工程实践中的一组稳定原则"></a>27. 工程实践中的一组稳定原则</h1><p>把所有案例压缩成工程习惯，可以得到下面这组原则。</p>
+<h3 id="1-启动类放在业务根包"><a href="#1-启动类放在业务根包" class="headerlink" title="1. 启动类放在业务根包"></a>1. 启动类放在业务根包</h3><p>尽量利用 Spring Boot 默认组件扫描规则，避免包移动后 Bean 静默消失。</p>
+<h3 id="2-必需依赖优先构造器注入"><a href="#2-必需依赖优先构造器注入" class="headerlink" title="2. 必需依赖优先构造器注入"></a>2. 必需依赖优先构造器注入</h3><p>让对象完成构造时就处于可用状态，同时减少字段注入时序问题。</p>
+<h3 id="3-多实现依赖显式表达选择策略"><a href="#3-多实现依赖显式表达选择策略" class="headerlink" title="3. 多实现依赖显式表达选择策略"></a>3. 多实现依赖显式表达选择策略</h3><p>默认实现用 <code>@Primary</code>，指定实现用 <code>@Qualifier</code>，全部实现使用集合，不要靠“碰巧只剩一个”。</p>
+<h3 id="4-Bean-名如果重要就显式命名"><a href="#4-Bean-名如果重要就显式命名" class="headerlink" title="4. Bean 名如果重要就显式命名"></a>4. Bean 名如果重要就显式命名</h3><p>不要让业务契约依赖 <code>decapitalize</code>、内部类命名等细节。</p>
+<h3 id="5-配置项使用业务前缀"><a href="#5-配置项使用业务前缀" class="headerlink" title="5. 配置项使用业务前缀"></a>5. 配置项使用业务前缀</h3><p>避免 <code>${username}</code>、<code>${name}</code> 这类高冲突键名与系统环境、JVM 属性发生覆盖。</p>
+<h3 id="6-不要混用两套集合注入语义"><a href="#6-不要混用两套集合注入语义" class="headerlink" title="6. 不要混用两套集合注入语义"></a>6. 不要混用两套集合注入语义</h3><p>“收集所有 T Bean”和“注入一个 List<T> Bean”应当选择一种清晰模型。</p>
+<h3 id="7-Singleton-持有-Prototype-时明确获取策略"><a href="#7-Singleton-持有-Prototype-时明确获取策略" class="headerlink" title="7. Singleton 持有 Prototype 时明确获取策略"></a>7. Singleton 持有 Prototype 时明确获取策略</h3><p>字段注入不会自动变成“每次调用创建新对象”。需要新实例时用 Provider、Lookup、Scoped Proxy 或重新设计对象边界。</p>
+<h3 id="8-初始化和销毁逻辑使用明确生命周期契约"><a href="#8-初始化和销毁逻辑使用明确生命周期契约" class="headerlink" title="8. 初始化和销毁逻辑使用明确生命周期契约"></a>8. 初始化和销毁逻辑使用明确生命周期契约</h3><p>不要在构造器里假设字段注入已完成，也不要让一个普通业务方法因为名字恰好叫 <code>shutdown</code> 而承担意外生命周期语义。</p>
+<h3 id="9-AOP-只作用于经过-Proxy-的调用"><a href="#9-AOP-只作用于经过-Proxy-的调用" class="headerlink" title="9. AOP 只作用于经过 Proxy 的调用"></a>9. AOP 只作用于经过 Proxy 的调用</h3><p>同类 <code>this</code> 自调用不会进入代理。相比自注入和 <code>AopContext</code>，优先考虑拆分职责。</p>
+<h3 id="10-不直接依赖代理-Bean-的公开字段"><a href="#10-不直接依赖代理-Bean-的公开字段" class="headerlink" title="10. 不直接依赖代理 Bean 的公开字段"></a>10. 不直接依赖代理 Bean 的公开字段</h3><p>把状态封装在方法后面，避免代理实例化差异破坏业务代码。</p>
+<h3 id="11-切面顺序要显式"><a href="#11-切面顺序要显式" class="headerlink" title="11. 切面顺序要显式"></a>11. 切面顺序要显式</h3><p>职责不同的 Advice 拆成不同 Aspect，用 <code>@Order</code> 表达顺序，不依赖方法名或内部排序。</p>
+<h3 id="12-事件处理必须先确认发布链路"><a href="#12-事件处理必须先确认发布链路" class="headerlink" title="12. 事件处理必须先确认发布链路"></a>12. 事件处理必须先确认发布链路</h3><p>Event 存在不代表一定发布；Listener 是 Bean 也不代表在早期事件发生前已经注册。</p>
+<h3 id="13-默认同步事件要隔离异常"><a href="#13-默认同步事件要隔离异常" class="headerlink" title="13. 默认同步事件要隔离异常"></a>13. 默认同步事件要隔离异常</h3><p>一个 Listener 的异常不应该无意中让后续 Listener 全部失效；需要时配置 ErrorHandler 或异步 Executor。</p>
+<h3 id="14-排障时从生命周期和边界入手"><a href="#14-排障时从生命周期和边界入手" class="headerlink" title="14. 排障时从生命周期和边界入手"></a>14. 排障时从生命周期和边界入手</h3><p>Spring 中大量“玄学问题”最终都可以还原为：扫描边界、对象生命周期、依赖决策、代理边界、线程边界和请求映射边界。</p>
+<h1 id="28-总结：把-Spring-看成一条对象流水线"><a href="#28-总结：把-Spring-看成一条对象流水线" class="headerlink" title="28. 总结：把 Spring 看成一条对象流水线"></a>28. 总结：把 Spring 看成一条对象流水线</h1><p>如果只记住各种注解，Spring 会显得像一个庞大的魔法系统；如果把它还原成对象流水线，很多问题就变得非常朴素。</p>
+<p>Spring 首先扫描配置生成 BeanDefinition，然后实例化对象，根据构造器和注入点寻找依赖，再通过 BeanPostProcessor 完成注入与生命周期扩展；需要 AOP 的对象会被包装成 Proxy，运行期间事件通过 Multicaster 分发，Web 请求则由 Servlet 容器接收后进入 DispatcherServlet，再通过 HandlerMapping 找到 Controller 方法并反射调用。</p>
+<p>于是大量常见问题都能找到明确位置：</p>
+<ul>
+<li>Controller 移包后失效，是扫描边界；</li>
+<li>一个接口两个实现注入失败，是依赖决策；</li>
+<li>构造器里字段为空，是生命周期顺序；</li>
+<li>Prototype 被固定，是作用域与注入时机；</li>
+<li><code>this</code> 调用切面失效，是代理边界；</li>
+<li>加 AOP 后直接读字段异常，是代理实例与 Target 的区别；</li>
+<li>Event 监听不到，是发布时机或广播体系；</li>
+<li>Controller 方法为什么能被调用，是启动期建立 Handler 映射、运行期 DispatcherServlet 查表并反射执行。</li>
+</ul>
+<p>真正掌握 Spring，不是把源码背下来，而是遇到故障时能够快速判断：<strong>当前问题发生在对象被发现之前、创建过程中、依赖解析阶段、初始化阶段、代理之后，还是进入 Web &#x2F; Event 运行链之后。</strong></p>
+<p>当这套边界感建立起来之后，Spring 就不再是“突然罢工的保姆”，而是一套可以被推理、调试和验证的对象运行系统。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Java/" class="category-chain-item">Java</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/Java/Spring/" class="category-chain-item">Spring</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Spring-Boot/" class="print-no-link">#Spring Boot</a>
+      
+        <a href="/tags/Spring/" class="print-no-link">#Spring</a>
+      
+        <a href="/tags/Spring-MVC/" class="print-no-link">#Spring MVC</a>
+      
+        <a href="/tags/AOP/" class="print-no-link">#AOP</a>
+      
+        <a href="/tags/IoC/" class="print-no-link">#IoC</a>
+      
+        <a href="/tags/DI/" class="print-no-link">#DI</a>
+      
+        <a href="/tags/Bean/" class="print-no-link">#Bean</a>
+      
+        <a href="/tags/ApplicationEvent/" class="print-no-link">#ApplicationEvent</a>
+      
+        <a href="/tags/DispatcherServlet/" class="print-no-link">#DispatcherServlet</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>从 Bean 到 Web 请求：Spring 核心运行机制、AOP、事件与常见陷阱</div>
+      <div>https://allendericdalexander.github.io/2026/08/12/geeker/144/2spring-core-internals-and-common-pitfalls/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月12日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/08/12/geeker/144/4spring-mvc-request-pipeline/" title="Spring MVC 请求处理全链路：从 URL、Header、Body 到 Validation、Filter、Security 与异常处理">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Spring MVC 请求处理全链路：从 URL、Header、Body 到 Validation、Filter、Security 与异常处理</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/12/geeker/144/1secure-coding-system/" title="安全编码体系：从信任边界、最小权限到纵深防御">
+                        <span class="hidden-mobile">安全编码体系：从信任边界、最小权限到纵深防御</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
