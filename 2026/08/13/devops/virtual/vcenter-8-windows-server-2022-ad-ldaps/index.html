@@ -1,0 +1,1429 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="本文专门介绍如何将 VMware vCenter Server 8.0 接入 Windows Server 2022 Active Directory，使用 AD 账号统一登录 vSphere Client，并通过 AD 安全组完成 vCenter 权限授权。 本文采用的方案是： 123456789Windows Server 2022 AD DS + DNS        ↓LDAPS &#x2F; TC">
+<meta property="og:type" content="article">
+<meta property="og:title" content="VMware vCenter Server 8.0 接入 Windows Server 2022 AD 域：LDAPS 身份源与权限配置">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/13/devops/virtual/vcenter-8-windows-server-2022-ad-ldaps/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="本文专门介绍如何将 VMware vCenter Server 8.0 接入 Windows Server 2022 Active Directory，使用 AD 账号统一登录 vSphere Client，并通过 AD 安全组完成 vCenter 权限授权。 本文采用的方案是： 123456789Windows Server 2022 AD DS + DNS        ↓LDAPS &#x2F; TC">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-13T05:48:00.000Z">
+<meta property="article:modified_time" content="2026-08-13T05:48:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Active Directory">
+<meta property="article:tag" content="LDAP">
+<meta property="article:tag" content="LDAPS">
+<meta property="article:tag" content="RBAC">
+<meta property="article:tag" content="SSO">
+<meta property="article:tag" content="VMware">
+<meta property="article:tag" content="Windows Server 2022">
+<meta property="article:tag" content="vCenter">
+<meta property="article:tag" content="vSphere 8">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>VMware vCenter Server 8.0 接入 Windows Server 2022 AD 域：LDAPS 身份源与权限配置 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="VMware vCenter Server 8.0 接入 Windows Server 2022 AD 域：LDAPS 身份源与权限配置"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-13 13:48" pubdate>
+          2026年8月13日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          4.1k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          34 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">VMware vCenter Server 8.0 接入 Windows Server 2022 AD 域：LDAPS 身份源与权限配置</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>本文专门介绍如何将 <strong>VMware vCenter Server 8.0</strong> 接入 <strong>Windows Server 2022 Active Directory</strong>，使用 AD 账号统一登录 vSphere Client，并通过 AD 安全组完成 vCenter 权限授权。</p>
+<p>本文采用的方案是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Windows Server 2022 AD DS + DNS<br>        ↓<br>LDAPS / TCP 636<br>        ↓<br>vCenter Active Directory over LDAP Identity Source<br>        ↓<br>AD 用户 / AD 安全组<br>        ↓<br>vCenter Role / Permission<br></code></pre></td></tr></table></figure>
+
+<p>如果 VCSA 尚未安装，请先阅读：<strong>《VMware vCenter Server Appliance 8.0 安装部署教程：从 ESXi 到 VCSA》</strong>。</p>
+<span id="more"></span>
+
+<h2 id="序言"><a href="#序言" class="headerlink" title="序言"></a>序言</h2><p>VCSA 安装完成后，默认已经拥有一套自己的认证体系：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">vSphere Single Sign-On<br></code></pre></td></tr></table></figure>
+
+<p>典型管理员账号为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">administrator@vsphere.local<br></code></pre></td></tr></table></figure>
+
+<p>这套账号可以独立于 Windows 域工作，很适合用作 vCenter 的本地应急管理入口。</p>
+<p>但在企业或长期实验环境中，如果每个管理员都单独维护一套 vCenter 本地账号，会带来明显问题：</p>
+<ul>
+<li>人员入离职需要单独维护；</li>
+<li>密码策略无法统一；</li>
+<li>权限组难以与企业组织架构保持一致；</li>
+<li>审计和账号生命周期管理变复杂。</li>
+</ul>
+<p>因此，更合理的方案是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">身份认证交给 Active Directory<br>权限控制交给 vCenter RBAC<br></code></pre></td></tr></table></figure>
+
+<p>也就是让 AD 回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">“你是谁？”<br></code></pre></td></tr></table></figure>
+
+<p>再让 vCenter 回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">“你能做什么？”<br></code></pre></td></tr></table></figure>
+
+<h2 id="一、先理解两个“域”"><a href="#一、先理解两个“域”" class="headerlink" title="一、先理解两个“域”"></a>一、先理解两个“域”</h2><p>这是接入 AD 时最容易混淆的地方。</p>
+<p>假设环境中有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Windows AD 域：lab.example.com<br>vSphere SSO 域：vsphere.local<br></code></pre></td></tr></table></figure>
+
+<p>它们不是一回事。</p>
+<table>
+<thead>
+<tr>
+<th>域</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>lab.example.com</code></td>
+<td>Windows Server 2022 Active Directory</td>
+</tr>
+<tr>
+<td><code>vsphere.local</code></td>
+<td>vCenter 内部 Single Sign-On</td>
+</tr>
+</tbody></table>
+<p>不要因为准备接入 AD，就把 VCSA 的 SSO 域也设置成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">lab.example.com<br></code></pre></td></tr></table></figure>
+
+<p>推荐保留：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">administrator@vsphere.local<br></code></pre></td></tr></table></figure>
+
+<p>作为不依赖 AD、DNS 身份源和 LDAPS 的紧急管理账号。</p>
+<h2 id="二、示例环境"><a href="#二、示例环境" class="headerlink" title="二、示例环境"></a>二、示例环境</h2><p>本文使用：</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>配置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>AD DNS 域</td>
+<td><code>lab.example.com</code></td>
+</tr>
+<tr>
+<td>AD NetBIOS 域</td>
+<td><code>LAB</code></td>
+</tr>
+<tr>
+<td>域控制器</td>
+<td><code>dc01.lab.example.com</code></td>
+</tr>
+<tr>
+<td>DC IP</td>
+<td><code>192.168.10.10</code></td>
+</tr>
+<tr>
+<td>VCSA</td>
+<td><code>vcsa01.lab.example.com</code></td>
+</tr>
+<tr>
+<td>VCSA IP</td>
+<td><code>192.168.10.20</code></td>
+</tr>
+<tr>
+<td>vSphere SSO 域</td>
+<td><code>vsphere.local</code></td>
+</tr>
+<tr>
+<td>LDAP 查询账号</td>
+<td><code>svc-vcenter-ldap@lab.example.com</code></td>
+</tr>
+<tr>
+<td>vSphere 管理员组</td>
+<td><code>GG-vSphere-Admins</code></td>
+</tr>
+</tbody></table>
+<h3 id="2-1-认证拓扑"><a href="#2-1-认证拓扑" class="headerlink" title="2.1 认证拓扑"></a>2.1 认证拓扑</h3><pre><code class=" mermaid">flowchart LR
+    USER[&quot;管理员&lt;br/&gt;mario@lab.example.com&quot;]
+    VC[&quot;vCenter Server 8.0&quot;]
+    DC[&quot;Windows Server 2022&lt;br/&gt;AD DS + DNS + LDAPS&quot;]
+    GROUP[&quot;AD Group&lt;br/&gt;GG-vSphere-Admins&quot;]
+    ROLE[&quot;vCenter Role&lt;br/&gt;Administrator&quot;]
+
+    USER --&gt;|&quot;登录&quot;| VC
+    VC --&gt;|&quot;LDAPS 636 查询身份&quot;| DC
+    DC --&gt;|&quot;用户 / 组信息&quot;| VC
+    USER --&gt; GROUP
+    GROUP --&gt;|&quot;vCenter Permission&quot;| ROLE
+</code></pre>
+
+<h2 id="三、AD-接入前的基础条件"><a href="#三、AD-接入前的基础条件" class="headerlink" title="三、AD 接入前的基础条件"></a>三、AD 接入前的基础条件</h2><p>在配置 vCenter 身份源之前，必须先保证：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">DNS 正确<br>时间正确<br>LDAPS 正常<br>证书正常<br>服务账号正常<br></code></pre></td></tr></table></figure>
+
+<p>其中任何一项出错，都可能表现成一句非常朴素的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Can&#x27;t contact LDAP server<br></code></pre></td></tr></table></figure>
+
+<p>然后把真正的问题藏得很好。</p>
+<h2 id="四、准备-Windows-Server-2022-AD-域"><a href="#四、准备-Windows-Server-2022-AD-域" class="headerlink" title="四、准备 Windows Server 2022 AD 域"></a>四、准备 Windows Server 2022 AD 域</h2><p>如果 AD 域已经存在，可以直接跳到 DNS、时间和 LDAPS 检查。</p>
+<h3 id="4-1-给域控制器配置固定-IP"><a href="#4-1-给域控制器配置固定-IP" class="headerlink" title="4.1 给域控制器配置固定 IP"></a>4.1 给域控制器配置固定 IP</h3><p>示例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">服务器名称：DC01<br>IP：192.168.10.10<br>掩码：255.255.255.0<br>网关：192.168.10.1<br>首选 DNS：192.168.10.10<br></code></pre></td></tr></table></figure>
+
+<h3 id="4-2-安装-AD-DS-与-DNS"><a href="#4-2-安装-AD-DS-与-DNS" class="headerlink" title="4.2 安装 AD DS 与 DNS"></a>4.2 安装 AD DS 与 DNS</h3><p>PowerShell：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs powershell"><span class="hljs-built_in">Install-WindowsFeature</span> AD<span class="hljs-literal">-Domain-Services</span>,DNS <span class="hljs-literal">-IncludeManagementTools</span><br></code></pre></td></tr></table></figure>
+
+<p>创建新林：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs powershell"><span class="hljs-built_in">Install-ADDSForest</span> `<br>  <span class="hljs-literal">-DomainName</span> <span class="hljs-string">&quot;lab.example.com&quot;</span> `<br>  <span class="hljs-literal">-DomainNetbiosName</span> <span class="hljs-string">&quot;LAB&quot;</span> `<br>  <span class="hljs-literal">-InstallDns</span><br></code></pre></td></tr></table></figure>
+
+<p>按照提示设置 DSRM 密码并重启。</p>
+<h2 id="五、DNS-是-AD-接入的前置依赖"><a href="#五、DNS-是-AD-接入的前置依赖" class="headerlink" title="五、DNS 是 AD 接入的前置依赖"></a>五、DNS 是 AD 接入的前置依赖</h2><h3 id="5-1-VCSA-应使用内部-AD-DNS"><a href="#5-1-VCSA-应使用内部-AD-DNS" class="headerlink" title="5.1 VCSA 应使用内部 AD DNS"></a>5.1 VCSA 应使用内部 AD DNS</h3><p>本文推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">VCSA DNS：192.168.10.10<br>ESXi DNS：192.168.10.10<br>管理终端 DNS：能够查询 192.168.10.10<br></code></pre></td></tr></table></figure>
+
+<p>不要让 VCSA 只使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">8.8.8.8<br>1.1.1.1<br></code></pre></td></tr></table></figure>
+
+<p>否则公网域名可能解析得非常开心，但内部域名却找不到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">dc01.lab.example.com<br>vcsa01.lab.example.com<br>_lab._tcp.dc._msdcs.lab.example.com<br></code></pre></td></tr></table></figure>
+
+<h3 id="5-2-外网-DNS-应使用转发器"><a href="#5-2-外网-DNS-应使用转发器" class="headerlink" title="5.2 外网 DNS 应使用转发器"></a>5.2 外网 DNS 应使用转发器</h3><p>让 Windows DNS 处理内部域，再把互联网查询转发出去。</p>
+<p>例如：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs powershell"><span class="hljs-built_in">Set-DnsServerForwarder</span> <span class="hljs-literal">-IPAddress</span> <span class="hljs-number">1.1</span>.<span class="hljs-number">1.1</span>,<span class="hljs-number">8.8</span>.<span class="hljs-number">8.8</span><br></code></pre></td></tr></table></figure>
+
+<p>实际地址请替换成企业或所在地可靠的上游 DNS。</p>
+<h3 id="5-3-创建反向查找区域"><a href="#5-3-创建反向查找区域" class="headerlink" title="5.3 创建反向查找区域"></a>5.3 创建反向查找区域</h3><p>PowerShell：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs powershell"><span class="hljs-built_in">Add-DnsServerPrimaryZone</span> `<br>  <span class="hljs-literal">-NetworkId</span> <span class="hljs-string">&quot;192.168.10.0/24&quot;</span> `<br>  <span class="hljs-literal">-ReplicationScope</span> <span class="hljs-string">&quot;Domain&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="5-4-创建-VCSA-A-PTR"><a href="#5-4-创建-VCSA-A-PTR" class="headerlink" title="5.4 创建 VCSA A &#x2F; PTR"></a>5.4 创建 VCSA A &#x2F; PTR</h3><figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs powershell"><span class="hljs-built_in">Add-DnsServerResourceRecordA</span> `<br>  <span class="hljs-literal">-Name</span> <span class="hljs-string">&quot;vcsa01&quot;</span> `<br>  <span class="hljs-literal">-ZoneName</span> <span class="hljs-string">&quot;lab.example.com&quot;</span> `<br>  <span class="hljs-literal">-IPv4Address</span> <span class="hljs-string">&quot;192.168.10.20&quot;</span> `<br>  <span class="hljs-literal">-CreatePtr</span> `<br>  <span class="hljs-literal">-TimeToLive</span> <span class="hljs-number">01</span>:<span class="hljs-number">00</span>:<span class="hljs-number">00</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="5-5-验证解析"><a href="#5-5-验证解析" class="headerlink" title="5.5 验证解析"></a>5.5 验证解析</h3><figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs powershell"><span class="hljs-built_in">Resolve-DnsName</span> vcsa01.lab.example.com<br><span class="hljs-built_in">Resolve-DnsName</span> <span class="hljs-number">192.168</span>.<span class="hljs-number">10.20</span> <span class="hljs-literal">-Type</span> PTR<br><span class="hljs-built_in">Resolve-DnsName</span> dc01.lab.example.com<br></code></pre></td></tr></table></figure>
+
+<p>预期：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">vcsa01.lab.example.com → 192.168.10.20<br>192.168.10.20 → vcsa01.lab.example.com<br></code></pre></td></tr></table></figure>
+
+<p>从 VCSA 上也要验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">nslookup dc01.lab.example.com<br>nslookup vcsa01.lab.example.com<br>nslookup 192.168.10.10<br></code></pre></td></tr></table></figure>
+
+<h2 id="六、统一时间同步"><a href="#六、统一时间同步" class="headerlink" title="六、统一时间同步"></a>六、统一时间同步</h2><p>Kerberos、Token、证书和目录服务都对时间非常敏感。</p>
+<p>如果 VCSA 与域控制器时间差过大，可能出现：</p>
+<ul>
+<li>AD 登录失败；</li>
+<li>SSO Token 校验失败；</li>
+<li>证书被判断为尚未生效；</li>
+<li>LDAPS 连接失败；</li>
+<li>vCenter 服务异常。</li>
+</ul>
+<h3 id="6-1-Windows-Server-配置上游-NTP"><a href="#6-1-Windows-Server-配置上游-NTP" class="headerlink" title="6.1 Windows Server 配置上游 NTP"></a>6.1 Windows Server 配置上游 NTP</h3><p>如果 <code>DC01</code> 是 PDC Emulator，可以配置可靠上游 NTP：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs powershell">w32tm /config `<br>  /manualpeerlist:<span class="hljs-string">&quot;time.cloudflare.com,0x8 time.google.com,0x8&quot;</span> `<br>  /syncfromflags:manual `<br>  /reliable:yes `<br>  /update<br><br><span class="hljs-built_in">Restart-Service</span> w32time<br>w32tm /resync /rediscover<br></code></pre></td></tr></table></figure>
+
+<p>查看状态：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs powershell">w32tm /query /status<br>w32tm /query /configuration<br></code></pre></td></tr></table></figure>
+
+<p>如果生产网络不能访问公网 NTP，请替换为企业时间服务器。</p>
+<h3 id="6-2-VCSA-检查时间"><a href="#6-2-VCSA-检查时间" class="headerlink" title="6.2 VCSA 检查时间"></a>6.2 VCSA 检查时间</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">timedatectl<br>chronyc sources -v<br></code></pre></td></tr></table></figure>
+
+<p>核心原则是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">AD / DNS / ESXi / VCSA<br>使用一致、可靠的时间体系<br></code></pre></td></tr></table></figure>
+
+<h2 id="七、为什么使用-AD-over-LDAPS"><a href="#七、为什么使用-AD-over-LDAPS" class="headerlink" title="七、为什么使用 AD over LDAPS"></a>七、为什么使用 AD over LDAPS</h2><p>对于 vCenter 8，新环境更推荐使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Active Directory over LDAP<br>LDAPS<br>TCP 636<br></code></pre></td></tr></table></figure>
+
+<p>而不是继续把设计建立在旧的 Integrated Windows Authentication（IWA）方式上。</p>
+<p>本文的方案不要求把 VCSA 自身作为 Windows 域成员加入 AD，而是通过 LDAP 身份源查询 AD。</p>
+<p>优点包括：</p>
+<ul>
+<li>LDAP 流量加密；</li>
+<li>身份源边界更加清晰；</li>
+<li>不依赖 VCSA 加入 Windows 域；</li>
+<li>可以单独管理 LDAP 查询服务账号；</li>
+<li>可以为主、备域控制器分别配置 LDAPS 地址。</li>
+</ul>
+<h2 id="八、准备-LDAPS-证书"><a href="#八、准备-LDAPS-证书" class="headerlink" title="八、准备 LDAPS 证书"></a>八、准备 LDAPS 证书</h2><h3 id="8-1-域控制器证书要求"><a href="#8-1-域控制器证书要求" class="headerlink" title="8.1 域控制器证书要求"></a>8.1 域控制器证书要求</h3><p>域控制器用于 LDAPS 的证书应满足：</p>
+<ul>
+<li>安装在 Local Computer 证书存储；</li>
+<li>有私钥；</li>
+<li>EKU 包含 <code>Server Authentication</code>；</li>
+<li>Subject 或 SAN 包含域控制器 FQDN；</li>
+<li>示例：<code>dc01.lab.example.com</code>；</li>
+<li>证书在有效期内；</li>
+<li>证书链可信；</li>
+<li>DC 正在监听 TCP 636。</li>
+</ul>
+<h3 id="8-2-实验环境可部署-AD-CS"><a href="#8-2-实验环境可部署-AD-CS" class="headerlink" title="8.2 实验环境可部署 AD CS"></a>8.2 实验环境可部署 AD CS</h3><p>如果没有现有 PKI，可以在实验环境部署 Microsoft AD CS。</p>
+<p>服务器管理器：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Add Roles and Features<br>  → Active Directory Certificate Services<br>  → Certification Authority<br></code></pre></td></tr></table></figure>
+
+<p>实验环境可以选择：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Enterprise CA<br>Root CA<br>Create a new private key<br>RSA 2048 或更高<br>SHA-256<br></code></pre></td></tr></table></figure>
+
+<p>生产环境不要因为教程图省事就把离线根 CA、域控制器和所有管理服务全堆在同一台服务器里。</p>
+<h3 id="8-3-检查域控制器证书"><a href="#8-3-检查域控制器证书" class="headerlink" title="8.3 检查域控制器证书"></a>8.3 检查域控制器证书</h3><p>打开：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">certlm.msc<br></code></pre></td></tr></table></figure>
+
+<p>进入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Certificates (Local Computer)<br>  → Personal<br>  → Certificates<br></code></pre></td></tr></table></figure>
+
+<p>检查是否存在颁发给：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">dc01.lab.example.com<br></code></pre></td></tr></table></figure>
+
+<p>并包含：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Server Authentication<br></code></pre></td></tr></table></figure>
+
+<p>如果已经部署企业 CA，可以尝试：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs powershell">gpupdate /force<br>certutil <span class="hljs-literal">-pulse</span><br></code></pre></td></tr></table></figure>
+
+<h2 id="九、验证-LDAPS-636"><a href="#九、验证-LDAPS-636" class="headerlink" title="九、验证 LDAPS 636"></a>九、验证 LDAPS 636</h2><h3 id="9-1-Windows-侧检查端口"><a href="#9-1-Windows-侧检查端口" class="headerlink" title="9.1 Windows 侧检查端口"></a>9.1 Windows 侧检查端口</h3><figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs powershell"><span class="hljs-built_in">Test-NetConnection</span> dc01.lab.example.com <span class="hljs-literal">-Port</span> <span class="hljs-number">636</span><br></code></pre></td></tr></table></figure>
+
+<p>预期：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">TcpTestSucceeded : True<br></code></pre></td></tr></table></figure>
+
+<h3 id="9-2-使用-ldp-exe-验证"><a href="#9-2-使用-ldp-exe-验证" class="headerlink" title="9.2 使用 ldp.exe 验证"></a>9.2 使用 ldp.exe 验证</h3><p>运行：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ldp.exe<br></code></pre></td></tr></table></figure>
+
+<p>选择：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Connection<br>  → Connect<br></code></pre></td></tr></table></figure>
+
+<p>填写：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Server：dc01.lab.example.com<br>Port：636<br>SSL：勾选<br></code></pre></td></tr></table></figure>
+
+<h3 id="9-3-从-VCSA-检查证书链"><a href="#9-3-从-VCSA-检查证书链" class="headerlink" title="9.3 从 VCSA 检查证书链"></a>9.3 从 VCSA 检查证书链</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">openssl s_client \<br>  -connect dc01.lab.example.com:636 \<br>  -servername dc01.lab.example.com \<br>  -showcerts &lt;/dev/null<br></code></pre></td></tr></table></figure>
+
+<p>重点检查：</p>
+<ul>
+<li>实际连接的是 FQDN；</li>
+<li>SAN 包含 <code>dc01.lab.example.com</code>；</li>
+<li>证书未过期；</li>
+<li>中间 CA &#x2F; Root CA 完整；</li>
+<li>TLS 握手正常。</li>
+</ul>
+<p>不要习惯性使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ldaps://192.168.10.10:636<br></code></pre></td></tr></table></figure>
+
+<p>如果证书只签给了 <code>dc01.lab.example.com</code>，用 IP 访问会造成证书名称不匹配。</p>
+<h2 id="十、导出-LDAPS-证书"><a href="#十、导出-LDAPS-证书" class="headerlink" title="十、导出 LDAPS 证书"></a>十、导出 LDAPS 证书</h2><p>在 <code>certlm.msc</code> 中可以导出域控制器证书或 CA 证书链。</p>
+<p>推荐格式：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Base-64 encoded X.509 (.CER)<br></code></pre></td></tr></table></figure>
+
+<p>后续添加 vCenter 身份源时，将证书或可信 CA 链提供给 vCenter。</p>
+<p>建议保留：</p>
+<ul>
+<li>当前证书文件；</li>
+<li>CA 根证书；</li>
+<li>中间 CA；</li>
+<li>到期日期；</li>
+<li>证书续期流程。</li>
+</ul>
+<p>LDAPS 证书过期不是“以后再说”的问题，它非常擅长在某个周一早上突然变成“所有 AD 用户都登不上 vCenter”。</p>
+<h2 id="十一、创建专用-LDAP-查询服务账号"><a href="#十一、创建专用-LDAP-查询服务账号" class="headerlink" title="十一、创建专用 LDAP 查询服务账号"></a>十一、创建专用 LDAP 查询服务账号</h2><p>不要长期把 Domain Admin 凭据保存在 vCenter 身份源配置里。</p>
+<p>创建普通服务账号：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">svc-vcenter-ldap@lab.example.com<br></code></pre></td></tr></table></figure>
+
+<h3 id="11-1-创建-Service-Accounts-OU"><a href="#11-1-创建-Service-Accounts-OU" class="headerlink" title="11.1 创建 Service Accounts OU"></a>11.1 创建 Service Accounts OU</h3><figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs powershell"><span class="hljs-built_in">New-ADOrganizationalUnit</span> `<br>  <span class="hljs-literal">-Name</span> <span class="hljs-string">&quot;Service Accounts&quot;</span> `<br>  <span class="hljs-literal">-Path</span> <span class="hljs-string">&quot;DC=lab,DC=example,DC=com&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="11-2-创建账号"><a href="#11-2-创建账号" class="headerlink" title="11.2 创建账号"></a>11.2 创建账号</h3><figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs powershell"><span class="hljs-variable">$password</span> = <span class="hljs-built_in">Read-Host</span> <span class="hljs-string">&quot;请输入服务账号密码&quot;</span> <span class="hljs-literal">-AsSecureString</span><br><br><span class="hljs-built_in">New-ADUser</span> `<br>  <span class="hljs-literal">-Name</span> <span class="hljs-string">&quot;svc-vcenter-ldap&quot;</span> `<br>  <span class="hljs-literal">-SamAccountName</span> <span class="hljs-string">&quot;svc-vcenter-ldap&quot;</span> `<br>  <span class="hljs-literal">-UserPrincipalName</span> <span class="hljs-string">&quot;svc-vcenter-ldap@lab.example.com&quot;</span> `<br>  <span class="hljs-literal">-Path</span> <span class="hljs-string">&quot;OU=Service Accounts,DC=lab,DC=example,DC=com&quot;</span> `<br>  <span class="hljs-literal">-AccountPassword</span> <span class="hljs-variable">$password</span> `<br>  <span class="hljs-literal">-Enabled</span> <span class="hljs-variable">$true</span><br></code></pre></td></tr></table></figure>
+
+<p>普通域用户通常已经拥有读取常规目录信息的权限，不需要加入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Domain Admins<br></code></pre></td></tr></table></figure>
+
+<p>生产环境应把这个账号纳入密码保险库、轮换和到期监控。</p>
+<h2 id="十二、在-vCenter-中添加-AD-over-LDAPS-身份源"><a href="#十二、在-vCenter-中添加-AD-over-LDAPS-身份源" class="headerlink" title="十二、在 vCenter 中添加 AD over LDAPS 身份源"></a>十二、在 vCenter 中添加 AD over LDAPS 身份源</h2><p>先使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">administrator@vsphere.local<br></code></pre></td></tr></table></figure>
+
+<p>登录 vSphere Client。</p>
+<p>进入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Menu<br>  → Administration<br>  → Single Sign On<br>  → Configuration<br>  → Identity Provider<br>  → Identity Sources<br>  → Add<br></code></pre></td></tr></table></figure>
+
+<p>不同 vCenter 8 Update 版本的中文翻译可能略有不同，但核心路径都位于 Single Sign-On 的 Identity Sources 配置区域。</p>
+<h3 id="12-1-选择身份源类型"><a href="#12-1-选择身份源类型" class="headerlink" title="12.1 选择身份源类型"></a>12.1 选择身份源类型</h3><p>选择：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Active Directory over LDAP<br></code></pre></td></tr></table></figure>
+
+<p>建议使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ldaps://<br></code></pre></td></tr></table></figure>
+
+<p>而不是明文 <code>ldap://</code>。</p>
+<h3 id="12-2-示例配置"><a href="#12-2-示例配置" class="headerlink" title="12.2 示例配置"></a>12.2 示例配置</h3><table>
+<thead>
+<tr>
+<th>字段</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Name</td>
+<td><code>LAB-AD-LDAPS</code></td>
+</tr>
+<tr>
+<td>Base DN for users</td>
+<td><code>DC=lab,DC=example,DC=com</code></td>
+</tr>
+<tr>
+<td>Domain name</td>
+<td><code>lab.example.com</code></td>
+</tr>
+<tr>
+<td>Domain alias</td>
+<td><code>LAB</code></td>
+</tr>
+<tr>
+<td>Base DN for groups</td>
+<td><code>DC=lab,DC=example,DC=com</code></td>
+</tr>
+<tr>
+<td>Primary server URL</td>
+<td><code>ldaps://dc01.lab.example.com:636</code></td>
+</tr>
+<tr>
+<td>Secondary server URL</td>
+<td><code>ldaps://dc02.lab.example.com:636</code></td>
+</tr>
+<tr>
+<td>Username</td>
+<td><code>svc-vcenter-ldap@lab.example.com</code></td>
+</tr>
+<tr>
+<td>Password</td>
+<td>LDAP 服务账号密码</td>
+</tr>
+<tr>
+<td>SSL certificate</td>
+<td>域控制器证书链 &#x2F; 受信 CA</td>
+</tr>
+</tbody></table>
+<p>只有一台域控制器时，Secondary URL 可以留空。</p>
+<h3 id="12-3-Base-DN-怎么选"><a href="#12-3-Base-DN-怎么选" class="headerlink" title="12.3 Base DN 怎么选"></a>12.3 Base DN 怎么选</h3><p>初次接入建议先从域根开始：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">DC=lab,DC=example,DC=com<br></code></pre></td></tr></table></figure>
+
+<p>这样最容易验证是否能够正常搜索用户和组。</p>
+<p>如果直接限制到很深的 OU，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">OU=Users,OU=VMware,DC=lab,DC=example,DC=com<br></code></pre></td></tr></table></figure>
+
+<p>可能导致：</p>
+<ul>
+<li>找不到其他 OU 用户；</li>
+<li>找不到授权组；</li>
+<li>嵌套组解析异常；</li>
+<li>用户认证成功但无法搜索到对应组。</li>
+</ul>
+<p>先跑通，再根据安全与目录结构需求收紧查询范围。</p>
+<h3 id="12-4-Global-Catalog"><a href="#12-4-Global-Catalog" class="headerlink" title="12.4 Global Catalog"></a>12.4 Global Catalog</h3><p>如果需要 Global Catalog，可以使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">LDAP Global Catalog：3268<br>LDAPS Global Catalog：3269<br></code></pre></td></tr></table></figure>
+
+<p>单域、小型环境通常直接使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">636<br></code></pre></td></tr></table></figure>
+
+<p>即可。</p>
+<h2 id="十三、设置默认身份源"><a href="#十三、设置默认身份源" class="headerlink" title="十三、设置默认身份源"></a>十三、设置默认身份源</h2><p>身份源添加成功后，可以根据需要设置为默认身份源。</p>
+<p>这样登录时可以使用更短的账号格式。</p>
+<p>不过为了避免多身份源之间的用户名冲突，仍建议明确写：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">mario@lab.example.com<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">LAB\mario<br></code></pre></td></tr></table></figure>
+
+<p>而不是只写：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">mario<br></code></pre></td></tr></table></figure>
+
+<h2 id="十四、身份认证成功不代表有权限"><a href="#十四、身份认证成功不代表有权限" class="headerlink" title="十四、身份认证成功不代表有权限"></a>十四、身份认证成功不代表有权限</h2><p>这是接入 AD 后第二个最常见的误区。</p>
+<p>vCenter 身份源只负责让系统知道：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">这个 AD 用户确实存在，而且密码正确<br></code></pre></td></tr></table></figure>
+
+<p>它不会自动赋予 vCenter Administrator 权限。</p>
+<p>还需要配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Permission + Role<br></code></pre></td></tr></table></figure>
+
+<p>推荐不要直接给个人用户授权，而是创建 AD 安全组。</p>
+<h2 id="十五、创建-vSphere-管理员-AD-组"><a href="#十五、创建-vSphere-管理员-AD-组" class="headerlink" title="十五、创建 vSphere 管理员 AD 组"></a>十五、创建 vSphere 管理员 AD 组</h2><h3 id="15-1-创建-Groups-OU"><a href="#15-1-创建-Groups-OU" class="headerlink" title="15.1 创建 Groups OU"></a>15.1 创建 Groups OU</h3><figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs powershell"><span class="hljs-built_in">New-ADOrganizationalUnit</span> `<br>  <span class="hljs-literal">-Name</span> <span class="hljs-string">&quot;Groups&quot;</span> `<br>  <span class="hljs-literal">-Path</span> <span class="hljs-string">&quot;DC=lab,DC=example,DC=com&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="15-2-创建管理组"><a href="#15-2-创建管理组" class="headerlink" title="15.2 创建管理组"></a>15.2 创建管理组</h3><figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs powershell"><span class="hljs-built_in">New-ADGroup</span> `<br>  <span class="hljs-literal">-Name</span> <span class="hljs-string">&quot;GG-vSphere-Admins&quot;</span> `<br>  <span class="hljs-literal">-SamAccountName</span> <span class="hljs-string">&quot;GG-vSphere-Admins&quot;</span> `<br>  <span class="hljs-literal">-GroupCategory</span> Security `<br>  <span class="hljs-literal">-GroupScope</span> Global `<br>  <span class="hljs-literal">-Path</span> <span class="hljs-string">&quot;OU=Groups,DC=lab,DC=example,DC=com&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="15-3-添加管理员用户"><a href="#15-3-添加管理员用户" class="headerlink" title="15.3 添加管理员用户"></a>15.3 添加管理员用户</h3><figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs powershell"><span class="hljs-built_in">Add-ADGroupMember</span> `<br>  <span class="hljs-literal">-Identity</span> <span class="hljs-string">&quot;GG-vSphere-Admins&quot;</span> `<br>  <span class="hljs-literal">-Members</span> <span class="hljs-string">&quot;mario&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>以后人员变化时，只需要维护 AD 组成员，而不用逐个修改 vCenter Permission。</p>
+<h2 id="十六、在-vCenter-中给-AD-组授权"><a href="#十六、在-vCenter-中给-AD-组授权" class="headerlink" title="十六、在 vCenter 中给 AD 组授权"></a>十六、在 vCenter 中给 AD 组授权</h2><p>在 vSphere Client 中选择最上层 vCenter 对象：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">vcsa01.lab.example.com<br>  → Permissions<br>  → Add Permission<br></code></pre></td></tr></table></figure>
+
+<p>选择：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Domain：lab.example.com<br>User/Group：GG-vSphere-Admins<br>Role：Administrator<br>Propagate to children：Yes<br></code></pre></td></tr></table></figure>
+
+<p>实验环境可以直接使用 Administrator。</p>
+<p>生产环境建议按职责拆分：</p>
+<ul>
+<li>vSphere 平台管理员；</li>
+<li>VM 管理员；</li>
+<li>网络管理员；</li>
+<li>存储管理员；</li>
+<li>只读审计员；</li>
+<li>备份系统服务账号。</li>
+</ul>
+<p>不要给整个 IT 部门统一套上 Administrator。那不是 RBAC，那只是把权限问题改名叫“以后再说”。</p>
+<h2 id="十七、测试-AD-登录"><a href="#十七、测试-AD-登录" class="headerlink" title="十七、测试 AD 登录"></a>十七、测试 AD 登录</h2><p>退出 <code>administrator@vsphere.local</code>。</p>
+<p>使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">mario@lab.example.com<br></code></pre></td></tr></table></figure>
+
+<p>或：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">LAB\mario<br></code></pre></td></tr></table></figure>
+
+<p>验证：</p>
+<ul>
+<li>能否完成认证；</li>
+<li>能否进入 vSphere Client；</li>
+<li>能否看到预期对象；</li>
+<li>权限是否与角色一致；</li>
+<li>是否可以通过 AD 组变化控制权限。</li>
+</ul>
+<p>然后再次验证：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">administrator@vsphere.local<br></code></pre></td></tr></table></figure>
+
+<p>仍然可以正常登录。</p>
+<p>这个账号必须长期保留。</p>
+<h2 id="十八、为什么必须保留-SSO-本地管理员"><a href="#十八、为什么必须保留-SSO-本地管理员" class="headerlink" title="十八、为什么必须保留 SSO 本地管理员"></a>十八、为什么必须保留 SSO 本地管理员</h2><p>AD 接入之后，至少还存在这些外部依赖：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">DNS<br>域控制器<br>LDAP 服务账号<br>LDAPS 证书<br>CA 证书链<br>网络<br>时间<br></code></pre></td></tr></table></figure>
+
+<p>只要其中任何一项故障，AD 用户登录都有可能受到影响。</p>
+<p>所以必须保留：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">administrator@vsphere.local<br></code></pre></td></tr></table></figure>
+
+<p>它相当于 vCenter 的“破窗锤”。</p>
+<p>平时希望永远用不上，但真出问题时，最好别发现它被放在窗外。</p>
+<h2 id="十九、LDAPS-高可用建议"><a href="#十九、LDAPS-高可用建议" class="headerlink" title="十九、LDAPS 高可用建议"></a>十九、LDAPS 高可用建议</h2><p>如果环境有两台域控制器：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">dc01.lab.example.com<br>dc02.lab.example.com<br></code></pre></td></tr></table></figure>
+
+<p>可以分别配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Primary：ldaps://dc01.lab.example.com:636<br>Secondary：ldaps://dc02.lab.example.com:636<br></code></pre></td></tr></table></figure>
+
+<p>两台域控制器都必须：</p>
+<ul>
+<li>DNS 正常；</li>
+<li>636 可达；</li>
+<li>拥有有效 LDAPS 证书；</li>
+<li>证书 SAN 匹配各自 FQDN；</li>
+<li>证书链可被 vCenter 信任；</li>
+<li>时间正常。</li>
+</ul>
+<p>不要只验证主 DC，然后把一个从未测试过的 Secondary URL 填进去求心理安慰。</p>
+<h2 id="二十、常见故障排查"><a href="#二十、常见故障排查" class="headerlink" title="二十、常见故障排查"></a>二十、常见故障排查</h2><h3 id="20-1-无法添加-LDAPS-身份源"><a href="#20-1-无法添加-LDAPS-身份源" class="headerlink" title="20.1 无法添加 LDAPS 身份源"></a>20.1 无法添加 LDAPS 身份源</h3><p>典型错误：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Can&#x27;t contact LDAP server<br>Failed to probe provider connectivity<br>Certificate validation failed<br></code></pre></td></tr></table></figure>
+
+<p>先检查：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs powershell"><span class="hljs-built_in">Test-NetConnection</span> dc01.lab.example.com <span class="hljs-literal">-Port</span> <span class="hljs-number">636</span><br></code></pre></td></tr></table></figure>
+
+<p>再从 VCSA 检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">openssl s_client \<br>  -connect dc01.lab.example.com:636 \<br>  -servername dc01.lab.example.com \<br>  -showcerts &lt;/dev/null<br></code></pre></td></tr></table></figure>
+
+<p>逐项排查：</p>
+<ul>
+<li>FQDN 是否解析正确；</li>
+<li>TCP 636 是否开放；</li>
+<li>证书 SAN 是否包含域控制器 FQDN；</li>
+<li>证书是否过期；</li>
+<li>CA 链是否完整；</li>
+<li>Base DN 是否正确；</li>
+<li>LDAP 服务账号密码是否正确；</li>
+<li>服务账号是否锁定；</li>
+<li>是否混用了 <code>ldap://</code> 和 <code>ldaps://</code>。</li>
+</ul>
+<h3 id="20-2-AD-用户能搜索到，但无法登录"><a href="#20-2-AD-用户能搜索到，但无法登录" class="headerlink" title="20.2 AD 用户能搜索到，但无法登录"></a>20.2 AD 用户能搜索到，但无法登录</h3><p>检查：</p>
+<ul>
+<li>用户是否 Enabled；</li>
+<li>密码是否过期；</li>
+<li>用户是否 Locked；</li>
+<li>登录格式是否正确；</li>
+<li>vCenter 与 AD 时间是否一致；</li>
+<li>LDAPS 证书是否有效；</li>
+<li>Identity Source 是否正常。</li>
+</ul>
+<p>尝试：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">user@lab.example.com<br>LAB\user<br></code></pre></td></tr></table></figure>
+
+<h3 id="20-3-AD-用户能登录，但看不到任何对象"><a href="#20-3-AD-用户能登录，但看不到任何对象" class="headerlink" title="20.3 AD 用户能登录，但看不到任何对象"></a>20.3 AD 用户能登录，但看不到任何对象</h3><p>这一般不是 LDAP 故障，而是 vCenter Permission 没配。</p>
+<p>检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">vCenter 根对象<br>  → Permissions<br></code></pre></td></tr></table></figure>
+
+<p>确认：</p>
+<ul>
+<li>AD 用户或组已授权；</li>
+<li>Role 正确；</li>
+<li><code>Propagate to children</code> 已勾选。</li>
+</ul>
+<h3 id="20-4-LDAPS-证书更新后突然登录失败"><a href="#20-4-LDAPS-证书更新后突然登录失败" class="headerlink" title="20.4 LDAPS 证书更新后突然登录失败"></a>20.4 LDAPS 证书更新后突然登录失败</h3><p>域控制器证书续期后，vCenter 保存的信任证书可能不再匹配。</p>
+<p>处理前先使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">administrator@vsphere.local<br></code></pre></td></tr></table></figure>
+
+<p>登录。</p>
+<p>然后：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 完成 VAMI 文件级备份<br>2. 记录当前 Identity Source 参数<br>3. 导出新的域控制器 / CA 证书链<br>4. 更新或重新创建身份源<br>5. 测试 AD 登录<br></code></pre></td></tr></table></figure>
+
+<p>部分版本和配置下，更新证书时重新创建身份源会比直接修改更干净。</p>
+<h3 id="20-5-VCSA-能解析公网域名，但不能解析-AD-域"><a href="#20-5-VCSA-能解析公网域名，但不能解析-AD-域" class="headerlink" title="20.5 VCSA 能解析公网域名，但不能解析 AD 域"></a>20.5 VCSA 能解析公网域名，但不能解析 AD 域</h3><p>通常说明 VCSA DNS 指到了公网 DNS。</p>
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/resolv.conf<br></code></pre></td></tr></table></figure>
+
+<p>并在 VAMI 中确认 DNS 指向内部 DNS：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.10.10<br></code></pre></td></tr></table></figure>
+
+<p>外部查询交给 Windows DNS Forwarder。</p>
+<h3 id="20-6-LDAP-服务账号密码变更后身份源失败"><a href="#20-6-LDAP-服务账号密码变更后身份源失败" class="headerlink" title="20.6 LDAP 服务账号密码变更后身份源失败"></a>20.6 LDAP 服务账号密码变更后身份源失败</h3><p>如果组织启用了密码轮换，必须把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">svc-vcenter-ldap<br></code></pre></td></tr></table></figure>
+
+<p>纳入变更流程。</p>
+<p>建议：</p>
+<ul>
+<li>使用密码保险库；</li>
+<li>明确责任人；</li>
+<li>记录变更窗口；</li>
+<li>变更后立即验证 Identity Source；</li>
+<li>保留 SSO 管理员回退入口。</li>
+</ul>
+<h2 id="二十一、证书到期监控"><a href="#二十一、证书到期监控" class="headerlink" title="二十一、证书到期监控"></a>二十一、证书到期监控</h2><p>至少记录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">域控制器 LDAPS 证书到期日<br>Root CA 到期日<br>Intermediate CA 到期日<br>VCSA Machine SSL 到期日<br></code></pre></td></tr></table></figure>
+
+<p>可以建立简单运维表：</p>
+<table>
+<thead>
+<tr>
+<th>证书</th>
+<th>用途</th>
+<th>到期日</th>
+<th>责任人</th>
+<th>提前提醒</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>DC01 LDAPS</td>
+<td>LDAP TLS</td>
+<td>YYYY-MM-DD</td>
+<td>AD 管理员</td>
+<td>60 天</td>
+</tr>
+<tr>
+<td>Root CA</td>
+<td>PKI</td>
+<td>YYYY-MM-DD</td>
+<td>PKI 管理员</td>
+<td>180 天</td>
+</tr>
+<tr>
+<td>VCSA Machine SSL</td>
+<td>vSphere Client</td>
+<td>YYYY-MM-DD</td>
+<td>VMware 管理员</td>
+<td>60 天</td>
+</tr>
+</tbody></table>
+<p>不要等“AD 用户突然都登不上”之后，才第一次知道 LDAPS 也有证书生命周期。</p>
+<h2 id="二十二、权限设计建议"><a href="#二十二、权限设计建议" class="headerlink" title="二十二、权限设计建议"></a>二十二、权限设计建议</h2><p>生产环境推荐通过 AD Group 映射 vCenter Role：</p>
+<pre><code class=" mermaid">flowchart LR
+    U1[&quot;用户 A&quot;] --&gt; G1[&quot;GG-vSphere-Admins&quot;]
+    U2[&quot;用户 B&quot;] --&gt; G2[&quot;GG-vSphere-VM-Admins&quot;]
+    U3[&quot;用户 C&quot;] --&gt; G3[&quot;GG-vSphere-Auditors&quot;]
+
+    G1 --&gt; R1[&quot;Administrator&quot;]
+    G2 --&gt; R2[&quot;VM Operator / 自定义角色&quot;]
+    G3 --&gt; R3[&quot;Read Only&quot;]
+</code></pre>
+
+<p>不要直接大量维护：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">User → vCenter Role<br></code></pre></td></tr></table></figure>
+
+<p>优先维护：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">User → AD Group → vCenter Role<br></code></pre></td></tr></table></figure>
+
+<p>这样人员生命周期和平台权限模型更容易解耦。</p>
+<h2 id="二十三、AD-LDAPS-上线检查清单"><a href="#二十三、AD-LDAPS-上线检查清单" class="headerlink" title="二十三、AD &#x2F; LDAPS 上线检查清单"></a>二十三、AD &#x2F; LDAPS 上线检查清单</h2><h3 id="23-1-DNS"><a href="#23-1-DNS" class="headerlink" title="23.1 DNS"></a>23.1 DNS</h3><ul>
+<li><input disabled="" type="checkbox"> <code>dc01.lab.example.com</code> 可解析</li>
+<li><input disabled="" type="checkbox"> <code>vcsa01.lab.example.com</code> 可解析</li>
+<li><input disabled="" type="checkbox"> VCSA PTR 正常</li>
+<li><input disabled="" type="checkbox"> VCSA 使用内部 AD DNS</li>
+<li><input disabled="" type="checkbox"> Windows DNS 配置了外网转发器</li>
+</ul>
+<h3 id="23-2-时间"><a href="#23-2-时间" class="headerlink" title="23.2 时间"></a>23.2 时间</h3><ul>
+<li><input disabled="" type="checkbox"> 域控制器时间正确</li>
+<li><input disabled="" type="checkbox"> VCSA 时间正确</li>
+<li><input disabled="" type="checkbox"> ESXi 时间正确</li>
+<li><input disabled="" type="checkbox"> 时间源一致或可信</li>
+</ul>
+<h3 id="23-3-LDAPS"><a href="#23-3-LDAPS" class="headerlink" title="23.3 LDAPS"></a>23.3 LDAPS</h3><ul>
+<li><input disabled="" type="checkbox"> TCP 636 可达</li>
+<li><input disabled="" type="checkbox"> 域控制器证书包含 Server Authentication</li>
+<li><input disabled="" type="checkbox"> SAN 包含 DC FQDN</li>
+<li><input disabled="" type="checkbox"> 证书未过期</li>
+<li><input disabled="" type="checkbox"> CA 链完整</li>
+<li><input disabled="" type="checkbox"> <code>openssl s_client</code> 验证正常</li>
+</ul>
+<h3 id="23-4-LDAP-服务账号"><a href="#23-4-LDAP-服务账号" class="headerlink" title="23.4 LDAP 服务账号"></a>23.4 LDAP 服务账号</h3><ul>
+<li><input disabled="" type="checkbox"> 使用专用服务账号</li>
+<li><input disabled="" type="checkbox"> 不是 Domain Admin</li>
+<li><input disabled="" type="checkbox"> 密码已纳入管理</li>
+<li><input disabled="" type="checkbox"> 账号未锁定</li>
+<li><input disabled="" type="checkbox"> 密码轮换流程明确</li>
+</ul>
+<h3 id="23-5-vCenter"><a href="#23-5-vCenter" class="headerlink" title="23.5 vCenter"></a>23.5 vCenter</h3><ul>
+<li><input disabled="" type="checkbox"> AD over LDAP Identity Source 添加成功</li>
+<li><input disabled="" type="checkbox"> 使用 <code>ldaps://...:636</code></li>
+<li><input disabled="" type="checkbox"> Base DN 正确</li>
+<li><input disabled="" type="checkbox"> AD 用户可以被搜索</li>
+<li><input disabled="" type="checkbox"> AD Group 已绑定 vCenter Role</li>
+<li><input disabled="" type="checkbox"> <code>Propagate to children</code> 按需求配置</li>
+<li><input disabled="" type="checkbox"> AD 用户实际登录测试成功</li>
+<li><input disabled="" type="checkbox"> <code>administrator@vsphere.local</code> 仍然可用</li>
+</ul>
+<h3 id="23-6-运维"><a href="#23-6-运维" class="headerlink" title="23.6 运维"></a>23.6 运维</h3><ul>
+<li><input disabled="" type="checkbox"> LDAPS 证书到期日已记录</li>
+<li><input disabled="" type="checkbox"> 身份源变更前有 VAMI 备份</li>
+<li><input disabled="" type="checkbox"> 主 &#x2F; 备域控制器都验证过</li>
+<li><input disabled="" type="checkbox"> 有 AD 故障时的本地 SSO 回退路径</li>
+</ul>
+<h2 id="二十四、推荐的最终结构"><a href="#二十四、推荐的最终结构" class="headerlink" title="二十四、推荐的最终结构"></a>二十四、推荐的最终结构</h2><p>一套比较清晰的 vCenter + AD 身份体系可以是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs text">Windows Server 2022<br>  ├─ AD DS<br>  ├─ DNS<br>  └─ LDAPS Certificate<br>        │<br>        │  TCP 636<br>        ▼<br>VCSA 8.0<br>  ├─ vsphere.local<br>  │    └─ administrator@vsphere.local<br>  │<br>  └─ Identity Source<br>       └─ lab.example.com<br>            ├─ svc-vcenter-ldap<br>            ├─ GG-vSphere-Admins<br>            ├─ GG-vSphere-VM-Admins<br>            └─ GG-vSphere-Auditors<br></code></pre></td></tr></table></figure>
+
+<p>这个设计把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">vCenter 本地应急身份<br>AD 企业身份<br>vCenter 权限<br></code></pre></td></tr></table></figure>
+
+<p>三个层次分开，故障边界也更清晰。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>把 vCenter 接入 AD，并不是简单地“填一个域名”。</p>
+<p>真正完整的链路是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">AD DS<br>  → DNS<br>  → 时间同步<br>  → LDAPS 证书<br>  → TCP 636<br>  → LDAP 查询服务账号<br>  → vCenter Identity Source<br>  → AD Group<br>  → vCenter Role / Permission<br>  → 登录验证<br></code></pre></td></tr></table></figure>
+
+<p>其中最重要的原则有四个：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">1. VCSA 使用内部 DNS<br>2. AD 接入优先使用 LDAPS<br>3. 授权优先使用 AD 安全组，而不是个人账号<br>4. 永远保留 administrator@vsphere.local<br></code></pre></td></tr></table></figure>
+
+<p>认证链路越集中，就越要给故障场景留下一个不依赖它自己的入口。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ol>
+<li><a target="_blank" rel="noopener" href="https://www.vmware.com/docs/vsphere-vcenter-802-installation-guide">VMware vCenter Server 8.0 Installation and Setup Guide</a></li>
+<li><a target="_blank" rel="noopener" href="https://knowledge.broadcom.com/external/article/314324">Broadcom：Removal of Integrated Windows Authentication</a></li>
+<li><a target="_blank" rel="noopener" href="https://knowledge.broadcom.com/external/article/344919">Broadcom：Migrating Identity Source from IWA to AD over LDAP</a></li>
+<li><a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/best-practices-for-dns-client-settings">Microsoft Learn：Best Practices for DNS Client Settings</a></li>
+<li><a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/configure-ldap-signing-certificates">Microsoft Learn：Configure Certificates for LDAP over SSL</a></li>
+<li><a target="_blank" rel="noopener" href="https://techdocs.broadcom.com/us/en/vmware-cis/vsphere/vsphere/8-0/vcenter-installation-and-setup/file-based-backup-and-restore-of-a-vcenter-server-environment/file-based-vcenter-server-appliance-backup.html">Broadcom：Manually Back Up vCenter Server by Using VAMI</a></li>
+</ol>
+<h2 id="启示录"><a href="#启示录" class="headerlink" title="启示录"></a>启示录</h2><p><code>身份系统最危险的设计，不是认证失败，而是认证失败之后没有第二把钥匙。</code></p>
+<p><code>备豫不虞，为国常道。</code></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E6%9C%8D%E5%8A%A1%E5%99%A8%E4%B8%8E%E8%99%9A%E6%8B%9F%E5%8C%96/" class="category-chain-item">服务器与虚拟化</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/%E6%9C%8D%E5%8A%A1%E5%99%A8%E4%B8%8E%E8%99%9A%E6%8B%9F%E5%8C%96/VMware/" class="category-chain-item">VMware</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/VMware/" class="print-no-link">#VMware</a>
+      
+        <a href="/tags/vSphere-8/" class="print-no-link">#vSphere 8</a>
+      
+        <a href="/tags/vCenter/" class="print-no-link">#vCenter</a>
+      
+        <a href="/tags/Windows-Server-2022/" class="print-no-link">#Windows Server 2022</a>
+      
+        <a href="/tags/Active-Directory/" class="print-no-link">#Active Directory</a>
+      
+        <a href="/tags/LDAPS/" class="print-no-link">#LDAPS</a>
+      
+        <a href="/tags/SSO/" class="print-no-link">#SSO</a>
+      
+        <a href="/tags/LDAP/" class="print-no-link">#LDAP</a>
+      
+        <a href="/tags/RBAC/" class="print-no-link">#RBAC</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>VMware vCenter Server 8.0 接入 Windows Server 2022 AD 域：LDAPS 身份源与权限配置</div>
+      <div>https://allendericdalexander.github.io/2026/08/13/devops/virtual/vcenter-8-windows-server-2022-ad-ldaps/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月13日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/08/13/devops/linux/linux-vnc-remote-desktop/" title="使用 VNC 远程控制 Linux Desktop 服务器：TigerVNC 安装、配置与安全访问">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">使用 VNC 远程控制 Linux Desktop 服务器：TigerVNC 安装、配置与安全访问</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/13/devops/virtual/vmware-vcsa-8-installation/" title="VMware vCenter Server Appliance 8.0 安装部署教程：从 ESXi 到 VCSA">
+                        <span class="hidden-mobile">VMware vCenter Server Appliance 8.0 安装部署教程：从 ESXi 到 VCSA</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
