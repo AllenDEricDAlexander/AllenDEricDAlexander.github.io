@@ -1,0 +1,1924 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="在 Dubbo 微服务体系中，外部客户端通常使用 HTTP&#x2F;HTTPS，而内部服务使用 Dubbo RPC，Nacos 负责注册与服务发现。传统方案往往需要额外部署 HTTP Adapter，将 HTTP 请求转换为 Dubbo 调用。本文以订单查询与下单业务为例，整理 APISIX、Nacos 与 Dubbo 的整合方式，重点说明服务发现、HTTP→Dubbo 协议转换、Dubbo 3">
+<meta property="og:type" content="article">
+<meta property="og:title" content="APISIX + Nacos + Dubbo 整合实践：以订单服务为例">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/13/java/apisix-nacos-dubbo/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="在 Dubbo 微服务体系中，外部客户端通常使用 HTTP&#x2F;HTTPS，而内部服务使用 Dubbo RPC，Nacos 负责注册与服务发现。传统方案往往需要额外部署 HTTP Adapter，将 HTTP 请求转换为 Dubbo 调用。本文以订单查询与下单业务为例，整理 APISIX、Nacos 与 Dubbo 的整合方式，重点说明服务发现、HTTP→Dubbo 协议转换、Dubbo 3">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-13T09:18:00.000Z">
+<meta property="article:modified_time" content="2026-08-13T09:18:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="API Gateway">
+<meta property="article:tag" content="APISIX">
+<meta property="article:tag" content="Dubbo">
+<meta property="article:tag" content="Microservices">
+<meta property="article:tag" content="Nacos">
+<meta property="article:tag" content="Service Discovery">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>APISIX + Nacos + Dubbo 整合实践：以订单服务为例 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="APISIX + Nacos + Dubbo 整合实践：以订单服务为例"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-13 17:18" pubdate>
+          2026年8月13日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          8k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          67 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">APISIX + Nacos + Dubbo 整合实践：以订单服务为例</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>在 Dubbo 微服务体系中，外部客户端通常使用 HTTP&#x2F;HTTPS，而内部服务使用 Dubbo RPC，Nacos 负责注册与服务发现。传统方案往往需要额外部署 HTTP Adapter，将 HTTP 请求转换为 Dubbo 调用。本文以订单查询与下单业务为例，整理 APISIX、Nacos 与 Dubbo 的整合方式，重点说明服务发现、HTTP→Dubbo 协议转换、Dubbo 3 注册模型、动态扩缩容、版本兼容以及生产环境容易踩到的问题。</p>
+<span id="more"></span>
+
+<h2 id="为什么需要-APISIX-Nacos-Dubbo"><a href="#为什么需要-APISIX-Nacos-Dubbo" class="headerlink" title="为什么需要 APISIX + Nacos + Dubbo"></a>为什么需要 APISIX + Nacos + Dubbo</h2><p>假设一个典型的订单系统已经采用 Dubbo 构建内部微服务：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">order-service<br>payment-service<br>inventory-service<br>user-service<br></code></pre></td></tr></table></figure>
+
+<p>内部调用可能是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">order-service<br>    |<br>    +---- Dubbo ----&gt; inventory-service<br>    |<br>    +---- Dubbo ----&gt; payment-service<br></code></pre></td></tr></table></figure>
+
+<p>但浏览器、App、小程序或者第三方系统不可能直接调用 Dubbo，它们通常使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP<br>HTTPS<br>REST API<br>JSON<br></code></pre></td></tr></table></figure>
+
+<p>于是南北向流量会遇到两个问题：</p>
+<ol>
+<li><strong>HTTP 与 Dubbo 的协议不同，需要协议转换。</strong></li>
+<li><strong>Dubbo Provider 地址动态变化，网关不能把 Provider IP 写死。</strong></li>
+</ol>
+<p>传统做法通常是在 Dubbo 服务前面再增加一个 HTTP Adapter：</p>
+<pre><code class=" mermaid">flowchart LR
+    Client[Web / App / 第三方系统]
+    Gateway[API Gateway]
+    Adapter[Order HTTP Adapter]
+    Nacos[Nacos]
+    Order1[Order Dubbo Provider #1]
+    Order2[Order Dubbo Provider #2]
+
+    Client --&gt;|HTTP| Gateway
+    Gateway --&gt;|HTTP| Adapter
+    Adapter --&gt;|Dubbo| Order1
+    Adapter --&gt;|Dubbo| Order2
+
+    Adapter -. 服务发现 .-&gt; Nacos
+    Order1 -. 注册 .-&gt; Nacos
+    Order2 -. 注册 .-&gt; Nacos
+</code></pre>
+
+<p>这种架构当然能工作，而且当 Adapter 承担 API 聚合、DTO 转换、权限模型转换、领域防腐等职责时，它本身也是有价值的。</p>
+<p>但如果 Adapter 只是机械地做：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP JSON<br>    ↓<br>转换参数<br>    ↓<br>Dubbo RPC<br></code></pre></td></tr></table></figure>
+
+<p>那么它会额外增加一次网络跳转、一套部署单元以及一层故障点。</p>
+<p>APISIX 与 Dubbo、Nacos 组合的核心思路，就是让 APISIX 同时承担：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP API Gateway<br>        +<br>HTTP → Dubbo Protocol Bridge<br>        +<br>Nacos Service Discovery<br></code></pre></td></tr></table></figure>
+
+<p>从而形成：</p>
+<pre><code class=" mermaid">flowchart LR
+    Client[Web / App / 第三方系统]
+    APISIX[Apache APISIX]
+    Nacos[Nacos Registry]
+    Order1[order-service #1&lt;br/&gt;Dubbo :20880]
+    Order2[order-service #2&lt;br/&gt;Dubbo :20881]
+
+    Client --&gt;|HTTP / HTTPS| APISIX
+
+    Order1 -. 注册 Provider .-&gt; Nacos
+    Order2 -. 注册 Provider .-&gt; Nacos
+
+    APISIX -. 查询并刷新实例列表 .-&gt; Nacos
+
+    APISIX --&gt;|Dubbo RPC| Order1
+    APISIX --&gt;|Dubbo RPC| Order2
+</code></pre>
+
+<p>这正是早期 APISIX + Dubbo + Nacos 实践要解决的问题：APISIX 一侧处理 HTTP&#x2F;Dubbo 协议转换，同时通过 Nacos 动态获取 Dubbo Provider，而不是额外维护一层 HTTP Adapter。</p>
+<p>需要特别区分两个概念：</p>
+<blockquote>
+<p><strong>Nacos 服务发现解决的是“调用谁”，HTTP→Dubbo 插件解决的是“怎么调用”。</strong></p>
+</blockquote>
+<p>仅仅让 APISIX 从 Nacos 找到 Dubbo Provider，并不代表 APISIX 自动具备 Dubbo RPC 调用能力。</p>
+<hr>
+<h2 id="三个组件分别负责什么"><a href="#三个组件分别负责什么" class="headerlink" title="三个组件分别负责什么"></a>三个组件分别负责什么</h2><p>在开始配置之前，可以先把职责边界理清。</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>核心职责</th>
+<th>在订单场景中的作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>APISIX</td>
+<td>API Gateway、路由、鉴权、限流、负载均衡、协议转换</td>
+<td>接收 <code>/api/orders/**</code> HTTP 请求</td>
+</tr>
+<tr>
+<td>Nacos</td>
+<td>服务注册、服务发现、实例管理</td>
+<td>保存 order-service Provider 地址</td>
+</tr>
+<tr>
+<td>Dubbo</td>
+<td>RPC 框架</td>
+<td>APISIX 或其他微服务调用订单 RPC</td>
+</tr>
+</tbody></table>
+<p>Nacos 本身并不承载订单请求。</p>
+<p>真实业务数据流是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Client<br>  ↓<br>APISIX<br>  ↓<br>Dubbo Provider<br>  ↓<br>Database<br></code></pre></td></tr></table></figure>
+
+<p>Nacos 更接近控制面：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Dubbo Provider ──注册──&gt; Nacos<br>                           ↑<br>                        服务发现<br>                           │<br>                        APISIX<br></code></pre></td></tr></table></figure>
+
+<p>Nacos 官方关于 APISIX 服务发现的实践也是这个模型：服务实例注册到 Nacos，APISIX 根据 Nacos 返回的实例列表动态构建 Upstream。</p>
+<hr>
+<h2 id="本文的订单业务场景"><a href="#本文的订单业务场景" class="headerlink" title="本文的订单业务场景"></a>本文的订单业务场景</h2><p>假设系统存在一个订单查询 RPC：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.example.order.api;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">interface</span> <span class="hljs-title class_">OrderQueryService</span> &#123;<br><br>    OrderView <span class="hljs-title function_">queryOrder</span><span class="hljs-params">(OrderQueryRequest request)</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>请求对象：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.example.order.api;<br><br><span class="hljs-keyword">import</span> java.io.Serializable;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">OrderQueryRequest</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">Serializable</span> &#123;<br><br>    <span class="hljs-keyword">private</span> Long orderId;<br><br>    <span class="hljs-keyword">private</span> Long userId;<br><br>    <span class="hljs-keyword">public</span> Long <span class="hljs-title function_">getOrderId</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> orderId;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">setOrderId</span><span class="hljs-params">(Long orderId)</span> &#123;<br>        <span class="hljs-built_in">this</span>.orderId = orderId;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> Long <span class="hljs-title function_">getUserId</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> userId;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">setUserId</span><span class="hljs-params">(Long userId)</span> &#123;<br>        <span class="hljs-built_in">this</span>.userId = userId;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>返回对象：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.example.order.api;<br><br><span class="hljs-keyword">import</span> java.io.Serializable;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">OrderView</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">Serializable</span> &#123;<br><br>    <span class="hljs-keyword">private</span> Long orderId;<br>    <span class="hljs-keyword">private</span> String orderStatus;<br>    <span class="hljs-keyword">private</span> Long amount;<br><br>    <span class="hljs-comment">// getter / setter</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>内部 Dubbo RPC 是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">OrderQueryService.queryOrder(OrderQueryRequest)<br></code></pre></td></tr></table></figure>
+
+<p>对外则希望暴露：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs http">POST /api/orders/query<br><span class="hljs-attribute">Content-Type</span><span class="hljs-punctuation">: </span>application/json<br></code></pre></td></tr></table></figure>
+
+<p>请求：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;orderId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">10001</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;userId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">20001</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>因此 APISIX 需要完成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">POST /api/orders/query<br>          ↓<br>OrderQueryService.queryOrder(...)<br></code></pre></td></tr></table></figure>
+
+<p>这里刻意采用<strong>单 Request DTO 参数</strong>，而不是：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">queryOrder(Long orderId, Long userId, Integer type, String channel)<br></code></pre></td></tr></table></figure>
+
+<p>后面会看到，这种接口设计对于 HTTP→Dubbo 协议转换非常重要。</p>
+<hr>
+<h2 id="整体调用链"><a href="#整体调用链" class="headerlink" title="整体调用链"></a>整体调用链</h2><p>一次订单查询可以抽象成下面的流程。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant O as order-service
+    participant N as Nacos
+    participant C as Client
+    participant A as APISIX
+
+    O-&gt;&gt;N: 注册 OrderQueryService Provider
+    A-&gt;&gt;N: 周期刷新 Provider 实例
+    N--&gt;&gt;A: IP + Dubbo Port
+
+    C-&gt;&gt;A: POST /api/orders/query
+    A-&gt;&gt;A: Route 匹配
+    A-&gt;&gt;A: 选择 Upstream
+    A-&gt;&gt;A: HTTP → Dubbo 编码
+    A-&gt;&gt;O: queryOrder(request)
+    O--&gt;&gt;A: OrderView
+    A--&gt;&gt;C: HTTP Response
+</code></pre>
+
+<p>注意请求阶段并不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Client -&gt; APISIX -&gt; Nacos -&gt; Dubbo<br></code></pre></td></tr></table></figure>
+
+<p>而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Client -&gt; APISIX -&gt; Dubbo<br></code></pre></td></tr></table></figure>
+
+<p>APISIX 的 Nacos Discovery 模块按照配置周期刷新服务实例，因此不需要每次业务请求都实时查询 Nacos。当前 APISIX Nacos Discovery 配置提供 <code>fetch_interval</code>、连接超时、读取超时等参数。</p>
+<hr>
+<h2 id="环境与版本选择"><a href="#环境与版本选择" class="headerlink" title="环境与版本选择"></a>环境与版本选择</h2><p>早期 Nacos 官方案例使用的是 APISIX 2.x，2023 年 APISIX + Dubbo + Nacos 示例同样属于较早的 APISIX&#x2F;Dubbo 组合。今天直接照搬旧配置，最容易遇到的并不是 Nacos，而是 <strong>Dubbo 3 注册模型和 Dubbo 序列化方式已经发生变化</strong>。</p>
+<p>当前 APISIX 文档已经进入 3.x 系列，Nacos Service Discovery、<code>dubbo-proxy</code> 和 <code>http-dubbo</code> 仍然存在。</p>
+<p>本文建议把版本兼容拆成两层考虑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">第一层<br>APISIX &lt;-&gt; Nacos<br><br>第二层<br>APISIX &lt;-&gt; Dubbo<br></code></pre></td></tr></table></figure>
+
+<p>APISIX 与 Nacos 的服务发现通常比较直接。</p>
+<p>真正需要重点验证的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">APISIX HTTP-Dubbo Plugin<br>        ↓<br>Dubbo Protocol Version<br>        ↓<br>Serialization<br>        ↓<br>Provider<br></code></pre></td></tr></table></figure>
+
+<p>官方 Dubbo 3.3 Nacos 注册中心文档给出的示例组合中，Dubbo 3.3.0 对应推荐 Nacos 2.3.0，并兼容 Nacos 2.x。</p>
+<p>生产环境不要简单理解为：</p>
+<blockquote>
+<p>APISIX 3.x + Dubbo 3.x + Nacos 3.x，数字越大就一定越兼容。</p>
+</blockquote>
+<p>协议转换层必须单独做兼容性测试。</p>
+<hr>
+<h2 id="第一步：创建-Dubbo-Order-Provider"><a href="#第一步：创建-Dubbo-Order-Provider" class="headerlink" title="第一步：创建 Dubbo Order Provider"></a>第一步：创建 Dubbo Order Provider</h2><h3 id="Maven-依赖"><a href="#Maven-依赖" class="headerlink" title="Maven 依赖"></a>Maven 依赖</h3><p>以 Dubbo 3.3.x 为例：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">properties</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">java.version</span>&gt;</span>17<span class="hljs-tag">&lt;/<span class="hljs-name">java.version</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">dubbo.version</span>&gt;</span>3.3.0<span class="hljs-tag">&lt;/<span class="hljs-name">dubbo.version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">properties</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">dependencies</span>&gt;</span><br><br>    <span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.apache.dubbo<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>dubbo-spring-boot-starter<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>$&#123;dubbo.version&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><br>    <span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.apache.dubbo<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>dubbo-nacos-spring-boot-starter<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>        <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>$&#123;dubbo.version&#125;<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>    <span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependencies</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>这是当前 Dubbo Nacos 注册中心文档提供的 Spring Boot 依赖方式。</p>
+<h3 id="Provider-实现"><a href="#Provider-实现" class="headerlink" title="Provider 实现"></a>Provider 实现</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">package</span> com.example.order.provider;<br><br><span class="hljs-keyword">import</span> com.example.order.api.OrderQueryRequest;<br><span class="hljs-keyword">import</span> com.example.order.api.OrderQueryService;<br><span class="hljs-keyword">import</span> com.example.order.api.OrderView;<br><span class="hljs-keyword">import</span> org.apache.dubbo.config.annotation.DubboService;<br><br><span class="hljs-meta">@DubboService(version = &quot;1.0.0&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">OrderQueryServiceImpl</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">OrderQueryService</span> &#123;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> OrderView <span class="hljs-title function_">queryOrder</span><span class="hljs-params">(OrderQueryRequest request)</span> &#123;<br><br>        <span class="hljs-comment">// 示例中省略 Repository 查询逻辑。</span><br><br>        <span class="hljs-type">OrderView</span> <span class="hljs-variable">result</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">OrderView</span>();<br>        result.setOrderId(request.getOrderId());<br>        result.setOrderStatus(<span class="hljs-string">&quot;PAID&quot;</span>);<br>        result.setAmount(<span class="hljs-number">9900L</span>);<br><br>        <span class="hljs-keyword">return</span> result;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="一个非常重要的-Dubbo-3-配置：register-mode"><a href="#一个非常重要的-Dubbo-3-配置：register-mode" class="headerlink" title="一个非常重要的 Dubbo 3 配置：register-mode"></a>一个非常重要的 Dubbo 3 配置：register-mode</h2><p>配置：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">spring:</span><br>  <span class="hljs-attr">application:</span><br>    <span class="hljs-attr">name:</span> <span class="hljs-string">order-service</span><br><br><span class="hljs-attr">dubbo:</span><br>  <span class="hljs-attr">application:</span><br>    <span class="hljs-attr">name:</span> <span class="hljs-string">order-service</span><br><br>  <span class="hljs-attr">protocol:</span><br>    <span class="hljs-attr">name:</span> <span class="hljs-string">dubbo</span><br>    <span class="hljs-attr">port:</span> <span class="hljs-number">20880</span><br><br>  <span class="hljs-attr">registry:</span><br>    <span class="hljs-attr">address:</span> <span class="hljs-string">nacos://127.0.0.1:8848</span><br>    <span class="hljs-attr">register-mode:</span> <span class="hljs-string">all</span><br></code></pre></td></tr></table></figure>
+
+<p>这里为什么显式写：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">register-mode:</span> <span class="hljs-string">all</span><br></code></pre></td></tr></table></figure>
+
+<p>而不是使用 Dubbo 3 新项目经常推荐的：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">register-mode:</span> <span class="hljs-string">instance</span><br></code></pre></td></tr></table></figure>
+
+<p>这是整个 APISIX + Dubbo 3 整合里最容易忽略的问题。</p>
+<hr>
+<h2 id="Dubbo-3-的服务注册模型发生了什么变化"><a href="#Dubbo-3-的服务注册模型发生了什么变化" class="headerlink" title="Dubbo 3 的服务注册模型发生了什么变化"></a>Dubbo 3 的服务注册模型发生了什么变化</h2><p>Dubbo 2 时代主要采用接口级服务发现。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">com.example.order.api.OrderQueryService<br></code></pre></td></tr></table></figure>
+
+<p>在 Nacos 中会形成类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">providers:com.example.order.api.OrderQueryService:1.0.0:<br></code></pre></td></tr></table></figure>
+
+<p>这个名字包含：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">providers:<br>    +<br>interface<br>    +<br>version<br>    +<br>group<br></code></pre></td></tr></table></figure>
+
+<p>完整规则可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">providers:$&#123;interface&#125;:$&#123;version&#125;:$&#123;group&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果没有 Dubbo Group：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">providers:com.example.order.api.OrderQueryService:1.0.0:<br>                                                          ↑<br>                                                     最后的冒号仍存在<br></code></pre></td></tr></table></figure>
+
+<p>Dubbo 官方排障资料也明确给出了这种接口级 Nacos Service Name 格式。</p>
+<p>但 Dubbo 3 引入了应用级服务发现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">order-service<br></code></pre></td></tr></table></figure>
+
+<p>服务发现的中心开始从：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">interface<br></code></pre></td></tr></table></figure>
+
+<p>逐渐转向：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">application<br></code></pre></td></tr></table></figure>
+
+<p>Dubbo 3 提供：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">dubbo.registry.register-mode</span>=<span class="hljs-string">interface</span><br><span class="hljs-attr">dubbo.registry.register-mode</span>=<span class="hljs-string">instance</span><br><span class="hljs-attr">dubbo.registry.register-mode</span>=<span class="hljs-string">all</span><br></code></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>interface</code></td>
+<td>只进行接口级注册</td>
+</tr>
+<tr>
+<td><code>instance</code></td>
+<td>只进行应用级注册</td>
+</tr>
+<tr>
+<td><code>all</code></td>
+<td>两种方式都注册</td>
+</tr>
+</tbody></table>
+<p>对于新的 Dubbo 3 Consumer，官方更推荐逐步转向应用级服务发现；但 APISIX 并不是一个完整的 Dubbo 3 Consumer，它通常没有 Dubbo MetadataService、应用映射等完整服务发现过程。</p>
+<p>而 APISIX + Nacos 的传统整合方法依赖的恰恰是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">providers:interface:version:group<br></code></pre></td></tr></table></figure>
+
+<p>所以本文显式使用：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">register-mode:</span> <span class="hljs-string">all</span><br></code></pre></td></tr></table></figure>
+
+<p>目的不是说 <code>all</code> 永远是 Dubbo 3 的最佳配置，而是：</p>
+<blockquote>
+<p><strong>为 APISIX 保留接口级 Nacos 注册信息，同时让 Dubbo 3 内部 Consumer 仍然能够使用应用级服务发现。</strong></p>
+</blockquote>
+<p>这是一种兼容策略。</p>
+<hr>
+<h2 id="验证订单-Dubbo-Provider-是否已经注册"><a href="#验证订单-Dubbo-Provider-是否已经注册" class="headerlink" title="验证订单 Dubbo Provider 是否已经注册"></a>验证订单 Dubbo Provider 是否已经注册</h2><p>启动：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">java -jar order-service.jar<br></code></pre></td></tr></table></figure>
+
+<p>然后可以直接查询 Nacos Open API：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">SERVICE_NAME=<span class="hljs-string">&#x27;providers:com.example.order.api.OrderQueryService:1.0.0:&#x27;</span><br><br>curl -G <span class="hljs-string">&#x27;http://127.0.0.1:8848/nacos/v1/ns/instance/list&#x27;</span> \<br>  --data-urlencode <span class="hljs-string">&quot;serviceName=<span class="hljs-variable">$&#123;SERVICE_NAME&#125;</span>&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果注册正常，应能够看到类似实例信息：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;providers:com.example.order.api.OrderQueryService:1.0.0:&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;hosts&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;ip&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;192.168.10.21&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;port&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">20880</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;healthy&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">true</span></span><br>    <span class="hljs-punctuation">&#125;</span><br>  <span class="hljs-punctuation">]</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>这里真正重要的不是 JSON 长什么样，而是确认三个字段：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">serviceName<br>IP<br>Dubbo Port<br></code></pre></td></tr></table></figure>
+
+<p>其中端口必须是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">20880<br></code></pre></td></tr></table></figure>
+
+<p>这样的 Dubbo 协议端口，而不是 Spring Boot 的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">8080<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="第二步：让-APISIX-接入-Nacos"><a href="#第二步：让-APISIX-接入-Nacos" class="headerlink" title="第二步：让 APISIX 接入 Nacos"></a>第二步：让 APISIX 接入 Nacos</h2><p>APISIX 的 Nacos Service Discovery 需要在 <code>conf/config.yaml</code> 中配置。</p>
+<p>当前 APISIX 文档采用类似下面的配置：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">discovery:</span><br>  <span class="hljs-attr">nacos:</span><br>    <span class="hljs-attr">host:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">&quot;http://127.0.0.1:8848&quot;</span><br><br>    <span class="hljs-attr">prefix:</span> <span class="hljs-string">&quot;/nacos/v1/&quot;</span><br><br>    <span class="hljs-attr">fetch_interval:</span> <span class="hljs-number">30</span><br><br>    <span class="hljs-attr">weight:</span> <span class="hljs-number">100</span><br><br>    <span class="hljs-attr">timeout:</span><br>      <span class="hljs-attr">connect:</span> <span class="hljs-number">2000</span><br>      <span class="hljs-attr">send:</span> <span class="hljs-number">2000</span><br>      <span class="hljs-attr">read:</span> <span class="hljs-number">5000</span><br></code></pre></td></tr></table></figure>
+
+<p>最简单的配置实际上只需要：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">discovery:</span><br>  <span class="hljs-attr">nacos:</span><br>    <span class="hljs-attr">host:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">&quot;http://127.0.0.1:8848&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>不过生产环境建议显式配置超时。</p>
+<h3 id="fetch-interval"><a href="#fetch-interval" class="headerlink" title="fetch_interval"></a>fetch_interval</h3><p>例如：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">fetch_interval:</span> <span class="hljs-number">30</span><br></code></pre></td></tr></table></figure>
+
+<p>表示 APISIX 周期刷新 Nacos 服务信息。</p>
+<p>开发环境如果希望快速观察实例上下线，可以适当缩短：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">fetch_interval:</span> <span class="hljs-number">5</span><br></code></pre></td></tr></table></figure>
+
+<p>但刷新频率越高，对注册中心的查询也越频繁。</p>
+<p>没有必要为了追求“秒级感知”直接写：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">fetch_interval:</span> <span class="hljs-number">1</span><br></code></pre></td></tr></table></figure>
+
+<p>特别是网关节点很多时：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">10 个 APISIX<br>×<br>大量 Service<br>×<br>1 秒刷新<br></code></pre></td></tr></table></figure>
+
+<p>会无意义地增加 Nacos 压力。</p>
+<hr>
+<h2 id="第三步：让-APISIX-根据-Nacos-创建动态-Upstream"><a href="#第三步：让-APISIX-根据-Nacos-创建动态-Upstream" class="headerlink" title="第三步：让 APISIX 根据 Nacos 创建动态 Upstream"></a>第三步：让 APISIX 根据 Nacos 创建动态 Upstream</h2><p>普通 APISIX Upstream 可能这样配置：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;roundrobin&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;nodes&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>    <span class="hljs-attr">&quot;192.168.10.21:20880&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;192.168.10.22:20880&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1</span><br>  <span class="hljs-punctuation">&#125;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>问题是 Provider 扩缩容后必须修改 APISIX。</p>
+<p>接入 Nacos 后，则变成：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;roundrobin&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;service_name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;providers:com.example.order.api.OrderQueryService:1.0.0:&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;discovery_type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;nacos&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>这里不再配置：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-string">&quot;nodes&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>APISIX 根据：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">service_name<br>        +<br>discovery_type=nacos<br></code></pre></td></tr></table></figure>
+
+<p>动态查询 Provider。</p>
+<p>这正是 Nacos 官方 APISIX 服务发现示例采用的方式。</p>
+<hr>
+<h2 id="到这里还不能调用-Dubbo"><a href="#到这里还不能调用-Dubbo" class="headerlink" title="到这里还不能调用 Dubbo"></a>到这里还不能调用 Dubbo</h2><p>现在 APISIX 已经知道：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.10.21:20880<br>192.168.10.22:20880<br></code></pre></td></tr></table></figure>
+
+<p>但客户端发送的仍然是：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs http"><span class="hljs-keyword">POST</span> <span class="hljs-string">/api/orders/query</span> <span class="hljs-meta">HTTP/1.1</span><br><span class="hljs-attribute">Content-Type</span><span class="hljs-punctuation">: </span>application/json<br></code></pre></td></tr></table></figure>
+
+<p>而：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">20880<br></code></pre></td></tr></table></figure>
+
+<p>监听的是 Dubbo RPC Protocol。</p>
+<p>所以：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP Request<br></code></pre></td></tr></table></figure>
+
+<p>不能直接扔给：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Dubbo Port<br></code></pre></td></tr></table></figure>
+
+<p>还必须加入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP → Dubbo<br></code></pre></td></tr></table></figure>
+
+<p>协议转换。</p>
+<p>APISIX 当前仍提供与 Dubbo 相关的 <code>dubbo-proxy</code> 和 <code>http-dubbo</code> 插件。</p>
+<hr>
+<h2 id="dubbo-proxy-与-http-dubbo-应该怎么选"><a href="#dubbo-proxy-与-http-dubbo-应该怎么选" class="headerlink" title="dubbo-proxy 与 http-dubbo 应该怎么选"></a>dubbo-proxy 与 http-dubbo 应该怎么选</h2><p>当前主要可以看到两种路径。</p>
+<table>
+<thead>
+<tr>
+<th>插件</th>
+<th>特点</th>
+<th>更适合</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>dubbo-proxy</code></td>
+<td>较早的 APISIX Dubbo 方案</td>
+<td>兼容已有 APISIX&#x2F;Dubbo 部署</td>
+</tr>
+<tr>
+<td><code>http-dubbo</code></td>
+<td>APISIX 自己构造 Dubbo 请求</td>
+<td>需要显式映射 Dubbo 方法签名</td>
+</tr>
+</tbody></table>
+<p>早期 APISIX + Nacos + Dubbo Demo 使用的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">dubbo-proxy<br></code></pre></td></tr></table></figure>
+
+<p>并且组合了：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-attr">&quot;service_name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;providers:...&quot;</span><span class="hljs-punctuation">,</span><br><span class="hljs-attr">&quot;discovery_type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;nacos&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>这是原始实践已经验证过的整合结构。</p>
+<p>不过当前 <code>dubbo-proxy</code> 官方文档明确提醒：如果基于 OpenResty，需要使用包含 Dubbo 支持的构建。</p>
+<p><code>http-dubbo</code> 则直接在 APISIX Lua 插件中构造 Dubbo Protocol 数据，并连接 APISIX 已经选择好的 Upstream 节点。当前插件源码可以看到，它最终读取：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">ctx.picked_server.host<br>ctx.picked_server.port<br></code></pre></td></tr></table></figure>
+
+<p>建立 TCP 连接。由此可以把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Nacos Discovery<br>        ↓<br>APISIX picked_server<br>        ↓<br>http-dubbo<br></code></pre></td></tr></table></figure>
+
+<p>组合起来。这里属于根据当前插件实现得出的工程性判断，因此部署前必须针对所使用的 APISIX&#x2F;Dubbo 版本进行真实冒烟验证，而不能只检查配置是否能保存。</p>
+<p>下面以 <code>http-dubbo</code> 说明完整调用过程。</p>
+<hr>
+<h2 id="第四步：创建订单查询-Route"><a href="#第四步：创建订单查询-Route" class="headerlink" title="第四步：创建订单查询 Route"></a>第四步：创建订单查询 Route</h2><p>假设：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">Dubbo Interface:<br>com.example.order.api.OrderQueryService<br><br>Version:<br>1.0.0<br><br>Method:<br>queryOrder<br><br>Argument:<br>com.example.order.api.OrderQueryRequest<br></code></pre></td></tr></table></figure>
+
+<p>对应 JVM Method Descriptor 中的参数描述为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Lcom/example/order/api/OrderQueryRequest;<br></code></pre></td></tr></table></figure>
+
+<p>创建 APISIX Route：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">export</span> APISIX_ADMIN_KEY=<span class="hljs-string">&#x27;replace-with-your-admin-key&#x27;</span><br><br>curl -X PUT \<br>  <span class="hljs-string">&#x27;http://127.0.0.1:9180/apisix/admin/routes/order-query&#x27;</span> \<br>  -H <span class="hljs-string">&quot;X-API-KEY: <span class="hljs-variable">$&#123;APISIX_ADMIN_KEY&#125;</span>&quot;</span> \<br>  -H <span class="hljs-string">&#x27;Content-Type: application/json&#x27;</span> \<br>  -d <span class="hljs-string">&#x27;</span><br><span class="hljs-string">&#123;</span><br><span class="hljs-string">  &quot;uri&quot;: &quot;/api/orders/query&quot;,</span><br><span class="hljs-string">  &quot;methods&quot;: [</span><br><span class="hljs-string">    &quot;POST&quot;</span><br><span class="hljs-string">  ],</span><br><span class="hljs-string">  &quot;plugins&quot;: &#123;</span><br><span class="hljs-string">    &quot;http-dubbo&quot;: &#123;</span><br><span class="hljs-string">      &quot;service_name&quot;: &quot;com.example.order.api.OrderQueryService&quot;,</span><br><span class="hljs-string">      &quot;service_version&quot;: &quot;1.0.0&quot;,</span><br><span class="hljs-string">      &quot;method&quot;: &quot;queryOrder&quot;,</span><br><span class="hljs-string">      &quot;params_type_desc&quot;: &quot;Lcom/example/order/api/OrderQueryRequest;&quot;,</span><br><span class="hljs-string">      &quot;serialized&quot;: true,</span><br><span class="hljs-string">      &quot;connect_timeout&quot;: 2000,</span><br><span class="hljs-string">      &quot;send_timeout&quot;: 3000,</span><br><span class="hljs-string">      &quot;read_timeout&quot;: 3000</span><br><span class="hljs-string">    &#125;</span><br><span class="hljs-string">  &#125;,</span><br><span class="hljs-string">  &quot;upstream&quot;: &#123;</span><br><span class="hljs-string">    &quot;type&quot;: &quot;roundrobin&quot;,</span><br><span class="hljs-string">    &quot;service_name&quot;: &quot;providers:com.example.order.api.OrderQueryService:1.0.0:&quot;,</span><br><span class="hljs-string">    &quot;discovery_type&quot;: &quot;nacos&quot;</span><br><span class="hljs-string">  &#125;</span><br><span class="hljs-string">&#125;&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>这里实际上同时完成了两件事情。</p>
+<h3 id="Upstream-负责找-Provider"><a href="#Upstream-负责找-Provider" class="headerlink" title="Upstream 负责找 Provider"></a>Upstream 负责找 Provider</h3><figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-attr">&quot;upstream&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;roundrobin&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;service_name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;providers:com.example.order.api.OrderQueryService:1.0.0:&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;discovery_type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;nacos&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>解决：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">OrderQueryService 在哪？<br></code></pre></td></tr></table></figure>
+
+<h3 id="http-dubbo-负责调用接口"><a href="#http-dubbo-负责调用接口" class="headerlink" title="http-dubbo 负责调用接口"></a>http-dubbo 负责调用接口</h3><figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-attr">&quot;http-dubbo&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;service_name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;com.example.order.api.OrderQueryService&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;service_version&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;1.0.0&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;method&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;queryOrder&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;params_type_desc&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Lcom/example/order/api/OrderQueryRequest;&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>解决：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">到底调用哪个 Dubbo 接口？<br>哪个版本？<br>哪个方法？<br>参数类型是什么？<br></code></pre></td></tr></table></figure>
+
+<p>把它们组合起来，就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Nacos<br>  ↓<br>找到 192.168.10.21:20880<br><br>http-dubbo<br>  ↓<br>OrderQueryService<br>  ↓<br>queryOrder(OrderQueryRequest)<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="params-type-desc-是什么"><a href="#params-type-desc-是什么" class="headerlink" title="params_type_desc 是什么"></a>params_type_desc 是什么</h2><p><code>http-dubbo</code> 并不是只根据 JSON 猜 Java 类型。</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">OrderView <span class="hljs-title function_">queryOrder</span><span class="hljs-params">(OrderQueryRequest request)</span>;<br></code></pre></td></tr></table></figure>
+
+<p>Dubbo 方法参数是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">com.example.order.api.OrderQueryRequest<br></code></pre></td></tr></table></figure>
+
+<p>它的 JVM Descriptor 是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Lcom/example/order/api/OrderQueryRequest;<br></code></pre></td></tr></table></figure>
+
+<p>所以配置：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-attr">&quot;params_type_desc&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Lcom/example/order/api/OrderQueryRequest;&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>官方文档也建议使用 Dubbo 的：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">ReflectUtils.getDesc(...)<br></code></pre></td></tr></table></figure>
+
+<p>获取准确的类型描述，避免人工拼错。</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> org.apache.dubbo.common.utils.ReflectUtils;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">DubboDescriptorTest</span> &#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> &#123;<br>        System.out.println(<br>            ReflectUtils.getDesc(OrderQueryRequest.class)<br>        );<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Lcom/example/order/api/OrderQueryRequest;<br></code></pre></td></tr></table></figure>
+
+<p>对于：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">Long<br></code></pre></td></tr></table></figure>
+
+<p>则是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Ljava/lang/Long;<br></code></pre></td></tr></table></figure>
+
+<p>这也是为什么直接改 Java 方法签名之后，APISIX Route 也可能需要同步更新。</p>
+<hr>
+<h2 id="为什么推荐一个-Request-DTO，而不是多个参数"><a href="#为什么推荐一个-Request-DTO，而不是多个参数" class="headerlink" title="为什么推荐一个 Request DTO，而不是多个参数"></a>为什么推荐一个 Request DTO，而不是多个参数</h2><p>假设 Dubbo 接口设计成：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java">OrderView <span class="hljs-title function_">queryOrder</span><span class="hljs-params">(</span><br><span class="hljs-params">    Long orderId,</span><br><span class="hljs-params">    Long userId,</span><br><span class="hljs-params">    Integer tenantId,</span><br><span class="hljs-params">    String channel</span><br><span class="hljs-params">)</span>;<br></code></pre></td></tr></table></figure>
+
+<p>那么 HTTP→Dubbo 层必须同时正确处理：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">参数顺序<br>参数数量<br>Java 类型<br>JSON 序列化<br>Dubbo 类型描述<br></code></pre></td></tr></table></figure>
+
+<p><code>http-dubbo</code> 的预序列化调用方式要求每个参数按照 Dubbo 方法参数顺序组织；当前实现本身也是围绕 Dubbo 参数序列逐个构造请求。</p>
+<p>因此更推荐：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">OrderView <span class="hljs-title function_">queryOrder</span><span class="hljs-params">(OrderQueryRequest request)</span>;<br></code></pre></td></tr></table></figure>
+
+<p>把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">orderId<br>userId<br>tenantId<br>channel<br></code></pre></td></tr></table></figure>
+
+<p>封装到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">OrderQueryRequest<br></code></pre></td></tr></table></figure>
+
+<p>这样协议边界稳定得多：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP JSON Object<br>        ↓<br>OrderQueryRequest<br>        ↓<br>Dubbo Method<br></code></pre></td></tr></table></figure>
+
+<p>这不仅方便 APISIX，也让后续接口扩展更容易保持兼容。</p>
+<hr>
+<h2 id="调用订单-API"><a href="#调用订单-API" class="headerlink" title="调用订单 API"></a>调用订单 API</h2><p>发送：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash">curl -X POST \<br>  <span class="hljs-string">&#x27;http://127.0.0.1:9080/api/orders/query&#x27;</span> \<br>  -H <span class="hljs-string">&#x27;Content-Type: application/json&#x27;</span> \<br>  -d <span class="hljs-string">&#x27;&#123;</span><br><span class="hljs-string">    &quot;orderId&quot;: 10001,</span><br><span class="hljs-string">    &quot;userId&quot;: 20001</span><br><span class="hljs-string">  &#125;&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>整个链路是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">curl<br>  ↓ HTTP<br>APISIX Route<br>  ↓<br>Nacos Upstream Discovery<br>  ↓<br>选择 order-service Provider<br>  ↓<br>HTTP → Dubbo<br>  ↓<br>OrderQueryService.queryOrder(...)<br>  ↓<br>order-service<br></code></pre></td></tr></table></figure>
+
+<p>业务返回内容取决于 Provider 实际实现。</p>
+<hr>
+<h2 id="Dubbo-3-x-下必须单独关注序列化兼容"><a href="#Dubbo-3-x-下必须单独关注序列化兼容" class="headerlink" title="Dubbo 3.x 下必须单独关注序列化兼容"></a>Dubbo 3.x 下必须单独关注序列化兼容</h2><p>这里是目前最容易出现“配置全部正确，但就是调用失败”的地方。</p>
+<p>当前 <code>http-dubbo</code> 文档明确涉及 Dubbo 序列化约束，而插件实现自身也存在特定 Dubbo&#x2F;Fastjson 编码逻辑。</p>
+<p>与此同时，Dubbo 3.3 当前默认支持的主要序列化已经是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Hessian2<br>Fastjson2<br>Protobuf<br></code></pre></td></tr></table></figure>
+
+<p>而不是早期的 legacy Fastjson；Dubbo 3.3 的默认序列化策略本身也发生过调整。</p>
+<p>因此不能简单认为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">APISIX 支持 http-dubbo<br>        +<br>Dubbo 3.3 正常运行<br>        =<br>一定能够互相调用<br></code></pre></td></tr></table></figure>
+
+<p>生产环境必须做下面这个最小测试：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">单 Provider<br>    ↓<br>单接口<br>    ↓<br>单 DTO 参数<br>    ↓<br>固定版本<br>    ↓<br>真实 APISIX<br>    ↓<br>真实 HTTP 请求<br></code></pre></td></tr></table></figure>
+
+<p>至少验证：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">请求序列化<br>响应反序列化<br>异常响应<br>null<br>Long 精度<br>中文字符串<br>复杂 DTO<br>List<br>Map<br></code></pre></td></tr></table></figure>
+
+<p>如果 Provider 使用的 Dubbo 版本、Serialization 与 APISIX 插件不兼容，不建议为了让网关能调用而强行降级到已经不推荐的旧序列化方式。</p>
+<p>这种情况下，更合理的选择通常是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">方案 A<br>验证 dubbo-proxy 对现有运行时是否兼容<br><br>方案 B<br>服务同时暴露 HTTP / Triple / REST 能力<br><br>方案 C<br>保留轻量 API Adapter / BFF<br><br>方案 D<br>等待或升级到支持目标 Dubbo 编解码方式的协议转换实现<br></code></pre></td></tr></table></figure>
+
+<p><strong>不要把“少一层 Adapter”看得比协议安全和稳定性还重要。</strong></p>
+<hr>
+<h2 id="使用-dubbo-proxy-的兼容方案"><a href="#使用-dubbo-proxy-的兼容方案" class="headerlink" title="使用 dubbo-proxy 的兼容方案"></a>使用 dubbo-proxy 的兼容方案</h2><p>如果已有 APISIX 环境具备 <code>dubbo-proxy</code> 所要求的 Dubbo Runtime，也可以继续采用早期实践中的方式。</p>
+<p>订单 Route 可以写成类似：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;uri&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;/api/orders/query&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;methods&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;POST&quot;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;plugins&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>    <span class="hljs-attr">&quot;dubbo-proxy&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;service_name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;com.example.order.api.OrderQueryService&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;service_version&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;1.0.0&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;method&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;queryOrder&quot;</span><br>    <span class="hljs-punctuation">&#125;</span><br>  <span class="hljs-punctuation">&#125;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;upstream&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>    <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;roundrobin&quot;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;service_name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;providers:com.example.order.api.OrderQueryService:1.0.0:&quot;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;discovery_type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;nacos&quot;</span><br>  <span class="hljs-punctuation">&#125;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>这个结构与早期 APISIX + Dubbo + Nacos Demo 基本一致：<code>upstream</code> 通过 Nacos 定位 Provider，<code>dubbo-proxy</code> 负责 Dubbo 调用。</p>
+<p>不过当前 <code>dubbo-proxy</code> 官方文档明确注明了 OpenResty 构建要求，因此不能默认任意 APISIX 镜像都具备完整运行条件。</p>
+<hr>
+<h2 id="扩容第二个订单-Provider"><a href="#扩容第二个订单-Provider" class="headerlink" title="扩容第二个订单 Provider"></a>扩容第二个订单 Provider</h2><p>现在启动两个订单实例：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">order-service-1<br>192.168.10.21:20880<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">order-service-2<br>192.168.10.22:20880<br></code></pre></td></tr></table></figure>
+
+<p>或者本地测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">java -jar order-service.jar \<br>  --server.port=18080 \<br>  --dubbo.protocol.port=20880<br></code></pre></td></tr></table></figure>
+
+<p>另一个：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">java -jar order-service.jar \<br>  --server.port=18081 \<br>  --dubbo.protocol.port=20881<br></code></pre></td></tr></table></figure>
+
+<p>Nacos 中最终形成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">providers:com.example.order.api.OrderQueryService:1.0.0:<br>    |<br>    +-- 127.0.0.1:20880<br>    |<br>    +-- 127.0.0.1:20881<br></code></pre></td></tr></table></figure>
+
+<p>APISIX Route 不需要改成：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-attr">&quot;nodes&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;127.0.0.1:20880&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;127.0.0.1:20881&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>仍然保持：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;service_name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;providers:com.example.order.api.OrderQueryService:1.0.0:&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;discovery_type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;nacos&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;roundrobin&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>APISIX 刷新实例列表以后，就可以根据 Upstream 策略选择 Provider。</p>
+<p>这才是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">APISIX + Nacos<br></code></pre></td></tr></table></figure>
+
+<p>相比静态 Upstream 真正带来的价值。</p>
+<hr>
+<h2 id="Provider-下线时发生什么"><a href="#Provider-下线时发生什么" class="headerlink" title="Provider 下线时发生什么"></a>Provider 下线时发生什么</h2><p>假设：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">order-service-1<br>order-service-2<br></code></pre></td></tr></table></figure>
+
+<p>同时在线。</p>
+<p>APISIX 当前缓存：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">20880<br>20881<br></code></pre></td></tr></table></figure>
+
+<p>此时停止：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">order-service-1<br></code></pre></td></tr></table></figure>
+
+<p>Dubbo Registry 更新 Nacos 实例状态，之后 APISIX 在下一轮服务发现刷新时获取新的 Provider 列表：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">20881<br></code></pre></td></tr></table></figure>
+
+<p>随后新请求就不会继续依赖已经被移除的静态配置。</p>
+<p>因此这里的关键参数：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">fetch_interval:</span> <span class="hljs-number">30</span><br></code></pre></td></tr></table></figure>
+
+<p>实际上决定了 APISIX 对注册中心变化的轮询刷新节奏。</p>
+<p>它与应用自己的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Dubbo heartbeat<br>Nacos health state<br>Provider unregister<br></code></pre></td></tr></table></figure>
+
+<p>是不同层面的机制。</p>
+<hr>
+<h2 id="Nacos-Namespace-与-Group-怎么处理"><a href="#Nacos-Namespace-与-Group-怎么处理" class="headerlink" title="Nacos Namespace 与 Group 怎么处理"></a>Nacos Namespace 与 Group 怎么处理</h2><p>生产环境一般至少存在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">dev<br>test<br>staging<br>prod<br></code></pre></td></tr></table></figure>
+
+<p>不应该让 APISIX 查询：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">所有环境<br></code></pre></td></tr></table></figure>
+
+<p>APISIX Nacos Discovery 支持：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-attr">&quot;discovery_args&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;namespace_id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;YOUR_NAMESPACE_ID&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;group_name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;DEFAULT_GROUP&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>当前 APISIX 文档中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">namespace_id<br></code></pre></td></tr></table></figure>
+
+<p>默认对应 public Namespace，</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">group_name<br></code></pre></td></tr></table></figure>
+
+<p>默认是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">DEFAULT_GROUP<br></code></pre></td></tr></table></figure>
+
+
+
+<p>例如生产订单 Route：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;upstream&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>    <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;roundrobin&quot;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;service_name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;providers:com.example.order.api.OrderQueryService:1.0.0:&quot;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;discovery_type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;nacos&quot;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;discovery_args&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;namespace_id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;YOUR_PROD_NAMESPACE_ID&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;group_name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;ORDER_RPC&quot;</span><br>    <span class="hljs-punctuation">&#125;</span><br>  <span class="hljs-punctuation">&#125;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>注册端必须进入同一个：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Namespace<br>+<br>Nacos Group<br></code></pre></td></tr></table></figure>
+
+<p>否则现象通常是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Dubbo Provider 明明在 Nacos 页面里<br>        ↓<br>APISIX 却提示没有 Upstream<br></code></pre></td></tr></table></figure>
+
+<p>因为它们实际上查询的不是同一个命名空间。</p>
+<hr>
+<h2 id="不要混淆-Nacos-Group-与-Dubbo-Service-Group"><a href="#不要混淆-Nacos-Group-与-Dubbo-Service-Group" class="headerlink" title="不要混淆 Nacos Group 与 Dubbo Service Group"></a>不要混淆 Nacos Group 与 Dubbo Service Group</h2><p>这里还有两个名字非常容易混。</p>
+<h3 id="Nacos-Group"><a href="#Nacos-Group" class="headerlink" title="Nacos Group"></a>Nacos Group</h3><p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">DEFAULT_GROUP<br>ORDER_RPC<br>PAYMENT_RPC<br></code></pre></td></tr></table></figure>
+
+<p>用于 Nacos 服务分类。</p>
+<p>APISIX 对应：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-attr">&quot;group_name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;ORDER_RPC&quot;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="Dubbo-Group"><a href="#Dubbo-Group" class="headerlink" title="Dubbo Group"></a>Dubbo Group</h3><p>Dubbo Interface 本身还支持：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@DubboService(</span><br><span class="hljs-meta">    version = &quot;1.0.0&quot;,</span><br><span class="hljs-meta">    group = &quot;mall&quot;</span><br><span class="hljs-meta">)</span><br></code></pre></td></tr></table></figure>
+
+<p>此时 Service Key 会发生变化。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">providers:com.example.order.api.OrderQueryService:1.0.0:mall<br></code></pre></td></tr></table></figure>
+
+<p>它和 Nacos 的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ORDER_RPC<br></code></pre></td></tr></table></figure>
+
+<p>不是一回事。</p>
+<p>更麻烦的是，当前 <code>http-dubbo</code> 插件公开的配置 Schema 中没有与 Dubbo Service Group 完全对等的配置字段。</p>
+<p>因此如果准备直接通过 APISIX 调 Dubbo，建议网关暴露的 Dubbo Facade 尽量避免再使用复杂的 Dubbo Group 路由。</p>
+<p>版本隔离优先使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">version = <span class="hljs-string">&quot;1.0.0&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>会更容易控制。</p>
+<hr>
+<h2 id="订单接口版本升级怎么做"><a href="#订单接口版本升级怎么做" class="headerlink" title="订单接口版本升级怎么做"></a>订单接口版本升级怎么做</h2><p>假设当前：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">OrderQueryService:1.0.0<br></code></pre></td></tr></table></figure>
+
+<p>准备上线：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">OrderQueryService:2.0.0<br></code></pre></td></tr></table></figure>
+
+<p>Nacos 中可以同时存在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">providers:com.example.order.api.OrderQueryService:1.0.0:<br></code></pre></td></tr></table></figure>
+
+<p>以及：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">providers:com.example.order.api.OrderQueryService:2.0.0:<br></code></pre></td></tr></table></figure>
+
+<p>APISIX 可以分别配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">/api/v1/orders/query<br>        ↓<br>Dubbo 1.0.0<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">/api/v2/orders/query<br>        ↓<br>Dubbo 2.0.0<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;uri&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;/api/v2/orders/query&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;plugins&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>    <span class="hljs-attr">&quot;http-dubbo&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>      <span class="hljs-attr">&quot;service_name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;com.example.order.api.OrderQueryService&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;service_version&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;2.0.0&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;method&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;queryOrder&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;params_type_desc&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Lcom/example/order/api/v2/OrderQueryRequest;&quot;</span><span class="hljs-punctuation">,</span><br>      <span class="hljs-attr">&quot;serialized&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">true</span></span><br>    <span class="hljs-punctuation">&#125;</span><br>  <span class="hljs-punctuation">&#125;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;upstream&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">&#123;</span><br>    <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;roundrobin&quot;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;service_name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;providers:com.example.order.api.OrderQueryService:2.0.0:&quot;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-attr">&quot;discovery_type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;nacos&quot;</span><br>  <span class="hljs-punctuation">&#125;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>这里尤其要保证两个地方同时升级：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">http-dubbo.service_version<br></code></pre></td></tr></table></figure>
+
+<p>以及：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">upstream.service_name<br></code></pre></td></tr></table></figure>
+
+<p>如果出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Plugin 调 2.0.0<br></code></pre></td></tr></table></figure>
+
+<p>但：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Nacos 找到 1.0.0 Provider<br></code></pre></td></tr></table></figure>
+
+<p>最终通常只能得到非常难看的 RPC 异常。</p>
+<hr>
+<h2 id="下单接口不能照搬查询接口的重试策略"><a href="#下单接口不能照搬查询接口的重试策略" class="headerlink" title="下单接口不能照搬查询接口的重试策略"></a>下单接口不能照搬查询接口的重试策略</h2><p>订单查询：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">queryOrder<br></code></pre></td></tr></table></figure>
+
+<p>通常属于只读请求。</p>
+<p>而：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">createOrder<br></code></pre></td></tr></table></figure>
+
+<p>属于写操作。</p>
+<p>假设 APISIX 请求 Provider 后发生：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Provider 已经创建订单<br>        ↓<br>响应返回途中网络断开<br>        ↓<br>Gateway 认为失败<br>        ↓<br>重新请求另外一个 Provider<br></code></pre></td></tr></table></figure>
+
+<p>就可能出现重复下单。</p>
+<p>因此订单写接口至少需要业务级幂等键：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;requestId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;01JXXXXXXXXXXXX&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;userId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">20001</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;skuId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">30001</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;quantity&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>服务端：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">requestId<br>   ↓<br>幂等检查<br>   ↓<br>创建订单<br></code></pre></td></tr></table></figure>
+
+<p>而不是寄希望于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Gateway Retry<br></code></pre></td></tr></table></figure>
+
+<p>自动解决业务一致性。</p>
+<p>对订单系统来说，应该明确：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">GET / Query<br>可以根据实际情况有限重试<br><br>Create / Pay / Refund<br>不能在不知道执行结果的情况下盲目重试<br></code></pre></td></tr></table></figure>
+
+<p>API Gateway 的网络可靠性机制不能替代业务幂等。</p>
+<hr>
+<h2 id="为什么不建议把所有-Dubbo-接口自动暴露出去"><a href="#为什么不建议把所有-Dubbo-接口自动暴露出去" class="headerlink" title="为什么不建议把所有 Dubbo 接口自动暴露出去"></a>为什么不建议把所有 Dubbo 接口自动暴露出去</h2><p>早期 APISIX + Dubbo + Nacos Demo 已经暴露出一个现实问题：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">一个 Dubbo Service<br>可能有几十个 Method<br></code></pre></td></tr></table></figure>
+
+<p>如果全部手工创建 Route：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Service A.method1<br>Service A.method2<br>Service A.method3<br>Service B.method1<br>...<br></code></pre></td></tr></table></figure>
+
+<p>维护成本会快速上升。</p>
+<p>很自然会想到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">扫描 Nacos<br>        ↓<br>获取所有 providers<br>        ↓<br>自动生成 APISIX Route<br></code></pre></td></tr></table></figure>
+
+<p>技术上当然可以做。</p>
+<p>但生产环境千万不要变成：</p>
+<blockquote>
+<p>注册到 Nacos 的 Dubbo 接口自动全部开放公网。</p>
+</blockquote>
+<p>因为内部 RPC 与外部 API 的安全边界完全不同。</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">OrderService.cancelOrder(...)<br></code></pre></td></tr></table></figure>
+
+<p>内部可能默认：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">调用方已经经过 Dubbo 鉴权<br>调用方是可信服务<br>userId 从上下文取得<br>tenantId 从内部 Attachment 获取<br></code></pre></td></tr></table></figure>
+
+<p>如果机械暴露成：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs http">POST /api/order/cancel<br></code></pre></td></tr></table></figure>
+
+<p>安全模型就被绕过了。</p>
+<p>更合理的方式是维护<strong>白名单式 API Mapping</strong>：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">apis:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">path:</span> <span class="hljs-string">/api/orders/query</span><br>    <span class="hljs-attr">service:</span> <span class="hljs-string">com.example.order.api.OrderQueryService</span><br>    <span class="hljs-attr">version:</span> <span class="hljs-number">1.0</span><span class="hljs-number">.0</span><br>    <span class="hljs-attr">method:</span> <span class="hljs-string">queryOrder</span><br><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">path:</span> <span class="hljs-string">/api/orders/create</span><br>    <span class="hljs-attr">service:</span> <span class="hljs-string">com.example.order.api.OrderCommandService</span><br>    <span class="hljs-attr">version:</span> <span class="hljs-number">1.0</span><span class="hljs-number">.0</span><br>    <span class="hljs-attr">method:</span> <span class="hljs-string">createOrder</span><br></code></pre></td></tr></table></figure>
+
+<p>然后由 CI&#x2F;CD：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">API Mapping<br>     ↓<br>生成 APISIX Route<br>     ↓<br>Review<br>     ↓<br>Deploy<br></code></pre></td></tr></table></figure>
+
+<p>而不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Nacos Service<br>     ↓<br>无脑暴露公网<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="一个更合理的订单服务接口划分"><a href="#一个更合理的订单服务接口划分" class="headerlink" title="一个更合理的订单服务接口划分"></a>一个更合理的订单服务接口划分</h2><p>如果确实准备让 APISIX 直接连接 Dubbo，可以专门设计 Gateway Facade。</p>
+<p>不要直接暴露内部领域 Service：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java">OrderDomainService<br>OrderRepositoryService<br>OrderWorkflowService<br></code></pre></td></tr></table></figure>
+
+<p>而是提供：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">interface</span> <span class="hljs-title class_">OrderGatewayFacade</span> &#123;<br><br>    OrderView <span class="hljs-title function_">queryOrder</span><span class="hljs-params">(OrderQueryRequest request)</span>;<br><br>    CreateOrderResult <span class="hljs-title function_">createOrder</span><span class="hljs-params">(CreateOrderRequest request)</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>形成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Public HTTP API<br>      ↓<br>APISIX<br>      ↓<br>OrderGatewayFacade<br>      ↓<br>Application Service<br>      ↓<br>Domain<br></code></pre></td></tr></table></figure>
+
+<p>这样：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP API Contract<br></code></pre></td></tr></table></figure>
+
+<p>与：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">内部 Domain API<br></code></pre></td></tr></table></figure>
+
+<p>之间仍然保留一层清晰的业务边界。</p>
+<p>APISIX 消掉的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">纯协议 Adapter<br></code></pre></td></tr></table></figure>
+
+<p>而不是让：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">外部 API<br>=<br>内部所有 RPC<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Docker-和-Kubernetes-环境最常见的问题：注册-IP-不可达"><a href="#Docker-和-Kubernetes-环境最常见的问题：注册-IP-不可达" class="headerlink" title="Docker 和 Kubernetes 环境最常见的问题：注册 IP 不可达"></a>Docker 和 Kubernetes 环境最常见的问题：注册 IP 不可达</h2><p>本地测试时：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">APISIX<br>Nacos<br>Dubbo<br></code></pre></td></tr></table></figure>
+
+<p>可能都在同一台机器。</p>
+<p>到了 Docker 或 Kubernetes 里，经常出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Nacos 中 Provider 是 healthy<br>APISIX 也能查询到<br>调用却 502<br></code></pre></td></tr></table></figure>
+
+<p>这时第一件事情不是查 APISIX Route，而是看 Nacos 返回的 IP。</p>
+<p>例如：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;ip&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;172.18.0.5&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;port&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">20880</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>然后从 APISIX 所在网络测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">nc -vz 172.18.0.5 20880<br></code></pre></td></tr></table></figure>
+
+<p>如果不通：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Nacos Discovery<br></code></pre></td></tr></table></figure>
+
+<p>实际上已经成功了。</p>
+<p>失败的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">APISIX<br>   ↓<br>Provider 网络<br></code></pre></td></tr></table></figure>
+
+<h3 id="Docker"><a href="#Docker" class="headerlink" title="Docker"></a>Docker</h3><p>应确保：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">APISIX<br>Nacos<br>order-service<br></code></pre></td></tr></table></figure>
+
+<p>位于可以互通的 Docker Network。</p>
+<h3 id="Kubernetes"><a href="#Kubernetes" class="headerlink" title="Kubernetes"></a>Kubernetes</h3><p>如果 Dubbo Provider 注册的是 Pod IP，则 APISIX 必须能够路由到对应 Pod CIDR。</p>
+<p>如果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">APISIX 在 K8s 外<br></code></pre></td></tr></table></figure>
+
+<p>而 Provider 注册：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">10.244.x.x<br></code></pre></td></tr></table></figure>
+
+<p>这样的 Pod IP，外部 APISIX 很可能根本无法访问。</p>
+<p>因此整个架构设计必须确保：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Nacos 注册地址<br>=<br>APISIX 实际可达地址<br></code></pre></td></tr></table></figure>
+
+<p>而不是只看 Nacos 控制台显示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">UP<br></code></pre></td></tr></table></figure>
+
+<p>就认为网络没有问题。</p>
+<hr>
+<h2 id="Kubernetes-中推荐的网络关系"><a href="#Kubernetes-中推荐的网络关系" class="headerlink" title="Kubernetes 中推荐的网络关系"></a>Kubernetes 中推荐的网络关系</h2><p>如果三个组件都部署在集群中：</p>
+<pre><code class=" mermaid">flowchart TB
+    Ingress[External LoadBalancer]
+    APISIX[APISIX Pods]
+    Nacos[Nacos Cluster]
+
+    O1[Order Pod 1&lt;br/&gt;Dubbo 20880]
+    O2[Order Pod 2&lt;br/&gt;Dubbo 20880]
+    O3[Order Pod 3&lt;br/&gt;Dubbo 20880]
+
+    Ingress --&gt; APISIX
+
+    APISIX -. Discovery .-&gt; Nacos
+
+    O1 -. Register .-&gt; Nacos
+    O2 -. Register .-&gt; Nacos
+    O3 -. Register .-&gt; Nacos
+
+    APISIX --&gt; O1
+    APISIX --&gt; O2
+    APISIX --&gt; O3
+</code></pre>
+
+<p>这时候：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Nacos<br></code></pre></td></tr></table></figure>
+
+<p>负责 Dubbo Endpoint 的服务发现，</p>
+<p>而不是让 APISIX 再通过：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Kubernetes Service<br></code></pre></td></tr></table></figure>
+
+<p>做第二层负载均衡。</p>
+<p>否则可能形成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">APISIX roundrobin<br>      ↓<br>K8s Service roundrobin<br>      ↓<br>Dubbo Pod<br></code></pre></td></tr></table></figure>
+
+<p>两层负载均衡叠在一起，反而失去了 APISIX 直接获取 Provider 实例的意义。</p>
+<hr>
+<h2 id="APISIX-Admin-API-不要暴露公网"><a href="#APISIX-Admin-API-不要暴露公网" class="headerlink" title="APISIX Admin API 不要暴露公网"></a>APISIX Admin API 不要暴露公网</h2><p>教程为了方便通常直接：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">curl http://127.0.0.1:9180/apisix/admin/routes/...<br></code></pre></td></tr></table></figure>
+
+<p>但生产环境的 Admin API 属于控制面。</p>
+<p>能够访问它，就可能：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">创建 Route<br>修改 Upstream<br>关闭鉴权<br>修改插件<br>转发流量<br></code></pre></td></tr></table></figure>
+
+<p>所以至少应该：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">只允许管理网络访问<br>+<br>强 Admin Key<br>+<br>IP Allow List<br>+<br>Secret / 环境变量管理<br></code></pre></td></tr></table></figure>
+
+<p>不要复制旧教程里的默认 Admin Key。</p>
+<p>当前 APISIX 配置中，Admin Key 属于 <code>deployment.admin.admin_key</code> 等管理面配置，应按照当前版本安全配置管理，而不是继续沿用早期 Demo 的默认密钥。</p>
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">export</span> APISIX_ADMIN_KEY=<span class="hljs-string">&#x27;your-production-secret&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>然后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">curl \<br>  -H <span class="hljs-string">&quot;X-API-KEY: <span class="hljs-variable">$&#123;APISIX_ADMIN_KEY&#125;</span>&quot;</span> \<br>  ...<br></code></pre></td></tr></table></figure>
+
+<p>而不是把密钥直接提交到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Git<br>Dockerfile<br>Helm values<br>Blog<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="APISIX-与-Nacos-的账号也不要直接硬编码"><a href="#APISIX-与-Nacos-的账号也不要直接硬编码" class="headerlink" title="APISIX 与 Nacos 的账号也不要直接硬编码"></a>APISIX 与 Nacos 的账号也不要直接硬编码</h2><p>开发环境可能：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">discovery:</span><br>  <span class="hljs-attr">nacos:</span><br>    <span class="hljs-attr">host:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">&quot;http://127.0.0.1:8848&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>当前 APISIX Nacos Discovery 也支持包含认证信息的 Host 配置形式。</p>
+<p>生产环境仍然更建议：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Secret<br>   ↓<br>Environment Variable<br>   ↓<br>APISIX Config<br></code></pre></td></tr></table></figure>
+
+<p>不要：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">host:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">&quot;http://nacos:nacos123@nacos-prod:8848&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>然后把整个文件提交到仓库。</p>
+<hr>
+<h2 id="可观测性应该怎么看"><a href="#可观测性应该怎么看" class="headerlink" title="可观测性应该怎么看"></a>可观测性应该怎么看</h2><p>这条调用链至少涉及：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Client<br>APISIX<br>Nacos<br>Dubbo Provider<br>Database<br></code></pre></td></tr></table></figure>
+
+<p>排查问题时，建议把监控拆成三层。</p>
+<h3 id="Gateway"><a href="#Gateway" class="headerlink" title="Gateway"></a>Gateway</h3><p>关注：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP Status<br>Latency<br>Route<br>Upstream IP<br>Upstream Port<br>Request ID<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">request_id=xxx<br>route=order-query<br>upstream=10.10.1.23:20880<br>status=200<br>cost=23ms<br></code></pre></td></tr></table></figure>
+
+<h3 id="Service-Discovery"><a href="#Service-Discovery" class="headerlink" title="Service Discovery"></a>Service Discovery</h3><p>关注：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">Nacos Service Name<br>Instance Count<br>Healthy<br>Enabled<br>IP<br>Port<br>Namespace<br>Group<br></code></pre></td></tr></table></figure>
+
+<h3 id="Dubbo"><a href="#Dubbo" class="headerlink" title="Dubbo"></a>Dubbo</h3><p>关注：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">Interface<br>Method<br>Version<br>Provider<br>RT<br>Exception<br>Timeout<br>Concurrent Requests<br></code></pre></td></tr></table></figure>
+
+<p>最终要能把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP Request<br></code></pre></td></tr></table></figure>
+
+<p>定位到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">哪一个 APISIX<br>    ↓<br>哪一个 Provider<br>    ↓<br>哪个 Dubbo Method<br></code></pre></td></tr></table></figure>
+
+<p>否则一旦 APISIX 返回：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">502<br></code></pre></td></tr></table></figure>
+
+<p>很容易陷入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">到底是网关？<br>Nacos？<br>Dubbo？<br>Provider？<br>网络？<br>序列化？<br></code></pre></td></tr></table></figure>
+
+<p>逐个猜的状态。</p>
+<hr>
+<h2 id="常见故障排查"><a href="#常见故障排查" class="headerlink" title="常见故障排查"></a>常见故障排查</h2><table>
+<thead>
+<tr>
+<th>现象</th>
+<th>重点检查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>APISIX 404</td>
+<td>Route URI、Method 是否匹配</td>
+</tr>
+<tr>
+<td>No upstream node</td>
+<td>Nacos Service Name、Namespace、Group</td>
+</tr>
+<tr>
+<td>Nacos 有实例但 APISIX 找不到</td>
+<td><code>discovery_type</code>、<code>service_name</code>、<code>discovery_args</code></td>
+</tr>
+<tr>
+<td>Dubbo 3 中只有 application service</td>
+<td><code>register-mode</code> 是否为 <code>instance</code></td>
+</tr>
+<tr>
+<td>Provider 连接失败</td>
+<td>Nacos 注册 IP、Dubbo Port、网络、防火墙</td>
+</tr>
+<tr>
+<td>502 &#x2F; Connection refused</td>
+<td>APISIX 到 Provider 的 TCP 20880 是否可达</td>
+</tr>
+<tr>
+<td>Service not found</td>
+<td>Interface、Version、Group 是否一致</td>
+</tr>
+<tr>
+<td>参数反序列化失败</td>
+<td><code>params_type_desc</code>、请求 Body、序列化方式</td>
+</tr>
+<tr>
+<td>Dubbo 3.3 调用异常</td>
+<td>APISIX 插件与 Dubbo Serialization 兼容性</td>
+</tr>
+<tr>
+<td>扩容后迟迟没有流量</td>
+<td>Nacos 实例状态与 <code>fetch_interval</code></td>
+</tr>
+<tr>
+<td>Admin API 401&#x2F;403</td>
+<td>Admin Key、管理面访问控制</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="No-upstream-node：先检查-Service-Name"><a href="#No-upstream-node：先检查-Service-Name" class="headerlink" title="No upstream node：先检查 Service Name"></a>No upstream node：先检查 Service Name</h2><p>最典型错误：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-attr">&quot;service_name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;order-service&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>但实际使用的是接口级 Dubbo 注册：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">providers:com.example.order.api.OrderQueryService:1.0.0:<br></code></pre></td></tr></table></figure>
+
+<p>那么 APISIX 自然查不到。</p>
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">curl -G \<br>  <span class="hljs-string">&#x27;http://127.0.0.1:8848/nacos/v1/ns/instance/list&#x27;</span> \<br>  --data-urlencode \<br>  <span class="hljs-string">&#x27;serviceName=providers:com.example.order.api.OrderQueryService:1.0.0:&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果这里有数据，而：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">order-service<br></code></pre></td></tr></table></figure>
+
+<p>没有对应 Provider，就说明使用的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">interface-level discovery<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Dubbo-3-Provider-根本没有-providers-怎么办"><a href="#Dubbo-3-Provider-根本没有-providers-怎么办" class="headerlink" title="Dubbo 3 Provider 根本没有 providers:* 怎么办"></a>Dubbo 3 Provider 根本没有 providers:* 怎么办</h2><p>如果 Nacos 中只看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">order-service<br></code></pre></td></tr></table></figure>
+
+<p>看不到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">providers:com.example.order.api.OrderQueryService:1.0.0:<br></code></pre></td></tr></table></figure>
+
+<p>很可能当前配置是：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">register-mode:</span> <span class="hljs-string">instance</span><br></code></pre></td></tr></table></figure>
+
+<p>对于本文这种 APISIX 直接通过接口名称查询 Nacos 的方案，应改为：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">register-mode:</span> <span class="hljs-string">all</span><br></code></pre></td></tr></table></figure>
+
+<p>或者在只需要兼容接口发现的场景：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">register-mode:</span> <span class="hljs-string">interface</span><br></code></pre></td></tr></table></figure>
+
+<p>但一般 Dubbo 3 系统中更推荐：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">register-mode:</span> <span class="hljs-string">all</span><br></code></pre></td></tr></table></figure>
+
+<p>作为迁移期间的兼容方案，而不是彻底退回接口级发现。Dubbo 官方目前仍明确区分 <code>interface</code>、<code>instance</code> 与 <code>all</code> 三种模式。</p>
+<hr>
+<h2 id="Nacos-有实例，但是-20880-连不上"><a href="#Nacos-有实例，但是-20880-连不上" class="headerlink" title="Nacos 有实例，但是 20880 连不上"></a>Nacos 有实例，但是 20880 连不上</h2><p>先获取 Provider：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">10.244.2.31:20880<br></code></pre></td></tr></table></figure>
+
+<p>在 APISIX 节点：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">nc -vz 10.244.2.31 20880<br></code></pre></td></tr></table></figure>
+
+<p>如果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Connection timed out<br></code></pre></td></tr></table></figure>
+
+<p>不要再继续研究：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">params_type_desc<br></code></pre></td></tr></table></figure>
+
+<p>因为请求压根没有进入 Dubbo。</p>
+<p>检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Docker Network<br>Kubernetes CNI<br>Security Group<br>iptables<br>NetworkPolicy<br>Dubbo bind IP<br>Dubbo registry IP<br></code></pre></td></tr></table></figure>
+
+<p>排障一定要从 OSI 更低层开始。</p>
+<hr>
+<h2 id="Dubbo-能连上但反序列化失败"><a href="#Dubbo-能连上但反序列化失败" class="headerlink" title="Dubbo 能连上但反序列化失败"></a>Dubbo 能连上但反序列化失败</h2><p>如果日志出现类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">deserialize error<br>serialization error<br>argument type mismatch<br></code></pre></td></tr></table></figure>
+
+<p>重点看：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">service_name<br>service_version<br>method<br>params_type_desc<br>serialized<br>Dubbo serialization<br></code></pre></td></tr></table></figure>
+
+<p>例如 Java：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">OrderView <span class="hljs-title function_">queryOrder</span><span class="hljs-params">(OrderQueryRequest request)</span>;<br></code></pre></td></tr></table></figure>
+
+<p>配置却写：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-attr">&quot;params_type_desc&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Ljava/lang/Long;&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>那协议层一定无法正常调用。</p>
+<p>另外对于 Dubbo 3.x，要把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Serialization Compatibility<br></code></pre></td></tr></table></figure>
+
+<p>放到排障优先级非常高的位置，而不是默认认为“都是 Dubbo 协议，所以一定兼容”。当前 APISIX <code>http-dubbo</code> 实现和 Dubbo 3.3 默认序列化并非一个可以忽略版本差异的问题。</p>
+<hr>
+<h2 id="旧教程与当前实践的主要差异"><a href="#旧教程与当前实践的主要差异" class="headerlink" title="旧教程与当前实践的主要差异"></a>旧教程与当前实践的主要差异</h2><table>
+<thead>
+<tr>
+<th>项目</th>
+<th>早期 APISIX + Dubbo + Nacos 示例</th>
+<th>当前实践需要补充的内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>APISIX</td>
+<td>2.x</td>
+<td>以当前 3.x 文档为准</td>
+</tr>
+<tr>
+<td>Nacos Discovery</td>
+<td><code>service_name + discovery_type</code></td>
+<td>核心模型仍然适用</td>
+</tr>
+<tr>
+<td>Dubbo 注册</td>
+<td>接口级 Provider</td>
+<td>Dubbo 3 还存在应用级注册</td>
+</tr>
+<tr>
+<td>Nacos Service</td>
+<td><code>providers:interface:version:group</code></td>
+<td>使用 <code>register-mode=all/interface</code> 才能稳定保留</td>
+</tr>
+<tr>
+<td>Dubbo 插件</td>
+<td><code>dubbo-proxy</code></td>
+<td>当前还可以评估 <code>http-dubbo</code></td>
+</tr>
+<tr>
+<td>序列化</td>
+<td>老版本通常更简单</td>
+<td>Dubbo 3.x 必须检查 Serialization</td>
+</tr>
+<tr>
+<td>Admin API</td>
+<td>Demo 默认 Key</td>
+<td>强密钥、私网、Secret 管理</td>
+</tr>
+<tr>
+<td>Route</td>
+<td>手工配置</td>
+<td>可以 CI&#x2F;CD 自动生成，但必须白名单控制</td>
+</tr>
+</tbody></table>
+<p>Nacos 服务发现本身的核心配置模型这些年变化并不大：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;service_name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;...&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;discovery_type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;nacos&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>真正变化最大的，是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Dubbo Registry Model<br>+<br>Dubbo Serialization<br>+<br>APISIX Dubbo Plugin Runtime<br></code></pre></td></tr></table></figure>
+
+<p>因此迁移旧教程时，重点不应该只是把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">APISIX 2.x<br></code></pre></td></tr></table></figure>
+
+<p>机械替换成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">APISIX 3.x<br></code></pre></td></tr></table></figure>
+
+<p>而是重新验证整个协议边界。</p>
+<hr>
+<h2 id="哪些场景特别适合这种架构"><a href="#哪些场景特别适合这种架构" class="headerlink" title="哪些场景特别适合这种架构"></a>哪些场景特别适合这种架构</h2><p>比较适合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP API<br>   ↓<br>基本 1:1 对应 Dubbo Facade<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">查询订单<br>查询商品<br>查询库存<br>查询用户基础信息<br></code></pre></td></tr></table></figure>
+
+<p>这些接口：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">编排逻辑少<br>协议转换简单<br>DTO 稳定<br></code></pre></td></tr></table></figure>
+
+<p>APISIX 直接调用 Dubbo 可以有效减少纯粹的 HTTP Adapter。</p>
+<hr>
+<h2 id="哪些场景不建议直接让-APISIX-调-Dubbo"><a href="#哪些场景不建议直接让-APISIX-调-Dubbo" class="headerlink" title="哪些场景不建议直接让 APISIX 调 Dubbo"></a>哪些场景不建议直接让 APISIX 调 Dubbo</h2><p>例如首页接口：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">GET /api/home<br></code></pre></td></tr></table></figure>
+
+<p>背后需要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">User<br>+<br>Product<br>+<br>Promotion<br>+<br>Recommendation<br>+<br>Inventory<br></code></pre></td></tr></table></figure>
+
+<p>如果试图全部放到 APISIX：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Gateway<br>   ↓<br>调用 5 个 Dubbo<br>   ↓<br>聚合<br>   ↓<br>降级<br>   ↓<br>业务判断<br></code></pre></td></tr></table></figure>
+
+<p>API Gateway 很快就会变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Application Service<br></code></pre></td></tr></table></figure>
+
+<p>这不是一个好的边界。</p>
+<p>这类场景依然适合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Client<br>   ↓<br>APISIX<br>   ↓<br>BFF / API Aggregation Service<br>   ↓<br>Dubbo<br></code></pre></td></tr></table></figure>
+
+<p>同样，订单提交可能需要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">创建订单<br>锁库存<br>优惠计算<br>风控<br>支付预处理<br>消息<br>分布式事务<br></code></pre></td></tr></table></figure>
+
+<p>这些业务编排也应该留在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Order Application Service<br></code></pre></td></tr></table></figure>
+
+<p>而不是塞进 APISIX 插件。</p>
+<hr>
+<h2 id="推荐的生产架构"><a href="#推荐的生产架构" class="headerlink" title="推荐的生产架构"></a>推荐的生产架构</h2><p>如果确实需要 APISIX + Nacos + Dubbo，比较稳妥的方式是：</p>
+<pre><code class=" mermaid">flowchart LR
+    Client[Client]
+
+    APISIX[APISIX]
+
+    Nacos[Nacos]
+
+    GatewayFacade[OrderGatewayFacade]
+    Application[Order Application Service]
+    Domain[Order Domain]
+    DB[(Order DB)]
+
+    Client --&gt;|HTTP| APISIX
+
+    APISIX -. Nacos Discovery .-&gt; Nacos
+    GatewayFacade -. Register .-&gt; Nacos
+
+    APISIX --&gt;|Dubbo| GatewayFacade
+    GatewayFacade --&gt; Application
+    Application --&gt; Domain
+    Domain --&gt; DB
+</code></pre>
+
+<p>也就是说：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">APISIX<br></code></pre></td></tr></table></figure>
+
+<p>只解决：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">API Gateway<br>Routing<br>Security<br>Traffic Governance<br>Service Discovery<br>Protocol Conversion<br></code></pre></td></tr></table></figure>
+
+<p>订单服务继续解决：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">Business Logic<br>Transaction<br>Idempotency<br>Domain Rule<br>Workflow<br>Persistence<br></code></pre></td></tr></table></figure>
+
+<p>这样不会因为使用 APISIX 直连 Dubbo，就把网关变成业务系统。</p>
+<hr>
+<h2 id="推荐的配置管理方式"><a href="#推荐的配置管理方式" class="headerlink" title="推荐的配置管理方式"></a>推荐的配置管理方式</h2><p>不要在大量 Route 中手工重复：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">providers:com.example.order.api.OrderQueryService:1.0.0:<br></code></pre></td></tr></table></figure>
+
+<p>可以抽象成 API Mapping：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">service:</span><br>  <span class="hljs-attr">interface:</span> <span class="hljs-string">com.example.order.api.OrderQueryService</span><br>  <span class="hljs-attr">version:</span> <span class="hljs-number">1.0</span><span class="hljs-number">.0</span><br>  <span class="hljs-attr">nacos:</span><br>    <span class="hljs-attr">namespace:</span> <span class="hljs-string">$&#123;NACOS_NAMESPACE_ID&#125;</span><br>    <span class="hljs-attr">group:</span> <span class="hljs-string">DEFAULT_GROUP</span><br><br><span class="hljs-attr">apis:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">query-order</span><br>    <span class="hljs-attr">path:</span> <span class="hljs-string">/api/v1/orders/query</span><br>    <span class="hljs-attr">method:</span> <span class="hljs-string">POST</span><br>    <span class="hljs-attr">dubbo-method:</span> <span class="hljs-string">queryOrder</span><br>    <span class="hljs-attr">params-type-desc:</span> <span class="hljs-string">Lcom/example/order/api/OrderQueryRequest;</span><br></code></pre></td></tr></table></figure>
+
+<p>CI&#x2F;CD 再生成 APISIX Route。</p>
+<p>这样：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Git<br> ↓<br>Review<br> ↓<br>API Contract<br> ↓<br>APISIX Admin API<br></code></pre></td></tr></table></figure>
+
+<p>而不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">工程师登录服务器<br> ↓<br>手敲 curl<br> ↓<br>没人知道现在 Route 是什么<br></code></pre></td></tr></table></figure>
+
+<p>生产环境真正重要的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Route As Code<br></code></pre></td></tr></table></figure>
+
+<p>而不只是“能不能调通”。</p>
+<hr>
+<h2 id="一份实用的上线检查清单"><a href="#一份实用的上线检查清单" class="headerlink" title="一份实用的上线检查清单"></a>一份实用的上线检查清单</h2><p>上线前至少确认：</p>
+<ul>
+<li>Dubbo Provider 已正确注册到目标 Nacos Namespace。</li>
+<li>Nacos 中存在正确的 <code>providers:interface:version:group</code> Service。</li>
+<li>Dubbo 3 使用 <code>register-mode=all</code> 或兼容的接口注册模式。</li>
+<li>APISIX 能访问 Nacos。</li>
+<li>APISIX 能从自身网络直接连接 Provider Dubbo Port。</li>
+<li><code>service_name</code> 与 Nacos 中名称完全一致。</li>
+<li>Dubbo Interface、Version、Method 完全一致。</li>
+<li><code>params_type_desc</code> 已根据真实 Java 类型生成。</li>
+<li>HTTP→Dubbo 插件与目标 Dubbo 版本的 Serialization 已经过真实测试。</li>
+<li>写操作具有业务幂等机制。</li>
+<li>APISIX Admin API 不暴露公网。</li>
+<li>Admin Key 与 Nacos 凭证没有硬编码进 Git。</li>
+<li>Route 通过 Git&#x2F;CI&#x2F;CD 管理，而不是人工维护。</li>
+<li>API 只暴露经过审核的 Dubbo Facade。</li>
+<li>APISIX、Dubbo、Nacos 都具有可关联的日志和监控。</li>
+</ul>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>APISIX + Nacos + Dubbo 的核心并不只是把三个中间件配置到一起，而是组合三种不同能力：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">APISIX<br>=<br>流量入口<br><br>Nacos<br>=<br>动态服务地址<br><br>Dubbo<br>=<br>RPC 通信<br></code></pre></td></tr></table></figure>
+
+<p>完整链路可以概括为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs text">Dubbo Provider<br>      ↓<br>注册 Nacos<br><br>APISIX<br>      ↓<br>根据 Interface Service Name<br>从 Nacos 获取 Provider<br><br>HTTP Request<br>      ↓<br>APISIX<br>      ↓<br>HTTP → Dubbo<br>      ↓<br>Order Dubbo Provider<br></code></pre></td></tr></table></figure>
+
+<p>真正需要记住三个工程细节。</p>
+<p>第一，<strong>服务发现与协议转换是两回事</strong>。Nacos 只能告诉 APISIX Provider 在哪里，不能自动把 HTTP 请求变成 Dubbo RPC。</p>
+<p>第二，<strong>Dubbo 3 的应用级服务发现改变了注册模型</strong>。如果 APISIX 仍然按 <code>providers:interface:version:group</code> 查询 Provider，就应该显式保留接口级注册，例如使用 <code>register-mode: all</code>。</p>
+<p>第三，<strong>当前 Dubbo 3 的序列化体系与早期 APISIX Dubbo Demo 已经存在明显版本差异</strong>。Route 能创建成功、Nacos 能看到实例，都不能证明 HTTP→Dubbo 一定能够正确通信。协议插件、Dubbo 版本和 Serialization 必须作为一组进行兼容性测试。</p>
+<p>对于订单系统，APISIX 直连 Dubbo 最适合查询类、简单 Command、稳定 Facade 等 1:1 API 映射场景。如果接口承担复杂业务编排、领域转换或跨服务聚合，保留 BFF 或 Adapter 并不是架构退步，反而能够保持 API 层和领域层之间清晰的边界。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li>《APISIX + Dubbo + Nacos 最佳实践》，介绍了通过 APISIX 完成 HTTP&#x2F;Dubbo 协议转换，并利用 Nacos 动态发现 Dubbo Provider 的整体方案。</li>
+<li>Nacos 官方《Apache APISIX 基于 Nacos 实现服务发现》，说明了 APISIX 使用 <code>service_name</code>、<code>discovery_type=nacos</code> 动态构建 Upstream 的方式。</li>
+<li>Apache APISIX Nacos Service Discovery 当前文档，包括 <code>discovery.nacos</code>、<code>fetch_interval</code>、Namespace 和 Group 等配置。</li>
+<li>Apache APISIX <code>http-dubbo</code> 与 <code>dubbo-proxy</code> 文档及当前插件实现，用于理解 HTTP→Dubbo 协议转换、方法描述和运行时要求。</li>
+<li>Apache Dubbo Nacos Registry 与服务发现资料，用于理解 Dubbo 3 的应用级&#x2F;接口级注册模式及 Nacos Service Name。</li>
+</ul>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Architecture/" class="category-chain-item">Architecture</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Service-Discovery/" class="print-no-link">#Service Discovery</a>
+      
+        <a href="/tags/Dubbo/" class="print-no-link">#Dubbo</a>
+      
+        <a href="/tags/Nacos/" class="print-no-link">#Nacos</a>
+      
+        <a href="/tags/API-Gateway/" class="print-no-link">#API Gateway</a>
+      
+        <a href="/tags/Microservices/" class="print-no-link">#Microservices</a>
+      
+        <a href="/tags/APISIX/" class="print-no-link">#APISIX</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>APISIX + Nacos + Dubbo 整合实践：以订单服务为例</div>
+      <div>https://allendericdalexander.github.io/2026/08/13/java/apisix-nacos-dubbo/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月13日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/08/13/java/apisix/" title="Apache APISIX 从入门到原理：架构、路由、插件与生产实践">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Apache APISIX 从入门到原理：架构、路由、插件与生产实践</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/13/java/spring/spring-responseentity-guide/" title="Spring ResponseEntity 详解：完整控制 HTTP 响应">
+                        <span class="hidden-mobile">Spring ResponseEntity 详解：完整控制 HTTP 响应</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
