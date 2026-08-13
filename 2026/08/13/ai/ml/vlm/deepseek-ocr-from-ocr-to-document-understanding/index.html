@@ -1,0 +1,1263 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="传统 OCR 解决的是“图片里写了什么”，而现代文档智能系统真正需要解决的问题已经变成了：这段文字在文档中扮演什么角色，它和表格、公式、图片、图表之间是什么关系，以及如何把整份 PDF 还原成机器可以继续理解、检索和推理的结构化知识。 DeepSeek-OCR 可以放在这个变化中理解。它不是单纯把字符识别得更准，而是把 OCR、版面理解、视觉语言建模和结构化生成放到统一的多模态框架中，并进一步提出">
+<meta property="og:type" content="article">
+<meta property="og:title" content="DeepSeek-OCR：从“识字”到“理解文档”，重新认识 OCR 2.0 与上下文光学压缩">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/13/ai/ml/vlm/deepseek-ocr-from-ocr-to-document-understanding/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="传统 OCR 解决的是“图片里写了什么”，而现代文档智能系统真正需要解决的问题已经变成了：这段文字在文档中扮演什么角色，它和表格、公式、图片、图表之间是什么关系，以及如何把整份 PDF 还原成机器可以继续理解、检索和推理的结构化知识。 DeepSeek-OCR 可以放在这个变化中理解。它不是单纯把字符识别得更准，而是把 OCR、版面理解、视觉语言建模和结构化生成放到统一的多模态框架中，并进一步提出">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://ml2022.oss-cn-hangzhou.aliyuncs.com/img/image-20251021152828792.png">
+<meta property="og:image" content="https://ml2022.oss-cn-hangzhou.aliyuncs.com/img/image-20251021154445949.png">
+<meta property="og:image" content="https://ml2022.oss-cn-hangzhou.aliyuncs.com/img/image-20251021154500328.png">
+<meta property="og:image" content="https://ml2022.oss-cn-hangzhou.aliyuncs.com/img/image-20251021154520900.png">
+<meta property="og:image" content="https://ml2022.oss-cn-hangzhou.aliyuncs.com/img/image-20251021154935981.png">
+<meta property="article:published_time" content="2026-08-13T05:17:00.000Z">
+<meta property="article:modified_time" content="2026-08-13T05:33:06.561Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Contexts Optical Compression">
+<meta property="article:tag" content="DeepEncoder">
+<meta property="article:tag" content="DeepSeek-OCR">
+<meta property="article:tag" content="Markdown">
+<meta property="article:tag" content="OCR 2.0">
+<meta property="article:tag" content="PDF">
+<meta property="article:tag" content="Transformers">
+<meta property="article:tag" content="VLM">
+<meta property="article:tag" content="vLLM">
+<meta property="article:tag" content="多模态 RAG">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://ml2022.oss-cn-hangzhou.aliyuncs.com/img/image-20251021152828792.png">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>DeepSeek-OCR：从“识字”到“理解文档”，重新认识 OCR 2.0 与上下文光学压缩 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="DeepSeek-OCR：从“识字”到“理解文档”，重新认识 OCR 2.0 与上下文光学压缩"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-13 13:17" pubdate>
+          2026年8月13日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          5.4k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          46 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">DeepSeek-OCR：从“识字”到“理解文档”，重新认识 OCR 2.0 与上下文光学压缩</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>传统 OCR 解决的是“图片里写了什么”，而现代文档智能系统真正需要解决的问题已经变成了：<strong>这段文字在文档中扮演什么角色，它和表格、公式、图片、图表之间是什么关系，以及如何把整份 PDF 还原成机器可以继续理解、检索和推理的结构化知识。</strong></p>
+<p>DeepSeek-OCR 可以放在这个变化中理解。它不是单纯把字符识别得更准，而是把 OCR、版面理解、视觉语言建模和结构化生成放到统一的多模态框架中，并进一步提出 <strong>Contexts Optical Compression（上下文光学压缩）</strong>：尝试用更少的视觉 Token 表示大量文本信息，再由语言模型完成“解压”和重建。</p>
+<p>这篇文章结合实践资料，重点梳理 DeepSeek-OCR 的技术定位、核心架构、DeepEncoder、上下文光学压缩、本地部署、 Transformers&#x2F;vLLM 调用，以及它在多模态 RAG 中真正有价值的工程位置。</p>
+<span id="more"></span>
+
+<h2 id="一、OCR-的问题已经不只是“识字”"><a href="#一、OCR-的问题已经不只是“识字”" class="headerlink" title="一、OCR 的问题已经不只是“识字”"></a>一、OCR 的问题已经不只是“识字”</h2><p>最早的 OCR（Optical Character Recognition，光学字符识别）主要完成两个任务：</p>
+<ol>
+<li><strong>Text Detection</strong>：先找到图像中的文字区域；</li>
+<li><strong>Text Recognition</strong>：再把区域中的像素识别成字符。</li>
+</ol>
+<p>典型系统通常采用 CNN、LSTM、CRNN、CTC 等技术路线。它们非常适合身份证、票据、扫描件、发票等场景，但它们的目标本质上仍然是：</p>
+<blockquote>
+<p>把像素变成字符。</p>
+</blockquote>
+<p>对于普通文本，这已经足够。但一旦面对论文、财务报表、专利、技术手册、CAD 图、双栏 PDF、复杂表格和数学公式，问题就出现了。</p>
+<p>例如下面这些信息，仅有文字识别远远不够：</p>
+<ul>
+<li>某句话到底是一级标题、图注还是正文；</li>
+<li>一组数字属于哪一列、哪一个表头；</li>
+<li>一个公式的上下标、分式、矩阵关系应该如何恢复；</li>
+<li>多栏排版应该按照什么顺序阅读；</li>
+<li>图片和正文之间是否存在“图 1 展示了……”这样的语义关系；</li>
+<li>流程图中的节点和箭头应该如何解释。</li>
+</ul>
+<p>所以，文档智能的发展逐渐从“识别字符”走向了“理解文档”。</p>
+<h3 id="OCR-1-0-与-OCR-2-0-的区别"><a href="#OCR-1-0-与-OCR-2-0-的区别" class="headerlink" title="OCR 1.0 与 OCR 2.0 的区别"></a>OCR 1.0 与 OCR 2.0 的区别</h3><table>
+<thead>
+<tr>
+<th>能力</th>
+<th>OCR 1.0</th>
+<th>OCR 2.0 &#x2F; VLM OCR</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>文字识别</td>
+<td>强</td>
+<td>强</td>
+</tr>
+<tr>
+<td>版面结构</td>
+<td>通常依赖独立布局模型</td>
+<td>可直接建模</td>
+</tr>
+<tr>
+<td>表格</td>
+<td>多阶段解析</td>
+<td>可生成 Markdown&#x2F;HTML</td>
+</tr>
+<tr>
+<td>公式</td>
+<td>需要专用模型</td>
+<td>可生成 LaTeX</td>
+</tr>
+<tr>
+<td>图像语义</td>
+<td>基本没有</td>
+<td>可描述、理解</td>
+</tr>
+<tr>
+<td>输出</td>
+<td>纯文本、坐标</td>
+<td>Markdown、HTML、JSON、自然语言</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>文档数字化</td>
+<td>文档理解、多模态 RAG、知识抽取</td>
+</tr>
+</tbody></table>
+<p>OCR 2.0 的核心，不是简单把 OCR 模型“做大”，而是把 OCR 纳入 <strong>Vision-Language Model（VLM）</strong> 的统一语义框架中。</p>
+<h2 id="二、VLM-为什么能够把-OCR-从“识字”升级为“读文档”"><a href="#二、VLM-为什么能够把-OCR-从“识字”升级为“读文档”" class="headerlink" title="二、VLM 为什么能够把 OCR 从“识字”升级为“读文档”"></a>二、VLM 为什么能够把 OCR 从“识字”升级为“读文档”</h2><p>现代 VLM 的基本思想是：将视觉信息和语言信息映射到可以共同建模的表示空间中，让视觉 Token 能够进入语言模型的上下文。</p>
+<p>一条典型链路可以抽象为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">Image / PDF<br>    ↓<br>Vision Encoder<br>    ↓<br>Visual Tokens<br>    ↓<br>Projector / Alignment<br>    ↓<br>LLM Embedding Space<br>    ↓<br>Language Decoder<br>    ↓<br>Markdown / LaTeX / JSON / Natural Language<br></code></pre></td></tr></table></figure>
+
+<p>视觉编码器首先把图像切成 Patch，并编码为高维表示：</p>
+<p>$$<br>I &#x3D; {v_1, v_2, \ldots, v_n}, \quad v_i \in \mathbb{R}^d<br>$$</p>
+<p>文本则被编码为语言 Token：</p>
+<p>$$<br>T &#x3D; {t_1, t_2, \ldots, t_m}, \quad t_i \in \mathbb{R}^d<br>$$</p>
+<p>关键问题是：视觉表示如何进入语言模型能够理解的空间。</p>
+<p>常见路线包括：</p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>典型思路</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Contrastive Learning</td>
+<td>让图像和文本向量在语义空间中靠近</td>
+<td>更偏语义对齐</td>
+</tr>
+<tr>
+<td>Projection Head</td>
+<td>用 Linear&#x2F;MLP 把视觉特征映射到 LLM Embedding Space</td>
+<td>结构简单</td>
+</tr>
+<tr>
+<td>Cross-Attention</td>
+<td>视觉 Token 与语言 Token 动态交互</td>
+<td>更适合生成和推理</td>
+</tr>
+</tbody></table>
+<p>从工程视角看，可以把演进理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">CLIP：图文对齐<br>   ↓<br>BLIP / BLIP-2：图文交互<br>   ↓<br>LLaVA 类模型：视觉信息进入 LLM<br>   ↓<br>DeepSeek-OCR：面向文档理解和结构生成进行专门优化<br></code></pre></td></tr></table></figure>
+
+<p>因此，DeepSeek-OCR 的目标并不是成为“通用聊天 VLM”，而是把多模态能力集中投入到<strong>文档解析</strong>这个高价值场景。</p>
+<h2 id="三、DeepSeek-OCR-到底是什么"><a href="#三、DeepSeek-OCR-到底是什么" class="headerlink" title="三、DeepSeek-OCR 到底是什么"></a>三、DeepSeek-OCR 到底是什么</h2><p>从功能上看，DeepSeek-OCR 可以理解为一个面向 OCR 2.0 的文档 VLM。</p>
+<p>它可以承担的任务包括：</p>
+<ul>
+<li>图片自由 OCR；</li>
+<li>保留版面结构的文字提取；</li>
+<li>PDF 转 Markdown；</li>
+<li>表格解析；</li>
+<li>数学公式识别并生成 LaTeX；</li>
+<li>图表和复杂图片描述；</li>
+<li>Grounding，定位指定元素；</li>
+<li>Object Detection；</li>
+<li>文档结构化输出。</li>
+</ul>
+<p>传统 OCR 的输出可能只是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">DeepSeek OCR<br>Context Optical Compression<br>4096 token<br>256 token<br></code></pre></td></tr></table></figure>
+
+<p>而文档 VLM 更希望输出：</p>
+<figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs markdown"><span class="hljs-section">## DeepEncoder</span><br><br>DeepEncoder 在高分辨率图像编码之后执行 Token 压缩：<br><br><span class="hljs-bullet">-</span> 输入视觉 Token：4096<br><span class="hljs-bullet">-</span> 压缩倍率：16×<br><span class="hljs-bullet">-</span> 输出视觉 Token：256<br><br>该设计用于降低全局注意力阶段的计算和显存开销。<br></code></pre></td></tr></table></figure>
+
+<p>区别就在于：后者已经开始恢复<strong>结构和语义关系</strong>。</p>
+<p><img src="https://ml2022.oss-cn-hangzhou.aliyuncs.com/img/image-20251021152828792.png" srcset="/img/loading.gif" lazyload alt="DeepSeek-OCR 模型示意"></p>
+<h2 id="四、DeepSeek-OCR-的核心架构"><a href="#四、DeepSeek-OCR-的核心架构" class="headerlink" title="四、DeepSeek-OCR 的核心架构"></a>四、DeepSeek-OCR 的核心架构</h2><p>DeepSeek-OCR 的整体思路仍然可以抽象为三段：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">视觉编码器<br>    ↓<br>投影 / 对齐<br>    ↓<br>语言解码器<br></code></pre></td></tr></table></figure>
+
+<p>但它真正有意思的地方不只是“VLM + OCR 微调”，而是进一步思考了一个更底层的问题：</p>
+<blockquote>
+<p>如果一页包含大量文本的文档，本来就可以在二维图像中非常紧凑地表示，那么是否可以直接利用视觉模态压缩长文本上下文？</p>
+</blockquote>
+<p>这就是 <strong>Contexts Optical Compression</strong>。</p>
+<h2 id="五、核心创新：Contexts-Optical-Compression"><a href="#五、核心创新：Contexts-Optical-Compression" class="headerlink" title="五、核心创新：Contexts Optical Compression"></a>五、核心创新：Contexts Optical Compression</h2><h3 id="1-为什么视觉有可能成为文本压缩介质"><a href="#1-为什么视觉有可能成为文本压缩介质" class="headerlink" title="1. 为什么视觉有可能成为文本压缩介质"></a>1. 为什么视觉有可能成为文本压缩介质</h3><p>假设一页 PDF 中包含几千甚至上万个文本 Token。</p>
+<p>如果把它直接送入 LLM，Transformer 的计算和显存成本会随着序列长度快速增长。而同样的信息如果先被排版成一张图像，二维空间天然具有极强的信息密度。</p>
+<p>所以 DeepSeek-OCR 探索了一条反过来的路线：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">大量文本<br>   ↓ 渲染/视觉表示<br>二维图像<br>   ↓ Vision Encoder<br>少量视觉 Token<br>   ↓ LLM Decoder<br>恢复文本和结构<br></code></pre></td></tr></table></figure>
+
+<p>它把 OCR 看成一个天然的“压缩—解压”实验：</p>
+<ul>
+<li>图像编码器负责压缩；</li>
+<li>视觉 Token 是压缩后的中间表示；</li>
+<li>语言解码器负责把这些表示恢复成文本。</li>
+</ul>
+<p>因此，OCR 不再只是终点任务，也变成了验证“视觉能否压缩上下文”的实验平台。</p>
+<p><img src="https://ml2022.oss-cn-hangzhou.aliyuncs.com/img/image-20251021154445949.png" srcset="/img/loading.gif" lazyload alt="Contexts Optical Compression 示意"></p>
+<h3 id="2-原资料中的压缩实验结果"><a href="#2-原资料中的压缩实验结果" class="headerlink" title="2. 原资料中的压缩实验结果"></a>2. 原资料中的压缩实验结果</h3><p>资料给出的 Fox Benchmark 实验结果中：</p>
+<ul>
+<li>当文本 Token &#x2F; 视觉 Token 的压缩比低于约 <strong>10×</strong> 时，解码准确率可达到 <strong>96% 以上</strong>；</li>
+<li>当压缩比提升到约 <strong>20×</strong> 时，OCR 准确率仍可维持在约 <strong>60%</strong>。</li>
+</ul>
+<p>这组数字最值得关注的不是“OCR 排名”，而是它验证了一件事：</p>
+<blockquote>
+<p>一个相对紧凑的语言解码器，确实可以从高度压缩的视觉表示中恢复相当多的文本信息。</p>
+</blockquote>
+<p><img src="https://ml2022.oss-cn-hangzhou.aliyuncs.com/img/image-20251021154500328.png" srcset="/img/loading.gif" lazyload alt="视觉 Token 压缩实验"></p>
+<p>这为两个方向提供了启发：</p>
+<ol>
+<li><strong>VLM 的 Token Budget 可以重新设计</strong>；</li>
+<li><strong>超长上下文不一定只能依靠不断增加文本 Context Window。</strong></li>
+</ol>
+<h3 id="3-一个更容易理解的类比"><a href="#3-一个更容易理解的类比" class="headerlink" title="3. 一个更容易理解的类比"></a>3. 一个更容易理解的类比</h3><p>假设有一页密密麻麻的技术文档。</p>
+<p>如果按文本送给模型，可能需要几千个 Token；但人类看这页纸时，并不是先把所有字符逐个转换成脑内 Token 再理解，而是会利用：</p>
+<ul>
+<li>空间布局；</li>
+<li>标题层级；</li>
+<li>表格结构；</li>
+<li>视觉聚类；</li>
+<li>字体和位置；</li>
+<li>上下文关系。</li>
+</ul>
+<p>DeepSeek-OCR 的思路，某种程度上就是尝试让模型也使用这种高密度二维表达。</p>
+<h2 id="六、DeepEncoder：真正执行视觉-Token-压缩的关键"><a href="#六、DeepEncoder：真正执行视觉-Token-压缩的关键" class="headerlink" title="六、DeepEncoder：真正执行视觉 Token 压缩的关键"></a>六、DeepEncoder：真正执行视觉 Token 压缩的关键</h2><p>仅仅提出“视觉压缩文本”还不够，真正困难的问题是：</p>
+<blockquote>
+<p>高分辨率文档图像本身也会产生海量视觉 Token，怎么避免视觉编码器先被自己撑爆？</p>
+</blockquote>
+<p>DeepSeek-OCR 为此设计了 <strong>DeepEncoder</strong>。</p>
+<p>资料中给出的 DeepEncoder 可以概括为三段：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">高分辨率图像<br>    ↓<br>Window Attention<br>    ↓<br>16× Token Compressor<br>    ↓<br>Global Attention<br></code></pre></td></tr></table></figure>
+
+<p>核心组件包括：</p>
+<ol>
+<li><strong>视觉感知特征提取组件</strong>：以窗口注意力为主，资料中描述为基于 SAM-base，约 80M 参数；</li>
+<li><strong>16× Token Compressor</strong>：通过两层卷积进行 Token 下采样；</li>
+<li><strong>视觉知识特征提取组件</strong>：执行密集全局注意力，资料中描述为基于 CLIP-large，约 300M 参数。</li>
+</ol>
+<h3 id="4096-→-256"><a href="#4096-→-256" class="headerlink" title="4096 → 256"></a>4096 → 256</h3><p>资料给出的典型示例是一个 <code>1024 × 1024</code> 输入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">初始视觉 Token：4096<br>        ↓<br>窗口注意力处理<br>        ↓<br>16× Token 压缩<br>        ↓<br>视觉 Token：256<br>        ↓<br>全局注意力<br></code></pre></td></tr></table></figure>
+
+<p>这一步很关键。</p>
+<p>如果一开始就让 4096 个视觉 Token 全部进入高成本全局注意力，显存和计算开销会非常大。而 DeepEncoder 先利用窗口注意力提取局部视觉信息，再把 Token 数量压到 256，最后才进行全局建模。</p>
+<p><img src="https://ml2022.oss-cn-hangzhou.aliyuncs.com/img/image-20251021154520900.png" srcset="/img/loading.gif" lazyload alt="DeepEncoder 架构"></p>
+<p>从架构设计角度看，它在做一件非常经典但非常重要的事情：</p>
+<blockquote>
+<p>把昂贵操作放到降采样之后。</p>
+</blockquote>
+<p>这也是 DeepSeek-OCR 能够讨论“高压缩 + 高分辨率”时真正的工程基础。</p>
+<h2 id="七、它对超长上下文还有什么启发"><a href="#七、它对超长上下文还有什么启发" class="headerlink" title="七、它对超长上下文还有什么启发"></a>七、它对超长上下文还有什么启发</h2><p>原资料进一步讨论了一个很有想象力的方向：<strong>记忆压缩与渐进式遗忘</strong>。</p>
+<p>例如，可以把历史文本渲染成图像，再通过不同分辨率进行分层压缩：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">近期上下文<br>高分辨率、高保真<br><br>较早上下文<br>中等分辨率、中等 Token<br><br>很久以前的上下文<br>低分辨率、更高压缩比<br></code></pre></td></tr></table></figure>
+
+<p>这会形成一种类似“遗忘曲线”的信息保存方式：越近的信息越清晰，越远的信息越模糊，但不会立刻完全丢失。</p>
+<p>这个想法目前更适合作为架构启发，而不是直接等同于已经解决“无限上下文”。但它确实提出了一个值得关注的问题：</p>
+<blockquote>
+<p>LLM 的长期记忆是否一定只能以文本 Token 的形式存在？</p>
+</blockquote>
+<p><img src="https://ml2022.oss-cn-hangzhou.aliyuncs.com/img/image-20251021154935981.png" srcset="/img/loading.gif" lazyload alt="多级视觉压缩与记忆示意"></p>
+<h2 id="八、DeepSeek-OCR-的任务与-Prompt"><a href="#八、DeepSeek-OCR-的任务与-Prompt" class="headerlink" title="八、DeepSeek-OCR 的任务与 Prompt"></a>八、DeepSeek-OCR 的任务与 Prompt</h2><p>DeepSeek-OCR 的一个实用特点是可以通过 Prompt 切换不同任务。</p>
+<h3 id="1-Free-OCR"><a href="#1-Free-OCR" class="headerlink" title="1. Free OCR"></a>1. Free OCR</h3><p>适合快速抽取图片中的文字：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">&lt;image&gt;<br>Free OCR.<br></code></pre></td></tr></table></figure>
+
+<p>关注点是“把内容读出来”。</p>
+<h3 id="2-纯文字-OCR"><a href="#2-纯文字-OCR" class="headerlink" title="2. 纯文字 OCR"></a>2. 纯文字 OCR</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">&lt;image&gt;<br>OCR this image.<br></code></pre></td></tr></table></figure>
+
+<p>更适合只需要文本、不关心复杂结构的场景。</p>
+<h3 id="3-图像详细描述"><a href="#3-图像详细描述" class="headerlink" title="3. 图像详细描述"></a>3. 图像详细描述</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">&lt;image&gt;<br>Describe this image in detail.<br></code></pre></td></tr></table></figure>
+
+<p>这已经更接近通用 VLM 任务，适合 CAD、产品图、科研图片、装饰图等。</p>
+<h3 id="4-图表解析"><a href="#4-图表解析" class="headerlink" title="4. 图表解析"></a>4. 图表解析</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">&lt;image&gt;<br>Parse the figure.<br></code></pre></td></tr></table></figure>
+
+<p>适合尝试恢复图表或结构信息。</p>
+<h3 id="5-文档转-Markdown"><a href="#5-文档转-Markdown" class="headerlink" title="5. 文档转 Markdown"></a>5. 文档转 Markdown</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">&lt;image&gt;<br>&lt;|grounding|&gt;Convert the document to markdown.<br></code></pre></td></tr></table></figure>
+
+<p>这是知识库预处理最重要的使用方式之一。</p>
+<h3 id="6-Grounding"><a href="#6-Grounding" class="headerlink" title="6. Grounding"></a>6. Grounding</h3><p>Grounding 的目标不是只回答“有没有某个元素”，而是进一步定位目标位置，例如签名、表格、指定文本区域等。</p>
+<p>从应用角度看，可以把任务划成四层：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">L1 文字层：OCR<br>L2 结构层：Markdown / Layout / Table<br>L3 语义层：Image Description / Figure Understanding<br>L4 定位层：Grounding / Object Detection<br></code></pre></td></tr></table></figure>
+
+<h2 id="九、本地部署：先理解两条推理路径"><a href="#九、本地部署：先理解两条推理路径" class="headerlink" title="九、本地部署：先理解两条推理路径"></a>九、本地部署：先理解两条推理路径</h2><p>资料中的实践方案主要有两条：</p>
+<h3 id="Transformers"><a href="#Transformers" class="headerlink" title="Transformers"></a>Transformers</h3><p>适合：</p>
+<ul>
+<li>本地验证；</li>
+<li>单机实验；</li>
+<li>调试 Prompt；</li>
+<li>研究模型行为；</li>
+<li>快速接入 Python Pipeline。</li>
+</ul>
+<p>优点是依赖关系直接、控制粒度高。</p>
+<h3 id="vLLM"><a href="#vLLM" class="headerlink" title="vLLM"></a>vLLM</h3><p>适合：</p>
+<ul>
+<li>批量 PDF；</li>
+<li>高并发；</li>
+<li>在线服务；</li>
+<li>推理服务化；</li>
+<li>企业知识库文档解析平台。</li>
+</ul>
+<p>如果只是测试一张图片，Transformers 已经够用；如果要让几十个业务同时上传 PDF，vLLM 才更接近生产形态。</p>
+<blockquote>
+<p><strong>版本提示：</strong> 原资料中的 Python、PyTorch、CUDA、vLLM、Flash Attention 和显卡兼容性属于当时的实践环境，版本依赖很强。真正部署时应该优先以当前 DeepSeek-OCR 项目的 <code>requirements.txt</code>、README、PyTorch&#x2F;CUDA Compatibility Matrix 和 vLLM 支持情况为准，不建议机械复制历史版本组合。</p>
+</blockquote>
+<h2 id="十、权重和项目获取"><a href="#十、权重和项目获取" class="headerlink" title="十、权重和项目获取"></a>十、权重和项目获取</h2><p>资料给出的主要入口包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">GitHub:<br>https://github.com/deepseek-ai/DeepSeek-OCR<br><br>Hugging Face:<br>https://huggingface.co/deepseek-ai/DeepSeek-OCR<br><br>ModelScope:<br>https://www.modelscope.cn/models/deepseek-ai/DeepSeek-OCR/summary<br></code></pre></td></tr></table></figure>
+
+<p>例如通过 ModelScope 下载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">pip install modelscope<br><span class="hljs-built_in">mkdir</span> ./deepseek-ocr<br>modelscope download \<br>  --model deepseek-ai/DeepSeek-OCR \<br>  --local_dir ./deepseek-ocr<br></code></pre></td></tr></table></figure>
+
+<h2 id="十一、Transformers-推理示例"><a href="#十一、Transformers-推理示例" class="headerlink" title="十一、Transformers 推理示例"></a>十一、Transformers 推理示例</h2><p>原资料给出的核心调用方式如下：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-keyword">from</span> transformers <span class="hljs-keyword">import</span> AutoModel, AutoTokenizer<br><span class="hljs-keyword">import</span> torch<br><span class="hljs-keyword">import</span> os<br><br>os.environ[<span class="hljs-string">&quot;CUDA_VISIBLE_DEVICES&quot;</span>] = <span class="hljs-string">&quot;0&quot;</span><br><br>model_name = <span class="hljs-string">&quot;deepseek-ai/DeepSeek-OCR&quot;</span><br><br>tokenizer = AutoTokenizer.from_pretrained(<br>    model_name,<br>    trust_remote_code=<span class="hljs-literal">True</span>,<br>)<br><br>model = AutoModel.from_pretrained(<br>    model_name,<br>    _attn_implementation=<span class="hljs-string">&quot;flash_attention_2&quot;</span>,<br>    trust_remote_code=<span class="hljs-literal">True</span>,<br>    use_safetensors=<span class="hljs-literal">True</span>,<br>)<br><br>model = model.<span class="hljs-built_in">eval</span>().cuda().to(torch.bfloat16)<br><br>prompt = <span class="hljs-string">&quot;&lt;image&gt;\nDescribe this image in detail.&quot;</span><br>image_file = <span class="hljs-string">&quot;/data/input/example.png&quot;</span><br>output_path = <span class="hljs-string">&quot;/data/output&quot;</span><br><br>res = model.infer(<br>    tokenizer,<br>    prompt=prompt,<br>    image_file=image_file,<br>    output_path=output_path,<br>    base_size=<span class="hljs-number">1024</span>,<br>    image_size=<span class="hljs-number">640</span>,<br>    crop_mode=<span class="hljs-literal">True</span>,<br>    save_results=<span class="hljs-literal">True</span>,<br>    test_compress=<span class="hljs-literal">True</span>,<br>)<br></code></pre></td></tr></table></figure>
+
+<p>这里真正需要理解的是几个参数。</p>
+<h3 id="trust-remote-code-True"><a href="#trust-remote-code-True" class="headerlink" title="trust_remote_code=True"></a><code>trust_remote_code=True</code></h3><p>DeepSeek-OCR 使用自定义模型架构，因此 Transformers 需要加载项目提供的 Python 实现。</p>
+<p>这也意味着生产环境中不能把它当成普通配置项看待。对于企业内部环境，应该：</p>
+<ul>
+<li>固定模型版本；</li>
+<li>固定 Commit &#x2F; Revision；</li>
+<li>审核 Remote Code；</li>
+<li>固定依赖；</li>
+<li>禁止运行时自动漂移到未知版本。</li>
+</ul>
+<h3 id="attn-implementation-flash-attention-2"><a href="#attn-implementation-flash-attention-2" class="headerlink" title="_attn_implementation=&quot;flash_attention_2&quot;"></a><code>_attn_implementation=&quot;flash_attention_2&quot;</code></h3><p>用于启用 Flash Attention 2，降低 Attention 计算的时间和显存成本。</p>
+<h3 id="bfloat16"><a href="#bfloat16" class="headerlink" title="bfloat16"></a><code>bfloat16</code></h3><p>在支持 BF16 的 GPU 上可以降低推理显存并提升吞吐。</p>
+<h3 id="crop-mode-True"><a href="#crop-mode-True" class="headerlink" title="crop_mode=True"></a><code>crop_mode=True</code></h3><p>面对高分辨率或大尺寸文档时，通过裁剪&#x2F;分块处理降低一次性显存压力。</p>
+<h3 id="test-compress-True"><a href="#test-compress-True" class="headerlink" title="test_compress=True"></a><code>test_compress=True</code></h3><p>资料中的调用将其用于启用&#x2F;测试上下文光学压缩相关流程。</p>
+<h2 id="十二、输出结果不应该只看一段字符串"><a href="#十二、输出结果不应该只看一段字符串" class="headerlink" title="十二、输出结果不应该只看一段字符串"></a>十二、输出结果不应该只看一段字符串</h2><p>文档模型真正有价值的地方，是输出可以继续进入工程系统。</p>
+<p>资料中的推理结果通常会形成一组 Result Bundle，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">output/<br>├── images/<br>├── result_ori.mmd<br>├── result_with_boxes.jpg<br>└── result.mmd<br></code></pre></td></tr></table></figure>
+
+<h3 id="images"><a href="#images" class="headerlink" title="images/"></a><code>images/</code></h3><p>保存 PDF 页面切图、解析过程中生成的图像、Grounding 或检测结果等。</p>
+<h3 id="result-ori-mmd"><a href="#result-ori-mmd" class="headerlink" title="result_ori.mmd"></a><code>result_ori.mmd</code></h3><p>更接近模型原始输出，适合调试、评估和错误分析。</p>
+<h3 id="result-with-boxes-jpg"><a href="#result-with-boxes-jpg" class="headerlink" title="result_with_boxes.jpg"></a><code>result_with_boxes.jpg</code></h3><p>把识别框、区域、类别等叠加在原图上，适合人工复核和前端展示。</p>
+<h3 id="result-mmd"><a href="#result-mmd" class="headerlink" title="result.mmd"></a><code>result.mmd</code></h3><p>经过结构处理后的最终多模态 Markdown，更适合进入知识库、搜索系统或下游 LLM。</p>
+<p>这说明一个成熟的 OCR 系统最好保留两套结果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">机器消费结果：Markdown / JSON / structured data<br>人工审计结果：boxes / rendered image / raw output<br></code></pre></td></tr></table></figure>
+
+<p>否则一旦模型识别错误，很难追溯“究竟是图片本身的问题、版面问题还是生成阶段的问题”。</p>
+<h2 id="十三、vLLM：从模型-Demo-走向批量文档处理"><a href="#十三、vLLM：从模型-Demo-走向批量文档处理" class="headerlink" title="十三、vLLM：从模型 Demo 走向批量文档处理"></a>十三、vLLM：从模型 Demo 走向批量文档处理</h2><p>原资料中的 vLLM 工程包含类似下面的脚本：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>config.py</code></td>
+<td>模型、尺寸、路径和推理参数</td>
+</tr>
+<tr>
+<td><code>deepseek_ocr.py</code></td>
+<td>核心推理逻辑</td>
+</tr>
+<tr>
+<td><code>run_dpsk_ocr_eval_batch.py</code></td>
+<td>批量评测</td>
+</tr>
+<tr>
+<td><code>run_dpsk_ocr_image.py</code></td>
+<td>单图片推理</td>
+</tr>
+<tr>
+<td><code>run_dpsk_ocr_pdf.py</code></td>
+<td>多页 PDF 推理</td>
+</tr>
+</tbody></table>
+<p>典型执行方式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cd</span> DeepSeek-OCR-vllm<br>python run_dpsk_ocr_image.py<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">python run_dpsk_ocr_pdf.py<br></code></pre></td></tr></table></figure>
+
+<p>实际生产中，建议进一步在这个脚本层之上包装服务，而不是让业务系统直接调用脚本。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">Upload API<br>   ↓<br>Object Storage<br>   ↓<br>Document Task Queue<br>   ↓<br>DeepSeek-OCR Inference Service<br>   ↓<br>Post Processor<br>   ↓<br>Markdown / JSON / Images<br>   ↓<br>Knowledge Ingestion Pipeline<br></code></pre></td></tr></table></figure>
+
+<p>这样才能解决：</p>
+<ul>
+<li>大文件上传；</li>
+<li>多页 PDF 分片；</li>
+<li>GPU 并发；</li>
+<li>超时；</li>
+<li>任务重试；</li>
+<li>幂等；</li>
+<li>结果缓存；</li>
+<li>失败页重跑；</li>
+<li>人工复核。</li>
+</ul>
+<h2 id="十四、DeepSeek-OCR-在多模态-RAG-中应该放在哪里"><a href="#十四、DeepSeek-OCR-在多模态-RAG-中应该放在哪里" class="headerlink" title="十四、DeepSeek-OCR 在多模态 RAG 中应该放在哪里"></a>十四、DeepSeek-OCR 在多模态 RAG 中应该放在哪里</h2><p>很多 RAG 项目最大的问题，是直接把 PDF 当成“文本文件”处理。</p>
+<p>经典流程往往是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">PDF<br> ↓<br>Text Extractor<br> ↓<br>Chunk<br> ↓<br>Embedding<br> ↓<br>Vector DB<br></code></pre></td></tr></table></figure>
+
+<p>这个流程一旦遇到扫描件、双栏、表格和图片，就很容易把知识破坏掉。</p>
+<p>更合理的多模态文档 RAG 可以写成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><code class="hljs text">PDF / Image<br>     ↓<br>DeepSeek-OCR<br>     ↓<br>Document Structure<br>├── Markdown<br>├── Table<br>├── Formula<br>├── Figure<br>├── Layout<br>└── Grounding<br>     ↓<br>Normalization<br>     ↓<br>Semantic Chunking<br>     ↓<br>Embedding / Multimodal Embedding<br>     ↓<br>Vector DB + Metadata Store<br>     ↓<br>Retriever<br>     ↓<br>LLM / VLM<br></code></pre></td></tr></table></figure>
+
+<h3 id="OCR-是-RAG-的“视觉入口”"><a href="#OCR-是-RAG-的“视觉入口”" class="headerlink" title="OCR 是 RAG 的“视觉入口”"></a>OCR 是 RAG 的“视觉入口”</h3><p>如果 OCR 阶段把一张表格识别成几十段互不相关的文本，那么后面的 Embedding 再强也没有办法恢复原始行列关系。</p>
+<p>因此，RAG 的效果上限往往早在“入库”之前就已经决定了。</p>
+<p>可以用一句话概括：</p>
+<blockquote>
+<p><strong>Garbage In, Garbage Retrieved.</strong></p>
+</blockquote>
+<p>对于企业文档系统，OCR 的评估甚至应该放在 Embedding 和 LLM 评估之前。</p>
+<h2 id="十五、一个更实用的-PDF-入库-Pipeline"><a href="#十五、一个更实用的-PDF-入库-Pipeline" class="headerlink" title="十五、一个更实用的 PDF 入库 Pipeline"></a>十五、一个更实用的 PDF 入库 Pipeline</h2><p>如果要真正把 DeepSeek-OCR 用在知识库中，我更推荐把整个流程拆成以下阶段：</p>
+<h3 id="Stage-1：文件预处理"><a href="#Stage-1：文件预处理" class="headerlink" title="Stage 1：文件预处理"></a>Stage 1：文件预处理</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">PDF validation<br>→ page split<br>→ image rendering<br>→ DPI normalization<br>→ orientation correction<br></code></pre></td></tr></table></figure>
+
+<h3 id="Stage-2：文档解析"><a href="#Stage-2：文档解析" class="headerlink" title="Stage 2：文档解析"></a>Stage 2：文档解析</h3><p>使用 DeepSeek-OCR 获取：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">raw output<br>structured markdown<br>layout boxes<br>images<br>formula/table blocks<br></code></pre></td></tr></table></figure>
+
+<h3 id="Stage-3：后处理"><a href="#Stage-3：后处理" class="headerlink" title="Stage 3：后处理"></a>Stage 3：后处理</h3><p>不要把模型输出直接入库，至少进行：</p>
+<ul>
+<li>Markdown 语法修复；</li>
+<li>空标题过滤；</li>
+<li>表格完整性检查；</li>
+<li>重复页眉页脚删除；</li>
+<li>页码标准化；</li>
+<li>断行合并；</li>
+<li>图片引用校验；</li>
+<li>特殊字符清洗。</li>
+</ul>
+<h3 id="Stage-4：Chunk"><a href="#Stage-4：Chunk" class="headerlink" title="Stage 4：Chunk"></a>Stage 4：Chunk</h3><p>不要简单每 500 Token 一刀切。</p>
+<p>应该优先按照：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">Document<br> ├── H1<br> │    ├── H2<br> │    │    ├── Paragraph<br> │    │    ├── Table<br> │    │    └── Figure<br></code></pre></td></tr></table></figure>
+
+<p>进行语义分块。</p>
+<h3 id="Stage-5：索引"><a href="#Stage-5：索引" class="headerlink" title="Stage 5：索引"></a>Stage 5：索引</h3><p>至少保存：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;document_id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;doc-001&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;page&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">12</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;section_path&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-string">&quot;Architecture&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-string">&quot;DeepEncoder&quot;</span><span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;content_type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;paragraph&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;text&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;...&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;image_ref&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">null</span></span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;bbox&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">null</span></span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>对于表格、图片、公式，建议保存 <code>content_type</code> 和原页面位置，而不是把一切都降级成普通字符串。</p>
+<h2 id="十六、图片不能只保留一个-Markdown-占位符"><a href="#十六、图片不能只保留一个-Markdown-占位符" class="headerlink" title="十六、图片不能只保留一个 Markdown 占位符"></a>十六、图片不能只保留一个 Markdown 占位符</h2><p>PDF 转 Markdown 之后常见一个问题：</p>
+<figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs markdown">![<span class="hljs-string">figure</span>](<span class="hljs-link">images/figure_001.png</span>)<br></code></pre></td></tr></table></figure>
+
+<p>对人来说没有问题，但对纯文本 RAG 来说，这张图几乎等于消失了。</p>
+<p>所以应该继续调用视觉模型为图片生成结构化语义：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">ALT<br>CAPTION<br>CONTENT_MD<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs markdown">![<span class="hljs-string">model architecture</span>](<span class="hljs-link">images/figure_001.png</span>)<br><br><span class="hljs-emphasis">*DeepEncoder 通过窗口注意力和 Token 压缩连接全局视觉编码阶段。*</span><br><br><span class="language-xml"><span class="hljs-tag">&lt;<span class="hljs-name">details</span>&gt;</span></span><span class="language-xml"><span class="hljs-tag">&lt;<span class="hljs-name">summary</span>&gt;</span></span>图片解析<span class="language-xml"><span class="hljs-tag">&lt;/<span class="hljs-name">summary</span>&gt;</span></span><br><br><span class="hljs-bullet">-</span> 输入为高分辨率图像；<br><span class="hljs-bullet">-</span> 首先执行局部窗口注意力；<br><span class="hljs-bullet">-</span> 中间执行 16× Token 压缩；<br><span class="hljs-bullet">-</span> 最后使用全局注意力提取视觉知识。<br><br><span class="language-xml"><span class="hljs-tag">&lt;/<span class="hljs-name">details</span>&gt;</span></span><br></code></pre></td></tr></table></figure>
+
+<p>这样图片才真正进入了可检索知识空间。</p>
+<h2 id="十七、工程落地时最容易踩的坑"><a href="#十七、工程落地时最容易踩的坑" class="headerlink" title="十七、工程落地时最容易踩的坑"></a>十七、工程落地时最容易踩的坑</h2><h3 id="1-把“能-OCR”当成“能正确理解”"><a href="#1-把“能-OCR”当成“能正确理解”" class="headerlink" title="1. 把“能 OCR”当成“能正确理解”"></a>1. 把“能 OCR”当成“能正确理解”</h3><p>生成式 OCR 具备更强语义能力，但也意味着输出不再是纯粹的确定性字符识别。</p>
+<p>对于合同金额、发票金额、编号、证件号等高风险字段，应该保留：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">OCR result<br>+ bounding box<br>+ source image<br>+ confidence / validation<br>+ business rule verification<br></code></pre></td></tr></table></figure>
+
+<p>不能只相信一段自然语言生成结果。</p>
+<h3 id="2-把所有任务都使用同一个-Prompt"><a href="#2-把所有任务都使用同一个-Prompt" class="headerlink" title="2. 把所有任务都使用同一个 Prompt"></a>2. 把所有任务都使用同一个 Prompt</h3><p>“识别文字”“还原 Markdown”“描述图片”“定位签名”本来就是不同任务。</p>
+<p>应该按任务路由：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Document OCR      → Convert to markdown<br>Text extraction   → Free OCR<br>Figure parsing    → Parse the figure<br>Image semantics   → Describe this image in detail<br>Grounding         → grounding prompt<br></code></pre></td></tr></table></figure>
+
+<h3 id="3-只测试一两页-PDF"><a href="#3-只测试一两页-PDF" class="headerlink" title="3. 只测试一两页 PDF"></a>3. 只测试一两页 PDF</h3><p>生产文档经常会出现：</p>
+<ul>
+<li>300 页手册；</li>
+<li>某几页异常大图；</li>
+<li>混合横竖屏；</li>
+<li>扫描页与文本页混排；</li>
+<li>少数页损坏；</li>
+<li>某一页生成异常长输出。</li>
+</ul>
+<p>所以必须做 <strong>Page-level Isolation</strong>，让单页失败不会让整份文档重新执行。</p>
+<h3 id="4-没有原始结果和后处理结果分层"><a href="#4-没有原始结果和后处理结果分层" class="headerlink" title="4. 没有原始结果和后处理结果分层"></a>4. 没有原始结果和后处理结果分层</h3><p>建议保存：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">raw<br>normalized<br>indexed<br></code></pre></td></tr></table></figure>
+
+<p>三套数据。</p>
+<p>否则后处理算法升级后，只能重新跑 GPU 推理。</p>
+<h3 id="5-忽略版本锁定"><a href="#5-忽略版本锁定" class="headerlink" title="5. 忽略版本锁定"></a>5. 忽略版本锁定</h3><p><code>trust_remote_code=True</code>、Flash Attention、PyTorch、CUDA、vLLM 都是高度版本敏感组件。</p>
+<p>推荐至少固定：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">model revision<br>transformers version<br>pytorch version<br>cuda version<br>flash-attn version<br>vllm version<br>container image digest<br></code></pre></td></tr></table></figure>
+
+<h2 id="十八、DeepSeek-OCR-和通用-VLM-应该怎么选"><a href="#十八、DeepSeek-OCR-和通用-VLM-应该怎么选" class="headerlink" title="十八、DeepSeek-OCR 和通用 VLM 应该怎么选"></a>十八、DeepSeek-OCR 和通用 VLM 应该怎么选</h2><p>DeepSeek-OCR 并不是要替代所有 VLM。</p>
+<p>更合理的架构是分层使用。</p>
+<h3 id="文档解析层"><a href="#文档解析层" class="headerlink" title="文档解析层"></a>文档解析层</h3><p>适合使用 DeepSeek-OCR 一类专业 OCR 2.0 模型：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">PDF → Markdown<br>Table → structured data<br>Formula → LaTeX<br>Layout → blocks<br></code></pre></td></tr></table></figure>
+
+<h3 id="高阶语义层"><a href="#高阶语义层" class="headerlink" title="高阶语义层"></a>高阶语义层</h3><p>再把解析好的结构交给通用 LLM&#x2F;VLM：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">总结<br>问答<br>跨页推理<br>对比分析<br>Agent 任务<br>知识抽取<br></code></pre></td></tr></table></figure>
+
+<p>也就是说：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">DeepSeek-OCR = 文档视觉入口 + 结构化解析器<br>LLM/VLM       = 高阶推理和业务决策层<br></code></pre></td></tr></table></figure>
+
+<p>这是比“让一个超大 VLM 从头做到尾”更容易控制成本和质量的工程路线。</p>
+<h2 id="十九、如何评价一个-OCR-2-0-模型"><a href="#十九、如何评价一个-OCR-2-0-模型" class="headerlink" title="十九、如何评价一个 OCR 2.0 模型"></a>十九、如何评价一个 OCR 2.0 模型</h2><p>不要只看“文字识别准确率”。</p>
+<p>一个真正面向 RAG 的评估体系至少应该包括：</p>
+<h3 id="字符级"><a href="#字符级" class="headerlink" title="字符级"></a>字符级</h3><ul>
+<li>Character Error Rate；</li>
+<li>Word Error Rate；</li>
+<li>数字、日期、金额准确率。</li>
+</ul>
+<h3 id="结构级"><a href="#结构级" class="headerlink" title="结构级"></a>结构级</h3><ul>
+<li>Heading hierarchy accuracy；</li>
+<li>Reading order；</li>
+<li>Table structure；</li>
+<li>Formula reconstruction；</li>
+<li>Image-caption association。</li>
+</ul>
+<h3 id="语义级"><a href="#语义级" class="headerlink" title="语义级"></a>语义级</h3><ul>
+<li>图表信息是否被正确描述；</li>
+<li>关键事实是否被保留；</li>
+<li>是否出现 hallucination。</li>
+</ul>
+<h3 id="RAG-级"><a href="#RAG-级" class="headerlink" title="RAG 级"></a>RAG 级</h3><p>最终还应该测：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">OCR<br> ↓<br>Chunk<br> ↓<br>Retrieval<br> ↓<br>Answer<br></code></pre></td></tr></table></figure>
+
+<p>整条链路的 Retrieval Recall 和 Answer Accuracy。</p>
+<p>因为 OCR 本身“看起来不错”，并不代表知识库一定检索得好。</p>
+<h2 id="二十、总结"><a href="#二十、总结" class="headerlink" title="二十、总结"></a>二十、总结</h2><p>DeepSeek-OCR 真正值得关注的地方，并不是它又做了一个“更强 OCR”。</p>
+<p>它体现了三个很重要的趋势。</p>
+<p>第一，<strong>OCR 正在从字符识别系统变成文档理解系统。</strong></p>
+<p>现代 OCR 不仅需要知道文字是什么，还需要恢复标题、段落、表格、公式、图片和空间关系，从而生成 Markdown、HTML、JSON 等机器可继续消费的结构。</p>
+<p>第二，<strong>视觉 Token 不只是输入成本，也可能成为压缩媒介。</strong></p>
+<p>Contexts Optical Compression 把视觉编码重新解释为一种文本上下文压缩手段。DeepEncoder 则通过“局部视觉建模 → Token 压缩 → 全局建模”的方式，把这个理论变成可以运行的模型结构。</p>
+<p>第三，<strong>在多模态 RAG 中，文档解析质量决定了知识库的上限。</strong></p>
+<p>真正可用的企业级 Pipeline 不应该只是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">PDF → OCR → Text → Vector DB<br></code></pre></td></tr></table></figure>
+
+<p>而应该是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">PDF<br> ↓<br>DeepSeek-OCR<br> ↓<br>结构化文档<br> ↓<br>后处理与语义分块<br> ↓<br>多类型索引<br> ↓<br>Retriever<br> ↓<br>LLM / Agent<br></code></pre></td></tr></table></figure>
+
+<p>从这个角度看，DeepSeek-OCR 更像是多模态知识系统中的一个 <strong>Document Compiler</strong>：输入是视觉文档，输出是 LLM、RAG 和 Agent 能真正消费的结构化知识。</p>
+<p>而“上下文光学压缩”带来的更深层问题则是：未来模型的上下文，也许并不一定全部以文本 Token 存在。</p>
+<p>这可能才是 DeepSeek-OCR 最值得继续观察的地方。</p>
+<h2 id="参考项目"><a href="#参考项目" class="headerlink" title="参考项目"></a>参考项目</h2><ul>
+<li>DeepSeek-OCR GitHub：<a target="_blank" rel="noopener" href="https://github.com/deepseek-ai/DeepSeek-OCR">https://github.com/deepseek-ai/DeepSeek-OCR</a></li>
+<li>DeepSeek-OCR Hugging Face：<a target="_blank" rel="noopener" href="https://huggingface.co/deepseek-ai/DeepSeek-OCR">https://huggingface.co/deepseek-ai/DeepSeek-OCR</a></li>
+<li>DeepSeek-OCR ModelScope：<a target="_blank" rel="noopener" href="https://www.modelscope.cn/models/deepseek-ai/DeepSeek-OCR/summary">https://www.modelscope.cn/models/deepseek-ai/DeepSeek-OCR/summary</a></li>
+</ul>
+<blockquote>
+<p>本文依据提供的 DeepSeek-OCR 实战资料进行知识抽取、去重和重新组织。涉及具体依赖版本、显卡兼容性、模型性能数字及工具链配置的内容具有明显的版本时效性，实际部署时应以当前项目官方说明和本地环境测试结果为准。</p>
+</blockquote>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/AI/" class="category-chain-item">AI</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/AI/%E5%A4%9A%E6%A8%A1%E6%80%81/" class="category-chain-item">多模态</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/AI/%E5%A4%9A%E6%A8%A1%E6%80%81/OCR/" class="category-chain-item">OCR</a>
+  
+  
+
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Markdown/" class="print-no-link">#Markdown</a>
+      
+        <a href="/tags/DeepSeek-OCR/" class="print-no-link">#DeepSeek-OCR</a>
+      
+        <a href="/tags/OCR-2-0/" class="print-no-link">#OCR 2.0</a>
+      
+        <a href="/tags/VLM/" class="print-no-link">#VLM</a>
+      
+        <a href="/tags/DeepEncoder/" class="print-no-link">#DeepEncoder</a>
+      
+        <a href="/tags/Contexts-Optical-Compression/" class="print-no-link">#Contexts Optical Compression</a>
+      
+        <a href="/tags/%E5%A4%9A%E6%A8%A1%E6%80%81-RAG/" class="print-no-link">#多模态 RAG</a>
+      
+        <a href="/tags/vLLM/" class="print-no-link">#vLLM</a>
+      
+        <a href="/tags/Transformers/" class="print-no-link">#Transformers</a>
+      
+        <a href="/tags/PDF/" class="print-no-link">#PDF</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>DeepSeek-OCR：从“识字”到“理解文档”，重新认识 OCR 2.0 与上下文光学压缩</div>
+      <div>https://allendericdalexander.github.io/2026/08/13/ai/ml/vlm/deepseek-ocr-from-ocr-to-document-understanding/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月13日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/13/rfc/rfc00003-documentation-conventions/" title="RFC 3 带读：Documentation Conventions——互联网最早的协作规则，为什么反而鼓励“不成熟”">
+                        <span class="hidden-mobile">RFC 3 带读：Documentation Conventions——互联网最早的协作规则，为什么反而鼓励“不成熟”</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
