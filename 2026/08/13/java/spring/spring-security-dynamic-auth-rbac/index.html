@@ -1,0 +1,1941 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="Spring Boot 3 进入 Spring Security 6 时代后，请求级授权的核心模型逐渐从 FilterSecurityInterceptor + AccessDecisionManager + Voter 转向 AuthorizationFilter + AuthorizationManager。对于后台管理系统、SaaS 平台等需要运行时调整权限的应用，可以把 URL、HTTP">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spring Security 6 动态 URL 权限控制：基于 AuthorizationManager 的 RBAC 实现">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/13/java/spring/spring-security-dynamic-auth-rbac/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="Spring Boot 3 进入 Spring Security 6 时代后，请求级授权的核心模型逐渐从 FilterSecurityInterceptor + AccessDecisionManager + Voter 转向 AuthorizationFilter + AuthorizationManager。对于后台管理系统、SaaS 平台等需要运行时调整权限的应用，可以把 URL、HTTP">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-13T10:32:00.000Z">
+<meta property="article:modified_time" content="2026-08-13T10:32:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="AuthorizationManager">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="RBAC">
+<meta property="article:tag" content="Spring Boot">
+<meta property="article:tag" content="Spring Security">
+<meta property="article:tag" content="权限控制">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Spring Security 6 动态 URL 权限控制：基于 AuthorizationManager 的 RBAC 实现 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Spring Security 6 动态 URL 权限控制：基于 AuthorizationManager 的 RBAC 实现"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-13 18:32" pubdate>
+          2026年8月13日 晚上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          7.5k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          63 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Spring Security 6 动态 URL 权限控制：基于 AuthorizationManager 的 RBAC 实现</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>Spring Boot 3 进入 Spring Security 6 时代后，请求级授权的核心模型逐渐从 <code>FilterSecurityInterceptor + AccessDecisionManager + Voter</code> 转向 <code>AuthorizationFilter + AuthorizationManager</code>。对于后台管理系统、SaaS 平台等需要运行时调整权限的应用，可以把 URL、HTTP Method 与权限码的关系存入数据库，由自定义 <code>AuthorizationManager</code> 在请求进入 Controller 前完成动态授权。</p>
+<p>本文围绕 Spring Security 6 的动态 URL 权限控制展开，从认证与授权的边界、RBAC 数据模型、<code>AuthorizationManager</code> 原理、动态 URL 匹配、权限缓存、JWT 权限实时生效、401&#x2F;403 异常处理，到菜单、按钮、接口权限解耦与生产环境实践，整理出一套可以直接落地到 Spring Boot 3 项目的实现思路。</p>
+<span id="more"></span>
+
+<h2 id="为什么需要动态-URL-权限"><a href="#为什么需要动态-URL-权限" class="headerlink" title="为什么需要动态 URL 权限"></a>为什么需要动态 URL 权限</h2><p>一个普通 Spring Security 项目通常可以直接在配置类中声明权限：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java">http.authorizeHttpRequests(auth -&gt; auth<br>        .requestMatchers(<span class="hljs-string">&quot;/api/admin/**&quot;</span>).hasRole(<span class="hljs-string">&quot;ADMIN&quot;</span>)<br>        .requestMatchers(<span class="hljs-string">&quot;/api/order/**&quot;</span>).hasAuthority(<span class="hljs-string">&quot;order:read&quot;</span>)<br>        .anyRequest().authenticated()<br>);<br></code></pre></td></tr></table></figure>
+
+<p>这种方式很直观，但有一个明显的问题：</p>
+<blockquote>
+<p><strong>URL 与权限的关系被写死在代码中。</strong></p>
+</blockquote>
+<p>假设系统最初规定：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">GET /api/orders/** -&gt; ROLE_ADMIN<br></code></pre></td></tr></table></figure>
+
+<p>后来产品希望：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">管理员可以访问<br>财务角色也可以访问<br>运营角色只能访问部分查询接口<br></code></pre></td></tr></table></figure>
+
+<p>如果权限规则全部写在 Java 代码里，就意味着每次调整权限都可能经历：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">修改代码<br>  ↓<br>重新编译<br>  ↓<br>构建镜像<br>  ↓<br>部署<br>  ↓<br>重启服务<br></code></pre></td></tr></table></figure>
+
+<p>对于企业后台、ERP、CRM、财务系统、SaaS 管理平台来说，这显然不够灵活。</p>
+<p>更合理的做法是把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">请求资源 -&gt; 所需权限<br></code></pre></td></tr></table></figure>
+
+<p>放到数据库。</p>
+<p>例如：</p>
+<table>
+<thead>
+<tr>
+<th>HTTP Method</th>
+<th>URL Pattern</th>
+<th>Permission</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/orders</code></td>
+<td><code>api:order:list</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/orders/{id}</code></td>
+<td><code>api:order:detail</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/orders</code></td>
+<td><code>api:order:create</code></td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/api/orders/{id}</code></td>
+<td><code>api:order:update</code></td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/api/orders/{id}</code></td>
+<td><code>api:order:delete</code></td>
+</tr>
+</tbody></table>
+<p>管理员只需要调整：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Role -&gt; Permission<br></code></pre></td></tr></table></figure>
+
+<p>关系，就可以动态改变系统授权。</p>
+<p>这种设计的核心思想可以表示为：</p>
+<pre><code class=" mermaid">flowchart LR
+    U[User] --&gt; UR[UserRole]
+    UR --&gt; R[Role]
+    R --&gt; RP[RolePermission]
+    RP --&gt; P[Permission]
+
+    P --&gt; API[API Permission]
+    API --&gt; URL[HTTP Method + URL Pattern]
+</code></pre>
+
+<p>用户并不是直接和 URL 建立关系，而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">User<br> -&gt; Role<br> -&gt; Permission<br> -&gt; API Rule<br> -&gt; URL<br></code></pre></td></tr></table></figure>
+
+<p>这正是 RBAC 与动态 URL 授权结合的关键。</p>
+<hr>
+<h2 id="Spring-Security-6-的授权模型发生了什么变化"><a href="#Spring-Security-6-的授权模型发生了什么变化" class="headerlink" title="Spring Security 6 的授权模型发生了什么变化"></a>Spring Security 6 的授权模型发生了什么变化</h2><p>很多 Spring Security 老教程仍然基于类似下面的结构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">FilterSecurityInterceptor<br>        ↓<br>SecurityMetadataSource<br>        ↓<br>ConfigAttribute<br>        ↓<br>AccessDecisionManager<br>        ↓<br>AccessDecisionVoter<br></code></pre></td></tr></table></figure>
+
+<p>典型实现会自定义：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">FilterInvocationSecurityMetadataSource<br></code></pre></td></tr></table></figure>
+
+<p>以及：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">AccessDecisionManager<br></code></pre></td></tr></table></figure>
+
+<p>一个组件负责：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">当前 URL 需要什么权限？<br></code></pre></td></tr></table></figure>
+
+<p>另一个组件负责：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">当前用户是否拥有这些权限？<br></code></pre></td></tr></table></figure>
+
+<p>这种方案曾经非常常见。</p>
+<p>Spring Security 新授权体系则围绕：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">AuthorizationManager&lt;T&gt;<br></code></pre></td></tr></table></figure>
+
+<p>进行抽象。</p>
+<p>使用 <code>authorizeHttpRequests</code> 时，请求级授权由 <code>AuthorizationFilter</code> 调用对应的 <code>AuthorizationManager</code> 完成。相比旧模型，它把 MetadataSource、ConfigAttribute、DecisionManager、Voter 等多层概念压缩成了更加直接的授权决策接口。</p>
+<p>可以把新的调用关系理解成：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[HTTP Request]
+        --&gt; B[SecurityFilterChain]
+
+    B --&gt; C[Authentication Filters]
+
+    C --&gt; D[AuthorizationFilter]
+
+    D --&gt; E[AuthorizationManager]
+
+    E --&gt; F&#123;授权结果&#125;
+
+    F --&gt;|允许| G[DispatcherServlet]
+    F --&gt;|拒绝| H[AccessDeniedException]
+</code></pre>
+
+<p>这也是动态 URL 权限控制在 Spring Security 6 中最自然的扩展点。</p>
+<hr>
+<h2 id="AuthorizationManager-到底是什么"><a href="#AuthorizationManager-到底是什么" class="headerlink" title="AuthorizationManager 到底是什么"></a>AuthorizationManager 到底是什么</h2><p><code>AuthorizationManager&lt;T&gt;</code> 的职责非常单纯：</p>
+<blockquote>
+<p>判断当前 <code>Authentication</code> 是否有权访问对象 <code>T</code>。</p>
+</blockquote>
+<p>Spring Security 6.5 中接口核心已经演进为：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java">AuthorizationResult <span class="hljs-title function_">authorize</span><span class="hljs-params">(</span><br><span class="hljs-params">        Supplier&lt;Authentication&gt; authentication,</span><br><span class="hljs-params">        T object</span><br><span class="hljs-params">)</span>;<br></code></pre></td></tr></table></figure>
+
+<p>早期 Spring Security 6 示例大量使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java">AuthorizationDecision <span class="hljs-title function_">check</span><span class="hljs-params">(</span><br><span class="hljs-params">        Supplier&lt;Authentication&gt; authentication,</span><br><span class="hljs-params">        T object</span><br><span class="hljs-params">)</span>;<br></code></pre></td></tr></table></figure>
+
+<p>但从 Spring Security 6.4 开始，<code>check</code> 已被标记为 deprecated，官方建议新的代码实现 <code>authorize</code>。因此如果你正在维护 2023～2024 年的 Spring Security 6 示例，看到 <code>check</code> 并不奇怪，但新代码更适合使用 <code>authorize</code>。</p>
+<p>对于 HTTP 请求：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">T = RequestAuthorizationContext<br></code></pre></td></tr></table></figure>
+
+<p>因此可以实现：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">AuthorizationManager&lt;RequestAuthorizationContext&gt;<br></code></pre></td></tr></table></figure>
+
+<p>从 <code>RequestAuthorizationContext</code> 中又能够获得：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">HttpServletRequest</span> <span class="hljs-variable">request</span> <span class="hljs-operator">=</span> context.getRequest();<br></code></pre></td></tr></table></figure>
+
+<p>于是动态授权所需要的关键数据就齐了：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Authentication<br>    ↓<br>当前用户有哪些权限<br><br>HttpServletRequest<br>    ↓<br>当前请求 Method + URI<br></code></pre></td></tr></table></figure>
+
+<p>剩下的问题就变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">根据 Method + URI 找权限规则<br>              ↓<br>        得到 permissionCode<br>              ↓<br>Authentication authorities<br>              ↓<br>        是否包含 permissionCode<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="一次动态授权请求的完整链路"><a href="#一次动态授权请求的完整链路" class="headerlink" title="一次动态授权请求的完整链路"></a>一次动态授权请求的完整链路</h2><p>假设用户请求：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs http">DELETE /api/orders/10001<br></code></pre></td></tr></table></figure>
+
+<p>数据库中配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">DELETE /api/orders/&#123;id&#125;<br>    -&gt; api:order:delete<br></code></pre></td></tr></table></figure>
+
+<p>用户拥有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">api:order:list<br>api:order:detail<br></code></pre></td></tr></table></figure>
+
+<p>但没有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">api:order:delete<br></code></pre></td></tr></table></figure>
+
+<p>整个请求过程可以表示为：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant C as Client
+    participant S as SecurityFilterChain
+    participant J as JwtAuthenticationFilter
+    participant A as AuthorizationFilter
+    participant M as DynamicAuthorizationManager
+    participant R as PermissionRuleCache
+    participant MVC as DispatcherServlet
+
+    C-&gt;&gt;S: DELETE /api/orders/10001
+    S-&gt;&gt;J: Authentication
+    J-&gt;&gt;J: 解析 Token
+    J-&gt;&gt;J: 构造 Authentication
+    J-&gt;&gt;A: 继续 FilterChain
+
+    A-&gt;&gt;M: authorize(authentication, context)
+    M-&gt;&gt;R: match(DELETE, /api/orders/10001)
+    R--&gt;&gt;M: api:order:delete
+
+    M-&gt;&gt;M: 检查 authorities
+
+    alt 拥有 api:order:delete
+        M--&gt;&gt;A: granted
+        A-&gt;&gt;MVC: 继续请求
+    else 没有权限
+        M--&gt;&gt;A: denied
+        A--&gt;&gt;C: 403 Forbidden
+    end
+</code></pre>
+
+<p>这里要特别分清：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">JWT Filter        -&gt; 解决“你是谁”<br>AuthorizationManager -&gt; 解决“你能不能访问”<br></code></pre></td></tr></table></figure>
+
+<p>也就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Authentication != Authorization<br></code></pre></td></tr></table></figure>
+
+<p>认证和授权揉成一个 Filter，短期看代码似乎少了，长期通常会变成权限系统里的“祖传巨型 if”。</p>
+<hr>
+<h2 id="推荐的-RBAC-权限模型"><a href="#推荐的-RBAC-权限模型" class="headerlink" title="推荐的 RBAC 权限模型"></a>推荐的 RBAC 权限模型</h2><p>对于真正的后台管理系统，不建议简单做：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Role -&gt; URL<br></code></pre></td></tr></table></figure>
+
+<p>更推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">User -&gt; Role -&gt; Permission -&gt; API<br></code></pre></td></tr></table></figure>
+
+<p>原因是角色应该描述：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">用户是什么身份<br></code></pre></td></tr></table></figure>
+
+<p>而权限应该描述：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">用户能执行什么动作<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">ROLE_FINANCE<br>ROLE_ADMIN<br>ROLE_OPERATOR<br></code></pre></td></tr></table></figure>
+
+<p>属于角色。</p>
+<p>而：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">api:order:list<br>api:order:create<br>api:order:delete<br>api:finance:settlement:approve<br></code></pre></td></tr></table></figure>
+
+<p>属于权限。</p>
+<p>这样角色和业务能力才能解耦。</p>
+<hr>
+<h2 id="数据库表设计"><a href="#数据库表设计" class="headerlink" title="数据库表设计"></a>数据库表设计</h2><p>一个最小可用模型至少需要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">sys_user<br>sys_role<br>sys_user_role<br><br>sys_permission<br>sys_role_permission<br><br>sys_api<br></code></pre></td></tr></table></figure>
+
+<p>关系如下：</p>
+<pre><code class=" mermaid">erDiagram
+    SYS_USER ||--o&#123; SYS_USER_ROLE : has
+    SYS_ROLE ||--o&#123; SYS_USER_ROLE : assigned
+
+    SYS_ROLE ||--o&#123; SYS_ROLE_PERMISSION : grants
+    SYS_PERMISSION ||--o&#123; SYS_ROLE_PERMISSION : contains
+
+    SYS_PERMISSION ||--|| SYS_API : describes
+</code></pre>
+
+<h3 id="权限表"><a href="#权限表" class="headerlink" title="权限表"></a>权限表</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> sys_permission (<br>    id          <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">PRIMARY KEY</span>,<br>    perm_code   <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">128</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    perm_name   <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">128</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    perm_type   <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">20</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    status      <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">20</span>) <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-string">&#x27;ENABLED&#x27;</span>,<br>    deleted     TINYINT <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-number">0</span>,<br><br>    <span class="hljs-keyword">UNIQUE</span> KEY uk_permission_code (<br>        perm_code,<br>        deleted<br>    )<br>);<br></code></pre></td></tr></table></figure>
+
+<p>权限码建议保持稳定。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">api:order:list<br>api:order:detail<br>api:order:create<br>api:order:update<br>api:order:delete<br></code></pre></td></tr></table></figure>
+
+<p>不要把权限设计成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">permission_001<br>permission_002<br></code></pre></td></tr></table></figure>
+
+<p>否则几个月之后数据库就会变成权限考古现场。</p>
+<h3 id="API-权限表"><a href="#API-权限表" class="headerlink" title="API 权限表"></a>API 权限表</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> sys_api (<br>    permission_id  <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">NOT NULL</span>,<br>    http_method    <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">16</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    url_pattern    <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">512</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    matcher_type   <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">20</span>) <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-string">&#x27;MVC&#x27;</span>,<br>    public_flag    TINYINT <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-number">0</span>,<br>    priority       <span class="hljs-type">INT</span> <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-number">0</span>,<br><br>    <span class="hljs-keyword">PRIMARY KEY</span> (permission_id),<br><br>    <span class="hljs-keyword">UNIQUE</span> KEY uk_api_rule (<br>        http_method,<br>        url_pattern,<br>        matcher_type<br>    )<br>);<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">permission_id = 10001<br>permissionCode = api:order:detail<br><br>GET<br>/api/orders/&#123;id&#125;<br></code></pre></td></tr></table></figure>
+
+<p>最终表达的就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">GET /api/orders/&#123;id&#125;<br>需要 api:order:detail<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="为什么-HTTP-Method-必须参与权限匹配"><a href="#为什么-HTTP-Method-必须参与权限匹配" class="headerlink" title="为什么 HTTP Method 必须参与权限匹配"></a>为什么 HTTP Method 必须参与权限匹配</h2><p>只存 URL 是一个非常常见的坑。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/api/users/&#123;id&#125;<br></code></pre></td></tr></table></figure>
+
+<p>同时可能存在：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs http">GET /api/users/&#123;id&#125;<br>PUT /api/users/&#123;id&#125;<br>DELETE /api/users/&#123;id&#125;<br></code></pre></td></tr></table></figure>
+
+<p>显然它们的风险完全不同。</p>
+<p>合理权限应该是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">GET    /api/users/&#123;id&#125;<br>    -&gt; api:user:detail<br><br>PUT    /api/users/&#123;id&#125;<br>    -&gt; api:user:update<br><br>DELETE /api/users/&#123;id&#125;<br>    -&gt; api:user:delete<br></code></pre></td></tr></table></figure>
+
+<p>如果只按照：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/api/users/&#123;id&#125;<br></code></pre></td></tr></table></figure>
+
+<p>授权，就可能出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">能查看用户<br>   ↓<br>顺便也能删除用户<br></code></pre></td></tr></table></figure>
+
+<p>这种权限系统确实很动态——攻击者看到都会觉得它相当有活力。</p>
+<p>因此动态 URL 权限规则至少应该由：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP Method<br>+<br>URL Pattern<br></code></pre></td></tr></table></figure>
+
+<p>共同组成。</p>
+<hr>
+<h2 id="PermissionRule-数据结构"><a href="#PermissionRule-数据结构" class="headerlink" title="PermissionRule 数据结构"></a>PermissionRule 数据结构</h2><p>可以先定义一个授权规则：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">record</span> <span class="hljs-title class_">ApiPermissionRule</span><span class="hljs-params">(</span><br><span class="hljs-params">        String httpMethod,</span><br><span class="hljs-params">        String urlPattern,</span><br><span class="hljs-params">        String permissionCode,</span><br><span class="hljs-params">        <span class="hljs-type">boolean</span> publicFlag,</span><br><span class="hljs-params">        <span class="hljs-type">int</span> priority</span><br><span class="hljs-params">)</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>运行时再把数据库规则编译成路径匹配器。</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">record</span> <span class="hljs-title class_">CompiledPermissionRule</span><span class="hljs-params">(</span><br><span class="hljs-params">        String httpMethod,</span><br><span class="hljs-params">        String permissionCode,</span><br><span class="hljs-params">        <span class="hljs-type">boolean</span> publicFlag,</span><br><span class="hljs-params">        <span class="hljs-type">int</span> priority,</span><br><span class="hljs-params">        PathPattern pattern</span><br><span class="hljs-params">)</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这样请求阶段不需要反复解析 URL Pattern。</p>
+<hr>
+<h2 id="不要每个请求查询数据库"><a href="#不要每个请求查询数据库" class="headerlink" title="不要每个请求查询数据库"></a>不要每个请求查询数据库</h2><p>最简单的实现是：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">permissionRepository.findByMethodAndUrl(...);<br></code></pre></td></tr></table></figure>
+
+<p>然后每个 HTTP 请求执行一次 SQL。</p>
+<p>功能当然能跑。</p>
+<p>性能也当然会跑——跑去数据库。</p>
+<p>如果系统 QPS 为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">5000<br></code></pre></td></tr></table></figure>
+
+<p>就意味着仅仅权限判断理论上就可能增加：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">5000 次数据库查询 / 秒<br></code></pre></td></tr></table></figure>
+
+<p>这完全没有必要。</p>
+<p>推荐结构：</p>
+<pre><code class=" mermaid">flowchart LR
+    DB[(Database)]
+        --&gt; LOAD[规则加载]
+
+    LOAD --&gt; CACHE[PermissionRuleCache]
+
+    REQ[Request]
+        --&gt; AM[AuthorizationManager]
+
+    AM --&gt; CACHE
+
+    CHANGE[权限变更]
+        --&gt; EVENT[PermissionChangedEvent]
+
+    EVENT --&gt; CACHE
+</code></pre>
+
+<p>也就是：</p>
+<blockquote>
+<p><strong>数据库负责保存权限规则，缓存负责处理请求。</strong></p>
+</blockquote>
+<p>这也是动态权限系统非常重要的工程边界。用户自己的 RBAC 设计资料中同样采用“API 规则缓存 + 用户有效权限缓存 + 权限变更刷新”的方案，并强调未登记业务接口默认拒绝。</p>
+<hr>
+<h2 id="实现-PermissionRuleCache"><a href="#实现-PermissionRuleCache" class="headerlink" title="实现 PermissionRuleCache"></a>实现 PermissionRuleCache</h2><p>下面实现一个简单版本。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">PermissionRuleCache</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ApiPermissionRepository repository;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">PathPatternParser</span> <span class="hljs-variable">parser</span> <span class="hljs-operator">=</span><br>            PathPatternParser.defaultInstance;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">volatile</span> List&lt;CompiledPermissionRule&gt; rules = List.of();<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">PermissionRuleCache</span><span class="hljs-params">(</span><br><span class="hljs-params">            ApiPermissionRepository repository)</span> &#123;<br>        <span class="hljs-built_in">this</span>.repository = repository;<br>    &#125;<br><br>    <span class="hljs-meta">@PostConstruct</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">init</span><span class="hljs-params">()</span> &#123;<br>        refresh();<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">synchronized</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">refresh</span><span class="hljs-params">()</span> &#123;<br>        List&lt;ApiPermissionRule&gt; databaseRules =<br>                repository.findEnabledRules();<br><br>        <span class="hljs-built_in">this</span>.rules = databaseRules.stream()<br>                .map(<span class="hljs-built_in">this</span>::compile)<br>                .sorted(<br>                        Comparator<br>                                .comparingInt(<br>                                        CompiledPermissionRule::priority)<br>                                .reversed()<br>                                .thenComparing(<br>                                        rule -&gt; rule.pattern()<br>                                                .getPatternString()<br>                                                .length(),<br>                                        Comparator.reverseOrder()<br>                                )<br>                )<br>                .toList();<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> CompiledPermissionRule <span class="hljs-title function_">compile</span><span class="hljs-params">(</span><br><span class="hljs-params">            ApiPermissionRule rule)</span> &#123;<br><br>        <span class="hljs-type">PathPattern</span> <span class="hljs-variable">pattern</span> <span class="hljs-operator">=</span><br>                parser.parse(rule.urlPattern());<br><br>        <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">CompiledPermissionRule</span>(<br>                rule.httpMethod(),<br>                rule.permissionCode(),<br>                rule.publicFlag(),<br>                rule.priority(),<br>                pattern<br>        );<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> Optional&lt;CompiledPermissionRule&gt; <span class="hljs-title function_">match</span><span class="hljs-params">(</span><br><span class="hljs-params">            HttpServletRequest request)</span> &#123;<br><br>        <span class="hljs-type">String</span> <span class="hljs-variable">requestMethod</span> <span class="hljs-operator">=</span> request.getMethod();<br><br>        <span class="hljs-type">String</span> <span class="hljs-variable">requestUri</span> <span class="hljs-operator">=</span> request.getRequestURI();<br><br>        <span class="hljs-type">String</span> <span class="hljs-variable">contextPath</span> <span class="hljs-operator">=</span> request.getContextPath();<br><br>        <span class="hljs-type">String</span> <span class="hljs-variable">path</span> <span class="hljs-operator">=</span> contextPath.isEmpty()<br>                ? requestUri<br>                : requestUri.substring(contextPath.length());<br><br>        <span class="hljs-type">PathContainer</span> <span class="hljs-variable">pathContainer</span> <span class="hljs-operator">=</span><br>                PathContainer.parsePath(path);<br><br>        <span class="hljs-keyword">return</span> rules.stream()<br>                .filter(rule -&gt;<br>                        methodMatches(<br>                                rule.httpMethod(),<br>                                requestMethod<br>                        )<br>                )<br>                .filter(rule -&gt;<br>                        rule.pattern().matches(pathContainer)<br>                )<br>                .findFirst();<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">methodMatches</span><span class="hljs-params">(</span><br><span class="hljs-params">            String configured,</span><br><span class="hljs-params">            String actual)</span> &#123;<br><br>        <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;ANY&quot;</span>.equalsIgnoreCase(configured)<br>                || configured.equalsIgnoreCase(actual);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里有两个很重要的设计：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">启动 / 刷新阶段<br>    ↓<br>解析 URL Pattern<br><br>请求阶段<br>    ↓<br>直接执行已经编译好的 matcher<br></code></pre></td></tr></table></figure>
+
+<p>而不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">每次请求<br>    ↓<br>查询数据库<br>    ↓<br>解析 Pattern<br>    ↓<br>权限判断<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="PathPattern-与-AntPath-的版本问题"><a href="#PathPattern-与-AntPath-的版本问题" class="headerlink" title="PathPattern 与 AntPath 的版本问题"></a>PathPattern 与 AntPath 的版本问题</h2><p>很多老的动态权限实现会看到：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">AntPathMatcher<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">AntPathRequestMatcher<br></code></pre></td></tr></table></figure>
+
+<p>Spring Security 6.5 已将 <code>AntPathRequestMatcher</code> 标记为 <code>forRemoval=true</code>，并明确建议迁移到 <code>PathPatternRequestMatcher</code>。<code>PathPatternRequestMatcher</code> 从 Spring Security 6.5 开始提供。</p>
+<p>因此如果项目面向较新的 Spring Security 6.x，可以优先考虑 Spring 的 <code>PathPattern</code> 体系。</p>
+<p>例如数据库规则：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/api/orders/&#123;id&#125;<br></code></pre></td></tr></table></figure>
+
+<p>相比：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/api/orders/*<br></code></pre></td></tr></table></figure>
+
+<p>也更接近 Spring MVC Controller 本身的表达方式。</p>
+<hr>
+<h2 id="实现-DynamicAuthorizationManager"><a href="#实现-DynamicAuthorizationManager" class="headerlink" title="实现 DynamicAuthorizationManager"></a>实现 DynamicAuthorizationManager</h2><p>真正的动态授权核心可以非常短。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">DynamicAuthorizationManager</span><br>        <span class="hljs-keyword">implements</span> <span class="hljs-title class_">AuthorizationManager</span>&lt;RequestAuthorizationContext&gt; &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> PermissionRuleCache ruleCache;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">DynamicAuthorizationManager</span><span class="hljs-params">(</span><br><span class="hljs-params">            PermissionRuleCache ruleCache)</span> &#123;<br>        <span class="hljs-built_in">this</span>.ruleCache = ruleCache;<br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> AuthorizationResult <span class="hljs-title function_">authorize</span><span class="hljs-params">(</span><br><span class="hljs-params">            Supplier&lt;Authentication&gt; authenticationSupplier,</span><br><span class="hljs-params">            RequestAuthorizationContext context)</span> &#123;<br><br>        <span class="hljs-type">HttpServletRequest</span> <span class="hljs-variable">request</span> <span class="hljs-operator">=</span><br>                context.getRequest();<br><br>        Optional&lt;CompiledPermissionRule&gt; optional =<br>                ruleCache.match(request);<br><br>        <span class="hljs-comment">// 没有登记权限规则</span><br>        <span class="hljs-keyword">if</span> (optional.isEmpty()) &#123;<br>            <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">AuthorizationDecision</span>(<span class="hljs-literal">false</span>);<br>        &#125;<br><br>        <span class="hljs-type">CompiledPermissionRule</span> <span class="hljs-variable">rule</span> <span class="hljs-operator">=</span><br>                optional.get();<br><br>        <span class="hljs-comment">// 数据库明确标记为公共接口</span><br>        <span class="hljs-keyword">if</span> (rule.publicFlag()) &#123;<br>            <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">AuthorizationDecision</span>(<span class="hljs-literal">true</span>);<br>        &#125;<br><br>        Authentication authentication;<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            authentication = authenticationSupplier.get();<br>        &#125; <span class="hljs-keyword">catch</span> (Exception ex) &#123;<br>            <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">AuthorizationDecision</span>(<span class="hljs-literal">false</span>);<br>        &#125;<br><br>        <span class="hljs-keyword">if</span> (authentication == <span class="hljs-literal">null</span><br>                || !authentication.isAuthenticated()) &#123;<br>            <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">AuthorizationDecision</span>(<span class="hljs-literal">false</span>);<br>        &#125;<br><br>        <span class="hljs-type">boolean</span> <span class="hljs-variable">granted</span> <span class="hljs-operator">=</span><br>                authentication.getAuthorities()<br>                        .stream()<br>                        .map(GrantedAuthority::getAuthority)<br>                        .anyMatch(rule.permissionCode()::equals);<br><br>        <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">AuthorizationDecision</span>(granted);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>核心逻辑其实只有四步：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">1. 当前请求匹配哪条 API 规则？<br>2. 当前 API 需要哪个 permissionCode？<br>3. 当前 Authentication 有哪些 authorities？<br>4. 是否包含 permissionCode？<br></code></pre></td></tr></table></figure>
+
+<p>可以概括为：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java">allowed =<br>    authentication.authorities<br>        contains<br>    request.requiredPermission;<br></code></pre></td></tr></table></figure>
+
+<p>真正困难的地方往往不在这十几行判断，而在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">权限模型<br>URL Pattern 设计<br>缓存失效<br>JWT 权限同步<br>前后端权限边界<br>默认策略<br>审计<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="配置-SecurityFilterChain"><a href="#配置-SecurityFilterChain" class="headerlink" title="配置 SecurityFilterChain"></a>配置 SecurityFilterChain</h2><p>Spring Boot 3 &#x2F; Spring Security 6 已经采用组件式 <code>SecurityFilterChain</code> 配置，不再使用过去常见的 <code>WebSecurityConfigurerAdapter</code>。</p>
+<p>典型配置：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Configuration</span><br><span class="hljs-meta">@EnableWebSecurity</span><br><span class="hljs-meta">@EnableMethodSecurity</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SecurityConfig</span> &#123;<br><br>    <span class="hljs-meta">@Bean</span><br>    SecurityFilterChain <span class="hljs-title function_">securityFilterChain</span><span class="hljs-params">(</span><br><span class="hljs-params">            HttpSecurity http,</span><br><span class="hljs-params">            DynamicAuthorizationManager authorizationManager,</span><br><span class="hljs-params">            JwtAuthenticationFilter jwtFilter,</span><br><span class="hljs-params">            RestAuthenticationEntryPoint authenticationEntryPoint,</span><br><span class="hljs-params">            RestAccessDeniedHandler accessDeniedHandler)</span><br>            <span class="hljs-keyword">throws</span> Exception &#123;<br><br>        http<br>                .csrf(csrf -&gt; csrf.disable())<br><br>                .cors(Customizer.withDefaults())<br><br>                .sessionManagement(session -&gt;<br>                        session.sessionCreationPolicy(<br>                                SessionCreationPolicy.STATELESS<br>                        )<br>                )<br><br>                .exceptionHandling(exception -&gt;<br>                        exception<br>                                .authenticationEntryPoint(<br>                                        authenticationEntryPoint<br>                                )<br>                                .accessDeniedHandler(<br>                                        accessDeniedHandler<br>                                )<br>                )<br><br>                .authorizeHttpRequests(auth -&gt; auth<br><br>                        .dispatcherTypeMatchers(<br>                                DispatcherType.FORWARD,<br>                                DispatcherType.ERROR<br>                        ).permitAll()<br><br>                        .requestMatchers(<br>                                <span class="hljs-string">&quot;/api/auth/login&quot;</span>,<br>                                <span class="hljs-string">&quot;/api/auth/refresh&quot;</span>,<br>                                <span class="hljs-string">&quot;/actuator/health&quot;</span><br>                        ).permitAll()<br><br>                        .anyRequest()<br>                        .access(authorizationManager)<br>                )<br><br>                .addFilterBefore(<br>                        jwtFilter,<br>                        UsernamePasswordAuthenticationFilter.class<br>                );<br><br>        <span class="hljs-keyword">return</span> http.build();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>Spring Security 的 <code>AuthorizationFilter</code> 不仅可能处理普通 <code>REQUEST</code>，其他 dispatch 类型也可能重新进入授权流程，因此在传统 MVC 应用中，需要结合实际情况考虑 <code>ERROR</code>、<code>FORWARD</code> 等 DispatcherType。官方文档也专门指出了这一行为。</p>
+<hr>
+<h2 id="白名单应该写在哪里"><a href="#白名单应该写在哪里" class="headerlink" title="白名单应该写在哪里"></a>白名单应该写在哪里</h2><p>通常有两种方式。</p>
+<p>第一种：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java">.requestMatchers(<br>        <span class="hljs-string">&quot;/api/auth/login&quot;</span>,<br>        <span class="hljs-string">&quot;/api/auth/refresh&quot;</span><br>).permitAll()<br></code></pre></td></tr></table></figure>
+
+<p>第二种则是全部放入动态权限表：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">POST /api/auth/login<br>public_flag = true<br></code></pre></td></tr></table></figure>
+
+<p>工程上更推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">框架基础白名单<br>    ↓<br>SecurityConfig<br><br>业务公开 API<br>    ↓<br>权限数据库<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">login<br>refresh<br>health<br></code></pre></td></tr></table></figure>
+
+<p>属于基础设施接口，可以直接配置。</p>
+<p>而：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">GET /api/products/public/**<br>GET /api/articles/**<br></code></pre></td></tr></table></figure>
+
+<p>等业务 API，如果确实需要后台动态控制公开状态，可以放入数据库。</p>
+<p>不要让后台管理员随手把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/api/admin/**<br></code></pre></td></tr></table></figure>
+
+<p>配置成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">public_flag = true<br></code></pre></td></tr></table></figure>
+
+<p>否则权限中心就从“安全管理平台”变成了“一键卸门”。</p>
+<hr>
+<h2 id="默认允许还是默认拒绝"><a href="#默认允许还是默认拒绝" class="headerlink" title="默认允许还是默认拒绝"></a>默认允许还是默认拒绝</h2><p>这是动态 URL 权限系统里最关键的设计之一。</p>
+<p>假设开发人员新增：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@PostMapping(&quot;/api/admin/users/import&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">importUsers</span><span class="hljs-params">()</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>但是忘记向权限数据库登记。</p>
+<p>此时有两种策略。</p>
+<h3 id="默认允许"><a href="#默认允许" class="headerlink" title="默认允许"></a>默认允许</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">没有规则<br>  ↓<br>permit<br></code></pre></td></tr></table></figure>
+
+<p>优点是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">新增 API 不容易 403<br></code></pre></td></tr></table></figure>
+
+<p>缺点是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">新增 API 可能直接裸奔<br></code></pre></td></tr></table></figure>
+
+<h3 id="默认拒绝"><a href="#默认拒绝" class="headerlink" title="默认拒绝"></a>默认拒绝</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">没有规则<br>  ↓<br>403<br></code></pre></td></tr></table></figure>
+
+<p>这样新接口必须经过：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">开发<br> ↓<br>扫描<br> ↓<br>登记<br> ↓<br>绑定权限<br> ↓<br>启用<br></code></pre></td></tr></table></figure>
+
+<p>才能访问。</p>
+<p>对于后台管理、财务、订单、权限中心等业务，更推荐：</p>
+<blockquote>
+<p><strong>Fail Closed：没有明确允许，就拒绝。</strong></p>
+</blockquote>
+<p>也就是代码中的：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">if</span> (optional.isEmpty()) &#123;<br>    <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">AuthorizationDecision</span>(<span class="hljs-literal">false</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="URL-匹配冲突怎么处理"><a href="#URL-匹配冲突怎么处理" class="headerlink" title="URL 匹配冲突怎么处理"></a>URL 匹配冲突怎么处理</h2><p>动态规则一定会遇到这种情况：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">GET /api/orders/**<br>GET /api/orders/&#123;id&#125;<br>GET /api/orders/export<br></code></pre></td></tr></table></figure>
+
+<p>请求：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">GET /api/orders/export<br></code></pre></td></tr></table></figure>
+
+<p>究竟应该匹配哪一个？</p>
+<p>因此权限规则必须有确定的优先级。</p>
+<p>推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP Method 精确匹配<br>        &gt;<br>ANY<br><br>EXACT<br>        &gt;<br>MVC / PathPattern<br>        &gt;<br>宽泛通配符<br><br>路径越具体<br>        &gt;<br>路径越宽泛<br></code></pre></td></tr></table></figure>
+
+<p>还可以增加：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql">priority <span class="hljs-type">INT</span><br></code></pre></td></tr></table></figure>
+
+<p>显式控制。</p>
+<p>例如：</p>
+<table>
+<thead>
+<tr>
+<th align="right">priority</th>
+<th>method</th>
+<th>pattern</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">100</td>
+<td>GET</td>
+<td><code>/api/orders/export</code></td>
+</tr>
+<tr>
+<td align="right">80</td>
+<td>GET</td>
+<td><code>/api/orders/{id}</code></td>
+</tr>
+<tr>
+<td align="right">10</td>
+<td>GET</td>
+<td><code>/api/orders/**</code></td>
+</tr>
+</tbody></table>
+<p>授权规则绝不能依赖：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">数据库碰巧返回的顺序<br></code></pre></td></tr></table></figure>
+
+<p>否则同一份权限数据换个执行计划，安全策略都可能跟着“量子叠加”。</p>
+<hr>
+<h2 id="Authentication-中应该存-Role-还是-Permission"><a href="#Authentication-中应该存-Role-还是-Permission" class="headerlink" title="Authentication 中应该存 Role 还是 Permission"></a>Authentication 中应该存 Role 还是 Permission</h2><p>可以只放角色：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">ROLE_ADMIN<br>ROLE_FINANCE<br></code></pre></td></tr></table></figure>
+
+<p>然后每次授权：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">URL<br> -&gt; Permission<br> -&gt; Role<br> -&gt; Authentication Role<br></code></pre></td></tr></table></figure>
+
+<p>但这会增加运行时计算。</p>
+<p>另一种方式是登录时直接展开有效权限：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">ROLE_ADMIN<br><br>api:user:list<br>api:user:create<br>api:order:list<br>api:order:approve<br></code></pre></td></tr></table></figure>
+
+<p>最终生成：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">Collection&lt;GrantedAuthority&gt;<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java">List&lt;GrantedAuthority&gt; authorities =<br>        permissionCodes.stream()<br>                .map(SimpleGrantedAuthority::<span class="hljs-keyword">new</span>)<br>                .toList();<br></code></pre></td></tr></table></figure>
+
+<p>这样动态 AuthorizationManager 只需要：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">authentication.getAuthorities()<br></code></pre></td></tr></table></figure>
+
+<p>即可完成判断。</p>
+<p>对于中后台 RBAC 系统，这种方式通常更加清晰：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Role<br>    ↓<br>负责权限组合<br><br>Permission<br>    ↓<br>负责真正授权判断<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="ROLE-前缀为什么总是容易出问题"><a href="#ROLE-前缀为什么总是容易出问题" class="headerlink" title="ROLE_ 前缀为什么总是容易出问题"></a>ROLE_ 前缀为什么总是容易出问题</h2><p>Spring Security 中：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">hasRole(<span class="hljs-string">&quot;ADMIN&quot;</span>)<br></code></pre></td></tr></table></figure>
+
+<p>与：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">hasAuthority(<span class="hljs-string">&quot;ROLE_ADMIN&quot;</span>)<br></code></pre></td></tr></table></figure>
+
+<p>通常表达相同的意思。</p>
+<p><code>hasRole</code> 会按照默认角色前缀处理 <code>ROLE_</code>。</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">.roles(<span class="hljs-string">&quot;ADMIN&quot;</span>)<br></code></pre></td></tr></table></figure>
+
+<p>最终通常生成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ROLE_ADMIN<br></code></pre></td></tr></table></figure>
+
+<p>而：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">new</span> <span class="hljs-title class_">SimpleGrantedAuthority</span>(<span class="hljs-string">&quot;ADMIN&quot;</span>)<br></code></pre></td></tr></table></figure>
+
+<p>得到的就只是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ADMIN<br></code></pre></td></tr></table></figure>
+
+<p>如果这时授权判断使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">hasRole(<span class="hljs-string">&quot;ADMIN&quot;</span>)<br></code></pre></td></tr></table></figure>
+
+<p>就会去匹配：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ROLE_ADMIN<br></code></pre></td></tr></table></figure>
+
+<p>自然无法匹配：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ADMIN<br></code></pre></td></tr></table></figure>
+
+<p>提供的 Spring Security 课程资料也专门通过源码说明了 <code>roles(&quot;ADMIN&quot;)</code> 与直接构造 <code>SimpleGrantedAuthority(&quot;ADMIN&quot;)</code> 的差异，以及 <code>ROLE_</code> 前缀造成 403 的典型问题。</p>
+<p>因此建议项目统一规范：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Role:<br>ROLE_ADMIN<br>ROLE_USER<br>ROLE_FINANCE<br></code></pre></td></tr></table></figure>
+
+<p>业务权限则：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">api:user:list<br>api:user:create<br>api:finance:settlement:approve<br></code></pre></td></tr></table></figure>
+
+<p>授权业务 API 时尽量使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">hasAuthority(...)<br></code></pre></td></tr></table></figure>
+
+<p>而不是把所有操作权限都设计成 Role。</p>
+<hr>
+<h2 id="JWT-场景下动态权限最大的坑"><a href="#JWT-场景下动态权限最大的坑" class="headerlink" title="JWT 场景下动态权限最大的坑"></a>JWT 场景下动态权限最大的坑</h2><p>假设登录成功以后，把所有权限都放进 JWT：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;sub&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;10001&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;authorities&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;api:order:list&quot;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-string">&quot;api:order:create&quot;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-string">&quot;api:order:delete&quot;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;exp&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1780000000</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>现在管理员撤销：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">api:order:delete<br></code></pre></td></tr></table></figure>
+
+<p>但旧 Token 里面依然存在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">api:order:delete<br></code></pre></td></tr></table></figure>
+
+<p>只要 Token 没过期，用户就仍然可能继续删除订单。</p>
+<p>这就出现了一个很尴尬的情况：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">数据库权限已经动态了<br>Token 权限却是静态的<br></code></pre></td></tr></table></figure>
+
+<p>最终整个“动态权限”只动态了一半。</p>
+<hr>
+<h2 id="推荐的-JWT-权限设计"><a href="#推荐的-JWT-权限设计" class="headerlink" title="推荐的 JWT 权限设计"></a>推荐的 JWT 权限设计</h2><p>更合理的 JWT 可以只保存身份信息：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;sub&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;10001&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;jti&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;01JXYZ...&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;tokenVersion&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">12</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;iat&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1780000000</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;exp&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1780003600</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>然后请求时：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">JWT<br> ↓<br>userId<br> ↓<br>权限缓存<br> ↓<br>authorities<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">rbac:user:10001:authorities<br></code></pre></td></tr></table></figure>
+
+<p>缓存内容：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">api:order:list<br>api:order:create<br></code></pre></td></tr></table></figure>
+
+<p>当管理员调整角色权限时：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">数据库事务提交<br>      ↓<br>PermissionChangedEvent<br>      ↓<br>删除相关用户权限缓存<br>      ↓<br>下一次请求重新加载<br></code></pre></td></tr></table></figure>
+
+<p>这样数据库权限变化可以较快生效。</p>
+<p>相关 RBAC 设计资料同样建议 JWT 中只保存身份、Token 版本等稳定信息，而不要将完整动态权限永久固化进 Token；权限变化后应通过版本号或缓存失效使新的授权结果立即生效。</p>
+<hr>
+<h2 id="两级缓存设计"><a href="#两级缓存设计" class="headerlink" title="两级缓存设计"></a>两级缓存设计</h2><p>生产环境推荐至少考虑两类缓存。</p>
+<h3 id="API-规则缓存"><a href="#API-规则缓存" class="headerlink" title="API 规则缓存"></a>API 规则缓存</h3><p>保存：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Method + URL Pattern<br>      ↓<br>Permission<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">GET /api/orders/&#123;id&#125;<br>    -&gt; api:order:detail<br></code></pre></td></tr></table></figure>
+
+<p>缓存可以表示为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">rbac:api:rules<br></code></pre></td></tr></table></figure>
+
+<h3 id="用户权限缓存"><a href="#用户权限缓存" class="headerlink" title="用户权限缓存"></a>用户权限缓存</h3><p>保存：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">User<br>  ↓<br>Effective Authorities<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">rbac:user:10001:authorities<br></code></pre></td></tr></table></figure>
+
+<p>内容：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">ROLE_FINANCE<br>api:order:list<br>api:order:detail<br>api:settlement:list<br>api:settlement:approve<br></code></pre></td></tr></table></figure>
+
+<p>一次请求于是变成：</p>
+<pre><code class=" mermaid">flowchart LR
+    R[Request]
+        --&gt; JWT[JWT Authentication]
+
+    JWT --&gt; UC[User Authority Cache]
+
+    R --&gt; RC[API Rule Cache]
+
+    UC --&gt; AM[AuthorizationManager]
+    RC --&gt; AM
+
+    AM --&gt; RESULT&#123;Granted?&#125;
+
+    RESULT --&gt;|Yes| MVC[Controller]
+    RESULT --&gt;|No| DENY[403]
+</code></pre>
+
+<p>正常请求完全不需要访问数据库。</p>
+<hr>
+<h2 id="多实例部署时权限缓存怎么刷新"><a href="#多实例部署时权限缓存怎么刷新" class="headerlink" title="多实例部署时权限缓存怎么刷新"></a>多实例部署时权限缓存怎么刷新</h2><p>单实例里：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">ruleCache.refresh();<br></code></pre></td></tr></table></figure>
+
+<p>就够了。</p>
+<p>但 Kubernetes 或多机部署中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Instance A<br>Instance B<br>Instance C<br></code></pre></td></tr></table></figure>
+
+<p>管理员在 A 修改权限。</p>
+<p>如果只刷新 A：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">A -&gt; 新规则<br>B -&gt; 老规则<br>C -&gt; 老规则<br></code></pre></td></tr></table></figure>
+
+<p>系统就会出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">同一个用户刷新几次页面<br>一会儿 200<br>一会儿 403<br></code></pre></td></tr></table></figure>
+
+<p>因为负载均衡把请求发到了不同实例。</p>
+<p>生产环境需要广播权限变化。</p>
+<p>例如：</p>
+<pre><code class=" mermaid">flowchart LR
+    ADMIN[Permission Change]
+        --&gt; DB[(Database)]
+
+    DB --&gt; EVENT[Permission Changed]
+
+    EVENT --&gt; REDIS[Redis Pub/Sub]
+
+    REDIS --&gt; A[Instance A]
+    REDIS --&gt; B[Instance B]
+    REDIS --&gt; C[Instance C]
+
+    A --&gt; CA[Refresh Cache]
+    B --&gt; CB[Refresh Cache]
+    C --&gt; CC[Refresh Cache]
+</code></pre>
+
+<p>也可以使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Redis Pub/Sub<br>Kafka<br>RocketMQ<br>Nacos Config<br>数据库版本号轮询<br></code></pre></td></tr></table></figure>
+
+<p>小型项目直接刷新全量规则通常已经足够。</p>
+<hr>
+<h2 id="权限变更事件"><a href="#权限变更事件" class="headerlink" title="权限变更事件"></a>权限变更事件</h2><p>可以定义：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">record</span> <span class="hljs-title class_">PermissionChangedEvent</span><span class="hljs-params">(</span><br><span class="hljs-params">        Long roleId,</span><br><span class="hljs-params">        Long userId,</span><br><span class="hljs-params">        <span class="hljs-type">boolean</span> apiRuleChanged</span><br><span class="hljs-params">)</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>权限服务：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Transactional</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">updateRolePermissions</span><span class="hljs-params">(</span><br><span class="hljs-params">        Long roleId,</span><br><span class="hljs-params">        Set&lt;Long&gt; permissionIds)</span> &#123;<br><br>    rolePermissionRepository<br>            .replacePermissions(<br>                    roleId,<br>                    permissionIds<br>            );<br><br>    applicationEventPublisher.publishEvent(<br>            <span class="hljs-keyword">new</span> <span class="hljs-title class_">PermissionChangedEvent</span>(<br>                    roleId,<br>                    <span class="hljs-literal">null</span>,<br>                    <span class="hljs-literal">true</span><br>            )<br>    );<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>监听：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">PermissionChangedListener</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> PermissionRuleCache ruleCache;<br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> UserAuthorityCache userAuthorityCache;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">PermissionChangedListener</span><span class="hljs-params">(</span><br><span class="hljs-params">            PermissionRuleCache ruleCache,</span><br><span class="hljs-params">            UserAuthorityCache userAuthorityCache)</span> &#123;<br><br>        <span class="hljs-built_in">this</span>.ruleCache = ruleCache;<br>        <span class="hljs-built_in">this</span>.userAuthorityCache = userAuthorityCache;<br>    &#125;<br><br>    <span class="hljs-meta">@TransactionalEventListener(</span><br><span class="hljs-meta">            phase = TransactionPhase.AFTER_COMMIT</span><br><span class="hljs-meta">    )</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">handle</span><span class="hljs-params">(</span><br><span class="hljs-params">            PermissionChangedEvent event)</span> &#123;<br><br>        <span class="hljs-keyword">if</span> (event.apiRuleChanged()) &#123;<br>            ruleCache.refresh();<br>        &#125;<br><br>        userAuthorityCache.evictByRole(<br>                event.roleId()<br>        );<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">AFTER_COMMIT<br></code></pre></td></tr></table></figure>
+
+<p>非常重要。</p>
+<p>否则可能发生：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">缓存先刷新<br>    ↓<br>数据库事务回滚<br>    ↓<br>缓存和数据库状态不一致<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="401-与-403-必须区分"><a href="#401-与-403-必须区分" class="headerlink" title="401 与 403 必须区分"></a>401 与 403 必须区分</h2><p>前后端分离项目中经常统一返回：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;code&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;AUTH_FORBIDDEN&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;message&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;无权限访问&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>但 HTTP 状态仍应该区分。</p>
+<h3 id="401-Unauthorized"><a href="#401-Unauthorized" class="headerlink" title="401 Unauthorized"></a>401 Unauthorized</h3><p>表示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">你还没有完成有效认证<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">没有 Token<br>Token 无效<br>Token 已过期<br></code></pre></td></tr></table></figure>
+
+<h3 id="403-Forbidden"><a href="#403-Forbidden" class="headerlink" title="403 Forbidden"></a>403 Forbidden</h3><p>表示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Spring Security 已经知道你是谁<br>但你没有这个权限<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">当前用户有 api:order:list<br>请求却需要 api:order:delete<br></code></pre></td></tr></table></figure>
+
+<p>Spring Security 的异常翻译机制会根据认证状态，通过 <code>AuthenticationEntryPoint</code> 或 <code>AccessDeniedHandler</code> 将安全异常转换为对应 HTTP 响应。</p>
+<hr>
+<h2 id="自定义-401"><a href="#自定义-401" class="headerlink" title="自定义 401"></a>自定义 401</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">RestAuthenticationEntryPoint</span><br>        <span class="hljs-keyword">implements</span> <span class="hljs-title class_">AuthenticationEntryPoint</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ObjectMapper objectMapper;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">RestAuthenticationEntryPoint</span><span class="hljs-params">(</span><br><span class="hljs-params">            ObjectMapper objectMapper)</span> &#123;<br>        <span class="hljs-built_in">this</span>.objectMapper = objectMapper;<br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">commence</span><span class="hljs-params">(</span><br><span class="hljs-params">            HttpServletRequest request,</span><br><span class="hljs-params">            HttpServletResponse response,</span><br><span class="hljs-params">            AuthenticationException authException)</span><br>            <span class="hljs-keyword">throws</span> IOException &#123;<br><br>        response.setStatus(<br>                HttpServletResponse.SC_UNAUTHORIZED<br>        );<br><br>        response.setContentType(<br>                MediaType.APPLICATION_JSON_VALUE<br>        );<br><br>        response.setCharacterEncoding(<br>                StandardCharsets.UTF_8.name()<br>        );<br><br>        objectMapper.writeValue(<br>                response.getOutputStream(),<br>                Map.of(<br>                        <span class="hljs-string">&quot;code&quot;</span>, <span class="hljs-string">&quot;AUTH_UNAUTHORIZED&quot;</span>,<br>                        <span class="hljs-string">&quot;message&quot;</span>, <span class="hljs-string">&quot;请先登录或重新认证&quot;</span><br>                )<br>        );<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="自定义-403"><a href="#自定义-403" class="headerlink" title="自定义 403"></a>自定义 403</h2><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">RestAccessDeniedHandler</span><br>        <span class="hljs-keyword">implements</span> <span class="hljs-title class_">AccessDeniedHandler</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ObjectMapper objectMapper;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">RestAccessDeniedHandler</span><span class="hljs-params">(</span><br><span class="hljs-params">            ObjectMapper objectMapper)</span> &#123;<br>        <span class="hljs-built_in">this</span>.objectMapper = objectMapper;<br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">handle</span><span class="hljs-params">(</span><br><span class="hljs-params">            HttpServletRequest request,</span><br><span class="hljs-params">            HttpServletResponse response,</span><br><span class="hljs-params">            AccessDeniedException accessDeniedException)</span><br>            <span class="hljs-keyword">throws</span> IOException &#123;<br><br>        response.setStatus(<br>                HttpServletResponse.SC_FORBIDDEN<br>        );<br><br>        response.setContentType(<br>                MediaType.APPLICATION_JSON_VALUE<br>        );<br><br>        response.setCharacterEncoding(<br>                StandardCharsets.UTF_8.name()<br>        );<br><br>        objectMapper.writeValue(<br>                response.getOutputStream(),<br>                Map.of(<br>                        <span class="hljs-string">&quot;code&quot;</span>, <span class="hljs-string">&quot;AUTH_FORBIDDEN&quot;</span>,<br>                        <span class="hljs-string">&quot;message&quot;</span>, <span class="hljs-string">&quot;没有访问该资源的权限&quot;</span><br>                )<br>        );<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>最初提供的 Spring Boot 3 &#x2F; Spring Security 6 动态权限文章同样通过 <code>AuthenticationEntryPoint</code> 和 <code>AccessDeniedHandler</code> 分别处理未认证和未授权情况，并基于新的 Security 配置方式完成动态权限接入。</p>
+<hr>
+<h2 id="为什么-ControllerAdvice-经常接不到-Security-异常"><a href="#为什么-ControllerAdvice-经常接不到-Security-异常" class="headerlink" title="为什么 ControllerAdvice 经常接不到 Security 异常"></a>为什么 ControllerAdvice 经常接不到 Security 异常</h2><p>典型请求链：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Servlet Filter<br>    ↓<br>Spring Security<br>    ↓<br>DispatcherServlet<br>    ↓<br>Controller<br></code></pre></td></tr></table></figure>
+
+<p><code>@RestControllerAdvice</code> 属于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">DispatcherServlet<br></code></pre></td></tr></table></figure>
+
+<p>内部的 Spring MVC 异常处理体系。</p>
+<p>而认证、授权失败通常发生在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Spring Security Filter Chain<br></code></pre></td></tr></table></figure>
+
+<p>此时请求甚至还没有进入 Controller。</p>
+<p>因此不要期待：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@ExceptionHandler(AccessDeniedException.class)</span><br></code></pre></td></tr></table></figure>
+
+<p>一定能统一接住 Security Filter 阶段的所有异常。</p>
+<p>认证和请求级授权应该优先使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">AuthenticationEntryPoint<br>AccessDeniedHandler<br></code></pre></td></tr></table></figure>
+
+<p>这也是 Spring Security 自己提供的扩展点。</p>
+<hr>
+<h2 id="菜单权限、按钮权限和接口权限不要混为一谈"><a href="#菜单权限、按钮权限和接口权限不要混为一谈" class="headerlink" title="菜单权限、按钮权限和接口权限不要混为一谈"></a>菜单权限、按钮权限和接口权限不要混为一谈</h2><p>一个成熟后台系统通常同时存在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">菜单权限<br>按钮权限<br>API 权限<br></code></pre></td></tr></table></figure>
+
+<p>看上去都是“权限”，但它们解决的问题完全不同。</p>
+<h3 id="MENU"><a href="#MENU" class="headerlink" title="MENU"></a>MENU</h3><p>决定：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">用户能不能看到某个页面<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">menu:system:user<br></code></pre></td></tr></table></figure>
+
+<h3 id="BUTTON"><a href="#BUTTON" class="headerlink" title="BUTTON"></a>BUTTON</h3><p>决定：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">页面是否展示操作入口<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">btn:system:user:add<br>btn:system:user:delete<br></code></pre></td></tr></table></figure>
+
+<h3 id="API"><a href="#API" class="headerlink" title="API"></a>API</h3><p>真正保护服务端资源：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">api:user:create<br>api:user:delete<br></code></pre></td></tr></table></figure>
+
+<p>合理模型：</p>
+<pre><code class=" mermaid">flowchart LR
+    ROLE[Role]
+        --&gt; MENU[Menu Permission]
+
+    ROLE --&gt; BTN[Button Permission]
+
+    ROLE --&gt; API[API Permission]
+
+    BTN -.调用.-&gt; API
+</code></pre>
+
+<p>不要做成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">按钮隐藏<br>=<br>后端安全<br></code></pre></td></tr></table></figure>
+
+<p>前端按钮隐藏只能改善用户体验。</p>
+<p>攻击者完全可以绕开前端直接：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">curl -X DELETE \<br>  https://example.com/api/users/100<br></code></pre></td></tr></table></figure>
+
+<p>因此：</p>
+<blockquote>
+<p><strong>后端 API 权限才是真正的安全边界。</strong></p>
+</blockquote>
+<p>用户已有的 RBAC 设计资料也特别强调了这一点：菜单决定页面入口，按钮决定前端操作入口，而后端强授权应始终以独立 API Permission 为依据；按钮和 API 最好采用多对多关系，而不是直接绑定成同一个权限对象。</p>
+<hr>
+<h2 id="一个按钮为什么可能对应多个-API"><a href="#一个按钮为什么可能对应多个-API" class="headerlink" title="一个按钮为什么可能对应多个 API"></a>一个按钮为什么可能对应多个 API</h2><p>例如页面上的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">批量删除<br></code></pre></td></tr></table></figure>
+
+<p>用户点击以后前端可能执行：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">GET /api/users/deletable<br>        ↓<br>DELETE /api/users/batch<br>        ↓<br>GET /api/users<br></code></pre></td></tr></table></figure>
+
+<p>因此：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">btn:user:batch-delete<br></code></pre></td></tr></table></figure>
+
+<p>可能对应：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">api:user:list-deletable<br>api:user:batch-delete<br>api:user:list<br></code></pre></td></tr></table></figure>
+
+<p>反过来：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">新增用户<br>复制用户<br>快速创建<br></code></pre></td></tr></table></figure>
+
+<p>三个按钮也可能最终调用同一个：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">POST /api/users<br></code></pre></td></tr></table></figure>
+
+<p>所以关系天然可能是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Button N : N API<br></code></pre></td></tr></table></figure>
+
+<p>而不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Button 1 : 1 API<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="方法级权限作为第二道防线"><a href="#方法级权限作为第二道防线" class="headerlink" title="方法级权限作为第二道防线"></a>方法级权限作为第二道防线</h2><p>请求级权限解决：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">这个 HTTP 请求是否允许进入<br></code></pre></td></tr></table></figure>
+
+<p>但一些关键业务操作还适合增加方法级权限。</p>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">RoleService</span> &#123;<br><br>    <span class="hljs-meta">@PreAuthorize(</span><br><span class="hljs-meta">            &quot;hasAuthority(&#x27;api:rbac:role:permission:update&#x27;)&quot;</span><br><span class="hljs-meta">    )</span><br>    <span class="hljs-meta">@Transactional</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">replacePermissions</span><span class="hljs-params">(</span><br><span class="hljs-params">            Long roleId,</span><br><span class="hljs-params">            Set&lt;Long&gt; permissionIds)</span> &#123;<br><br>        <span class="hljs-comment">// ...</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>启用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@EnableMethodSecurity</span><br></code></pre></td></tr></table></figure>
+
+<p>Spring Security 6 的方法安全支持 <code>@PreAuthorize</code>、<code>@PostAuthorize</code>、<code>@PreFilter</code> 和 <code>@PostFilter</code> 等机制，而 Spring Boot Starter Security 本身不会自动打开方法级授权。</p>
+<p>可以把两层防线理解成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">AuthorizationManager<br>        ↓<br>HTTP 边界<br><br>@PreAuthorize<br>        ↓<br>业务方法边界<br></code></pre></td></tr></table></figure>
+
+<p>对于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">删除角色<br>变更角色权限<br>重置密码<br>资金审批<br>结算确认<br></code></pre></td></tr></table></figure>
+
+<p>这样的高风险操作，双层授权很有价值。</p>
+<hr>
+<h2 id="CSRF-不要看到前后端分离就机械关闭"><a href="#CSRF-不要看到前后端分离就机械关闭" class="headerlink" title="CSRF 不要看到前后端分离就机械关闭"></a>CSRF 不要看到前后端分离就机械关闭</h2><p>很多示例都有：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">.csrf(csrf -&gt; csrf.disable())<br></code></pre></td></tr></table></figure>
+
+<p>如果系统是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">REST API<br>+<br>Authorization: Bearer &lt;token&gt;<br>+<br>STATELESS<br></code></pre></td></tr></table></figure>
+
+<p>关闭 CSRF 通常是合理的。</p>
+<p>但如果认证依赖：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Cookie<br>Session<br>浏览器自动携带凭证<br></code></pre></td></tr></table></figure>
+
+<p>那么不能看到教程里有：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">csrf.disable()<br></code></pre></td></tr></table></figure>
+
+<p>就直接复制。</p>
+<p>判断依据应该是认证机制，而不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">“我们用了 Vue，所以关 CSRF。”<br></code></pre></td></tr></table></figure>
+
+<p>Vue 对此表示自己很无辜。</p>
+<hr>
+<h2 id="OPTIONS-预检请求怎么处理"><a href="#OPTIONS-预检请求怎么处理" class="headerlink" title="OPTIONS 预检请求怎么处理"></a>OPTIONS 预检请求怎么处理</h2><p>前后端跨域时，浏览器可能先发送：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs http">OPTIONS /api/orders<br></code></pre></td></tr></table></figure>
+
+<p>很多旧示例直接：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">.requestMatchers(HttpMethod.OPTIONS, <span class="hljs-string">&quot;/**&quot;</span>)<br>.permitAll()<br></code></pre></td></tr></table></figure>
+
+<p>可以工作，但更完整的做法是正确配置：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">http.cors(Customizer.withDefaults());<br></code></pre></td></tr></table></figure>
+
+<p>并提供受控的：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">CorsConfigurationSource<br></code></pre></td></tr></table></figure>
+
+<p>尤其不要生产环境组合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Access-Control-Allow-Origin: *<br>+<br>Allow-Credentials: true<br></code></pre></td></tr></table></figure>
+
+<p>跨域策略应该与权限策略一起设计，而不是为了“让请求先通再说”把整个 CORS 配置点成无敌模式。</p>
+<hr>
+<h2 id="Spring-Security-6-中-permitAll-比-ignoring-更合适"><a href="#Spring-Security-6-中-permitAll-比-ignoring-更合适" class="headerlink" title="Spring Security 6 中 permitAll 比 ignoring 更合适"></a>Spring Security 6 中 permitAll 比 ignoring 更合适</h2><p>静态资源或公开资源过去经常配置：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">web.ignoring()<br></code></pre></td></tr></table></figure>
+
+<p>现代 Spring Security 更倾向于让请求继续经过安全 Filter Chain，然后：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">permitAll()<br></code></pre></td></tr></table></figure>
+
+<p>这样即使无需认证，安全 Header 等 Security 功能依然可以正常工作。</p>
+<p>而 Spring Security 6 对 <code>Authentication</code> 的读取采用延迟策略，对于 <code>permitAll</code>、<code>denyAll</code> 这类无需身份信息的规则，可以避免不必要地读取认证信息。官方因此也推荐静态资源优先使用 <code>permitAll</code> 而不是直接绕过 Security。</p>
+<hr>
+<h2 id="API-权限自动扫描"><a href="#API-权限自动扫描" class="headerlink" title="API 权限自动扫描"></a>API 权限自动扫描</h2><p>动态权限系统还有一个长期维护问题：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Controller 越来越多<br>权限表怎么保证不漏？<br></code></pre></td></tr></table></figure>
+
+<p>一个很实用的方案是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">扫描 Spring MVC HandlerMapping<br></code></pre></td></tr></table></figure>
+
+<p>获取：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Controller<br>HandlerMethod<br>HTTP Method<br>URL Pattern<br></code></pre></td></tr></table></figure>
+
+<p>自动生成权限草稿。</p>
+<p>流程：</p>
+<pre><code class=" mermaid">flowchart TD
+    START[应用启动 / 手工执行扫描]
+        --&gt; H[RequestMappingHandlerMapping]
+
+    H --&gt; C[读取 Controller Mapping]
+
+    C --&gt; M[HTTP Method]
+    C --&gt; U[URL Pattern]
+    C --&gt; META[@Operation / 自定义权限注解]
+
+    M --&gt; COMPARE[与 sys_api 比较]
+    U --&gt; COMPARE
+    META --&gt; COMPARE
+
+    COMPARE --&gt; NEW[新增接口]
+    COMPARE --&gt; EXIST[已有接口]
+    COMPARE --&gt; OLD[已经消失接口]
+
+    NEW --&gt; DRAFT[生成 DRAFT]
+    OLD --&gt; ORPHAN[标记 ORPHANED]
+</code></pre>
+
+<p>关键原则是：</p>
+<blockquote>
+<p><strong>扫描发现接口，不等于自动放行接口。</strong></p>
+</blockquote>
+<p>推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">扫描<br> ↓<br>DRAFT<br> ↓<br>管理员确认权限码<br> ↓<br>绑定角色<br> ↓<br>ENABLED<br></code></pre></td></tr></table></figure>
+
+<p>而不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">扫描到新 Controller<br> ↓<br>自动 permit<br></code></pre></td></tr></table></figure>
+
+<p>否则一个测试接口：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@GetMapping(&quot;/debug/all-users&quot;)</span><br></code></pre></td></tr></table></figure>
+
+<p>刚提交代码就能自动解锁，安全团队大概会解锁另一种情绪。</p>
+<hr>
+<h2 id="权限注解可以只描述元数据"><a href="#权限注解可以只描述元数据" class="headerlink" title="权限注解可以只描述元数据"></a>权限注解可以只描述元数据</h2><p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Target(ElementType.METHOD)</span><br><span class="hljs-meta">@Retention(RetentionPolicy.RUNTIME)</span><br><span class="hljs-keyword">public</span> <span class="hljs-meta">@interface</span> ApiPermission &#123;<br><br>    String <span class="hljs-title function_">code</span><span class="hljs-params">()</span>;<br><br>    String <span class="hljs-title function_">name</span><span class="hljs-params">()</span>;<br><br>    RiskLevel <span class="hljs-title function_">risk</span><span class="hljs-params">()</span> <span class="hljs-keyword">default</span> RiskLevel.NORMAL;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>Controller：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@PostMapping(&quot;/api/orders&quot;)</span><br><span class="hljs-meta">@ApiPermission(</span><br><span class="hljs-meta">        code = &quot;api:order:create&quot;,</span><br><span class="hljs-meta">        name = &quot;创建订单&quot;,</span><br><span class="hljs-meta">        risk = RiskLevel.HIGH</span><br><span class="hljs-meta">)</span><br><span class="hljs-keyword">public</span> OrderResponse <span class="hljs-title function_">create</span><span class="hljs-params">(</span><br><span class="hljs-params">        <span class="hljs-meta">@RequestBody</span> CreateOrderRequest request)</span> &#123;<br><br>    <span class="hljs-keyword">return</span> orderService.create(request);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>扫描任务可以读取：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP Method = POST<br>URL = /api/orders<br>Permission = api:order:create<br></code></pre></td></tr></table></figure>
+
+<p>这样：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">代码描述“这个接口是什么”<br>数据库决定“谁能访问这个接口”<br></code></pre></td></tr></table></figure>
+
+<p>二者职责非常清晰。</p>
+<hr>
+<h2 id="权限规则变更必须审计"><a href="#权限规则变更必须审计" class="headerlink" title="权限规则变更必须审计"></a>权限规则变更必须审计</h2><p>以下操作建议全部记录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">角色新增权限<br>角色删除权限<br>用户角色变更<br>API 权限启用/禁用<br>URL Pattern 修改<br>public_flag 修改<br>角色继承关系修改<br></code></pre></td></tr></table></figure>
+
+<p>审计表至少记录：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> sys_audit_log (<br>    id              <span class="hljs-type">BIGINT</span> <span class="hljs-keyword">PRIMARY KEY</span>,<br>    actor_user_id   <span class="hljs-type">BIGINT</span>,<br>    action           <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">128</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    target_type      <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>),<br>    target_id        <span class="hljs-type">BIGINT</span>,<br>    before_json      JSON,<br>    after_json       JSON,<br>    ip               <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>),<br>    created_at       DATETIME(<span class="hljs-number">6</span>) <span class="hljs-keyword">NOT NULL</span><br>);<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;action&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;RBAC_ROLE_PERMISSION_UPDATE&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;actorUserId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">10001</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;targetType&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;ROLE&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;targetId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">20001</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;before&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;api:order:list&quot;</span><br>  <span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;after&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><br>    <span class="hljs-string">&quot;api:order:list&quot;</span><span class="hljs-punctuation">,</span><br>    <span class="hljs-string">&quot;api:order:delete&quot;</span><br>  <span class="hljs-punctuation">]</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>权限问题一旦发生，最重要的问题通常不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">现在数据库里是什么？<br></code></pre></td></tr></table></figure>
+
+<p>而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">谁在什么时候把它改成这样的？<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="权限系统建议采用-Fail-Closed"><a href="#权限系统建议采用-Fail-Closed" class="headerlink" title="权限系统建议采用 Fail Closed"></a>权限系统建议采用 Fail Closed</h2><p>可以把安全策略压缩成一句话：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">没有明确允许<br>=<br>拒绝<br></code></pre></td></tr></table></figure>
+
+<p>包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">未登记 API -&gt; 拒绝<br>禁用 API -&gt; 拒绝<br>未知 Matcher -&gt; 拒绝<br>权限缓存加载失败 -&gt; 拒绝<br>角色已禁用 -&gt; 拒绝<br>用户已禁用 -&gt; 拒绝<br></code></pre></td></tr></table></figure>
+
+<p>不要为了“系统不能因为权限服务异常而影响业务”写成：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">catch</span> (Exception e) &#123;<br>    <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">AuthorizationDecision</span>(<span class="hljs-literal">true</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>权限服务异常时自动放行，相当于门禁系统断电后把所有门打开。</p>
+<p>可用性确实提高了。</p>
+<p>只不过提高的是未授权访问的可用性。</p>
+<hr>
+<h2 id="Spring-Boot-2-Security-5-到-Spring-Boot-3-Security-6-的常见迁移变化"><a href="#Spring-Boot-2-Security-5-到-Spring-Boot-3-Security-6-的常见迁移变化" class="headerlink" title="Spring Boot 2 &#x2F; Security 5 到 Spring Boot 3 &#x2F; Security 6 的常见迁移变化"></a>Spring Boot 2 &#x2F; Security 5 到 Spring Boot 3 &#x2F; Security 6 的常见迁移变化</h2><p>老项目迁移时，可以重点关注下面这些变化。</p>
+<table>
+<thead>
+<tr>
+<th>旧写法</th>
+<th>Spring Security 6 方向</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>WebSecurityConfigurerAdapter</code></td>
+<td><code>SecurityFilterChain</code> Bean</td>
+</tr>
+<tr>
+<td><code>authorizeRequests()</code></td>
+<td><code>authorizeHttpRequests()</code></td>
+</tr>
+<tr>
+<td><code>antMatchers()</code></td>
+<td><code>requestMatchers()</code></td>
+</tr>
+<tr>
+<td><code>FilterSecurityInterceptor</code> 授权体系</td>
+<td><code>AuthorizationFilter</code> + <code>AuthorizationManager</code></td>
+</tr>
+<tr>
+<td><code>AccessDecisionManager</code></td>
+<td><code>AuthorizationManager</code></td>
+</tr>
+<tr>
+<td><code>AccessDecisionVoter</code></td>
+<td>通常直接封装到 AuthorizationManager</td>
+</tr>
+<tr>
+<td><code>javax.servlet.*</code></td>
+<td><code>jakarta.servlet.*</code></td>
+</tr>
+<tr>
+<td><code>@EnableGlobalMethodSecurity</code></td>
+<td><code>@EnableMethodSecurity</code></td>
+</tr>
+</tbody></table>
+<p>官方文档明确指出，当使用 <code>authorizeHttpRequests</code> 时，Spring Security 使用 <code>AuthorizationFilter</code>，并采用简化后的 <code>AuthorizationManager</code> API；这也是从旧授权体系迁移时最值得建立的新认知。</p>
+<p>此外，如果项目升级到较新的 Spring Security 6：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">AuthorizationManager#check<br></code></pre></td></tr></table></figure>
+
+<p>已经逐渐迁移为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">AuthorizationManager#authorize<br></code></pre></td></tr></table></figure>
+
+<p>而：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">AntPathRequestMatcher<br></code></pre></td></tr></table></figure>
+
+<p>也已经进入废弃迁移阶段。</p>
+<hr>
+<h2 id="推荐的最终架构"><a href="#推荐的最终架构" class="headerlink" title="推荐的最终架构"></a>推荐的最终架构</h2><p>综合前面的设计，一个比较完整的权限体系可以组织成：</p>
+<pre><code class=" mermaid">flowchart TD
+    CLIENT[Client]
+        --&gt; FILTER[JwtAuthenticationFilter]
+
+    FILTER --&gt; AUTH[Authentication]
+
+    AUTH --&gt; AF[AuthorizationFilter]
+
+    AF --&gt; DAM[DynamicAuthorizationManager]
+
+    DAM --&gt; RULE[PermissionRuleCache]
+
+    RULE --&gt; API[(sys_api)]
+    API --&gt; PERM[(sys_permission)]
+
+    DAM --&gt; USERAUTH[Authentication Authorities]
+
+    USERAUTH --&gt; USERCACHE[User Authority Cache]
+
+    USERCACHE --&gt; RBAC[RBAC Service]
+
+    RBAC --&gt; USER[(sys_user)]
+    RBAC --&gt; ROLE[(sys_role)]
+    RBAC --&gt; RP[(sys_role_permission)]
+
+    DAM --&gt; DECISION&#123;Granted&#125;
+
+    DECISION --&gt;|Yes| MVC[Controller]
+    DECISION --&gt;|No| HANDLER[401 / 403 Handler]
+
+    MVC --&gt; SERVICE[Service]
+
+    SERVICE --&gt; METHOD[@PreAuthorize]
+
+    METHOD --&gt; REPO[Repository]
+</code></pre>
+
+<p>组件职责可以明确拆成：</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>责任</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>JwtAuthenticationFilter</code></td>
+<td>确定当前用户是谁</td>
+</tr>
+<tr>
+<td><code>UserAuthorityCache</code></td>
+<td>保存用户有效权限</td>
+</tr>
+<tr>
+<td><code>PermissionRuleCache</code></td>
+<td>保存 URL → Permission 规则</td>
+</tr>
+<tr>
+<td><code>DynamicAuthorizationManager</code></td>
+<td>完成当前请求授权</td>
+</tr>
+<tr>
+<td><code>AuthenticationEntryPoint</code></td>
+<td>处理未认证</td>
+</tr>
+<tr>
+<td><code>AccessDeniedHandler</code></td>
+<td>处理已认证但无权限</td>
+</tr>
+<tr>
+<td><code>@PreAuthorize</code></td>
+<td>保护关键业务方法</td>
+</tr>
+<tr>
+<td><code>RbacService</code></td>
+<td>计算角色与有效权限</td>
+</tr>
+<tr>
+<td><code>PermissionChangedEvent</code></td>
+<td>驱动缓存失效</td>
+</tr>
+<tr>
+<td><code>AuditService</code></td>
+<td>保存授权变更和拒绝记录</td>
+</tr>
+</tbody></table>
+<p>权限系统做到这里，职责基本就清楚了。</p>
+<hr>
+<h2 id="测试动态权限不能只测-200"><a href="#测试动态权限不能只测-200" class="headerlink" title="测试动态权限不能只测 200"></a>测试动态权限不能只测 200</h2><p>Security 集成测试至少应该覆盖：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>预期</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>无 Token</td>
+<td>401</td>
+</tr>
+<tr>
+<td>Token 无效</td>
+<td>401</td>
+</tr>
+<tr>
+<td>Token 过期</td>
+<td>401</td>
+</tr>
+<tr>
+<td>已登录但无权限</td>
+<td>403</td>
+</tr>
+<tr>
+<td>拥有权限</td>
+<td>200</td>
+</tr>
+<tr>
+<td>API 未登记</td>
+<td>403</td>
+</tr>
+<tr>
+<td>API 被禁用</td>
+<td>403</td>
+</tr>
+<tr>
+<td>public API</td>
+<td>200</td>
+</tr>
+<tr>
+<td>HTTP Method 不匹配</td>
+<td>403</td>
+</tr>
+<tr>
+<td>权限被撤销</td>
+<td>下一次请求生效</td>
+</tr>
+<tr>
+<td>URL Pattern 冲突</td>
+<td>命中确定规则</td>
+</tr>
+<tr>
+<td>用户被禁用</td>
+<td>401&#x2F;403，按认证模型统一</td>
+</tr>
+<tr>
+<td>角色被禁用</td>
+<td>权限立即失效</td>
+</tr>
+</tbody></table>
+<p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@SpringBootTest</span><br><span class="hljs-meta">@AutoConfigureMockMvc</span><br><span class="hljs-keyword">class</span> <span class="hljs-title class_">OrderSecurityTests</span> &#123;<br><br>    <span class="hljs-meta">@Autowired</span><br>    MockMvc mvc;<br><br>    <span class="hljs-meta">@Test</span><br>    <span class="hljs-meta">@WithMockUser(</span><br><span class="hljs-meta">            authorities = &quot;api:order:list&quot;</span><br><span class="hljs-meta">    )</span><br>    <span class="hljs-keyword">void</span> <span class="hljs-title function_">listOrdersShouldPass</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> Exception &#123;<br><br>        mvc.perform(<br>                        get(<span class="hljs-string">&quot;/api/orders&quot;</span>)<br>                )<br>                .andExpect(<br>                        status().isOk()<br>                );<br>    &#125;<br><br>    <span class="hljs-meta">@Test</span><br>    <span class="hljs-meta">@WithMockUser(</span><br><span class="hljs-meta">            authorities = &quot;api:order:list&quot;</span><br><span class="hljs-meta">    )</span><br>    <span class="hljs-keyword">void</span> <span class="hljs-title function_">deleteOrderShouldBeForbidden</span><span class="hljs-params">()</span><br>            <span class="hljs-keyword">throws</span> Exception &#123;<br><br>        mvc.perform(<br>                        delete(<span class="hljs-string">&quot;/api/orders/10001&quot;</span>)<br>                )<br>                .andExpect(<br>                        status().isForbidden()<br>                );<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>Spring Security 官方也提供了基于 MockMvc 和 Mock Authentication 的请求级授权测试支持。</p>
+<hr>
+<h2 id="上线前检查清单"><a href="#上线前检查清单" class="headerlink" title="上线前检查清单"></a>上线前检查清单</h2><p>动态 URL 权限真正上线之前，可以重点检查：</p>
+<ul>
+<li>URL 权限是否同时匹配 HTTP Method；</li>
+<li>未登记业务接口是否默认拒绝；</li>
+<li>权限规则是否缓存，而不是每次查询数据库；</li>
+<li>权限修改后缓存是否能够失效；</li>
+<li>多实例部署是否有缓存广播机制；</li>
+<li>JWT 是否固化了长期权限；</li>
+<li>401 与 403 是否正确区分；</li>
+<li>前端按钮隐藏是否没有被误认为后端授权；</li>
+<li>菜单、按钮和 API 权限是否已经解耦；</li>
+<li>Role 与 Authority 命名是否统一；</li>
+<li>是否存在 <code>ROLE_</code> 前缀混乱；</li>
+<li>URL Pattern 冲突是否具有确定优先级；</li>
+<li>Swagger、Actuator 等运维端点是否受到保护；</li>
+<li>CORS 是否使用明确的 Origin 白名单；</li>
+<li>权限变更是否有审计记录；</li>
+<li>敏感 Service 是否增加方法级权限；</li>
+<li>新 Controller 是否有权限扫描或检查机制；</li>
+<li>权限服务异常时是否坚持 Fail Closed。</li>
+</ul>
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>Spring Security 6 的动态 URL 权限控制，真正的核心并不是再造一套 Security Filter，而是利用新的 <code>AuthorizationManager&lt;RequestAuthorizationContext&gt;</code> 接管请求授权决策。</p>
+<p>整个模型可以压缩成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP Request<br>      ↓<br>Authentication<br>      ↓<br>Method + URL<br>      ↓<br>PermissionRuleCache<br>      ↓<br>Permission Code<br>      ↓<br>Authentication.authorities<br>      ↓<br>AuthorizationManager<br>      ↓<br>Granted / Denied<br></code></pre></td></tr></table></figure>
+
+<p>在此基础上，再加入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">User<br> ↓<br>Role<br> ↓<br>Permission<br> ↓<br>API<br></code></pre></td></tr></table></figure>
+
+<p>就形成了标准的动态 RBAC 请求授权。</p>
+<p>生产系统还需要进一步处理：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">API 规则缓存<br>用户权限缓存<br>JWT 权限实时失效<br>多实例缓存广播<br>菜单 / 按钮 / API 解耦<br>权限扫描<br>审计<br>方法级二次授权<br>默认拒绝<br></code></pre></td></tr></table></figure>
+
+<p>真正稳定的权限系统不应该让业务代码到处充斥：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">if</span> (user.isAdmin()) &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>也不应该让 Controller 到处硬编码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">hasRole(<span class="hljs-string">&quot;XXX&quot;</span>)<br></code></pre></td></tr></table></figure>
+
+<p>更合理的边界是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">身份认证负责“你是谁”<br>RBAC 负责“你拥有什么能力”<br>API Permission 负责“这个操作需要什么能力”<br>AuthorizationManager 负责“这次请求能不能通过”<br></code></pre></td></tr></table></figure>
+
+<p>这样一来，权限配置可以动态调整，而 Spring Security 仍然负责真正的后端安全边界；角色、菜单、按钮、URL 和业务代码之间也不会互相绑死。</p>
+<h2 id="参考资料与版本说明"><a href="#参考资料与版本说明" class="headerlink" title="参考资料与版本说明"></a>参考资料与版本说明</h2><p>Spring Security 官方请求级授权文档说明了 <code>AuthorizationFilter</code>、<code>AuthorizationManager</code>、<code>authorizeHttpRequests</code>、<code>permitAll</code>、DispatcherType 授权以及自定义外部授权服务等机制。</p>
+<p>Spring Security 6.5 API 文档显示，<code>AuthorizationManager#authorize</code> 已成为新的授权入口，而旧的 <code>check</code> 已进入 deprecated 状态。</p>
+<p>对于路径匹配，Spring Security 6.5 新增 <code>PathPatternRequestMatcher</code>，同时将 <code>AntPathRequestMatcher</code> 标记为待移除。</p>
+<p>Spring Security 方法级安全可以通过 <code>@EnableMethodSecurity</code> 开启，并支持 <code>@PreAuthorize</code> 等方法授权机制。</p>
+<p>本文同时结合了提供的 Spring Security 资料中关于 Security Filter、<code>PasswordEncoder</code> 与 <code>ROLE_</code> 前缀问题的分析，以及已有 RBAC1 设计中关于 Spring Security 6 动态授权、API 权限缓存、JWT 权限失效、菜单&#x2F;按钮&#x2F;API 解耦、默认拒绝和审计策略的工程实践。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Spring/" class="category-chain-item">Spring</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Spring-Boot/" class="print-no-link">#Spring Boot</a>
+      
+        <a href="/tags/Java/" class="print-no-link">#Java</a>
+      
+        <a href="/tags/Spring-Security/" class="print-no-link">#Spring Security</a>
+      
+        <a href="/tags/RBAC/" class="print-no-link">#RBAC</a>
+      
+        <a href="/tags/AuthorizationManager/" class="print-no-link">#AuthorizationManager</a>
+      
+        <a href="/tags/%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6/" class="print-no-link">#权限控制</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Spring Security 6 动态 URL 权限控制：基于 AuthorizationManager 的 RBAC 实现</div>
+      <div>https://allendericdalexander.github.io/2026/08/13/java/spring/spring-security-dynamic-auth-rbac/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月13日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/08/14/archtect/soa/" title="SOA 面向服务架构：参考架构、核心机制与工程实践">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">SOA 面向服务架构：参考架构、核心机制与工程实践</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/13/java/apisix/" title="Apache APISIX 从入门到原理：架构、路由、插件与生产实践">
+                        <span class="hidden-mobile">Apache APISIX 从入门到原理：架构、路由、插件与生产实践</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
