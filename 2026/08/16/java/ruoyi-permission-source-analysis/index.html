@@ -1,0 +1,1153 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="RuoYi 的权限体系表面上围绕“菜单管理”和“角色授权”展开，底层实际由两条相对独立的链路组成：一条负责目录、页面、按钮和接口操作的功能权限，另一条负责限制用户能够查询哪些部门或个人数据。本文以 RuoYi v4.8.3 当前源码为基线，从 sys_menu、Shiro UserRealm、@RequiresPermissions、Thymeleaf 按钮控制、@DataScope 与 MyBa">
+<meta property="og:type" content="article">
+<meta property="og:title" content="RuoYi 权限体系源码解析：菜单、按钮、接口权限与数据权限如何协同">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/16/java/ruoyi-permission-source-analysis/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="RuoYi 的权限体系表面上围绕“菜单管理”和“角色授权”展开，底层实际由两条相对独立的链路组成：一条负责目录、页面、按钮和接口操作的功能权限，另一条负责限制用户能够查询哪些部门或个人数据。本文以 RuoYi v4.8.3 当前源码为基线，从 sys_menu、Shiro UserRealm、@RequiresPermissions、Thymeleaf 按钮控制、@DataScope 与 MyBa">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-16T11:14:18.000Z">
+<meta property="article:modified_time" content="2026-08-16T11:14:18.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Apache Shiro">
+<meta property="article:tag" content="MyBatis">
+<meta property="article:tag" content="RBAC">
+<meta property="article:tag" content="RuoYi">
+<meta property="article:tag" content="数据权限">
+<meta property="article:tag" content="权限控制">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>RuoYi 权限体系源码解析：菜单、按钮、接口权限与数据权限如何协同 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="RuoYi 权限体系源码解析：菜单、按钮、接口权限与数据权限如何协同"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-16 19:14" pubdate>
+          2026年8月16日 晚上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          6.1k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          51 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">RuoYi 权限体系源码解析：菜单、按钮、接口权限与数据权限如何协同</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>RuoYi 的权限体系表面上围绕“菜单管理”和“角色授权”展开，底层实际由两条相对独立的链路组成：一条负责目录、页面、按钮和接口操作的功能权限，另一条负责限制用户能够查询哪些部门或个人数据。本文以 RuoYi v4.8.3 当前源码为基线，从 <code>sys_menu</code>、Shiro <code>UserRealm</code>、<code>@RequiresPermissions</code>、Thymeleaf 按钮控制、<code>@DataScope</code> 与 MyBatis 动态 SQL 入手，完整梳理权限字符如何从数据库进入运行时，以及多个角色、缓存和数据范围之间如何协作。</p>
+<span id="more"></span>
+
+<h2 id="先说结论：RuoYi-不是把所有权限都交给菜单"><a href="#先说结论：RuoYi-不是把所有权限都交给菜单" class="headerlink" title="先说结论：RuoYi 不是把所有权限都交给菜单"></a>先说结论：RuoYi 不是把所有权限都交给菜单</h2><p>分析权限体系前，需要先确认版本。本文对应的是官方仓库 <a target="_blank" rel="noopener" href="https://github.com/yangzongzhuan/RuoYi"><code>yangzongzhuan/RuoYi</code></a>，也就是服务端渲染的经典单体版。仓库当前标记为 v4.8.3，<code>master</code> 已切换到 Spring Boot 4.x，但安全框架仍然是 <strong>Apache Shiro</strong>，前端主要使用 Thymeleaf、Bootstrap 和 jQuery。</p>
+<p>它与前后端分离的 RuoYi-Vue 并不是同一个实现：RuoYi-Vue 使用 Spring Security，常见写法是 <code>@PreAuthorize(&quot;@ss.hasPermi(...)&quot;)</code>；本文仓库使用 Shiro，接口上对应的是 <code>@RequiresPermissions</code>。两者的表结构和权限字符习惯相似，运行时授权机制却不能混着解释。</p>
+<p>RuoYi 经典版可以归纳为四层控制：</p>
+<table>
+<thead>
+<tr>
+<th>层次</th>
+<th>回答的问题</th>
+<th>主要实现</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>登录认证</td>
+<td>当前请求是谁发出的</td>
+<td>Shiro <code>UserRealm</code>、Session、过滤链</td>
+</tr>
+<tr>
+<td>菜单权限</td>
+<td>用户能看到哪些目录和页面入口</td>
+<td><code>sys_menu</code>、<code>sys_role_menu</code>、菜单树查询</td>
+</tr>
+<tr>
+<td>按钮与接口权限</td>
+<td>用户能否执行新增、修改、删除、导出等动作</td>
+<td>权限字符、Shiro 标签、<code>@RequiresPermissions</code></td>
+</tr>
+<tr>
+<td>数据权限</td>
+<td>用户执行查询后能看到哪些数据行</td>
+<td>角色 <code>data_scope</code>、<code>@DataScope</code>、AOP 拼接 SQL</td>
+</tr>
+</tbody></table>
+<p>前三层属于功能授权，整体接近 RBAC；数据权限是在 RBAC 之上附加的一层行级过滤。菜单隐藏不等于接口安全，能调用接口也不等于能读取所有数据。把这三件事揉成一个“有权限&#x2F;没权限”的开关，是理解 RuoYi 时最容易踩的坑。</p>
+<h2 id="权限模型与核心表"><a href="#权限模型与核心表" class="headerlink" title="权限模型与核心表"></a>权限模型与核心表</h2><p>RuoYi 的主授权链路仍然是经典的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">用户 → 用户角色 → 角色 → 角色菜单 → 菜单/按钮 → 权限字符<br></code></pre></td></tr></table></figure>
+
+<p>数据范围从角色分叉出去：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">角色 → data_scope<br>角色 → 角色部门 → 自定义可见部门<br></code></pre></td></tr></table></figure>
+
+<p>用实体关系表示如下：</p>
+<pre><code class=" mermaid">erDiagram
+    SYS_USER ||--o&#123; SYS_USER_ROLE : &quot;分配&quot;
+    SYS_ROLE ||--o&#123; SYS_USER_ROLE : &quot;包含用户&quot;
+    SYS_ROLE ||--o&#123; SYS_ROLE_MENU : &quot;授予功能&quot;
+    SYS_MENU ||--o&#123; SYS_ROLE_MENU : &quot;目录、菜单或按钮&quot;
+    SYS_ROLE ||--o&#123; SYS_ROLE_DEPT : &quot;限定数据范围&quot;
+    SYS_DEPT ||--o&#123; SYS_ROLE_DEPT : &quot;自定义部门&quot;
+
+    SYS_ROLE &#123;
+        bigint role_id
+        varchar role_key
+        char data_scope
+        char status
+    &#125;
+    SYS_MENU &#123;
+        bigint menu_id
+        bigint parent_id
+        char menu_type
+        varchar url
+        varchar perms
+        char visible
+    &#125;
+</code></pre>
+
+<p>核心表的职责如下：</p>
+<table>
+<thead>
+<tr>
+<th>表</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>sys_user</code></td>
+<td>用户、所属部门、状态等身份信息</td>
+</tr>
+<tr>
+<td><code>sys_role</code></td>
+<td>角色、角色权限字符 <code>role_key</code>、数据范围 <code>data_scope</code></td>
+</tr>
+<tr>
+<td><code>sys_user_role</code></td>
+<td>用户和角色的多对多关系</td>
+</tr>
+<tr>
+<td><code>sys_menu</code></td>
+<td>目录、页面菜单、按钮以及对应权限字符</td>
+</tr>
+<tr>
+<td><code>sys_role_menu</code></td>
+<td>角色可访问的菜单和按钮节点</td>
+</tr>
+<tr>
+<td><code>sys_dept</code></td>
+<td>部门树，通过 <code>ancestors</code> 保存祖先路径</td>
+</tr>
+<tr>
+<td><code>sys_role_dept</code></td>
+<td>当角色采用自定义数据范围时，保存可访问部门</td>
+</tr>
+</tbody></table>
+<p>这里没有独立的 <code>sys_permission</code> 表。RuoYi 将功能资源与权限标识都放在 <code>sys_menu</code> 中，再通过 <code>sys_role_menu</code> 一并授权。因此它是一个很实用的后台管理系统模型，但不是严格分离 <code>Role → Permission → Resource</code> 的通用 IAM 模型。</p>
+<h2 id="sys-menu-为什么既是菜单表，也是权限表"><a href="#sys-menu-为什么既是菜单表，也是权限表" class="headerlink" title="sys_menu 为什么既是菜单表，也是权限表"></a><code>sys_menu</code> 为什么既是菜单表，也是权限表</h2><p><a target="_blank" rel="noopener" href="https://github.com/yangzongzhuan/RuoYi/blob/30e449032d5a3090ee2661b1f4c45530a1c07337/ruoyi-common/src/main/java/com/ruoyi/common/core/domain/entity/SysMenu.java"><code>SysMenu</code></a> 对 <code>menu_type</code> 的定义非常直接：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-comment">/** 类型（M目录 C菜单 F按钮） */</span><br><span class="hljs-keyword">private</span> String menuType;<br><br><span class="hljs-comment">/** 菜单URL */</span><br><span class="hljs-keyword">private</span> String url;<br><br><span class="hljs-comment">/** 权限字符串 */</span><br><span class="hljs-keyword">private</span> String perms;<br></code></pre></td></tr></table></figure>
+
+<p>三种节点并不是同一性质的资源：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>含义</th>
+<th>是否进入左侧导航</th>
+<th>典型字段</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>M</code></td>
+<td>目录</td>
+<td>是</td>
+<td>名称、父节点、图标、排序</td>
+</tr>
+<tr>
+<td><code>C</code></td>
+<td>页面菜单</td>
+<td>是</td>
+<td>URL、打开方式、权限字符</td>
+</tr>
+<tr>
+<td><code>F</code></td>
+<td>功能按钮</td>
+<td>否</td>
+<td>权限字符，如 <code>system:user:add</code></td>
+</tr>
+</tbody></table>
+<p>例如用户管理可以形成下面的树：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">系统管理 M<br>└── 用户管理 C               /system/user<br>    ├── 用户查询 F           system:user:list<br>    ├── 用户新增 F           system:user:add<br>    ├── 用户修改 F           system:user:edit<br>    ├── 用户删除 F           system:user:remove<br>    ├── 用户导入 F           system:user:import<br>    └── 用户导出 F           system:user:export<br></code></pre></td></tr></table></figure>
+
+<p>角色授权页面展示的是这棵完整树。勾选一个按钮，本质上不是把按钮 HTML 交给角色，而是在 <code>sys_role_menu</code> 中写入一条 <code>role_id + menu_id</code> 关系；登录后再由该菜单记录的 <code>perms</code> 转换成 Shiro 字符串权限。</p>
+<p>这种设计的好处是配置简单：一棵树完成页面入口和操作权限授权，代码生成器也容易生成配套 SQL。代价是菜单资源和授权语义强耦合。一个权限若需要同时保护多个页面、接口或非 UI 任务，只能复用同一字符串，数据库本身没有显式的“权限绑定多个资源”模型。</p>
+<h2 id="登录后，角色和权限字符如何进入-Shiro"><a href="#登录后，角色和权限字符如何进入-Shiro" class="headerlink" title="登录后，角色和权限字符如何进入 Shiro"></a>登录后，角色和权限字符如何进入 Shiro</h2><p>功能权限真正生效的核心在 <a target="_blank" rel="noopener" href="https://github.com/yangzongzhuan/RuoYi/blob/30e449032d5a3090ee2661b1f4c45530a1c07337/ruoyi-framework/src/main/java/com/ruoyi/framework/shiro/realm/UserRealm.java"><code>UserRealm</code></a>。登录认证成功后，Shiro 在需要授权信息时调用 <code>doGetAuthorizationInfo</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Override</span><br><span class="hljs-keyword">protected</span> AuthorizationInfo <span class="hljs-title function_">doGetAuthorizationInfo</span><span class="hljs-params">(PrincipalCollection arg0)</span><br>&#123;<br>    <span class="hljs-type">SysUser</span> <span class="hljs-variable">user</span> <span class="hljs-operator">=</span> ShiroUtils.getSysUser();<br>    <span class="hljs-type">SimpleAuthorizationInfo</span> <span class="hljs-variable">info</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">SimpleAuthorizationInfo</span>();<br><br>    <span class="hljs-keyword">if</span> (user.isAdmin())<br>    &#123;<br>        info.addRole(<span class="hljs-string">&quot;admin&quot;</span>);<br>        info.addStringPermission(<span class="hljs-string">&quot;*:*:*&quot;</span>);<br>    &#125;<br>    <span class="hljs-keyword">else</span><br>    &#123;<br>        Set&lt;String&gt; roles = roleService.selectRoleKeys(user.getUserId());<br>        Set&lt;String&gt; menus = menuService.selectPermsByUserId(user.getUserId());<br>        info.setRoles(roles);<br>        info.setStringPermissions(menus);<br>    &#125;<br>    <span class="hljs-keyword">return</span> info;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>普通用户会装载两类字符串：</p>
+<ul>
+<li><code>sys_role.role_key</code> 进入 Shiro Roles，例如 <code>common</code>、<code>finance</code>；</li>
+<li><code>sys_menu.perms</code> 进入 Shiro String Permissions，例如 <code>system:user:list</code>。</li>
+</ul>
+<p>系统管理员是特殊分支。<code>user.isAdmin()</code> 不是判断用户名，也不是判断 <code>role_key</code>，而是判断内置管理员用户 ID。管理员直接获得角色 <code>admin</code> 和通配权限 <code>*:*:*</code>，不再查询角色菜单授权。</p>
+<p>完整调用链如下：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant U as 用户
+    participant R as UserRealm
+    participant S as Role/Menu Service
+    participant DB as RBAC 表
+    participant A as Shiro
+
+    U-&gt;&gt;R: 登录认证
+    R-&gt;&gt;DB: 查询用户、部门和角色
+    R--&gt;&gt;U: 建立 Session
+    A-&gt;&gt;R: 请求授权信息
+    R-&gt;&gt;S: 查询 role_key 与 perms
+    S-&gt;&gt;DB: 关联角色、菜单
+    DB--&gt;&gt;S: 字符串集合
+    S--&gt;&gt;R: roles + permissions
+    R--&gt;&gt;A: AuthorizationInfo
+</code></pre>
+
+<p><a target="_blank" rel="noopener" href="https://github.com/yangzongzhuan/RuoYi/blob/30e449032d5a3090ee2661b1f4c45530a1c07337/ruoyi-system/src/main/resources/mapper/system/SysMenuMapper.xml"><code>SysMenuMapper.xml</code></a> 中的权限查询能够看出数据库链路：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">select</span> <span class="hljs-keyword">distinct</span> m.perms<br><span class="hljs-keyword">from</span> sys_menu m<br><span class="hljs-keyword">left</span> <span class="hljs-keyword">join</span> sys_role_menu rm <span class="hljs-keyword">on</span> m.menu_id <span class="hljs-operator">=</span> rm.menu_id<br><span class="hljs-keyword">left</span> <span class="hljs-keyword">join</span> sys_user_role ur <span class="hljs-keyword">on</span> rm.role_id <span class="hljs-operator">=</span> ur.role_id<br><span class="hljs-keyword">left</span> <span class="hljs-keyword">join</span> sys_role r <span class="hljs-keyword">on</span> r.role_id <span class="hljs-operator">=</span> ur.role_id<br><span class="hljs-keyword">where</span> m.visible <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;0&#x27;</span><br>  <span class="hljs-keyword">and</span> r.status <span class="hljs-operator">=</span> <span class="hljs-string">&#x27;0&#x27;</span><br>  <span class="hljs-keyword">and</span> ur.user_id <span class="hljs-operator">=</span> #&#123;userId&#125;<br></code></pre></td></tr></table></figure>
+
+<p><a target="_blank" rel="noopener" href="https://github.com/yangzongzhuan/RuoYi/blob/30e449032d5a3090ee2661b1f4c45530a1c07337/ruoyi-system/src/main/java/com/ruoyi/system/service/impl/SysMenuServiceImpl.java"><code>SysMenuServiceImpl.selectPermsByUserId</code></a> 还会把一个字段中的多个逗号分隔权限拆开：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">for</span> (String perm : perms)<br>&#123;<br>    <span class="hljs-keyword">if</span> (StringUtils.isNotEmpty(perm))<br>    &#123;<br>        permsSet.addAll(Arrays.asList(perm.trim().split(<span class="hljs-string">&quot;,&quot;</span>)));<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>因此多个角色的功能权限最终按集合合并，语义是并集：只要任一启用角色通过 <code>sys_role_menu</code> 获得某权限字符，用户就具备该权限。</p>
+<h2 id="菜单权限：控制导航入口"><a href="#菜单权限：控制导航入口" class="headerlink" title="菜单权限：控制导航入口"></a>菜单权限：控制导航入口</h2><p>首页装载菜单时会调用 <code>SysMenuServiceImpl.selectMenusByUser</code>。管理员查询所有正常菜单，普通用户按用户 ID 关联角色与菜单：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">if</span> (user.isAdmin())<br>&#123;<br>    menus = menuMapper.selectMenuNormalAll();<br>&#125;<br><span class="hljs-keyword">else</span><br>&#123;<br>    menus = menuMapper.selectMenusByUserId(user.getUserId());<br>&#125;<br><span class="hljs-keyword">return</span> getChildPerms(menus, <span class="hljs-number">0</span>);<br></code></pre></td></tr></table></figure>
+
+<p>普通用户对应的 SQL 只选择 <code>M</code> 和 <code>C</code>：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">where</span> ur.user_id <span class="hljs-operator">=</span> #&#123;userId&#125;<br>  <span class="hljs-keyword">and</span> m.menu_type <span class="hljs-keyword">in</span> (<span class="hljs-string">&#x27;M&#x27;</span>, <span class="hljs-string">&#x27;C&#x27;</span>)<br>  <span class="hljs-keyword">and</span> m.visible <span class="hljs-operator">=</span> <span class="hljs-number">0</span><br>  <span class="hljs-keyword">and</span> ro.status <span class="hljs-operator">=</span> <span class="hljs-number">0</span><br><span class="hljs-keyword">order</span> <span class="hljs-keyword">by</span> m.parent_id, m.order_num<br></code></pre></td></tr></table></figure>
+
+<p>查询出的扁平列表再由 <code>getChildPerms</code>、<code>recursionFn</code> 按 <code>parent_id</code> 递归组装为菜单树。按钮 <code>F</code> 不进入导航树，这是“菜单可见”和“按钮可用”能够共用一张表却不互相干扰的关键。</p>
+<p>需要留意 <code>visible</code> 的双重效果。在当前源码中，菜单查询和权限字符查询都要求 <code>visible = 0</code>。所以把节点设为隐藏不仅可能让它不出现在导航中，也可能让其 <code>perms</code> 不进入普通用户的授权集合。若只是希望隐藏入口但仍允许从其他页面访问，不应想当然地把 <code>visible</code> 当作纯前端显示字段，应先验证该节点对应的权限装载行为。</p>
+<h2 id="按钮权限：前端有两种隐藏方式"><a href="#按钮权限：前端有两种隐藏方式" class="headerlink" title="按钮权限：前端有两种隐藏方式"></a>按钮权限：前端有两种隐藏方式</h2><p>经典版页面使用 Thymeleaf Shiro 方言控制静态按钮。例如用户管理页面中的新增按钮：</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs html"><span class="hljs-tag">&lt;<span class="hljs-name">a</span> <span class="hljs-attr">class</span>=<span class="hljs-string">&quot;btn btn-success&quot;</span></span><br><span class="hljs-tag">   <span class="hljs-attr">onclick</span>=<span class="hljs-string">&quot;$.operate.addTab()&quot;</span></span><br><span class="hljs-tag">   <span class="hljs-attr">shiro:hasPermission</span>=<span class="hljs-string">&quot;system:user:add&quot;</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">i</span> <span class="hljs-attr">class</span>=<span class="hljs-string">&quot;fa fa-plus&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">i</span>&gt;</span> 新增<br><span class="hljs-tag">&lt;/<span class="hljs-name">a</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>服务端渲染模板时，Shiro 判断当前 Subject 是否拥有 <code>system:user:add</code>。没有权限时，该元素不会按正常方式呈现。</p>
+<p>表格行内按钮由 JavaScript 动态拼接，无法简单依赖模板标签，于是 RuoYi 又提供了 <a target="_blank" rel="noopener" href="https://github.com/yangzongzhuan/RuoYi/blob/30e449032d5a3090ee2661b1f4c45530a1c07337/ruoyi-framework/src/main/java/com/ruoyi/framework/web/service/PermissionService.java"><code>PermissionService</code></a>：</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs html"><span class="hljs-tag">&lt;<span class="hljs-name">script</span> <span class="hljs-attr">th:inline</span>=<span class="hljs-string">&quot;javascript&quot;</span>&gt;</span><span class="language-javascript"></span><br><span class="language-javascript">    <span class="hljs-keyword">var</span> editFlag = [[$&#123;@permission.<span class="hljs-title function_">hasPermi</span>(<span class="hljs-string">&#x27;system:user:edit&#x27;</span>)&#125;]];</span><br><span class="language-javascript">    <span class="hljs-keyword">var</span> removeFlag = [[$&#123;@permission.<span class="hljs-title function_">hasPermi</span>(<span class="hljs-string">&#x27;system:user:remove&#x27;</span>)&#125;]];</span><br><span class="language-javascript"></span><span class="hljs-tag">&lt;/<span class="hljs-name">script</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> String <span class="hljs-title function_">hasPermi</span><span class="hljs-params">(String permission)</span><br>&#123;<br>    <span class="hljs-keyword">return</span> isPermitted(permission) ? StringUtils.EMPTY : <span class="hljs-string">&quot;hidden&quot;</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>JS 再把返回的空字符串或 <code>hidden</code> 拼到按钮 class 中：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs javascript">actions.<span class="hljs-title function_">push</span>(<br>  <span class="hljs-string">&#x27;&lt;a class=&quot;btn btn-success btn-xs &#x27;</span> + editFlag + <span class="hljs-string">&#x27;&quot;&gt;编辑&lt;/a&gt;&#x27;</span><br>);<br></code></pre></td></tr></table></figure>
+
+<p>两种按钮控制最终都调用 <code>Subject.isPermitted(permission)</code>，只是适配了不同的渲染场景。</p>
+<blockquote>
+<p>按钮隐藏只改善界面体验，不构成安全边界。攻击者可以直接构造 HTTP 请求，因此对应后端接口必须再次校验同一个权限字符。</p>
+</blockquote>
+<h2 id="接口权限：真正的安全边界在-RequiresPermissions"><a href="#接口权限：真正的安全边界在-RequiresPermissions" class="headerlink" title="接口权限：真正的安全边界在 @RequiresPermissions"></a>接口权限：真正的安全边界在 <code>@RequiresPermissions</code></h2><p>用户管理 Controller 很清楚地展示了页面、列表和动作接口的权限划分：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@RequiresPermissions(&quot;system:user:view&quot;)</span><br><span class="hljs-meta">@GetMapping()</span><br><span class="hljs-keyword">public</span> String <span class="hljs-title function_">user</span><span class="hljs-params">()</span> &#123; ... &#125;<br><br><span class="hljs-meta">@RequiresPermissions(&quot;system:user:list&quot;)</span><br><span class="hljs-meta">@PostMapping(&quot;/list&quot;)</span><br><span class="hljs-meta">@ResponseBody</span><br><span class="hljs-keyword">public</span> TableDataInfo <span class="hljs-title function_">list</span><span class="hljs-params">(SysUser user)</span> &#123; ... &#125;<br><br><span class="hljs-meta">@RequiresPermissions(&quot;system:user:add&quot;)</span><br><span class="hljs-meta">@PostMapping(&quot;/add&quot;)</span><br><span class="hljs-meta">@ResponseBody</span><br><span class="hljs-keyword">public</span> AjaxResult <span class="hljs-title function_">addSave</span><span class="hljs-params">(SysUser user)</span> &#123; ... &#125;<br><br><span class="hljs-meta">@RequiresPermissions(&quot;system:user:export&quot;)</span><br><span class="hljs-meta">@PostMapping(&quot;/export&quot;)</span><br><span class="hljs-meta">@ResponseBody</span><br><span class="hljs-keyword">public</span> AjaxResult <span class="hljs-title function_">export</span><span class="hljs-params">(SysUser user)</span> &#123; ... &#125;<br></code></pre></td></tr></table></figure>
+
+<p><a target="_blank" rel="noopener" href="https://github.com/yangzongzhuan/RuoYi/blob/30e449032d5a3090ee2661b1f4c45530a1c07337/ruoyi-framework/src/main/java/com/ruoyi/framework/config/ShiroConfig.java"><code>ShiroConfig</code></a> 注册了 <code>AuthorizationAttributeSourceAdvisor</code>，使 Shiro 能够拦截这些注解。用户不具备权限时，请求在进入业务方法前就被拒绝。</p>
+<p>过滤链与方法注解分工不同：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java">filterChainDefinitionMap.put(<br>    <span class="hljs-string">&quot;/**&quot;</span>,<br>    <span class="hljs-string">&quot;user,kickout,onlineSession,syncOnlineSession,csrfValidateFilter&quot;</span><br>);<br></code></pre></td></tr></table></figure>
+
+<p>这条兜底规则主要要求用户已登录，并处理会话、踢出、在线状态和 CSRF。源码中曾预留按数据库 URL 生成 Shiro <code>perms[...]</code> 过滤规则的能力：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-comment">// 系统权限列表</span><br><span class="hljs-comment">// filterChainDefinitionMap.putAll(</span><br><span class="hljs-comment">//     SpringUtils.getBean(IMenuService.class).selectPermsAll()</span><br><span class="hljs-comment">// );</span><br></code></pre></td></tr></table></figure>
+
+<p>但当前代码是注释状态。换句话说，当前版本不是每次根据 <code>sys_menu.url</code> 自动完成接口授权，具体业务接口主要依靠 <code>@RequiresPermissions</code>。数据库权限字符与 Java 注解之间也没有外键或编译期约束，它们靠字符串保持一致。</p>
+<p>这解释了一个常见故障：角色明明勾选了按钮，接口仍提示无权限，或者页面按钮可见但调用接口失败。排查时应沿着同一字符串检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">sys_menu.perms<br>    = 页面 shiro:hasPermission / @permission.hasPermi<br>    = Controller @RequiresPermissions<br></code></pre></td></tr></table></figure>
+
+<p>任意一处拼写、大小写或动作名不同，前后端行为就会分裂。</p>
+<h2 id="权限字符到底表示什么"><a href="#权限字符到底表示什么" class="headerlink" title="权限字符到底表示什么"></a>权限字符到底表示什么</h2><p>RuoYi 常用三段式命名：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">模块:资源:动作<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">system:user:view<br>system:user:list<br>system:user:add<br>system:user:edit<br>system:user:remove<br>system:user:export<br></code></pre></td></tr></table></figure>
+
+<p>三段式不是数据库强制格式，而是 Shiro WildcardPermission 的约定和项目命名规范。它使通配权限能够表达一组能力：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">system:user:*    用户资源的全部动作<br>system:*:*       system 模块的全部资源与动作<br>*:*:*            全部权限<br></code></pre></td></tr></table></figure>
+
+<p>角色还有另一种“权限字符”——<code>sys_role.role_key</code>。它对应 Shiro Role，通常通过 <code>@RequiresRoles(&quot;admin&quot;)</code> 或 <code>Subject.hasRole(...)</code> 判断。两者不要混淆：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>例子</th>
+<th>语义</th>
+<th>推荐用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>sys_role.role_key</code></td>
+<td><code>finance</code></td>
+<td>用户承担什么角色</td>
+<td>少量角色级入口或特殊管理能力</td>
+</tr>
+<tr>
+<td><code>sys_menu.perms</code></td>
+<td><code>finance:settlement:audit</code></td>
+<td>用户能执行什么动作</td>
+<td>业务接口和按钮的主要授权依据</td>
+</tr>
+</tbody></table>
+<p>业务接口更适合依赖细粒度权限，而不是写死角色。若退款接口只允许 <code>FINANCE_ADMIN</code>，以后财务经理也需要退款时就必须改代码；若接口要求 <code>order:refund</code>，只需在后台调整角色授权。</p>
+<h2 id="数据权限不是接口权限的另一种写法"><a href="#数据权限不是接口权限的另一种写法" class="headerlink" title="数据权限不是接口权限的另一种写法"></a>数据权限不是接口权限的另一种写法</h2><p>功能权限回答“能不能查询用户列表”，数据权限回答“查询时能看到哪些用户”。RuoYi 把数据范围配置在角色上，<code>Constants.Dept</code> 定义了五种取值：</p>
+<table>
+<thead>
+<tr>
+<th>值</th>
+<th>数据范围</th>
+<th>SQL 语义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>1</code></td>
+<td>全部数据权限</td>
+<td>不追加限制</td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td>自定义数据权限</td>
+<td>部门 ID 来自 <code>sys_role_dept</code></td>
+</tr>
+<tr>
+<td><code>3</code></td>
+<td>本部门数据权限</td>
+<td><code>dept_id = 当前用户部门</code></td>
+</tr>
+<tr>
+<td><code>4</code></td>
+<td>本部门及以下数据权限</td>
+<td>当前部门或 <code>ancestors</code> 包含当前部门</td>
+</tr>
+<tr>
+<td><code>5</code></td>
+<td>仅本人数据权限</td>
+<td><code>user_id = 当前用户</code></td>
+</tr>
+</tbody></table>
+<p>当角色选择“自定义数据权限”时，角色管理页面提交选中的 <code>deptIds</code>。<code>SysRoleServiceImpl.authDataScope</code> 更新 <code>sys_role.data_scope</code>，先删除旧的 <code>sys_role_dept</code>，再批量写入新的角色部门关系，整个过程在事务中执行。</p>
+<p>数据过滤由 <a target="_blank" rel="noopener" href="https://github.com/yangzongzhuan/RuoYi/blob/30e449032d5a3090ee2661b1f4c45530a1c07337/ruoyi-common/src/main/java/com/ruoyi/common/annotation/DataScope.java"><code>@DataScope</code></a> 标在 Service 方法上。例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Override</span><br><span class="hljs-meta">@DataScope(deptAlias = &quot;d&quot;, userAlias = &quot;u&quot;)</span><br><span class="hljs-keyword">public</span> List&lt;SysUser&gt; <span class="hljs-title function_">selectUserList</span><span class="hljs-params">(SysUser user)</span><br>&#123;<br>    <span class="hljs-keyword">return</span> userMapper.selectUserList(user);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><code>deptAlias</code> 和 <code>userAlias</code> 必须与 Mapper SQL 中的表别名一致。默认字段名分别是 <code>dept_id</code> 和 <code>user_id</code>，也可以通过 <code>deptField</code>、<code>userField</code> 覆盖。</p>
+<p>执行流程如下：</p>
+<pre><code class=" mermaid">flowchart TD
+    A[&quot;调用带 @DataScope 的 Service&quot;] --&gt; B[&quot;DataScopeAspect 读取当前用户&quot;]
+    B --&gt; C&#123;&quot;是否超级管理员&quot;&#125;
+    C -- 是 --&gt; D[&quot;不追加过滤条件&quot;]
+    C -- 否 --&gt; E[&quot;遍历启用角色与 data_scope&quot;]
+    E --&gt; F[&quot;生成部门或本人 SQL 条件&quot;]
+    F --&gt; G[&quot;写入 params.dataScope&quot;]
+    G --&gt; H[&quot;Mapper 通过 $&#123;params.dataScope&#125; 拼入查询&quot;]
+</code></pre>
+
+<p>以用户列表为例，Mapper 末尾预留了插槽：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">select</span> <span class="hljs-attr">id</span>=<span class="hljs-string">&quot;selectUserList&quot;</span> <span class="hljs-attr">parameterType</span>=<span class="hljs-string">&quot;SysUser&quot;</span> <span class="hljs-attr">resultMap</span>=<span class="hljs-string">&quot;SysUserResult&quot;</span>&gt;</span><br>    select ...<br>    from sys_user u<br>    left join sys_dept d on u.dept_id = d.dept_id<br>    where u.del_flag = &#x27;0&#x27;<br>    ...<br>    $&#123;params.dataScope&#125;<br><span class="hljs-tag">&lt;/<span class="hljs-name">select</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p><code>DataScopeAspect</code> 会根据角色生成类似条件：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">AND</span> (<br>       d.dept_id <span class="hljs-operator">=</span> <span class="hljs-number">103</span><br>    <span class="hljs-keyword">OR</span> d.dept_id <span class="hljs-keyword">IN</span> (<br>        <span class="hljs-keyword">SELECT</span> dept_id<br>        <span class="hljs-keyword">FROM</span> sys_dept<br>        <span class="hljs-keyword">WHERE</span> dept_id <span class="hljs-operator">=</span> <span class="hljs-number">103</span><br>           <span class="hljs-keyword">OR</span> FIND_IN_SET(<span class="hljs-number">103</span>, ancestors)<br>    )<br>    <span class="hljs-keyword">OR</span> u.user_id <span class="hljs-operator">=</span> <span class="hljs-number">42</span><br>)<br></code></pre></td></tr></table></figure>
+
+<p>这些条件使用 <code>OR</code> 合并，因此用户具有多个角色时，最终可见数据通常是各角色范围的并集。只要其中一个符合当前业务权限的角色具有“全部数据权限”，过滤条件就会被清空，用户获得全部数据。</p>
+<h2 id="为什么数据权限还要关心权限字符"><a href="#为什么数据权限还要关心权限字符" class="headerlink" title="为什么数据权限还要关心权限字符"></a>为什么数据权限还要关心权限字符</h2><p>如果一个用户同时有两个角色：</p>
+<ul>
+<li>角色 A 拥有 <code>system:user:list</code>，数据范围为本部门；</li>
+<li>角色 B 不拥有 <code>system:user:list</code>，但数据范围为全部数据。</li>
+</ul>
+<p>若数据过滤无条件合并所有角色，角色 B 会把角色 A 的用户查询能力意外放大为全量数据。RuoYi 当前源码专门处理了这个问题。</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/yangzongzhuan/RuoYi/blob/30e449032d5a3090ee2661b1f4c45530a1c07337/ruoyi-framework/src/main/java/com/ruoyi/framework/aspectj/PermissionsAspect.java"><code>PermissionsAspect</code></a> 会读取 Controller 的 <code>@RequiresPermissions</code>，把权限字符放入请求级 <code>PermissionContextHolder</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Before(&quot;@annotation(controllerRequiresPermissions)&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">doBefore</span><span class="hljs-params">(</span><br><span class="hljs-params">        JoinPoint point,</span><br><span class="hljs-params">        RequiresPermissions controllerRequiresPermissions)</span><br>&#123;<br>    PermissionContextHolder.setContext(<br>        StringUtils.join(controllerRequiresPermissions.value(), <span class="hljs-string">&quot;,&quot;</span>)<br>    );<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>登录时，<code>SysLoginService.setRolePermission</code> 又为每个角色单独查询并保存其权限字符集合。<code>DataScopeAspect</code> 遍历角色时，只采用拥有当前接口权限的角色：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">if</span> (StringUtils.isNotEmpty(permission)<br>        &amp;&amp; !StringUtils.containsAny(<br>            role.getPermissions(),<br>            Convert.toStrArray(permission)))<br>&#123;<br>    <span class="hljs-keyword">continue</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>因此上例中只有角色 A 参与数据范围计算，最终仍限制为本部门。这是 RuoYi 数据权限实现中非常关键、也很容易被忽略的一层：<strong>数据范围不是用户所有角色范围的无条件并集，而是与当前权限字符匹配后的角色范围并集。</strong></p>
+<p><code>@DataScope.permission</code> 允许显式指定权限；未指定时，默认读取当前请求中 <code>@RequiresPermissions</code> 提供的字符。若业务调用不经过带权限注解的 Controller，或者异步任务、内部调用没有请求上下文，就需要重新审视权限字符的传递方式，不能假设 AOP 会自动知道业务意图。</p>
+<h2 id="数据权限-SQL-拼接的安全边界"><a href="#数据权限-SQL-拼接的安全边界" class="headerlink" title="数据权限 SQL 拼接的安全边界"></a>数据权限 SQL 拼接的安全边界</h2><p>Mapper 使用的是 <code>${params.dataScope}</code>，这是文本替换，不是 MyBatis 的 <code>#{}</code> 参数绑定。直接把客户端传入的 <code>params.dataScope</code> 拼进去会形成明显的 SQL 注入风险。</p>
+<p>RuoYi 的防护方式是：<code>DataScopeAspect</code> 在生成条件前先把调用参数中的 <code>dataScope</code> 清空，然后只写入服务端根据当前登录用户、角色 ID、用户 ID和固定别名生成的 SQL：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">clearDataScope</span><span class="hljs-params">(<span class="hljs-keyword">final</span> JoinPoint joinPoint)</span><br>&#123;<br>    <span class="hljs-type">Object</span> <span class="hljs-variable">params</span> <span class="hljs-operator">=</span> joinPoint.getArgs()[<span class="hljs-number">0</span>];<br>    <span class="hljs-keyword">if</span> (params <span class="hljs-keyword">instanceof</span> BaseEntity)<br>    &#123;<br>        <span class="hljs-type">BaseEntity</span> <span class="hljs-variable">baseEntity</span> <span class="hljs-operator">=</span> (BaseEntity) params;<br>        baseEntity.getParams().put(DATA_SCOPE, <span class="hljs-string">&quot;&quot;</span>);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这套机制成立依赖几个前提：</p>
+<ul>
+<li>带 <code>@DataScope</code> 的查询对象必须是方法第一个参数；</li>
+<li>第一个参数必须继承 <code>BaseEntity</code>；</li>
+<li>Mapper 必须从该对象的 <code>params.dataScope</code> 读取条件；</li>
+<li>别名和字段名来自代码中的可信注解配置，不能来自请求参数；</li>
+<li>业务代码不能绕过 Service，直接调用未受保护的 Mapper 查询。</li>
+</ul>
+<p>如果新增业务时只复制 <code>${params.dataScope}</code>，却忘了在对应 Service 方法上加 <code>@DataScope</code>，最好的结果是没有过滤，最坏的结果是给不可信文本留下拼接入口。这个地方看着像一行 XML，实际背后背着整条安全链路。</p>
+<h2 id="权限配置修改后为什么要清缓存"><a href="#权限配置修改后为什么要清缓存" class="headerlink" title="权限配置修改后为什么要清缓存"></a>权限配置修改后为什么要清缓存</h2><p><code>UserRealm</code> 的授权信息启用了名为 <code>sys-authCache</code> 的缓存。角色菜单变化后，如果缓存不失效，在线用户可能继续使用旧权限。</p>
+<p>RuoYi 在角色和菜单等管理操作中调用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">AuthorizationUtils.clearAllCachedAuthorizationInfo();<br></code></pre></td></tr></table></figure>
+
+<p>最终由 <code>UserRealm.clearAllCachedAuthorizationInfo()</code> 清空授权缓存。当前实现选择“清全部”而不是精确失效受影响用户，逻辑简单可靠，但在用户和角色规模很大时会造成额外的重载开销。</p>
+<p>数据权限还有另一层状态问题：登录时的 <code>SysUser</code> Principal 已经带有角色及其 <code>dataScope</code>、每角色权限集合。修改当前角色的数据范围后，Controller 会重新查询当前用户并写回 Session；对于其他在线用户，应结合实际版本测试其 Principal 与授权缓存是否都能及时刷新。企业改造时更稳妥的方案是引入权限版本号或用户级缓存失效事件，而不是只依赖全量缓存清理。</p>
+<h2 id="一次“用户查询”请求的完整权限链"><a href="#一次“用户查询”请求的完整权限链" class="headerlink" title="一次“用户查询”请求的完整权限链"></a>一次“用户查询”请求的完整权限链</h2><p>以 <code>POST /system/user/list</code> 为例，从登录到返回数据会经过下面几步：</p>
+<ol>
+<li>用户登录，<code>SysLoginService</code> 查询用户、部门和角色，并把每个角色拥有的权限字符写入 <code>role.permissions</code>。</li>
+<li>Shiro 需要授权信息时，<code>UserRealm</code> 查询用户的 <code>role_key</code> 与全部 <code>sys_menu.perms</code>，形成 <code>AuthorizationInfo</code> 并缓存。</li>
+<li>首页查询 <code>M/C</code> 节点生成菜单树，决定是否展示“用户管理”入口。</li>
+<li>用户页面用 <code>shiro:hasPermission</code> 或 <code>PermissionService</code> 决定新增、编辑、删除等按钮是否显示。</li>
+<li>请求 <code>/system/user/list</code> 时，<code>@RequiresPermissions(&quot;system:user:list&quot;)</code> 再做一次后端强制校验。</li>
+<li><code>PermissionsAspect</code> 把 <code>system:user:list</code> 保存到当前请求上下文。</li>
+<li>Controller 调用带 <code>@DataScope(deptAlias = &quot;d&quot;, userAlias = &quot;u&quot;)</code> 的 <code>selectUserList</code>。</li>
+<li><code>DataScopeAspect</code> 只选择拥有 <code>system:user:list</code> 的角色，根据其 <code>data_scope</code> 生成 SQL。</li>
+<li>MyBatis 将服务端生成的 <code>${params.dataScope}</code> 拼入查询，数据库返回允许范围内的用户记录。</li>
+</ol>
+<p>可以把最终判定理解成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">请求可执行<br>= 已登录<br>  AND 拥有接口权限字符<br><br>返回数据集合<br>= 原始查询结果<br>  INTERSECT 当前权限对应角色的数据范围并集<br></code></pre></td></tr></table></figure>
+
+<p>菜单和按钮只负责让正常用户“看得见、点得到”，接口注解和数据过滤才真正决定“做不做得了、能看到多少”。</p>
+<h2 id="这套设计的优点与边界"><a href="#这套设计的优点与边界" class="headerlink" title="这套设计的优点与边界"></a>这套设计的优点与边界</h2><p>RuoYi 的方案非常适合典型企业管理后台，原因在于它把管理员最常操作的配置压缩成两棵树：角色菜单树和角色部门树。新增普通 CRUD 模块时，只要保持权限字符一致并套用已有模板，就能快速获得菜单、按钮、接口和部门数据过滤能力。</p>
+<p>它的主要优点包括：</p>
+<ul>
+<li>用户、角色、功能权限关系清晰，符合 RBAC0 的基本结构；</li>
+<li>目录、页面和按钮统一配置，管理成本低；</li>
+<li>前端隐藏与后端强制校验复用同一权限字符；</li>
+<li>数据权限支持全部、自定义部门、本部门、部门及以下和本人；</li>
+<li>数据范围会按当前接口权限筛选角色，减少多角色造成的越权；</li>
+<li>超级管理员、禁用角色和授权缓存都有明确处理。</li>
+</ul>
+<p>边界同样明显：</p>
+<h3 id="菜单、权限和资源耦合"><a href="#菜单、权限和资源耦合" class="headerlink" title="菜单、权限和资源耦合"></a>菜单、权限和资源耦合</h3><p><code>sys_menu</code> 同时承担导航树、按钮资源和权限目录。一旦系统需要 API、字段、文件、工作流节点、消息主题等非菜单资源，这张表会越来越像“万能权限表”。更通用的 IAM 通常会拆为 <code>Permission</code> 与 <code>Resource</code>，让一个业务权限绑定多个资源。</p>
+<h3 id="接口与数据库配置靠字符串约定"><a href="#接口与数据库配置靠字符串约定" class="headerlink" title="接口与数据库配置靠字符串约定"></a>接口与数据库配置靠字符串约定</h3><p><code>@RequiresPermissions(&quot;system:user:list&quot;)</code> 与 <code>sys_menu.perms</code> 没有结构化绑定。重命名、复制代码或手工配置时容易漂移。可以通过启动时扫描注解并与数据库比对、自动生成权限清单、集成测试等方式降低风险。</p>
+<h3 id="数据权限以-SQL-文本注入查询"><a href="#数据权限以-SQL-文本注入查询" class="headerlink" title="数据权限以 SQL 文本注入查询"></a>数据权限以 SQL 文本注入查询</h3><p>它对 MyBatis 和查询别名有较强侵入，方法参数位置、<code>BaseEntity</code>、别名和 Mapper 插槽都必须遵循约定。复杂报表、多表聚合、子查询、跨库查询或 JPA 场景通常需要专门设计，而不是继续机械复制 <code>${params.dataScope}</code>。</p>
+<h3 id="默认模型不是多租户隔离"><a href="#默认模型不是多租户隔离" class="headerlink" title="默认模型不是多租户隔离"></a>默认模型不是多租户隔离</h3><p>部门数据范围不能替代 Tenant 隔离。SaaS 系统必须在所有业务数据和查询链路上独立约束 <code>tenant_id</code>，且租户条件应优先作为不可绕过的安全边界。数据权限是在租户内部继续缩小可见范围，两者不能合并成一个部门条件。</p>
+<h3 id="不支持复杂约束和显式拒绝"><a href="#不支持复杂约束和显式拒绝" class="headerlink" title="不支持复杂约束和显式拒绝"></a>不支持复杂约束和显式拒绝</h3><p>多个角色主要按权限并集工作，没有内建的互斥角色、职责分离、审批上下文、时间与环境条件，也没有 Deny 优先策略。财务付款申请人与审批人互斥、按金额授权、按数据属性决策等场景，需要 RBAC2、ABAC 或策略引擎补充。</p>
+<h2 id="基于-RuoYi-扩展权限体系时的建议"><a href="#基于-RuoYi-扩展权限体系时的建议" class="headerlink" title="基于 RuoYi 扩展权限体系时的建议"></a>基于 RuoYi 扩展权限体系时的建议</h2><p>若继续沿用当前设计，至少应保持下面几条工程纪律：</p>
+<ol>
+<li>权限字符使用稳定的 <code>domain:resource:action</code> 命名，不把 URL、中文名称或角色名直接当权限。</li>
+<li>每个危险接口都必须有后端权限校验，不能因为按钮已隐藏就省略注解。</li>
+<li>新增接口时同步检查菜单配置、模板权限和 Controller 注解，最好用自动化测试验证三者一致。</li>
+<li><code>@DataScope</code> 放在可被 Spring AOP 拦截的 Service 公共方法上，避免同类自调用绕过代理。</li>
+<li>严格核对 <code>deptAlias</code>、<code>userAlias</code> 与 SQL 别名；查询模型不是 <code>BaseEntity</code> 时不要直接照搬。</li>
+<li>把租户隔离、功能权限和数据权限作为三层独立边界，禁止用部门范围代替租户条件。</li>
+<li>权限变更后明确设计缓存和在线会话失效策略；高规模场景优先精确失效而非全量清缓存。</li>
+<li>对导出、批量删除、角色分配、数据权限配置等高风险操作增加审计日志和越权测试。</li>
+</ol>
+<p>如果系统已经出现应用、菜单、路由、按钮、API、字段等多种资源类型，更合适的演进方向是：</p>
+<pre><code class=" mermaid">flowchart LR
+    U[&quot;User&quot;] --&gt; R[&quot;Role&quot;]
+    R --&gt; P[&quot;Permission&quot;]
+    P --&gt; X[&quot;Resource&quot;]
+    X --&gt; T[&quot;MENU / API / ACTION / FIELD&quot;]
+</code></pre>
+
+<p>这样角色只绑定业务能力，权限再绑定一个或多个具体资源。RuoYi 原有的 <code>perms</code> 可以逐步迁移为 <code>Permission.code</code>，菜单和按钮则变成 Resource，而数据范围作为角色权限关系或授权策略的附加约束。比起继续给 <code>sys_menu</code> 塞更多类型，这条路后期更省心——权限表也不必兼职整个宇宙。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>RuoYi 经典版的权限体系不是单纯的“角色勾菜单”，而是四套机制围绕同一个权限字符协作：</p>
+<ul>
+<li><code>sys_user_role</code> 和 <code>sys_role_menu</code> 建立用户、角色、菜单&#x2F;按钮之间的 RBAC 关系；</li>
+<li><code>UserRealm</code> 把 <code>role_key</code> 和 <code>sys_menu.perms</code> 装入 Shiro，并为管理员授予 <code>*:*:*</code>；</li>
+<li><code>M/C</code> 节点生成导航，<code>F</code> 节点提供按钮权限，Thymeleaf 只负责界面可见性；</li>
+<li>Controller 的 <code>@RequiresPermissions</code> 才是业务接口的强制授权边界；</li>
+<li>角色 <code>data_scope</code>、<code>sys_role_dept</code>、<code>@DataScope</code> 和 <code>${params.dataScope}</code> 共同完成行级数据过滤；</li>
+<li><code>PermissionsAspect</code> 将接口权限传给数据权限切面，使数据范围只由真正授予当前能力的角色决定。</li>
+</ul>
+<p>理解这条链路后，许多若依权限问题就不再神秘：菜单不显示要查 <code>M/C</code> 查询与角色菜单关系，按钮不显示要查 <code>F</code> 节点和权限字符，接口 403 要查 Shiro 授权集合与注解，数据过多或过少则要查 <code>data_scope</code>、角色权限匹配、AOP 参数和 Mapper SQL 插槽。它们共用一套配置入口，但每一层解决的是不同问题。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Security/" class="category-chain-item">Security</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/MyBatis/" class="print-no-link">#MyBatis</a>
+      
+        <a href="/tags/RBAC/" class="print-no-link">#RBAC</a>
+      
+        <a href="/tags/%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6/" class="print-no-link">#权限控制</a>
+      
+        <a href="/tags/RuoYi/" class="print-no-link">#RuoYi</a>
+      
+        <a href="/tags/Apache-Shiro/" class="print-no-link">#Apache Shiro</a>
+      
+        <a href="/tags/%E6%95%B0%E6%8D%AE%E6%9D%83%E9%99%90/" class="print-no-link">#数据权限</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>RuoYi 权限体系源码解析：菜单、按钮、接口权限与数据权限如何协同</div>
+      <div>https://allendericdalexander.github.io/2026/08/16/java/ruoyi-permission-source-analysis/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月16日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/16/rfc/rfc00007-host-imp-interface/" title="RFC 7 带读：Host-IMP Interface——从用户请求到硬件中断，ARPANET 主机网络栈的早期分层">
+                        <span class="hidden-mobile">RFC 7 带读：Host-IMP Interface——从用户请求到硬件中断，ARPANET 主机网络栈的早期分层</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
