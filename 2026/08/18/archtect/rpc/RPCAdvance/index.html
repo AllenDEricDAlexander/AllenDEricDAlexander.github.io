@@ -1,0 +1,1973 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="RPC 真正进入生产环境之后，问题很快就会超出“如何完成一次远程方法调用”的范围：吞吐量为什么上不去、内部服务如何鉴权、跨服务异常怎样定位、大量超时任务怎样低成本调度、架构升级如何利用真实流量验证、隔离集群怎样快速扩容、没有接口 Jar 如何调用服务，以及新旧 RPC 协议如何平滑共存。本文从这些工程问题出发，结合一套插件化、纯异步 RPC 的代码结构，把性能、安全、可观测性、流量治理、泛化调用、">
+<meta property="og:type" content="article">
+<meta property="og:title" content="RPC 高级工程实践与源码脉络：异步、安全、可观测、流量治理与协议演进">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/18/archtect/rpc/RPCAdvance/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="RPC 真正进入生产环境之后，问题很快就会超出“如何完成一次远程方法调用”的范围：吞吐量为什么上不去、内部服务如何鉴权、跨服务异常怎样定位、大量超时任务怎样低成本调度、架构升级如何利用真实流量验证、隔离集群怎样快速扩容、没有接口 Jar 如何调用服务，以及新旧 RPC 协议如何平滑共存。本文从这些工程问题出发，结合一套插件化、纯异步 RPC 的代码结构，把性能、安全、可观测性、流量治理、泛化调用、">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-18T02:16:00.000Z">
+<meta property="article:modified_time" content="2026-08-18T02:16:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="CompletableFuture">
+<meta property="article:tag" content="RPC">
+<meta property="article:tag" content="Service Mesh">
+<meta property="article:tag" content="分布式系统">
+<meta property="article:tag" content="可观测性">
+<meta property="article:tag" content="微服务">
+<meta property="article:tag" content="服务治理">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>RPC 高级工程实践与源码脉络：异步、安全、可观测、流量治理与协议演进 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="RPC 高级工程实践与源码脉络：异步、安全、可观测、流量治理与协议演进"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-18 10:16" pubdate>
+          2026年8月18日 上午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          11k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          94 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">RPC 高级工程实践与源码脉络：异步、安全、可观测、流量治理与协议演进</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>RPC 真正进入生产环境之后，问题很快就会超出“如何完成一次远程方法调用”的范围：吞吐量为什么上不去、内部服务如何鉴权、跨服务异常怎样定位、大量超时任务怎样低成本调度、架构升级如何利用真实流量验证、隔离集群怎样快速扩容、没有接口 Jar 如何调用服务，以及新旧 RPC 协议如何平滑共存。本文从这些工程问题出发，结合一套插件化、纯异步 RPC 的代码结构，把性能、安全、可观测性、流量治理、泛化调用、多协议兼容与 RPC 技术演进串成一套完整的设计脉络。</p>
+<span id="more"></span>
+
+<h2 id="RPC-的高级阶段：从通信工具走向分布式基础设施"><a href="#RPC-的高级阶段：从通信工具走向分布式基础设施" class="headerlink" title="RPC 的高级阶段：从通信工具走向分布式基础设施"></a>RPC 的高级阶段：从通信工具走向分布式基础设施</h2><p>如果只看最基础的调用过程，RPC 的职责似乎很简单：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">调用本地代理<br>    ↓<br>序列化请求<br>    ↓<br>网络发送<br>    ↓<br>服务端反序列化<br>    ↓<br>调用真实方法<br>    ↓<br>返回响应<br></code></pre></td></tr></table></figure>
+
+<p>但只要系统进入生产环境，问题马上会变得复杂。</p>
+<p>一个成熟 RPC 框架至少需要面对下面几类问题：</p>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>RPC 需要提供的能力</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>请求大量等待下游，机器吞吐量上不去</td>
+<td>异步 RPC</td>
+</tr>
+<tr>
+<td>谁都可以拿接口 Jar 调用服务</td>
+<td>身份认证、接口&#x2F;方法授权</td>
+</tr>
+<tr>
+<td>A → B → C → D 出错，不知道问题在哪</td>
+<td>异常体系、分布式链路追踪</td>
+</tr>
+<tr>
+<td>数万请求都需要超时检测</td>
+<td>时钟轮</td>
+</tr>
+<tr>
+<td>重构后如何证明行为没有改变</td>
+<td>流量录制与回放</td>
+</tr>
+<tr>
+<td>分组隔离后突发流量无法借用其它资源</td>
+<td>动态分组</td>
+</tr>
+<tr>
+<td>网关、测试平台不能依赖所有接口 Jar</td>
+<td>泛化调用</td>
+</tr>
+<tr>
+<td>老 RPC 无法一次性全部迁移</td>
+<td>多协议兼容</td>
+</tr>
+<tr>
+<td>功能越来越多，框架难以维护</td>
+<td>微内核与插件化</td>
+</tr>
+</tbody></table>
+<p>因此，RPC 更适合作为一种<strong>分布式通信与服务治理基础设施</strong>来理解，而不仅仅是一个“远程方法调用库”。</p>
+<p>从这个视角出发，后面的很多设计就能够连起来了。</p>
+<h2 id="一个可治理-RPC-的整体结构"><a href="#一个可治理-RPC-的整体结构" class="headerlink" title="一个可治理 RPC 的整体结构"></a>一个可治理 RPC 的整体结构</h2><p>一套插件化 RPC 可以大致拆成四层：</p>
+<pre><code class=" mermaid">flowchart TB
+    subgraph L1[&quot;入口层&quot;]
+        Proxy[&quot;动态代理&quot;]
+        Generic[&quot;泛化调用&quot;]
+        Filter[&quot;Filter 调用链&quot;]
+        Trace[&quot;链路追踪 / 鉴权 / 流量旁录&quot;]
+    end
+
+    subgraph L2[&quot;集群层&quot;]
+        Registry[&quot;Registry 服务注册与发现&quot;]
+        Cluster[&quot;Cluster 集群管理&quot;]
+        Route[&quot;路由&quot;]
+        LB[&quot;负载均衡&quot;]
+        Group[&quot;分组与动态分组&quot;]
+    end
+
+    subgraph L3[&quot;协议层&quot;]
+        Protocol[&quot;Protocol&quot;]
+        Codec[&quot;编解码&quot;]
+        Serialize[&quot;序列化&quot;]
+        MultiProtocol[&quot;多协议识别&quot;]
+    end
+
+    subgraph L4[&quot;传输层&quot;]
+        Client[&quot;Client&quot;]
+        Server[&quot;Server&quot;]
+        Channel[&quot;Channel&quot;]
+        Future[&quot;Future / FutureManager&quot;]
+        Timer[&quot;超时 / 时钟轮&quot;]
+    end
+
+    L1 --&gt; L2
+    L2 --&gt; L3
+    L3 --&gt; L4
+</code></pre>
+
+<p>这个分层非常重要，因为后面几乎所有高级能力，都能找到一个自然的插入点。</p>
+<p>例如：</p>
+<ul>
+<li>异步调用最终落在 <code>Invoker</code>、<code>Future</code> 和传输层；</li>
+<li>鉴权、链路追踪、流量录制适合进入 Filter 或请求处理链；</li>
+<li>动态分组属于 Registry、Cluster 和路由体系；</li>
+<li>泛化调用主要改变入口层和序列化逻辑；</li>
+<li>多协议兼容主要发生在 Protocol 与 Codec 层；</li>
+<li>超时检测则可以交给传输层的时钟轮。</li>
+</ul>
+<p>一个好的 RPC 框架不是把所有功能塞进一个巨大调用函数，而是让这些能力围绕稳定的核心调用链进行扩展。</p>
+<h2 id="异步-RPC：吞吐量问题很多时候不是-CPU-不够"><a href="#异步-RPC：吞吐量问题很多时候不是-CPU-不够" class="headerlink" title="异步 RPC：吞吐量问题很多时候不是 CPU 不够"></a>异步 RPC：吞吐量问题很多时候不是 CPU 不够</h2><h3 id="阻塞等待才是隐藏成本"><a href="#阻塞等待才是隐藏成本" class="headerlink" title="阻塞等待才是隐藏成本"></a>阻塞等待才是隐藏成本</h3><p>一个很典型的现象是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">TPS 上不去<br>CPU 只有 40%～50%<br>继续加流量，CPU 和 TPS 都没有明显提升<br></code></pre></td></tr></table></figure>
+
+<p>这并不一定意味着 RPC 框架性能差。</p>
+<p>如果一个请求内部还要同步调用多个耗时下游，那么线程的大量时间实际上处于等待状态。等待中的线程不会持续消耗 CPU，但它仍然占用了宝贵的并发资源。</p>
+<p>假设业务需要访问四个彼此独立的服务：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Service1 10ms<br>Service2 10ms<br>Service3 10ms<br>Service4 10ms<br></code></pre></td></tr></table></figure>
+
+<p>顺序调用的理想耗时约为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">10 + 10 + 10 + 10 = 40ms<br></code></pre></td></tr></table></figure>
+
+<p>如果四次调用能够并行发出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">t=0ms   同时发出 Service1/2/3/4<br>t=10ms  四个请求全部完成<br></code></pre></td></tr></table></figure>
+
+<p>整个等待时间理论上就可能接近 10ms。</p>
+<p>这里真正提高的不是某一次 RPC 的网络性能，而是<strong>把原来的串行等待变成了并行等待</strong>。</p>
+<p>需要注意，这只有在几个调用之间不存在数据依赖时才成立。如果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">A 的结果<br>  ↓<br>生成 B 的参数<br>  ↓<br>B 的结果<br>  ↓<br>才能调用 C<br></code></pre></td></tr></table></figure>
+
+<p>那么业务本身就是串行依赖，改成 Future 并不能凭空获得四倍吞吐量。</p>
+<h3 id="RPC-的同步调用，内部往往本来就是异步的"><a href="#RPC-的同步调用，内部往往本来就是异步的" class="headerlink" title="RPC 的同步调用，内部往往本来就是异步的"></a>RPC 的同步调用，内部往往本来就是异步的</h3><p>RPC 调用端发送请求和接收响应，本来就是两个不同时间发生的事件。</p>
+<p>一个典型实现会在发送请求之前创建 Future：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">requestId -&gt; Future<br></code></pre></td></tr></table></figure>
+
+<p>发送请求：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Request &#123;<br>    requestId = 10001<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>服务端处理完成后返回：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Response &#123;<br>    requestId = 10001<br>    result = ...<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>调用端收到响应后，根据 <code>requestId</code> 找回 Future：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">10001 -&gt; Future<br></code></pre></td></tr></table></figure>
+
+<p>然后把结果写入 Future。</p>
+<p>整个过程可以表示为：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant B as 业务代码
+    participant C as Consumer RPC
+    participant S as Provider RPC
+    participant W as 服务端业务执行
+
+    B-&gt;&gt;C: invoke()
+    C-&gt;&gt;C: 创建 Future
+    C-&gt;&gt;C: 保存 requestId -&gt; Future
+    C-&gt;&gt;S: Request(requestId)
+
+    S-&gt;&gt;W: 执行业务
+    W--&gt;&gt;S: result
+    S--&gt;&gt;C: Response(requestId, result)
+
+    C-&gt;&gt;C: 根据 requestId 找到 Future
+    C-&gt;&gt;C: complete(result)
+    C--&gt;&gt;B: 返回结果
+</code></pre>
+
+<p>因此所谓同步 RPC，很多时候只是：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">future.get();<br></code></pre></td></tr></table></figure>
+
+<p>框架替业务代码主动等待了 Future。</p>
+<p>而异步调用则是不立即执行这个等待动作，让调用者决定什么时候消费结果。</p>
+<p>从实现角度看：</p>
+<blockquote>
+<p><strong>同步往往只是异步调用之上的一种阻塞式使用方式。</strong></p>
+</blockquote>
+<h3 id="从-Future-进一步走向-CompletableFuture"><a href="#从-Future-进一步走向-CompletableFuture" class="headerlink" title="从 Future 进一步走向 CompletableFuture"></a>从 Future 进一步走向 CompletableFuture</h3><p>传统 Future 最大的问题在于，它更适合“以后来取结果”，却不擅长组织后续异步逻辑。</p>
+<p><code>CompletableFuture</code> 则可以把“结果完成”本身变成事件。</p>
+<p>RPC 接口可以直接返回：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">CompletableFuture&lt;Result&gt;<br></code></pre></td></tr></table></figure>
+
+<p>整个过程便可以变成：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant Caller as 调用方
+    participant CRPC as Consumer RPC
+    participant PRPC as Provider RPC
+    participant Biz as Provider Business
+
+    Caller-&gt;&gt;CRPC: 调用接口
+    CRPC--&gt;&gt;Caller: CompletableFuture
+    CRPC-&gt;&gt;PRPC: 发送请求
+
+    PRPC-&gt;&gt;Biz: 异步执行业务
+    Biz--&gt;&gt;PRPC: complete(result)
+
+    PRPC--&gt;&gt;CRPC: 返回响应
+    CRPC-&gt;&gt;CRPC: complete(result)
+    CRPC--&gt;&gt;Caller: 触发后续回调
+</code></pre>
+
+<p>这样调用端和服务端都可以围绕 <code>CompletableFuture</code> 构建真正的异步调用链。</p>
+<h3 id="服务端为什么也要异步"><a href="#服务端为什么也要异步" class="headerlink" title="服务端为什么也要异步"></a>服务端为什么也要异步</h3><p>服务端收到网络数据后，通常至少经历：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">网络 IO<br>→ 拆包<br>→ 解码<br>→ 反序列化<br>→ 业务执行<br>→ 序列化<br>→ 编码<br>→ 网络响应<br></code></pre></td></tr></table></figure>
+
+<p>网络 IO 线程不应该承担慢业务，否则某一个慢请求就可能拖住大量网络事件。</p>
+<p>因此常见结构是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">Netty IO Thread<br>      │<br>      ├─ 解码<br>      ├─ 反序列化<br>      │<br>      └─ 投递<br>             ↓<br>       Business Thread Pool<br>             ↓<br>          业务逻辑<br></code></pre></td></tr></table></figure>
+
+<p>但是业务线程池同样是有限资源。</p>
+<p>如果业务里面大量存在数据库、远程服务等等待操作，简单地把线程池从 200 改成 500、1000，通常只是把问题推迟，并没有改变业务本身的资源模型。</p>
+<p>一种方案是让服务方法返回异步结果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">RPC 业务线程<br>    ↓<br>触发异步任务<br>    ↓<br>立即释放 RPC 处理线程<br><br>其它执行器<br>    ↓<br>真正完成任务<br>    ↓<br>complete(result)<br>    ↓<br>RPC 继续序列化并响应<br></code></pre></td></tr></table></figure>
+
+<p>这里有一个很容易产生的误区：</p>
+<blockquote>
+<p><strong>异步不会让真正的计算和 IO 工作凭空消失。</strong></p>
+</blockquote>
+<p>如果最终执行慢业务的线程池也已经饱和，系统照样会达到容量上限。</p>
+<p>异步的价值在于：</p>
+<ul>
+<li>减少 RPC 工作线程长时间被等待操作占用；</li>
+<li>允许请求之间更灵活地并发；</li>
+<li>避免共享 RPC 线程池被少数慢接口长期占满；</li>
+<li>更容易进行任务编排。</li>
+</ul>
+<p>但它并不是“无限并发按钮”。</p>
+<h2 id="RPC-安全：内网不等于没有边界"><a href="#RPC-安全：内网不等于没有边界" class="headerlink" title="RPC 安全：内网不等于没有边界"></a>RPC 安全：内网不等于没有边界</h2><h3 id="第一个问题：谁有资格调用我"><a href="#第一个问题：谁有资格调用我" class="headerlink" title="第一个问题：谁有资格调用我"></a>第一个问题：谁有资格调用我</h3><p>RPC 经常运行在内部网络里，因此它面对的安全问题和公网 Web 系统并不完全一样。</p>
+<p>一个很现实的问题是：服务提供方把接口 Jar 发布到内部仓库后，理论上任何拿到依赖坐标的应用，都可以创建 RPC Proxy。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">OrderService API<br>        ↓<br>发布到 Maven 私服<br>        ↓<br>应用 A 引入并调用<br>应用 B 引入并调用<br>应用 C 也可以自己引入<br></code></pre></td></tr></table></figure>
+
+<p>如果服务提供方不知道调用来自哪个应用，就无法区分：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">已申请调用方<br></code></pre></td></tr></table></figure>
+
+<p>和：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">未经允许的新调用方<br></code></pre></td></tr></table></figure>
+
+<p>这不仅是安全问题，也直接影响容量治理。</p>
+<p>一个突然增加的调用方，很可能成为压垮服务的最后一部分流量。</p>
+<h3 id="身份认证应该进入-RPC-调用链"><a href="#身份认证应该进入-RPC-调用链" class="headerlink" title="身份认证应该进入 RPC 调用链"></a>身份认证应该进入 RPC 调用链</h3><p>解决问题的第一步，是让调用方拥有稳定的应用身份。</p>
+<p>可以设计一个授权控制面：</p>
+<pre><code class=" mermaid">flowchart LR
+    Caller[&quot;调用方应用&quot;] --&gt;|申请接口权限| Auth[&quot;授权平台&quot;]
+    ProviderOwner[&quot;服务负责人&quot;] --&gt;|审批| Auth
+    Auth --&gt;|颁发凭证| Caller
+
+    Caller --&gt;|RPC 请求 + 应用身份/凭证| Provider[&quot;服务提供方&quot;]
+    Provider --&gt; Verify[&quot;本地认证&quot;]
+    Verify --&gt; Authorize[&quot;接口/方法授权&quot;]
+    Authorize --&gt; Business[&quot;业务方法&quot;]
+</code></pre>
+
+<p>如果让每一次 RPC 请求都先访问授权中心：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Caller<br>  ↓<br>Auth Server<br>  ↓<br>Provider<br></code></pre></td></tr></table></figure>
+
+<p>会产生一个严重问题：</p>
+<blockquote>
+<p>所有 RPC 流量都依赖同一个认证服务。</p>
+</blockquote>
+<p>当公司内部 RPC 调用量足够大时，认证服务本身就会成为性能瓶颈和全局故障点。</p>
+<p>更合理的思路是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">控制面：<br>    申请<br>    审批<br>    凭证签发<br>    权限配置<br><br>数据面：<br>    Provider 本地认证<br>    Provider 本地授权<br></code></pre></td></tr></table></figure>
+
+<p>这样授权平台不需要出现在每一条业务请求的同步链路中。</p>
+<h3 id="关于-HMAC，需要分清“认证”和“加密”"><a href="#关于-HMAC，需要分清“认证”和“加密”" class="headerlink" title="关于 HMAC，需要分清“认证”和“加密”"></a>关于 HMAC，需要分清“认证”和“加密”</h3><p>一种可以用于本地校验的技术是 HMAC。</p>
+<p>严格来说：</p>
+<blockquote>
+<p><strong>HMAC 不是加密算法，也不是基于公私钥的非对称数字签名，而是使用共享密钥计算的消息认证码（Message Authentication Code）。</strong></p>
+</blockquote>
+<p>真正有价值的设计思想是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">授权平台<br>    ↓<br>使用预先约定的安全机制生成凭证<br>    ↓<br>调用方携带凭证<br>    ↓<br>Provider 使用本地信息完成校验<br></code></pre></td></tr></table></figure>
+
+<p>也就是说，把认证的高频判断从中心节点移动到服务提供方。</p>
+<h3 id="认证之后还需要授权"><a href="#认证之后还需要授权" class="headerlink" title="认证之后还需要授权"></a>认证之后还需要授权</h3><p>仅知道：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Application A 可以调用 OrderService<br></code></pre></td></tr></table></figure>
+
+<p>还不够。</p>
+<p>因为一个接口通常有多个方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">interface</span> <span class="hljs-title class_">OrderService</span> &#123;<br><br>    Order <span class="hljs-title function_">queryOrder</span><span class="hljs-params">(Long id)</span>;<br><br>    <span class="hljs-keyword">void</span> <span class="hljs-title function_">cancelOrder</span><span class="hljs-params">(Long id)</span>;<br><br>    <span class="hljs-keyword">void</span> <span class="hljs-title function_">forceCloseOrder</span><span class="hljs-params">(Long id)</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>很可能调用方只应该拥有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">queryOrder<br></code></pre></td></tr></table></figure>
+
+<p>而没有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">forceCloseOrder<br></code></pre></td></tr></table></figure>
+
+<p>因此权限模型至少应该能够描述：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">callerApplication<br>+<br>service<br>+<br>method<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">finance-service<br>    -&gt; OrderService.queryOrder<br>    -&gt; allowed<br><br>report-service<br>    -&gt; OrderService.forceCloseOrder<br>    -&gt; denied<br></code></pre></td></tr></table></figure>
+
+<p>授权关系可以由统一平台管理，再同步到服务本地缓存或配置体系，由 Provider Filter 在业务执行之前检查。</p>
+<h3 id="服务提供方本身也需要认证"><a href="#服务提供方本身也需要认证" class="headerlink" title="服务提供方本身也需要认证"></a>服务提供方本身也需要认证</h3><p>安全问题并不只发生在 Consumer。</p>
+<p>如果某个应用拿到了接口定义，也有可能尝试注册一个假的 Provider。</p>
+<p>因此注册中心还应该具备类似下面的约束：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">OrderService<br>    ↓<br>只允许 order-service 应用注册<br></code></pre></td></tr></table></figure>
+
+<p>注册过程就变成：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant P as Provider
+    participant R as Registry
+    participant M as 接口与应用绑定关系
+
+    P-&gt;&gt;R: register(OrderService, appId)
+    R-&gt;&gt;M: 查询允许发布该接口的应用
+    M--&gt;&gt;R: order-service
+
+    alt appId 匹配
+        R--&gt;&gt;P: 注册成功
+    else appId 不匹配
+        R--&gt;&gt;P: 拒绝注册
+    end
+</code></pre>
+
+<p>这样安全体系形成了两个方向：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Consumer -&gt; Provider<br>认证谁可以调用<br><br>Provider -&gt; Registry<br>认证谁可以提供服务<br></code></pre></td></tr></table></figure>
+
+<p>RPC 的安全边界才真正闭合起来。</p>
+<h2 id="分布式故障定位：不要让异常只剩一句-timeout"><a href="#分布式故障定位：不要让异常只剩一句-timeout" class="headerlink" title="分布式故障定位：不要让异常只剩一句 timeout"></a>分布式故障定位：不要让异常只剩一句 timeout</h2><h3 id="为什么分布式系统越来越难排查"><a href="#为什么分布式系统越来越难排查" class="headerlink" title="为什么分布式系统越来越难排查"></a>为什么分布式系统越来越难排查</h3><p>单体应用发生异常时，可以直接从一个进程的日志往下看。</p>
+<p>而分布式系统可能是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">A<br>↓<br>B<br>↓<br>C<br>↓<br>D<br></code></pre></td></tr></table></figure>
+
+<p>A 收到的异常，很可能真正来自 D。</p>
+<p>如果只得到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">TimeoutException<br></code></pre></td></tr></table></figure>
+
+<p>维护 A 的开发者甚至不知道：</p>
+<ul>
+<li>哪个 RPC 接口超时；</li>
+<li>调的是哪个节点；</li>
+<li>调用端 IP 是什么；</li>
+<li>Provider IP 是什么；</li>
+<li>是连接超时还是响应超时；</li>
+<li>是 RPC 框架异常还是业务异常；</li>
+<li>中间到底经过了哪些服务。</li>
+</ul>
+<p>因此，一款 RPC 框架的异常设计本身就是可观测能力的一部分。</p>
+<h3 id="异常必须携带可定位信息"><a href="#异常必须携带可定位信息" class="headerlink" title="异常必须携带可定位信息"></a>异常必须携带可定位信息</h3><p>RPC 框架的异常至少应该考虑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">errorCode<br>errorType<br>serviceName<br>methodName<br>alias / group<br>consumerIp<br>providerIp<br>timeout<br>cost<br>cause<br></code></pre></td></tr></table></figure>
+
+<p>例如相比：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Request timeout<br></code></pre></td></tr></table></figure>
+
+<p>下面的信息要有价值得多：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">RPC-22210<br>type       = BUSINESS_THREAD_POOL_EXHAUSTED<br>service    = com.demo.CService<br>method     = query<br>consumer   = 192.168.1.2<br>provider   = 192.168.1.3<br></code></pre></td></tr></table></figure>
+
+<p>异常码还应该形成稳定的分类体系：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">1xxxx  网络连接<br>2xxxx  线程池<br>3xxxx  序列化<br>4xxxx  服务发现<br>5xxxx  路由<br>...<br></code></pre></td></tr></table></figure>
+
+<p>具体编码方式不是重点，重点是：</p>
+<blockquote>
+<p>异常必须能够从“发生错误”进一步回答“错误发生在哪里、属于什么类型、应该从哪里开始查”。</p>
+</blockquote>
+<h3 id="Trace-与-Span"><a href="#Trace-与-Span" class="headerlink" title="Trace 与 Span"></a>Trace 与 Span</h3><p>仅靠异常信息依然无法完整解决跨服务问题。</p>
+<p>如果调用链是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">A → B → C → D<br></code></pre></td></tr></table></figure>
+
+<p>维护 A 的人可能根本不知道 B 后面还有 C 和 D。</p>
+<p>这就需要分布式链路跟踪。</p>
+<p>一次完整调用可以表示成一个 Trace：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">TraceId = T10001<br></code></pre></td></tr></table></figure>
+
+<p>其中每一段远程调用是一个 Span：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Span1: A -&gt; B<br>Span2: B -&gt; C<br>Span3: C -&gt; D<br></code></pre></td></tr></table></figure>
+
+<p>并通过父子关系建立链路：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[&quot;Service A&quot;]
+    B[&quot;Service B&quot;]
+    C[&quot;Service C&quot;]
+    D[&quot;Service D&quot;]
+
+    A --&gt;|&quot;Span1&quot;| B
+    B --&gt;|&quot;Span2 parent=Span1&quot;| C
+    C --&gt;|&quot;Span3 parent=Span2&quot;| D
+</code></pre>
+
+<p>一次 Trace 最终就可以回答：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">A -&gt; B    5ms<br>B -&gt; C   12ms<br>C -&gt; D  803ms  ← 异常<br></code></pre></td></tr></table></figure>
+
+<p>定位问题的方式从：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">找 A<br>↓<br>问 B<br>↓<br>再问 C<br>↓<br>最后找到 D<br></code></pre></td></tr></table></figure>
+
+<p>变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">查询 TraceId<br>↓<br>直接看到 D 异常<br></code></pre></td></tr></table></figure>
+
+<h3 id="RPC-接入链路追踪的核心只有两件事"><a href="#RPC-接入链路追踪的核心只有两件事" class="headerlink" title="RPC 接入链路追踪的核心只有两件事"></a>RPC 接入链路追踪的核心只有两件事</h3><h4 id="埋点"><a href="#埋点" class="headerlink" title="埋点"></a>埋点</h4><p>调用端：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">发送请求前<br>收到响应后<br></code></pre></td></tr></table></figure>
+
+<p>服务端：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">收到请求<br>业务执行完成<br></code></pre></td></tr></table></figure>
+
+<p>这些位置天然适合产生 Span 数据。</p>
+<h4 id="传递"><a href="#传递" class="headerlink" title="传递"></a>传递</h4><p>上游必须把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">TraceId<br>ParentSpanId<br></code></pre></td></tr></table></figure>
+
+<p>传递给下游。</p>
+<p>因此 RPC 协议通常需要保留类似附件或隐式参数的区域：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">attachments:<br>    traceId<br>    spanId<br>    callerApp<br>    ...<br></code></pre></td></tr></table></figure>
+
+<p>这样下游才能创建正确的子 Span。</p>
+<p>这里还有一个非常重要的工程问题：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Thread A<br>  ↓<br>线程池<br>  ↓<br>Thread B<br></code></pre></td></tr></table></figure>
+
+<p>如果 TraceId 只存在 ThreadLocal 中，异步切换线程后上下文就可能丢失。</p>
+<p>同样：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">RPC<br>↓<br>MQ<br>↓<br>另一个服务<br></code></pre></td></tr></table></figure>
+
+<p>也必须继续传播 Trace 上下文。</p>
+<p>所以在异步 RPC 体系中：</p>
+<blockquote>
+<p><strong>上下文传播与异步模型必须同时设计。</strong></p>
+</blockquote>
+<p>否则业务是异步了，链路也“异步没了”。</p>
+<h2 id="时钟轮：高并发-RPC-为什么不应该扫描所有超时任务"><a href="#时钟轮：高并发-RPC-为什么不应该扫描所有超时任务" class="headerlink" title="时钟轮：高并发 RPC 为什么不应该扫描所有超时任务"></a>时钟轮：高并发 RPC 为什么不应该扫描所有超时任务</h2><h3 id="Future-带来了另一个问题：超时"><a href="#Future-带来了另一个问题：超时" class="headerlink" title="Future 带来了另一个问题：超时"></a>Future 带来了另一个问题：超时</h3><p>调用端每发送一个 RPC 请求，都会创建一个 Future：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">requestId -&gt; Future<br></code></pre></td></tr></table></figure>
+
+<p>如果服务端一直不返回，这个 Future 不可能永久存在，因此还需要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">timeout = 5000ms<br></code></pre></td></tr></table></figure>
+
+<p>问题随之而来：</p>
+<blockquote>
+<p>几万甚至几十万个 Future，怎样高效判断谁已经超时？</p>
+</blockquote>
+<h3 id="最直接的方法：一个任务一个线程"><a href="#最直接的方法：一个任务一个线程" class="headerlink" title="最直接的方法：一个任务一个线程"></a>最直接的方法：一个任务一个线程</h3><p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">创建 Future<br>↓<br>创建线程<br>↓<br>sleep(5000)<br>↓<br>判断是否超时<br></code></pre></td></tr></table></figure>
+
+<p>假设每秒发出 2 万请求，超时时间为 5 秒，那么理论上可能同时存在约：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">2万 × 5 = 10万个等待中的超时任务<br></code></pre></td></tr></table></figure>
+
+<p>显然不能为每个任务创建一个线程。</p>
+<h3 id="第二种方法：一个线程扫描所有任务"><a href="#第二种方法：一个线程扫描所有任务" class="headerlink" title="第二种方法：一个线程扫描所有任务"></a>第二种方法：一个线程扫描所有任务</h3><p>于是可以改成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">每 100ms<br>↓<br>扫描所有 Future<br>↓<br>currentTime &gt;= deadline ?<br></code></pre></td></tr></table></figure>
+
+<p>这解决了线程数量问题，却又制造了大量无意义遍历。</p>
+<p>一个 5 秒后才超时的任务，在真正到期前可能被扫描几十次。</p>
+<p>所以问题变成：</p>
+<blockquote>
+<p>能不能只在任务快要到期的时候才看它？</p>
+</blockquote>
+<p>这就是时钟轮解决的问题。</p>
+<h2 id="时钟轮的基本模型"><a href="#时钟轮的基本模型" class="headerlink" title="时钟轮的基本模型"></a>时钟轮的基本模型</h2><p>假设：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">槽位数量 = 10<br>一轮周期 = 1s<br></code></pre></td></tr></table></figure>
+
+<p>那么：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">tick = 100ms<br></code></pre></td></tr></table></figure>
+
+<p>第一层时间轮可以表示成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">slot0<br>slot1<br>slot2<br>...<br>slot9<br></code></pre></td></tr></table></figure>
+
+<p>任务按照剩余时间落入槽位。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">任务 A：90ms 后执行<br>任务 B：610ms 后执行<br>任务 C：1610ms 后执行<br></code></pre></td></tr></table></figure>
+
+<p>可以粗略分配成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">第一层：<br>slot0 -&gt; A<br>slot6 -&gt; B<br><br>第二层：<br>slot1 -&gt; C<br></code></pre></td></tr></table></figure>
+
+<p>C 的执行过程是：</p>
+<pre><code class=" mermaid">flowchart LR
+    C[&quot;Task C: 1610ms&quot;] --&gt; L2[&quot;第二层时间轮 slot1&quot;]
+    L2 --&gt;|&quot;约 1s 后下沉&quot;| L1[&quot;第一层时间轮 slot6&quot;]
+    L1 --&gt;|&quot;再经过约 600ms&quot;| E[&quot;执行 Task C&quot;]
+</code></pre>
+
+<p>第一层时间轮完成一整圈后，第二层向前推进一个槽位，并把该槽中的任务重新分配到第一层。</p>
+<p>它的核心不是提高时间精度，而是：</p>
+<blockquote>
+<p><strong>通过分桶减少无意义扫描。</strong></p>
+</blockquote>
+<h3 id="时间精度与槽位数量的取舍"><a href="#时间精度与槽位数量的取舍" class="headerlink" title="时间精度与槽位数量的取舍"></a>时间精度与槽位数量的取舍</h3><p>时间轮有两个很重要的参数。</p>
+<h4 id="tick-越小，精度越高"><a href="#tick-越小，精度越高" class="headerlink" title="tick 越小，精度越高"></a>tick 越小，精度越高</h4><p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">tick = 10ms<br></code></pre></td></tr></table></figure>
+
+<p>理论调度粒度就在 10ms 级别。</p>
+<p>如果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">tick = 100ms<br></code></pre></td></tr></table></figure>
+
+<p>调度粒度就是 100ms 级别。</p>
+<p>实际执行时间还会受到系统调度和任务执行器负载影响，因此时钟轮更适合高吞吐定时调度，而不是硬实时场景。</p>
+<h4 id="槽位越多，长任务越少进入高层时间轮"><a href="#槽位越多，长任务越少进入高层时间轮" class="headerlink" title="槽位越多，长任务越少进入高层时间轮"></a>槽位越多，长任务越少进入高层时间轮</h4><p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">1000 slots × 10ms<br>= 10s<br></code></pre></td></tr></table></figure>
+
+<p>那么 10 秒以内的任务都可以待在第一层。</p>
+<p>如果只有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">10 slots × 10ms<br>= 100ms<br></code></pre></td></tr></table></figure>
+
+<p>超过 100ms 的任务就需要进入更高层。</p>
+<p>槽位越多通常意味着更多空间成本，但可以减少任务在多层之间迁移。</p>
+<h3 id="RPC-中哪些地方适合时钟轮"><a href="#RPC-中哪些地方适合时钟轮" class="headerlink" title="RPC 中哪些地方适合时钟轮"></a>RPC 中哪些地方适合时钟轮</h3><p>最典型的是：</p>
+<ul>
+<li>请求超时；</li>
+<li>Client 启动超时；</li>
+<li>Server 启动超时；</li>
+<li>心跳；</li>
+<li>连接空闲检测；</li>
+<li>延迟重试；</li>
+<li>其它大量轻量级定时任务。</li>
+</ul>
+<p>周期性任务也不一定需要特殊模型。</p>
+<p>例如心跳任务执行完成后：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">执行 heartbeat<br>↓<br>计算下一次执行时间<br>↓<br>重新加入时间轮<br></code></pre></td></tr></table></figure>
+
+<p>即可继续循环。</p>
+<h2 id="流量回放：把线上真实请求变成回归测试资产"><a href="#流量回放：把线上真实请求变成回归测试资产" class="headerlink" title="流量回放：把线上真实请求变成回归测试资产"></a>流量回放：把线上真实请求变成回归测试资产</h2><h3 id="TestCase-为什么不够"><a href="#TestCase-为什么不够" class="headerlink" title="TestCase 为什么不够"></a>TestCase 为什么不够</h3><p>应用重构时最麻烦的问题通常不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">新功能能不能工作<br></code></pre></td></tr></table></figure>
+
+<p>而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">原来几千种线上行为有没有被意外改坏<br></code></pre></td></tr></table></figure>
+
+<p>测试代码只能覆盖我们<strong>预想到的场景</strong>。</p>
+<p>但线上流量包含的是用户实际产生过的场景。</p>
+<p>因此可以把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">线上真实请求<br></code></pre></td></tr></table></figure>
+
+<p>转换成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">可重复执行的测试数据<br></code></pre></td></tr></table></figure>
+
+<p>这就是流量回放。</p>
+<h3 id="RPC-为什么天然适合录制流量"><a href="#RPC-为什么天然适合录制流量" class="headerlink" title="RPC 为什么天然适合录制流量"></a>RPC 为什么天然适合录制流量</h3><p>应用间调用都经过 RPC：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Caller<br>↓<br>RPC<br>↓<br>Provider<br></code></pre></td></tr></table></figure>
+
+<p>所以 RPC 可以同时看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">接口<br>方法<br>参数<br>请求上下文<br>响应<br>异常<br>耗时<br></code></pre></td></tr></table></figure>
+
+<p>那么只需要增加旁路：</p>
+<pre><code class=" mermaid">flowchart LR
+    Caller[&quot;线上调用方&quot;] --&gt; RPC[&quot;RPC Provider&quot;]
+    RPC --&gt; Biz[&quot;原业务逻辑&quot;]
+
+    RPC -. &quot;异步旁录请求/响应&quot; .-&gt; Store[&quot;流量存储&quot;]
+
+    Store --&gt; Replay[&quot;回放应用&quot;]
+    Replay --&gt; New[&quot;改造后的 Provider&quot;]
+    New --&gt; Compare[&quot;结果比较&quot;]
+    Store --&gt; Compare
+</code></pre>
+
+<p>这里最重要的是：</p>
+<blockquote>
+<p>录制过程不能显著影响真实业务链路。</p>
+</blockquote>
+<p>因此旁录数据通常应该异步处理，而不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">先把录制数据写成功<br>↓<br>再处理真实请求<br></code></pre></td></tr></table></figure>
+
+<p>否则测试能力反而会成为业务故障源。</p>
+<h3 id="回放的基本过程"><a href="#回放的基本过程" class="headerlink" title="回放的基本过程"></a>回放的基本过程</h3><p>可以抽象成四步：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">1. Record<br>   记录接口、方法、请求和结果<br><br>2. Store<br>   异步存储<br><br>3. Replay<br>   使用相同参数请求新应用<br><br>4. Compare<br>   比较旧结果与新结果<br></code></pre></td></tr></table></figure>
+
+<p>这样应用重构后就可以持续运行历史流量，而不是只依靠人工枚举 TestCase。</p>
+<h3 id="真正困难的地方不是“再请求一次”"><a href="#真正困难的地方不是“再请求一次”" class="headerlink" title="真正困难的地方不是“再请求一次”"></a>真正困难的地方不是“再请求一次”</h3><p>简单比较：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">oldResponse == newResponse<br></code></pre></td></tr></table></figure>
+
+<p>在很多业务中并不成立。</p>
+<p>例如订单接口：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">线上第一次：<br>createOrder(10001)<br>→ success<br><br>回放：<br>createOrder(10001)<br>→ order already exists<br></code></pre></td></tr></table></figure>
+
+<p>原因在于响应不仅取决于入参：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Response =<br>    Request<br>  + Database State<br>  + Cache State<br>  + Downstream State<br>  + Current Time<br>  + ...<br></code></pre></td></tr></table></figure>
+
+<p>因此流量回放需要重点考虑：</p>
+<ul>
+<li>底层数据是否一致；</li>
+<li>方法是否有副作用；</li>
+<li>是否依赖当前时间；</li>
+<li>是否依赖缓存状态；</li>
+<li>是否依赖其它 RPC 服务；</li>
+<li>响应中是否存在随机值或动态字段；</li>
+<li>什么才叫“结果一致”。</li>
+</ul>
+<p>复杂场景中，只录制接口入参和出参甚至还不够。</p>
+<p>如果应用依赖：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">DB<br>Redis<br>下游 RPC<br></code></pre></td></tr></table></figure>
+
+<p>为了得到稳定回放结果，还可能需要记录外部依赖的响应，并在回放时替代这些依赖。</p>
+<p>因此工程上更合理的目标不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">字节级完全一致<br></code></pre></td></tr></table></figure>
+
+<p>而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">业务语义一致<br></code></pre></td></tr></table></figure>
+
+<h3 id="流量回放不只可以做回归"><a href="#流量回放不只可以做回归" class="headerlink" title="流量回放不只可以做回归"></a>流量回放不只可以做回归</h3><p>同一套数据还可以用于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">历史流量 × 1<br>→ 回归测试<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">历史流量 × N<br>→ 压力测试<br></code></pre></td></tr></table></figure>
+
+<p>也可以用于验证：</p>
+<ul>
+<li>RPC 框架升级；</li>
+<li>服务重构；</li>
+<li>新旧集群切换；</li>
+<li>性能优化；</li>
+<li>协议升级。</li>
+</ul>
+<p>换句话说，它把线上流量从一次性消耗品变成了可以反复利用的测试资产。</p>
+<h2 id="动态分组：隔离之后还要解决资源碎片"><a href="#动态分组：隔离之后还要解决资源碎片" class="headerlink" title="动态分组：隔离之后还要解决资源碎片"></a>动态分组：隔离之后还要解决资源碎片</h2><h3 id="为什么需要分组"><a href="#为什么需要分组" class="headerlink" title="为什么需要分组"></a>为什么需要分组</h3><p>假设 Provider 集群同时服务：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">核心交易<br>营销活动<br>内部报表<br>批处理任务<br></code></pre></td></tr></table></figure>
+
+<p>如果所有调用方共享同一组 Provider：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">非核心业务突然暴涨<br>↓<br>整个 Provider 集群过载<br>↓<br>核心业务一起失败<br></code></pre></td></tr></table></figure>
+
+<p>一种常见治理方式是按调用方分组：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Core Group<br>Marketing Group<br>Report Group<br></code></pre></td></tr></table></figure>
+
+<p>这样可以形成硬隔离。</p>
+<h3 id="容量如何估算"><a href="#容量如何估算" class="headerlink" title="容量如何估算"></a>容量如何估算</h3><p>可以先通过压测得到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Q_single = 单实例安全 QPS<br></code></pre></td></tr></table></figure>
+
+<p>统计分组调用量：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Q_group = 分组内所有调用方总 QPS<br></code></pre></td></tr></table></figure>
+
+<p>那么基础机器数可以按下面的思路估算：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">N_base = ceil(Q_group / Q_single)<br></code></pre></td></tr></table></figure>
+
+<p>再根据历史波动增加冗余。</p>
+<p>例如不是让：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Capacity == Current Traffic<br></code></pre></td></tr></table></figure>
+
+<p>而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Capacity &gt; Current Traffic<br></code></pre></td></tr></table></figure>
+
+<p>问题在于，每一个分组都保留很多冗余会产生大量闲置资源。</p>
+<h3 id="突发流量破坏了静态分组"><a href="#突发流量破坏了静态分组" class="headerlink" title="突发流量破坏了静态分组"></a>突发流量破坏了静态分组</h3><p>假设：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">Group A<br>P1<br>P2<br><br>Group B<br>P3<br></code></pre></td></tr></table></figure>
+
+<p>突然 B 流量暴涨。</p>
+<p>与此同时：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">P1、P2 还有余量<br></code></pre></td></tr></table></figure>
+
+<p>但 B 因为分组隔离看不到它们。</p>
+<p>传统处理方式可能是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">找机器<br>↓<br>修改配置<br>↓<br>部署<br>↓<br>启动<br>↓<br>注册<br></code></pre></td></tr></table></figure>
+
+<p>或者把现有节点修改分组后重启。</p>
+<p>这些操作都太慢。</p>
+<h3 id="真正需要改变的是服务发现视图"><a href="#真正需要改变的是服务发现视图" class="headerlink" title="真正需要改变的是服务发现视图"></a>真正需要改变的是服务发现视图</h3><p>调用方为什么只能访问某个分组？</p>
+<p>因为服务发现告诉它：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Group B = [P3]<br></code></pre></td></tr></table></figure>
+
+<p>那么扩容时不一定真的需要重启 Provider。</p>
+<p>只要动态把注册中心视图调整成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Group B = [P2, P3]<br></code></pre></td></tr></table></figure>
+
+<p>B 就获得了新的服务能力。</p>
+<pre><code class=" mermaid">flowchart TB
+    Registry[&quot;注册中心&quot;]
+
+    P1[&quot;P1\nGroup A&quot;]
+    P2[&quot;P2\n真实 Group A&quot;]
+    P3[&quot;P3\nGroup B&quot;]
+
+    A[&quot;Consumer A&quot;]
+    B[&quot;Consumer B&quot;]
+
+    Registry --&gt; A
+    Registry --&gt; B
+
+    A --&gt; P1
+    A --&gt; P2
+
+    B --&gt; P3
+    B -. &quot;动态追加&quot; .-&gt; P2
+</code></pre>
+
+<p>这类动态分组通常有两种动作。</p>
+<h4 id="替换"><a href="#替换" class="headerlink" title="替换"></a>替换</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">P2:<br>A -&gt; B<br></code></pre></td></tr></table></figure>
+
+<p>节点从 A 的服务集合中移出，加入 B。</p>
+<h4 id="追加"><a href="#追加" class="headerlink" title="追加"></a>追加</h4><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">P2:<br>A -&gt; [A, B]<br></code></pre></td></tr></table></figure>
+
+<p>节点同时服务两个逻辑分组。</p>
+<p>从资源角度看，追加通常更灵活，因为节点原来的业务不需要立刻失去服务能力。</p>
+<h3 id="共享冗余池"><a href="#共享冗余池" class="headerlink" title="共享冗余池"></a>共享冗余池</h3><p>进一步可以把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">A 预留 2 台<br>B 预留 2 台<br>C 预留 2 台<br></code></pre></td></tr></table></figure>
+
+<p>改成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">共享 Reserve Pool<br>        ↓<br>根据实时压力动态分配<br></code></pre></td></tr></table></figure>
+
+<p>这解决的是另一个典型问题：</p>
+<blockquote>
+<p><strong>隔离提高了稳定性，却容易制造资源碎片。</strong></p>
+</blockquote>
+<p>动态分组就是在“隔离”和“资源利用率”之间增加一个弹性层。</p>
+<h3 id="动态分组还有一个容易忽视的坑"><a href="#动态分组还有一个容易忽视的坑" class="headerlink" title="动态分组还有一个容易忽视的坑"></a>动态分组还有一个容易忽视的坑</h3><p>注册中心中的逻辑分组被修改后，Provider 自己可能仍然认为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">我属于 Group A<br></code></pre></td></tr></table></figure>
+
+<p>而 Consumer 按动态策略发送：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Group B<br></code></pre></td></tr></table></figure>
+
+<p>如果 Provider 内部还做：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">request.group.equals(provider.group)<br></code></pre></td></tr></table></figure>
+
+<p>请求就会被拒绝。</p>
+<p>因此动态分组不能只改 Registry 数据，还需要设计：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">真实分组<br>逻辑分组<br>临时分组<br></code></pre></td></tr></table></figure>
+
+<p>之间的关系。</p>
+<p>一种思路是请求上下文中同时携带真实分组信息，让 Provider 的校验逻辑能够识别动态映射，而不是简单做字符串相等判断。</p>
+<h2 id="泛化调用：没有接口-Jar-也能完成-RPC"><a href="#泛化调用：没有接口-Jar-也能完成-RPC" class="headerlink" title="泛化调用：没有接口 Jar 也能完成 RPC"></a>泛化调用：没有接口 Jar 也能完成 RPC</h2><h3 id="为什么正常-RPC-需要接口"><a href="#为什么正常-RPC-需要接口" class="headerlink" title="为什么正常 RPC 需要接口"></a>为什么正常 RPC 需要接口</h3><p>通常调用端会写：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">OrderService</span> <span class="hljs-variable">orderService</span> <span class="hljs-operator">=</span> ...<br>orderService.query(...);<br></code></pre></td></tr></table></figure>
+
+<p>动态代理是根据：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">OrderService.class<br></code></pre></td></tr></table></figure>
+
+<p>生成的。</p>
+<p>因此 Consumer 通常必须依赖 Provider 发布的 API Jar。</p>
+<p>大部分业务系统这样做完全没问题。</p>
+<p>但有两个特殊场景会马上遇到困难。</p>
+<h3 id="场景一：统一-RPC-测试平台"><a href="#场景一：统一-RPC-测试平台" class="headerlink" title="场景一：统一 RPC 测试平台"></a>场景一：统一 RPC 测试平台</h3><p>测试平台希望用户输入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">interface<br>group<br>method<br>parameter types<br>parameters<br></code></pre></td></tr></table></figure>
+
+<p>然后直接调用任意 RPC 服务。</p>
+<p>如果每增加一个 RPC 接口都要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">给测试平台加 Maven 依赖<br>↓<br>重新编译<br>↓<br>重新发布<br></code></pre></td></tr></table></figure>
+
+<p>这个平台就失去了“统一”意义。</p>
+<h3 id="场景二：HTTP-RPC-网关"><a href="#场景二：HTTP-RPC-网关" class="headerlink" title="场景二：HTTP -&gt; RPC 网关"></a>场景二：HTTP -&gt; RPC 网关</h3><p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP Client<br>     ↓<br>RPC Gateway<br>     ↓<br>OrderService<br>UserService<br>PaymentService<br>...<br></code></pre></td></tr></table></figure>
+
+<p>网关不可能静态依赖公司所有 RPC API。</p>
+<p>这就需要泛化调用（Generic Invocation）。</p>
+<h3 id="RPC-真正需要的不是-Java-Interface，而是调用元数据"><a href="#RPC-真正需要的不是-Java-Interface，而是调用元数据" class="headerlink" title="RPC 真正需要的不是 Java Interface，而是调用元数据"></a>RPC 真正需要的不是 Java Interface，而是调用元数据</h3><p>一次请求要完成方法定位，真正需要的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">接口名<br>业务分组<br>方法名<br>参数类型<br>参数值<br></code></pre></td></tr></table></figure>
+
+<p>因此完全可以定义统一入口：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">interface</span> <span class="hljs-title class_">GenericService</span> &#123;<br><br>    Object $invoke(<br>            String methodName,<br>            String[] paramTypes,<br>            Object[] params<br>    );<br><br>    CompletableFuture&lt;Object&gt; $asyncInvoke(<br>            String methodName,<br>            String[] paramTypes,<br>            Object[] params<br>    );<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>创建 <code>GenericService</code> Proxy 时，再额外指定真正目标：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">interfaceName = com.demo.OrderService<br>group         = order<br></code></pre></td></tr></table></figure>
+
+<p>最终请求就可以构造成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">interface = com.demo.OrderService<br>group     = order<br>method    = query<br>types     = [&quot;java.lang.Long&quot;]<br>params    = [10001]<br>generic   = true<br></code></pre></td></tr></table></figure>
+
+<p>服务端接收到请求后，仍然按照普通 RPC 的方式定位：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">interface + group + method<br>↓<br>Exporter<br>↓<br>真实服务对象<br></code></pre></td></tr></table></figure>
+
+<p>因此泛化调用并不是另外发明了一种 RPC。</p>
+<p>它只是：</p>
+<blockquote>
+<p><strong>不再依赖强类型接口作为调用入口，而是直接构造 RPC 所需要的元数据。</strong></p>
+</blockquote>
+<h3 id="没有-Class，序列化怎么办"><a href="#没有-Class，序列化怎么办" class="headerlink" title="没有 Class，序列化怎么办"></a>没有 Class，序列化怎么办</h3><p>这才是泛化调用真正棘手的地方。</p>
+<p>正常调用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">CreateOrderRequest request<br></code></pre></td></tr></table></figure>
+
+<p>Consumer 知道：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">CreateOrderRequest.class<br></code></pre></td></tr></table></figure>
+
+<p>于是可以按照正常方式序列化。</p>
+<p>泛化调用可能只拿到：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;userId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1001</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;skuId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">2001</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>这时 Consumer 甚至没有目标 POJO Class。</p>
+<p>因此可以为泛化调用设计单独的序列化逻辑，用通用数据结构承载 POJO：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Map<br>List<br>String<br>Number<br>Boolean<br>Array<br>...<br></code></pre></td></tr></table></figure>
+
+<p>服务端知道真实接口定义，所以收到 Map 后，可以依据参数类型恢复真正的对象。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs text">Consumer:<br><br>Map<br>&#123;<br>    &quot;userId&quot;: 1001,<br>    &quot;skuId&quot;: 2001<br>&#125;<br><br>        ↓ generic serializer<br><br>binary<br><br>        ↓<br><br>Provider:<br><br>CreateOrderRequest<br></code></pre></td></tr></table></figure>
+
+<p>返回值则反向转换成通用结构。</p>
+<p>此外，协议中最好存在明确的泛化调用标记：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">generic = true<br></code></pre></td></tr></table></figure>
+
+<p>而不是依靠某个特殊方法名“猜测”请求类型。</p>
+<p>这样后续才能方便地为泛化请求配置独立序列化器和处理链。</p>
+<h2 id="多协议兼容：架构升级不应该要求全公司同一晚切换"><a href="#多协议兼容：架构升级不应该要求全公司同一晚切换" class="headerlink" title="多协议兼容：架构升级不应该要求全公司同一晚切换"></a>多协议兼容：架构升级不应该要求全公司同一晚切换</h2><h3 id="多种-RPC-协议为什么会长期共存"><a href="#多种-RPC-协议为什么会长期共存" class="headerlink" title="多种 RPC 协议为什么会长期共存"></a>多种 RPC 协议为什么会长期共存</h3><p>企业系统通常不是一天建成的。</p>
+<p>可能先后使用过：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">WebService<br>Hessian<br>Dubbo<br>自研 RPC<br>gRPC<br>...<br></code></pre></td></tr></table></figure>
+
+<p>如果直接要求：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">所有应用<br>同一时间<br>全部切换到新 RPC<br></code></pre></td></tr></table></figure>
+
+<p>对于大型系统几乎不可操作。</p>
+<p>调用关系很可能已经是网状结构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">A ↔ B<br>↓   ↓<br>C ↔ D<br>↘ E ↙<br></code></pre></td></tr></table></figure>
+
+<p>很难找到一个绝对安全的升级顺序。</p>
+<h3 id="更合理的是协议兼容窗口"><a href="#更合理的是协议兼容窗口" class="headerlink" title="更合理的是协议兼容窗口"></a>更合理的是协议兼容窗口</h3><p>理想状态是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs text">老 Consumer<br>      │<br>      │ old protocol<br>      ▼<br>┌────────────────┐<br>│   New RPC      │<br>│                │<br>│ old protocol   │<br>│ new protocol   │<br>└────────────────┘<br>      ▲<br>      │ new protocol<br>      │<br>新 Consumer<br></code></pre></td></tr></table></figure>
+
+<p>这样 Provider 只升级一次。</p>
+<p>随后 Consumer 可以逐个迁移。</p>
+<p>当最后一个旧 Consumer 下线之后，再移除旧协议。</p>
+<h3 id="用-magic-number-识别协议"><a href="#用-magic-number-识别协议" class="headerlink" title="用 magic number 识别协议"></a>用 magic number 识别协议</h3><p>不同二进制协议通常都有自己的头部特征。</p>
+<p>可以抽象成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">magic number<br>version<br>message type<br>serialization<br>request id<br>body length<br>payload<br></code></pre></td></tr></table></figure>
+
+<p>RPC Server 收到数据后先识别：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">magic number<br></code></pre></td></tr></table></figure>
+
+<p>再匹配：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Protocol A<br>Protocol B<br>Protocol C<br></code></pre></td></tr></table></figure>
+
+<p>流程变成：</p>
+<pre><code class=" mermaid">flowchart TB
+    Network[&quot;二进制网络数据&quot;]
+    Detect[&quot;ProtocolAdapter\n识别协议&quot;]
+    PA[&quot;Protocol A Codec&quot;]
+    PB[&quot;Protocol B Codec&quot;]
+    Internal[&quot;协议无关 RPC Request&quot;]
+    Invoke[&quot;RPC 内部调用逻辑&quot;]
+    Result[&quot;协议无关 RPC Result&quot;]
+    EncodeA[&quot;Protocol A Encode&quot;]
+    EncodeB[&quot;Protocol B Encode&quot;]
+
+    Network --&gt; Detect
+    Detect --&gt; PA
+    Detect --&gt; PB
+
+    PA --&gt; Internal
+    PB --&gt; Internal
+
+    Internal --&gt; Invoke
+    Invoke --&gt; Result
+
+    Result --&gt; EncodeA
+    Result --&gt; EncodeB
+</code></pre>
+
+<p>这里最关键的设计并不是 magic number 本身。</p>
+<p>而是：</p>
+<blockquote>
+<p><strong>协议相关对象不能继续污染 RPC 内部调用链。</strong></p>
+</blockquote>
+<h3 id="协议对象必须转换成内部统一模型"><a href="#协议对象必须转换成内部统一模型" class="headerlink" title="协议对象必须转换成内部统一模型"></a>协议对象必须转换成内部统一模型</h3><p>假设 Protocol A 得到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ARequest<br></code></pre></td></tr></table></figure>
+
+<p>Protocol B 得到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">BRequest<br></code></pre></td></tr></table></figure>
+
+<p>如果后面的 Filter、路由、鉴权、反射都分别支持：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">ARequest<br>BRequest<br>CRequest<br>...<br></code></pre></td></tr></table></figure>
+
+<p>RPC 核心代码会迅速失控。</p>
+<p>因此在协议层之后应统一转换为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">RequestMessage&lt;Invocation&gt;<br></code></pre></td></tr></table></figure>
+
+<p>类似这样的内部结构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">Protocol A<br>    ↓<br>ARequest<br>    ↓<br>Internal Request<br>       ↓<br>RPC Core<br>       ↓<br>Internal Result<br>    ↓<br>AResponse<br>    ↓<br>Protocol A<br></code></pre></td></tr></table></figure>
+
+<p>另一种协议走：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Protocol B<br>    ↓<br>BRequest<br>    ↓<br>Internal Request<br>       ↓<br>同一个 RPC Core<br></code></pre></td></tr></table></figure>
+
+<p>这样新增协议时，核心业务调用链不需要修改。</p>
+<h3 id="不要把协议支持写成巨型-if-else"><a href="#不要把协议支持写成巨型-if-else" class="headerlink" title="不要把协议支持写成巨型 if&#x2F;else"></a>不要把协议支持写成巨型 if&#x2F;else</h3><p>如果代码最终变成：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">if</span> (magic == A) &#123;<br>    ...<br>&#125; <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span> (magic == B) &#123;<br>    ...<br>&#125; <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span> (magic == C) &#123;<br>    ...<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>协议数量一多，维护会非常困难。</p>
+<p>更合理的是插件模型：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Protocol SPI<br>    ├─ ProtocolA<br>    ├─ ProtocolB<br>    └─ ProtocolC<br></code></pre></td></tr></table></figure>
+
+<p>协议插件自己声明：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">支持的 magic number<br>Codec<br>Serializer<br>协议对象转换规则<br></code></pre></td></tr></table></figure>
+
+<p>ProtocolAdapter 只负责发现和匹配。</p>
+<p>这也是插件化 RPC 架构的价值之一。</p>
+<h2 id="从-JoyRPC-的代码骨架看-RPC-如何真正跑起来"><a href="#从-JoyRPC-的代码骨架看-RPC-如何真正跑起来" class="headerlink" title="从 JoyRPC 的代码骨架看 RPC 如何真正跑起来"></a>从 JoyRPC 的代码骨架看 RPC 如何真正跑起来</h2><p>上面的能力如果只停留在概念层，仍然比较分散。</p>
+<p>一套实际 RPC 代码可以通过三个核心流程串起来：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">服务端启动<br>调用端启动<br>一次 RPC 调用<br></code></pre></td></tr></table></figure>
+
+<h3 id="入口层的核心抽象：Invoker"><a href="#入口层的核心抽象：Invoker" class="headerlink" title="入口层的核心抽象：Invoker"></a>入口层的核心抽象：Invoker</h3><p>RPC 中可以抽象出一个统一调用接口：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java">CompletableFuture&lt;Result&gt; <span class="hljs-title function_">invoke</span><span class="hljs-params">(</span><br><span class="hljs-params">        RequestMessage&lt;Invocation&gt; request</span><br><span class="hljs-params">)</span>;<br></code></pre></td></tr></table></figure>
+
+<p>核心有两个实现方向：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Invoker<br>├─ Exporter<br>└─ Refer<br></code></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Refer<br>Consumer 侧<br>负责向 Provider 发请求<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Exporter<br>Provider 侧<br>负责接收并执行请求<br></code></pre></td></tr></table></figure>
+
+<p>这两个对象可以理解为整个入口层最关键的两个支点。</p>
+<h3 id="Provider-启动：先-Export，再-Open"><a href="#Provider-启动：先-Export，再-Open" class="headerlink" title="Provider 启动：先 Export，再 Open"></a>Provider 启动：先 Export，再 Open</h3><p>一个简化的 Provider 配置过程类似：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">DemoService</span> <span class="hljs-variable">demoService</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">DemoServiceImpl</span>();<br><br>ProviderConfig&lt;DemoService&gt; providerConfig = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ProviderConfig</span>&lt;&gt;();<br><br>providerConfig.setServerConfig(<span class="hljs-keyword">new</span> <span class="hljs-title class_">ServerConfig</span>());<br>providerConfig.setInterfaceClazz(DemoService.class.getName());<br>providerConfig.setRef(demoService);<br>providerConfig.setAlias(<span class="hljs-string">&quot;joyrpc-demo&quot;</span>);<br>providerConfig.setRegistry(<span class="hljs-keyword">new</span> <span class="hljs-title class_">RegistryConfig</span>(<span class="hljs-string">&quot;broadcast&quot;</span>));<br><br>providerConfig.exportAndOpen();<br></code></pre></td></tr></table></figure>
+
+<p><code>exportAndOpen()</code> 又被拆成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">export()<br>↓<br>open()<br></code></pre></td></tr></table></figure>
+
+<p>这不是单纯为了方法命名好看，而是在区分两个生命周期阶段。</p>
+<h4 id="Export-阶段"><a href="#Export-阶段" class="headerlink" title="Export 阶段"></a>Export 阶段</h4><p>核心工作是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs text">ProviderConfig<br>      ↓<br>生成 registryUrl<br>生成 serviceUrl<br>      ↓<br>创建 Registry<br>      ↓<br>连接 Registry<br>      ↓<br>订阅接口/全局配置<br>      ↓<br>InvokerManager<br>      ↓<br>创建 Exporter<br></code></pre></td></tr></table></figure>
+
+<p>可以表示成：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant PC as ProviderConfig
+    participant R as Registry
+    participant IM as InvokerManager
+    participant E as Exporter
+
+    PC-&gt;&gt;R: 创建并 open Registry
+    PC-&gt;&gt;R: subscribe 配置
+    PC-&gt;&gt;IM: export(serviceUrl)
+    IM-&gt;&gt;E: 创建 Exporter
+    E--&gt;&gt;IM: Exporter
+    IM--&gt;&gt;PC: Exporter
+</code></pre>
+
+<p>Exporter 初始化过程中还可以完成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Filter Chain<br>认证信息<br>调用上下文<br>方法元数据<br>...<br></code></pre></td></tr></table></figure>
+
+<h4 id="Open-阶段"><a href="#Open-阶段" class="headerlink" title="Open 阶段"></a>Open 阶段</h4><p>Exporter 已经存在，但还不能对外服务。</p>
+<p>Open 阶段负责：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">接口预热<br>↓<br>EndpointFactory<br>↓<br>创建 Server<br>↓<br>Server.open()<br>↓<br>监听端口<br>↓<br>Registry.register()<br></code></pre></td></tr></table></figure>
+
+<p>可以看到服务真正注册到注册中心之前，Server 应该已经具备提供服务的能力。</p>
+<p>否则很容易出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Registry 已经可见<br>↓<br>Consumer 开始调用<br>↓<br>Provider 端口还没准备好<br></code></pre></td></tr></table></figure>
+
+<p>这种启动竞态。</p>
+<h3 id="Consumer-启动：核心是-Refer-Cluster"><a href="#Consumer-启动：核心是-Refer-Cluster" class="headerlink" title="Consumer 启动：核心是 Refer + Cluster"></a>Consumer 启动：核心是 Refer + Cluster</h3><p>Consumer 的使用方式类似：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java">ConsumerConfig&lt;DemoService&gt; consumerConfig = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ConsumerConfig</span>&lt;&gt;();<br><br>consumerConfig.setInterfaceClazz(DemoService.class.getName());<br>consumerConfig.setAlias(<span class="hljs-string">&quot;joyrpc-demo&quot;</span>);<br>consumerConfig.setRegistry(<span class="hljs-keyword">new</span> <span class="hljs-title class_">RegistryConfig</span>(<span class="hljs-string">&quot;broadcast&quot;</span>));<br><br>CompletableFuture&lt;DemoService&gt; future = consumerConfig.refer();<br><br><span class="hljs-type">DemoService</span> <span class="hljs-variable">service</span> <span class="hljs-operator">=</span> future.get();<br></code></pre></td></tr></table></figure>
+
+<p>启动过程可以抽象成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs text">ConsumerConfig<br>      ↓<br>Registry<br>      ↓<br>创建动态代理<br>      ↓<br>订阅配置<br>      ↓<br>InvokerManager<br>      ↓<br>创建 Cluster<br>      ↓<br>创建 Refer<br>      ↓<br>Refer.open()<br>      ↓<br>Cluster.open()<br></code></pre></td></tr></table></figure>
+
+<p>其中最复杂的对象之一是 <code>Cluster</code>。</p>
+<p>它需要负责：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">Provider 节点列表<br>节点变化监听<br>Client 创建<br>连接建立<br>连接状态<br>心跳<br>协商<br>安全验证<br></code></pre></td></tr></table></figure>
+
+<p>因此：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Registry<br>负责告诉你“有哪些节点”<br><br>Cluster<br>负责把这些节点真正变成“可以调用的连接集合”<br></code></pre></td></tr></table></figure>
+
+<p>这是两个不同层面的职责。</p>
+<h3 id="Consumer-发起请求的完整链路"><a href="#Consumer-发起请求的完整链路" class="headerlink" title="Consumer 发起请求的完整链路"></a>Consumer 发起请求的完整链路</h3><p>当业务代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">service.sayHello(<span class="hljs-string">&quot;hello&quot;</span>);<br></code></pre></td></tr></table></figure>
+
+<p>真正发生的调用链可以整理为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><code class="hljs text">Proxy<br>↓<br>ConsumerInvokerHandler<br>↓<br>Refer.invoke()<br>↓<br>消息透传<br>↓<br>FilterChain<br>↓<br>Refer.distribute()<br>↓<br>NodeSelector<br>↓<br>Route<br>↓<br>LoadBalance<br>↓<br>Refer.invokeRemote()<br>↓<br>Client<br>↓<br>Transport<br></code></pre></td></tr></table></figure>
+
+<p>进一步展开：</p>
+<pre><code class=" mermaid">flowchart LR
+    Proxy[&quot;Proxy&quot;]
+    Handler[&quot;ConsumerInvokerHandler&quot;]
+    Refer[&quot;Refer&quot;]
+    Filter[&quot;FilterChain&quot;]
+    Selector[&quot;NodeSelector&quot;]
+    Route[&quot;Route&quot;]
+    LB[&quot;LoadBalance&quot;]
+    Client[&quot;Client&quot;]
+
+    Proxy --&gt; Handler
+    Handler --&gt; Refer
+    Refer --&gt; Filter
+    Filter --&gt; Selector
+    Selector --&gt; Route
+    Route --&gt; LB
+    LB --&gt; Client
+</code></pre>
+
+<p>这里每一个高级治理功能都有了明确位置。</p>
+<p>比如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">鉴权<br>链路追踪<br>流量旁录<br></code></pre></td></tr></table></figure>
+
+<p>可以进入 Filter。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">分组<br>路由规则<br></code></pre></td></tr></table></figure>
+
+<p>可以进入 NodeSelector。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Failover<br></code></pre></td></tr></table></figure>
+
+<p>由 Route 控制。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Random<br>RoundRobin<br>一致性哈希<br>...<br></code></pre></td></tr></table></figure>
+
+<p>则由 LoadBalance 负责。</p>
+<p>这就是为什么插件化会比一个几千行的 <code>invoke()</code> 更容易演进。</p>
+<h3 id="Provider-收到请求后的处理链"><a href="#Provider-收到请求后的处理链" class="headerlink" title="Provider 收到请求后的处理链"></a>Provider 收到请求后的处理链</h3><p>服务端则大致经过：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><code class="hljs text">Network<br>↓<br>ProtocolAdapter<br>↓<br>Protocol<br>↓<br>Codec<br>↓<br>反序列化<br>↓<br>Channel Handler<br>↓<br>业务线程池<br>↓<br>BizReqHandler<br>↓<br>根据接口/分组/方法找 Exporter<br>↓<br>Exporter.invoke()<br>↓<br>FilterChain<br>↓<br>invokeMethod()<br>↓<br>反射或预编译调用<br>↓<br>CompletableFuture&lt;Result&gt;<br>↓<br>Channel<br>↓<br>序列化/编码<br>↓<br>Response<br></code></pre></td></tr></table></figure>
+
+<p>其中多协议能力就自然出现在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ProtocolAdapter<br></code></pre></td></tr></table></figure>
+
+<p>后面。</p>
+<p>泛化调用可以在恢复调用参数时进入专属处理逻辑。</p>
+<p>鉴权和业务级 Filter 可以位于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Exporter.invoke()<br></code></pre></td></tr></table></figure>
+
+<p>之后。</p>
+<p>异步则贯穿：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Refer.invoke()<br>Exporter.invoke()<br>Server.open()<br>Registry.register()<br>...<br></code></pre></td></tr></table></figure>
+
+<p>这些核心流程。</p>
+<h3 id="为什么“纯异步”与“插件化”是同一套设计思想"><a href="#为什么“纯异步”与“插件化”是同一套设计思想" class="headerlink" title="为什么“纯异步”与“插件化”是同一套设计思想"></a>为什么“纯异步”与“插件化”是同一套设计思想</h3><p>表面上看：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">CompletableFuture<br></code></pre></td></tr></table></figure>
+
+<p>解决性能问题；</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Plugin<br></code></pre></td></tr></table></figure>
+
+<p>解决扩展问题。</p>
+<p>实际上二者共同指向一个目标：</p>
+<blockquote>
+<p><strong>避免核心流程被某一个具体实现长期绑死。</strong></p>
+</blockquote>
+<p>纯异步意味着：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">核心调用链不假设“这个操作现在必须完成”<br></code></pre></td></tr></table></figure>
+
+<p>插件化意味着：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">核心调用链不假设“这个功能必须由某个固定实现完成”<br></code></pre></td></tr></table></figure>
+
+<p>于是 RPC Core 更像一个协调器：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs text">什么时候完成<br>由 Future 决定<br><br>怎么序列化<br>由 Serializer 决定<br><br>走哪个协议<br>由 Protocol 决定<br><br>选哪个节点<br>由 LoadBalance 决定<br><br>怎么鉴权<br>由 Filter 决定<br></code></pre></td></tr></table></figure>
+
+<p>这就是微内核架构真正有价值的地方。</p>
+<h2 id="把高级能力重新映射到源码位置"><a href="#把高级能力重新映射到源码位置" class="headerlink" title="把高级能力重新映射到源码位置"></a>把高级能力重新映射到源码位置</h2><p>把前面的内容放回四层架构，可以得到一张非常有用的工程地图：</p>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>主要落点</th>
+<th>核心原因</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Future &#x2F; CompletableFuture</td>
+<td>Invoker、Transport</td>
+<td>RPC 请求天然是异步消息模型</td>
+</tr>
+<tr>
+<td>服务端异步</td>
+<td>Exporter</td>
+<td>业务结果不必与当前工作线程绑定</td>
+</tr>
+<tr>
+<td>调用方认证</td>
+<td>Filter &#x2F; Provider</td>
+<td>必须在业务执行之前拒绝非法调用</td>
+</tr>
+<tr>
+<td>方法级授权</td>
+<td>Filter</td>
+<td>可以基于 service + method 做规则判断</td>
+</tr>
+<tr>
+<td>Provider 身份认证</td>
+<td>Registry</td>
+<td>防止非法应用发布服务</td>
+</tr>
+<tr>
+<td>Trace &#x2F; Span</td>
+<td>Consumer&#x2F;Provider Filter</td>
+<td>调用前后天然是埋点位置</td>
+</tr>
+<tr>
+<td>Trace 上下文传播</td>
+<td>Request Attachment</td>
+<td>必须跨 RPC 边界传递</td>
+</tr>
+<tr>
+<td>时钟轮</td>
+<td>FutureManager &#x2F; Transport</td>
+<td>大量请求都需要低成本超时管理</td>
+</tr>
+<tr>
+<td>流量录制</td>
+<td>Filter &#x2F; 扩展点</td>
+<td>能同时获得请求和响应</td>
+</tr>
+<tr>
+<td>动态分组</td>
+<td>Registry + Cluster</td>
+<td>本质是动态改变服务发现视图</td>
+</tr>
+<tr>
+<td>泛化调用</td>
+<td>Entry + Serializer</td>
+<td>不再依赖静态 Interface Class</td>
+</tr>
+<tr>
+<td>多协议</td>
+<td>ProtocolAdapter + Protocol</td>
+<td>协议差异应该终止于协议层</td>
+</tr>
+</tbody></table>
+<p>理解这张表以后，再阅读任意成熟 RPC 框架源码，思路会清晰很多。</p>
+<p>不要一上来就追着类名跑。</p>
+<p>先问：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">这个类属于哪一层？<br><br>它是在启动阶段还是调用阶段？<br><br>它处理的是治理逻辑还是协议逻辑？<br><br>它位于 Consumer 还是 Provider？<br><br>它最终影响的是哪个核心抽象？<br></code></pre></td></tr></table></figure>
+
+<p>这些问题往往比记住某个类名更重要。</p>
+<h2 id="从-ICE、Hessian、Dubbo-到基础设施下沉"><a href="#从-ICE、Hessian、Dubbo-到基础设施下沉" class="headerlink" title="从 ICE、Hessian、Dubbo 到基础设施下沉"></a>从 ICE、Hessian、Dubbo 到基础设施下沉</h2><p>RPC 的演进历史本身也能解释这些设计为什么会出现。</p>
+<h3 id="ICE：跨语言通信问题"><a href="#ICE：跨语言通信问题" class="headerlink" title="ICE：跨语言通信问题"></a>ICE：跨语言通信问题</h3><p>早期系统从 <code>.NET</code> 向 Java 迁移时，首先面对的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">.NET Application<br>        ↕<br>Java Application<br></code></pre></td></tr></table></figure>
+
+<p>这时候 RPC 解决的核心矛盾仍然是：</p>
+<blockquote>
+<p>如何让两个不同技术栈的应用完成远程调用。</p>
+</blockquote>
+<p>ICE 这类框架在这一阶段能够很好地解决跨语言通信问题。</p>
+<h3 id="Hessian：和-Java-Spring-更自然地结合"><a href="#Hessian：和-Java-Spring-更自然地结合" class="headerlink" title="Hessian：和 Java&#x2F;Spring 更自然地结合"></a>Hessian：和 Java&#x2F;Spring 更自然地结合</h3><p>当系统逐渐以 Java 为主后，开发体验变得更加重要。</p>
+<p>Hessian 可以更自然地和 Spring 应用结合，因此 RPC 接口开发成本下降。</p>
+<p>但是随着规模增大，另一个问题出现：</p>
+<blockquote>
+<p><strong>只有 RPC 通信还不够，还需要服务发现。</strong></p>
+</blockquote>
+<p>如果所有 Provider 都通过 VIP 暴露：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Consumer<br>    ↓<br>VIP / LVS<br>    ↓<br>Provider Cluster<br></code></pre></td></tr></table></figure>
+
+<p>流量会集中经过中间节点，同时每一个服务都需要维护相应 VIP。</p>
+<p>RPC 开始从：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">通信框架<br></code></pre></td></tr></table></figure>
+
+<p>走向：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">服务化框架<br></code></pre></td></tr></table></figure>
+
+<h3 id="Dubbo-ZooKeeper：服务发现进入-RPC"><a href="#Dubbo-ZooKeeper：服务发现进入-RPC" class="headerlink" title="Dubbo + ZooKeeper：服务发现进入 RPC"></a>Dubbo + ZooKeeper：服务发现进入 RPC</h3><p>Dubbo 一类框架把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">服务注册<br>服务发现<br>路由<br>负载均衡<br></code></pre></td></tr></table></figure>
+
+<p>更紧密地纳入 RPC 体系。</p>
+<p>调用关系变为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Provider -&gt; Registry<br><br>Consumer -&gt; Registry<br>              ↓<br>          Provider List<br>              ↓<br>        Consumer 直连 Provider<br></code></pre></td></tr></table></figure>
+
+<p>这比所有流量经过中心 VIP 更适合大规模服务化。</p>
+<p>但随着：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">接口越来越多<br>实例越来越多<br>扩容越来越频繁<br></code></pre></td></tr></table></figure>
+
+<p>注册中心本身也会面对更大压力。</p>
+<p>这又推动了新的架构选择和自研需求。</p>
+<h3 id="从-SDK-治理走向基础设施治理"><a href="#从-SDK-治理走向基础设施治理" class="headerlink" title="从 SDK 治理走向基础设施治理"></a>从 SDK 治理走向基础设施治理</h3><p>传统 RPC 经常把大量能力封装进应用 Jar：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">RPC SDK<br>├─ 服务发现<br>├─ 路由<br>├─ 负载均衡<br>├─ 熔断<br>├─ 链路<br>├─ 鉴权<br>└─ ...<br></code></pre></td></tr></table></figure>
+
+<p>应用需要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">引入 SDK<br>升级 SDK<br>重新发布<br></code></pre></td></tr></table></figure>
+
+<p>随着 Kubernetes 等基础设施的发展，越来越多非业务能力开始尝试从应用进程中剥离。</p>
+<p>Service Mesh 所代表的一种方向就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">业务应用<br>   │<br>   │ 更少感知基础设施细节<br>   ▼<br>通信代理 / 基础设施<br>   │<br>   ├─ 服务发现<br>   ├─ 流量治理<br>   ├─ 安全<br>   └─ 可观测<br></code></pre></td></tr></table></figure>
+
+<p>这并不意味着 RPC 的服务治理消失了。</p>
+<p>恰恰相反：</p>
+<blockquote>
+<p><strong>治理能力一直存在，只是它可能从 SDK 移到了更低的基础设施层。</strong></p>
+</blockquote>
+<p>所以理解 RPC 原理并不会因为云原生出现而失去价值。</p>
+<p>服务发现、路由、负载均衡、超时、重试、链路传播、协议转换这些问题依旧存在，只是实现位置可能发生变化。</p>
+<h2 id="几个很容易被误解的工程结论"><a href="#几个很容易被误解的工程结论" class="headerlink" title="几个很容易被误解的工程结论"></a>几个很容易被误解的工程结论</h2><h3 id="异步不等于一定更快"><a href="#异步不等于一定更快" class="headerlink" title="异步不等于一定更快"></a>异步不等于一定更快</h3><p>如果四个请求互相依赖：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">A -&gt; B -&gt; C -&gt; D<br></code></pre></td></tr></table></figure>
+
+<p>就不能通过简单并行变成 1&#x2F;4 时间。</p>
+<p>如果异步任务最终又全部堆积在另一个饱和线程池里，同样不会获得无限吞吐量。</p>
+<p>异步优化的是<strong>等待模型和线程使用方式</strong>，不是消灭真实工作量。</p>
+<h3 id="线程多不等于吞吐量高"><a href="#线程多不等于吞吐量高" class="headerlink" title="线程多不等于吞吐量高"></a>线程多不等于吞吐量高</h3><p>当瓶颈来自：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">慢 SQL<br>下游 RPC<br>磁盘 IO<br>外部资源<br></code></pre></td></tr></table></figure>
+
+<p>继续增加线程可能只会导致：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">更多排队<br>更多上下文切换<br>更多内存占用<br>更差的尾延迟<br></code></pre></td></tr></table></figure>
+
+<p>真正应该先搞清楚：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">线程到底在等什么？<br></code></pre></td></tr></table></figure>
+
+<h3 id="内网不等于可信网络"><a href="#内网不等于可信网络" class="headerlink" title="内网不等于可信网络"></a>内网不等于可信网络</h3><p>“只有内部系统使用”并不能代替：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">调用方身份<br>接口权限<br>方法权限<br>Provider 身份<br></code></pre></td></tr></table></figure>
+
+<p>流程制度可以减少误调用，但技术系统应该具备真正的强制边界。</p>
+<h3 id="TraceId-不是加个日志字段就结束了"><a href="#TraceId-不是加个日志字段就结束了" class="headerlink" title="TraceId 不是加个日志字段就结束了"></a>TraceId 不是加个日志字段就结束了</h3><p>真正困难的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">跨 RPC<br>跨线程池<br>跨异步回调<br>跨 MQ<br></code></pre></td></tr></table></figure>
+
+<p>都必须保证上下文连续。</p>
+<p>否则最需要链路信息的地方，往往恰好最容易丢 TraceId。</p>
+<h3 id="时间轮不是高精度定时器"><a href="#时间轮不是高精度定时器" class="headerlink" title="时间轮不是高精度定时器"></a>时间轮不是高精度定时器</h3><p>它优先解决的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">海量定时任务<br>+<br>减少扫描成本<br></code></pre></td></tr></table></figure>
+
+<p>而不是微秒级、严格实时触发。</p>
+<h3 id="流量回放也不是简单复制请求"><a href="#流量回放也不是简单复制请求" class="headerlink" title="流量回放也不是简单复制请求"></a>流量回放也不是简单复制请求</h3><p>真正的业务结果还依赖：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">数据状态<br>时间<br>缓存<br>下游服务<br>副作用<br></code></pre></td></tr></table></figure>
+
+<p>如果忽略这些条件，很容易把“环境不同”误判成“代码有 Bug”。</p>
+<h3 id="动态分组不是改一个字符串那么简单"><a href="#动态分组不是改一个字符串那么简单" class="headerlink" title="动态分组不是改一个字符串那么简单"></a>动态分组不是改一个字符串那么简单</h3><p>逻辑分组发生变化后：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">服务发现<br>请求元数据<br>Provider 校验<br>监控<br>容量统计<br></code></pre></td></tr></table></figure>
+
+<p>都必须理解这种临时拓扑变化。</p>
+<p>否则注册中心认为调用合法，Provider 自己却把请求拒绝了。</p>
+<h3 id="多协议兼容的重点是“内部模型统一”"><a href="#多协议兼容的重点是“内部模型统一”" class="headerlink" title="多协议兼容的重点是“内部模型统一”"></a>多协议兼容的重点是“内部模型统一”</h3><p>magic number 只是入口。</p>
+<p>真正决定架构能不能长期维护的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">协议差异<br>必须在进入 RPC Core 之前被抹平<br></code></pre></td></tr></table></figure>
+
+<p>否则支持三个协议之后，整个 Core 都会充满协议判断。</p>
+<h2 id="一套完整-RPC-的工程闭环"><a href="#一套完整-RPC-的工程闭环" class="headerlink" title="一套完整 RPC 的工程闭环"></a>一套完整 RPC 的工程闭环</h2><p>如果把所有能力放在一起，一次生产级 RPC 调用其实经历的是：</p>
+<pre><code class=" mermaid">flowchart TB
+    Biz[&quot;业务方法调用&quot;]
+    Proxy[&quot;Proxy / GenericService&quot;]
+    CFilter[&quot;Consumer Filter\nTrace / Auth / Replay&quot;]
+    Cluster[&quot;Cluster&quot;]
+    Route[&quot;Route + LoadBalance&quot;]
+    Client[&quot;Client&quot;]
+    Future[&quot;Future + Timeout Wheel&quot;]
+    Network[&quot;Network&quot;]
+    Protocol[&quot;ProtocolAdapter + Codec&quot;]
+    PFilter[&quot;Provider Filter\nAuth / Trace&quot;]
+    Exporter[&quot;Exporter&quot;]
+    Method[&quot;真实业务方法&quot;]
+
+    Biz --&gt; Proxy
+    Proxy --&gt; CFilter
+    CFilter --&gt; Cluster
+    Cluster --&gt; Route
+    Route --&gt; Client
+    Client --&gt; Future
+    Future --&gt; Network
+    Network --&gt; Protocol
+    Protocol --&gt; PFilter
+    PFilter --&gt; Exporter
+    Exporter --&gt; Method
+</code></pre>
+
+<p>而框架外围还有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs text">Registry<br>    ├─ 服务发现<br>    ├─ Provider 身份验证<br>    ├─ 分组<br>    └─ 动态分组<br><br>Observability<br>    ├─ Trace<br>    ├─ Span<br>    ├─ Exception Code<br>    └─ Logs<br><br>Replay Platform<br>    ├─ Record<br>    ├─ Store<br>    ├─ Replay<br>    └─ Compare<br></code></pre></td></tr></table></figure>
+
+<p>这时再来看 RPC，会发现真正复杂的部分早已不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Socket 怎么发送一段二进制<br></code></pre></td></tr></table></figure>
+
+<p>而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">如何让几千个服务<br>在持续变化的生产环境中<br>安全、稳定、可观测、可扩展地通信<br></code></pre></td></tr></table></figure>
+
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>RPC 最基础的能力，是把一次远程网络通信包装成本地方法调用体验。但系统规模扩大之后，真正决定 RPC 是否适合生产环境的，往往是通信之外的能力。</p>
+<p>异步 RPC 通过 Future 和 CompletableFuture 改变请求等待模型，让独立调用可以并行，也让服务端不必长期占用 RPC 工作线程；但异步并不会消灭真实资源消耗，线程池、数据库和下游服务仍然存在容量边界。</p>
+<p>安全体系需要同时解决 Consumer 和 Provider 两个方向的问题。调用方必须具备可识别的应用身份，并进一步做到接口乃至方法级授权；服务注册时也应该验证应用是否有资格发布对应接口。授权平台更适合作为控制面，而高频认证判断应尽量在数据面本地完成。</p>
+<p>分布式故障定位不能只依赖一句 <code>timeout</code>。异常码、接口、方法、Consumer&#x2F;Provider 地址以及明确的错误分类，是 RPC 的基础可观测能力；Trace 和 Span 则进一步还原完整调用链，而真正困难的工程问题在于跨线程、异步回调和消息边界持续传播上下文。</p>
+<p>当每个请求都拥有自己的超时任务时，简单轮询会产生大量无效扫描。时钟轮通过时间槽和分层调度，把任务提前分桶，只处理当前即将到期的一部分任务，因此特别适合 RPC 请求超时、心跳、启动超时等海量轻量级定时场景。</p>
+<p>RPC 还能利用自身处于所有服务调用必经链路这一特点完成流量录制。真实流量经过异步旁录、存储、回放与结果比较后，可以成为应用重构、框架升级和压力测试的重要资产，不过数据状态、时间、幂等性以及外部依赖决定了流量回放远比“重新发一次请求”复杂。</p>
+<p>分组治理能够隔离核心和非核心业务，但静态隔离也会产生资源碎片。动态分组通过修改服务发现视图，把其它分组或共享池中的富余实例临时加入高压分组，使逻辑扩缩容不必依赖重启 Provider。</p>
+<p>泛化调用则进一步揭示了 RPC 的本质：Java Interface 并不是远程调用不可缺少的东西。只要拥有接口名、分组、方法、参数类型和参数值，就可以直接构造 RPC 请求，因此统一测试平台和 RPC 网关不必依赖所有业务接口 Jar。</p>
+<p>面对长期存在的新旧系统，多协议兼容比要求一次性迁移更现实。RPC 可以通过协议特征识别不同协议，再将协议相关对象转换为统一内部请求，让 Filter、路由、负载均衡和业务调用逻辑保持协议无关，从而获得平滑升级能力。</p>
+<p>而把这些设计放回真实代码，会发现它们最终都围绕几个稳定抽象展开：Consumer 侧的 <code>Refer</code>、Provider 侧的 <code>Exporter</code>、负责服务发现和连接管理的 <code>Registry</code> 与 <code>Cluster</code>、处理协议的 <code>Protocol</code>，以及创建 Client&#x2F;Server 的传输层工厂。核心 <code>Invoker</code> 以 <code>CompletableFuture</code> 表达异步结果，外围能力再通过插件不断扩展。</p>
+<p>所以学习 RPC 最有价值的部分，并不是记住某个框架的一组配置，而是理解这些设计问题为什么会出现，以及它们应该位于调用链的哪一个位置。</p>
+<p>当这些问题真正想通之后，再去阅读 Dubbo、gRPC、自研 RPC，甚至 Service Mesh 中的通信与治理逻辑，会发现底层面对的仍然是同一批问题：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">请求怎么发出去？<br>节点从哪里找到？<br>流量应该发给谁？<br>失败以后怎么办？<br>多久算超时？<br>谁有资格调用？<br>调用到底慢在哪里？<br>如何平滑升级？<br>怎样让框架继续演进？<br></code></pre></td></tr></table></figure>
+
+<p>RPC 的网络调用只是起点。</p>
+<p><strong>围绕远程调用建立稳定、可治理、可观测、可扩展的分布式通信体系，才是完整的 RPC 工程。</strong></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Architecture/" class="category-chain-item">Architecture</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/RPC/" class="print-no-link">#RPC</a>
+      
+        <a href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/" class="print-no-link">#微服务</a>
+      
+        <a href="/tags/%E5%8F%AF%E8%A7%82%E6%B5%8B%E6%80%A7/" class="print-no-link">#可观测性</a>
+      
+        <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/" class="print-no-link">#分布式系统</a>
+      
+        <a href="/tags/%E6%9C%8D%E5%8A%A1%E6%B2%BB%E7%90%86/" class="print-no-link">#服务治理</a>
+      
+        <a href="/tags/CompletableFuture/" class="print-no-link">#CompletableFuture</a>
+      
+        <a href="/tags/Service-Mesh/" class="print-no-link">#Service Mesh</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>RPC 高级工程实践与源码脉络：异步、安全、可观测、流量治理与协议演进</div>
+      <div>https://allendericdalexander.github.io/2026/08/18/archtect/rpc/RPCAdvance/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月18日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/18/archtect/rpc/RPCFramework/" title="RPC 框架进阶设计：从插件化架构到服务治理与无损上下线">
+                        <span class="hidden-mobile">RPC 框架进阶设计：从插件化架构到服务治理与无损上下线</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

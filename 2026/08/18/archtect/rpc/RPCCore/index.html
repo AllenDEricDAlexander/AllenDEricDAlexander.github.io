@@ -1,0 +1,2423 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="RPC（Remote Procedure Call，远程过程调用）是分布式系统中最基础的通信抽象之一。它真正解决的并不只是“让两台机器能够通信”，而是如何把接口代理、协议 framing、序列化、网络 IO、请求与响应关联、服务端分发等复杂过程隐藏起来，让业务代码尽可能获得类似本地方法调用的开发体验。本文从一次完整 RPC 调用出发，系统梳理协议设计、序列化选型、IO 多路复用、零拷贝、动态代理，">
+<meta property="og:type" content="article">
+<meta property="og:title" content="RPC 核心原理：从通信流程、协议与序列化到 Netty、动态代理和 gRPC">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/18/archtect/rpc/RPCCore/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="RPC（Remote Procedure Call，远程过程调用）是分布式系统中最基础的通信抽象之一。它真正解决的并不只是“让两台机器能够通信”，而是如何把接口代理、协议 framing、序列化、网络 IO、请求与响应关联、服务端分发等复杂过程隐藏起来，让业务代码尽可能获得类似本地方法调用的开发体验。本文从一次完整 RPC 调用出发，系统梳理协议设计、序列化选型、IO 多路复用、零拷贝、动态代理，">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-18T02:10:00.000Z">
+<meta property="article:modified_time" content="2026-08-18T02:10:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Netty">
+<meta property="article:tag" content="Protocol Buffer">
+<meta property="article:tag" content="RPC">
+<meta property="article:tag" content="gRPC">
+<meta property="article:tag" content="动态代理">
+<meta property="article:tag" content="序列化">
+<meta property="article:tag" content="网络 IO">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>RPC 核心原理：从通信流程、协议与序列化到 Netty、动态代理和 gRPC - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="RPC 核心原理：从通信流程、协议与序列化到 Netty、动态代理和 gRPC"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-18 10:10" pubdate>
+          2026年8月18日 上午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          11k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          94 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">RPC 核心原理：从通信流程、协议与序列化到 Netty、动态代理和 gRPC</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>RPC（Remote Procedure Call，远程过程调用）是分布式系统中最基础的通信抽象之一。它真正解决的并不只是“让两台机器能够通信”，而是如何把接口代理、协议 framing、序列化、网络 IO、请求与响应关联、服务端分发等复杂过程隐藏起来，让业务代码尽可能获得类似本地方法调用的开发体验。本文从一次完整 RPC 调用出发，系统梳理协议设计、序列化选型、IO 多路复用、零拷贝、动态代理，并最终通过 gRPC 的收发链路把这些知识串联起来。</p>
+<span id="more"></span>
+
+<h2 id="RPC-到底解决了什么问题"><a href="#RPC-到底解决了什么问题" class="headerlink" title="RPC 到底解决了什么问题"></a>RPC 到底解决了什么问题</h2><p>RPC 的全称是 Remote Procedure Call，也就是“远程过程调用”。</p>
+<p>仅仅通过网络访问另一台机器，并不足以完整描述 RPC。RPC 更重要的一层含义，是<strong>尽可能屏蔽远程通信的实现细节，为调用者提供接近本地方法调用的编程模型</strong>。</p>
+<p>假设订单服务需要查询用户信息。</p>
+<p>如果没有 RPC 框架，业务代码可能不得不亲自处理：</p>
+<ul>
+<li>服务地址从哪里获得；</li>
+<li>TCP 连接怎么建立；</li>
+<li>请求参数如何转换成字节；</li>
+<li>如何设计报文格式；</li>
+<li>一条消息在哪里结束；</li>
+<li>请求属于哪个接口、哪个方法；</li>
+<li>返回的数据如何与请求对应；</li>
+<li>如何反序列化响应；</li>
+<li>网络超时怎么办；</li>
+<li>连接断开怎么办。</li>
+</ul>
+<p>最终，一个原本只有一句业务含义的代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">User</span> <span class="hljs-variable">user</span> <span class="hljs-operator">=</span> userService.getUser(userId);<br></code></pre></td></tr></table></figure>
+
+<p>背后可能变成几十甚至几百行网络通信代码。</p>
+<p>RPC 框架做的事情，就是把这些逻辑下沉到基础设施层。</p>
+<p>从调用者视角看：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">调用接口 -&gt; 得到结果<br></code></pre></td></tr></table></figure>
+
+<p>从 RPC 框架内部看，则是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs text">方法调用<br>  -&gt; 代理拦截<br>  -&gt; 构造 RPC 请求<br>  -&gt; 序列化<br>  -&gt; 协议编码<br>  -&gt; 网络发送<br>  -&gt; 协议解码<br>  -&gt; 反序列化<br>  -&gt; 服务定位<br>  -&gt; 方法执行<br>  -&gt; 构造响应<br>  -&gt; 序列化<br>  -&gt; 协议编码<br>  -&gt; 网络返回<br>  -&gt; 解码<br>  -&gt; 反序列化<br>  -&gt; 返回调用结果<br></code></pre></td></tr></table></figure>
+
+<p>RPC 的核心价值可以概括为两件事：</p>
+<p><strong>第一，屏蔽网络编程复杂度。</strong></p>
+<p>业务开发者不需要直接操作 Socket、字节流和连接生命周期。</p>
+<p><strong>第二，构造远程调用抽象。</strong></p>
+<p>调用者主要面对接口、方法、参数和返回值，而不是“发送一个网络数据包”。</p>
+<p>这也是为什么 RPC 经常被称为分布式系统的“通信骨架”。</p>
+<hr>
+<h2 id="本地调用和远程调用终究不是一回事"><a href="#本地调用和远程调用终究不是一回事" class="headerlink" title="本地调用和远程调用终究不是一回事"></a>本地调用和远程调用终究不是一回事</h2><p>RPC 经常强调“像调用本地方法一样调用远程服务”，但这里的关键词是<strong>像</strong>，而不是“完全等价”。</p>
+<p>本地调用大致是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">线程<br>  |<br>  v<br>方法调用<br>  |<br>  v<br>内存中的对象<br>  |<br>  v<br>返回值<br></code></pre></td></tr></table></figure>
+
+<p>远程调用则至少跨越：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">调用方 JVM<br>    |<br>    | 序列化<br>    v<br>网络协议<br>    |<br>    | TCP / HTTP/2<br>    v<br>服务提供方 JVM<br>    |<br>    | 反序列化<br>    v<br>业务方法<br></code></pre></td></tr></table></figure>
+
+<p>两者在失败模型上完全不同。</p>
+<p>本地方法执行时，通常不会突然遇到：</p>
+<ul>
+<li>网络抖动；</li>
+<li>连接中断；</li>
+<li>服务端已经执行成功但客户端超时；</li>
+<li>请求重复发送；</li>
+<li>服务端实例突然下线；</li>
+<li>序列化版本不兼容；</li>
+<li>下游服务过载；</li>
+<li>整条调用链超时预算耗尽。</li>
+</ul>
+<p>所以：</p>
+<blockquote>
+<p><strong>RPC 可以隐藏远程调用的实现细节，但无法消除分布式系统本身的不确定性。</strong></p>
+</blockquote>
+<p>这是理解 RPC 最重要的前提之一。</p>
+<hr>
+<h2 id="一次完整的-RPC-调用经历了什么"><a href="#一次完整的-RPC-调用经历了什么" class="headerlink" title="一次完整的 RPC 调用经历了什么"></a>一次完整的 RPC 调用经历了什么</h2><p>先把所有组件放到同一张图里。</p>
+<pre><code class=" mermaid">flowchart LR
+    A[业务代码] --&gt; B[接口代理 / Stub]
+    B --&gt; C[构造 RPC Request]
+    C --&gt; D[序列化]
+    D --&gt; E[协议编码]
+    E --&gt; F[网络 IO]
+    F --&gt; G[协议解码]
+    G --&gt; H[反序列化]
+    H --&gt; I[服务与方法定位]
+    I --&gt; J[业务方法执行]
+
+    J --&gt; K[构造 RPC Response]
+    K --&gt; L[序列化]
+    L --&gt; M[协议编码]
+    M --&gt; N[网络 IO]
+    N --&gt; O[协议解码]
+    O --&gt; P[反序列化]
+    P --&gt; Q[完成 Future / 返回结果]
+    Q --&gt; A
+</code></pre>
+
+<p>如果再从时序角度观察：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant B as 业务代码
+    participant P as Proxy/Stub
+    participant C as RPC Client
+    participant N as Network
+    participant S as RPC Server
+    participant I as Service Impl
+
+    B-&gt;&gt;P: userService.getUser(id)
+    P-&gt;&gt;C: 构造 RPC Request
+    C-&gt;&gt;C: 序列化 + 协议编码
+    C-&gt;&gt;N: 发送二进制数据
+    N-&gt;&gt;S: TCP/HTTP2 数据
+    S-&gt;&gt;S: 协议解码 + 反序列化
+    S-&gt;&gt;I: 调用目标方法
+    I--&gt;&gt;S: 返回结果
+    S-&gt;&gt;S: 序列化 + 协议编码
+    S--&gt;&gt;N: 返回响应
+    N--&gt;&gt;C: 二进制响应
+    C-&gt;&gt;C: 解码 + 反序列化
+    C--&gt;&gt;P: RPC Response
+    P--&gt;&gt;B: 返回方法结果
+</code></pre>
+
+<p>这条链路里，有几个特别容易混淆的概念：</p>
+<table>
+<thead>
+<tr>
+<th>层次</th>
+<th>主要解决的问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>动态代理 &#x2F; Stub</td>
+<td>如何把普通方法调用变成 RPC 调用</td>
+</tr>
+<tr>
+<td>序列化</td>
+<td>对象如何变成字节，以及如何恢复</td>
+</tr>
+<tr>
+<td>RPC 协议</td>
+<td>字节流如何表示一条完整 RPC 消息</td>
+</tr>
+<tr>
+<td>编解码</td>
+<td>如何按照协议格式写入和读取网络消息</td>
+</tr>
+<tr>
+<td>网络 IO</td>
+<td>字节如何高效地在机器之间传输</td>
+</tr>
+<tr>
+<td>请求关联</td>
+<td>异步并发时，哪个 Response 属于哪个 Request</td>
+</tr>
+<tr>
+<td>服务分发</td>
+<td>收到请求后应该调用哪个服务、哪个方法</td>
+</tr>
+</tbody></table>
+<p>把这几层分清之后，RPC 的内部结构就不再神秘。</p>
+<hr>
+<h2 id="序列化和协议编码不是一回事"><a href="#序列化和协议编码不是一回事" class="headerlink" title="序列化和协议编码不是一回事"></a>序列化和协议编码不是一回事</h2><p>这是 RPC 中很常见的混淆点。</p>
+<p>例如业务代码有：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">UserRequest</span> <span class="hljs-variable">request</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">UserRequest</span>(<span class="hljs-number">1001L</span>);<br></code></pre></td></tr></table></figure>
+
+<p>序列化负责：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">UserRequest 对象<br>        |<br>        | Protobuf / Hessian / JSON<br>        v<br>业务数据字节<br></code></pre></td></tr></table></figure>
+
+<p>协议编码则是在这段数据之外继续增加 RPC 通信所需的信息：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">+-----------------------------------------------+<br>| RPC Header                                    |<br>| Magic | Version | Type | RequestId | Length   |<br>+-----------------------------------------------+<br>| Payload                                       |<br>| 序列化后的 UserRequest                         |<br>+-----------------------------------------------+<br></code></pre></td></tr></table></figure>
+
+<p>可以把两者类比成发快递。</p>
+<p>序列化类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">把家具拆成可以运输的零件<br></code></pre></td></tr></table></figure>
+
+<p>协议编码类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">装进快递箱，并贴上：<br>收件信息<br>包裹编号<br>尺寸<br>类型<br>运输标记<br></code></pre></td></tr></table></figure>
+
+<p>因此完整关系是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs text">Object<br>  |<br>  | Serialization<br>  v<br>Payload<br>  |<br>  | Protocol Encoding<br>  v<br>Frame / RPC Message<br>  |<br>  | Network<br>  v<br></code></pre></td></tr></table></figure>
+
+<p>接收端反过来：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">Network<br>  |<br>  v<br>Protocol Decoding<br>  |<br>  v<br>Payload<br>  |<br>  v<br>Deserialization<br>  |<br>  v<br>Object<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="为什么-RPC-需要自己的应用层协议"><a href="#为什么-RPC-需要自己的应用层协议" class="headerlink" title="为什么 RPC 需要自己的应用层协议"></a>为什么 RPC 需要自己的应用层协议</h2><p>TCP 提供的是可靠字节流。</p>
+<p>这里最关键的是“字节流”。</p>
+<p>假设调用方连续发送三条消息：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">AB<br>CD<br>EF<br></code></pre></td></tr></table></figure>
+
+<p>应用层不能假设服务端每次 <code>read()</code> 都会恰好得到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">AB<br>CD<br>EF<br></code></pre></td></tr></table></figure>
+
+<p>实际可能读到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ABCDEF<br></code></pre></td></tr></table></figure>
+
+<p>也可能：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">ABC<br>DEF<br></code></pre></td></tr></table></figure>
+
+<p>甚至：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">A<br>BCDE<br>F<br></code></pre></td></tr></table></figure>
+
+<p>TCP 并不知道：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">AB<br></code></pre></td></tr></table></figure>
+
+<p>是一条业务消息。</p>
+<p>对于 TCP 来说，它们只是连续的字节。</p>
+<p>所谓“TCP 粘包、拆包”，从应用协议的角度理解，本质就是：</p>
+<blockquote>
+<p><strong>TCP 是字节流，而应用需要消息边界。</strong></p>
+</blockquote>
+<p>所以 RPC 必须自己规定：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">一条消息从哪里开始？<br>有多长？<br>是什么类型？<br>Payload 怎么解析？<br></code></pre></td></tr></table></figure>
+
+<p>这就是应用层 RPC 协议存在的意义。</p>
+<hr>
+<h2 id="最简单的-RPC-协议：长度-Payload"><a href="#最简单的-RPC-协议：长度-Payload" class="headerlink" title="最简单的 RPC 协议：长度 + Payload"></a>最简单的 RPC 协议：长度 + Payload</h2><p>最直接的设计方式，是在消息前写入长度。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">+----------------+----------------------+<br>| Length         | Payload              |<br>| 固定长度       | 可变长度              |<br>+----------------+----------------------+<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Length = 1024<br></code></pre></td></tr></table></figure>
+
+<p>服务端就知道：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">接下来再读取 1024 字节<br></code></pre></td></tr></table></figure>
+
+<p>才是一条完整消息。</p>
+<p>读取流程变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">先读取 Length<br>      |<br>      v<br>获得 Payload 长度<br>      |<br>      v<br>继续读取指定字节数<br>      |<br>      v<br>获得完整消息<br></code></pre></td></tr></table></figure>
+
+<p>但这还不够。</p>
+<p>服务端拿到 Payload 后，还不知道：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">这是什么序列化格式？<br>是 Request 还是 Response？<br>属于哪个请求？<br>协议是什么版本？<br></code></pre></td></tr></table></figure>
+
+<p>于是必须继续设计 Header。</p>
+<hr>
+<h2 id="一个典型-RPC-Header-应该包含什么"><a href="#一个典型-RPC-Header-应该包含什么" class="headerlink" title="一个典型 RPC Header 应该包含什么"></a>一个典型 RPC Header 应该包含什么</h2><p>常见 RPC 报文可以抽象成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">+------------------------------------------------+<br>|                    Header                      |<br>+------------------------------------------------+<br>|                    Payload                     |<br>+------------------------------------------------+<br></code></pre></td></tr></table></figure>
+
+<p>Header 中通常需要承载类似信息：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Magic</td>
+<td>判断是不是当前 RPC 协议</td>
+</tr>
+<tr>
+<td>Total Length</td>
+<td>整条消息长度</td>
+</tr>
+<tr>
+<td>Header Length</td>
+<td>Header 自身长度</td>
+</tr>
+<tr>
+<td>Version</td>
+<td>协议版本</td>
+</tr>
+<tr>
+<td>Message Type</td>
+<td>Request、Response、Heartbeat 等</td>
+</tr>
+<tr>
+<td>Serializer</td>
+<td>Protobuf、Hessian 等</td>
+</tr>
+<tr>
+<td>Request ID</td>
+<td>请求与响应关联</td>
+</tr>
+<tr>
+<td>Extension</td>
+<td>扩展能力</td>
+</tr>
+</tbody></table>
+<p>Payload 则主要保存：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">服务名<br>方法名<br>参数类型<br>参数值<br>附件 / Metadata<br></code></pre></td></tr></table></figure>
+
+<p>如果是响应，则可能保存：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">执行状态<br>返回值<br>异常信息<br>扩展 Metadata<br></code></pre></td></tr></table></figure>
+
+<p>一条 RPC 请求可以抽象为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs text">+------------------------------------------------------+<br>| Magic                                                |<br>+------------------------------------------------------+<br>| Total Length                                         |<br>+------------------------------------------------------+<br>| Header Length                                        |<br>+------------------------------------------------------+<br>| Version | Type | Serializer                          |<br>+------------------------------------------------------+<br>| Request ID                                           |<br>+------------------------------------------------------+<br>| Extensible Header                                    |<br>+------------------------------------------------------+<br>| Payload                                              |<br>| Service / Method / Args / Attachments                |<br>+------------------------------------------------------+<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="为什么协议头也必须可扩展"><a href="#为什么协议头也必须可扩展" class="headerlink" title="为什么协议头也必须可扩展"></a>为什么协议头也必须可扩展</h2><p>假设第一版协议头长度是固定的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">88 bit<br></code></pre></td></tr></table></figure>
+
+<p>所有服务都默认：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">前 88 bit = Header<br>后面的数据 = Payload<br></code></pre></td></tr></table></figure>
+
+<p>后来希望增加：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Timeout<br></code></pre></td></tr></table></figure>
+
+<p>如果直接把 Header 扩大：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">88 bit -&gt; 96 bit<br></code></pre></td></tr></table></figure>
+
+<p>旧版本服务仍然按照 88 bit 解析。</p>
+<p>于是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">新版发送方<br>Header: 96 bit<br>Payload: ...<br></code></pre></td></tr></table></figure>
+
+<p>到了旧服务：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Header: 前 88 bit<br>Payload: 从第 89 bit 开始<br></code></pre></td></tr></table></figure>
+
+<p>Header 后面的 8 bit 就被误认为 Payload。</p>
+<p>整个报文立刻错位。</p>
+<p>因此协议设计时不能只考虑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">今天能不能工作<br></code></pre></td></tr></table></figure>
+
+<p>还必须考虑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">两年以后加字段怎么办<br></code></pre></td></tr></table></figure>
+
+<p>一种更合理的思路是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">固定区域<br>  +<br>可变 Header<br>  +<br>Payload<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">+-------------------------+<br>| 固定 Header              |<br>| TotalLength             |<br>| HeaderLength            |<br>| Version                 |<br>+-------------------------+<br>| 可扩展 Header            |<br>+-------------------------+<br>| Payload                 |<br>+-------------------------+<br></code></pre></td></tr></table></figure>
+
+<p>解析方首先读取固定区域。</p>
+<p>得到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">HeaderLength<br>TotalLength<br></code></pre></td></tr></table></figure>
+
+<p>之后就能够知道：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Header 读到哪里结束<br>Payload 从哪里开始<br>整条消息什么时候结束<br></code></pre></td></tr></table></figure>
+
+<p>这样后续向 Header 中增加字段，就不会强迫所有旧客户端同时修改固定长度。</p>
+<hr>
+<h2 id="协议兼容性的核心不是“能增加字段”这么简单"><a href="#协议兼容性的核心不是“能增加字段”这么简单" class="headerlink" title="协议兼容性的核心不是“能增加字段”这么简单"></a>协议兼容性的核心不是“能增加字段”这么简单</h2><p>设计可升级协议时，至少需要考虑三个层次。</p>
+<h3 id="Header-兼容"><a href="#Header-兼容" class="headerlink" title="Header 兼容"></a>Header 兼容</h3><p>新增协议能力时，旧版本能否跳过自己不认识的字段。</p>
+<h3 id="Payload-兼容"><a href="#Payload-兼容" class="headerlink" title="Payload 兼容"></a>Payload 兼容</h3><p>DTO 增加字段以后，旧调用方能不能继续读取。</p>
+<h3 id="语义兼容"><a href="#语义兼容" class="headerlink" title="语义兼容"></a>语义兼容</h3><p>即使数据能够反序列化，也不代表业务一定兼容。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">V1:<br>status = 0 / 1<br></code></pre></td></tr></table></figure>
+
+<p>到了 V2：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">status = 0 / 1 / 2<br></code></pre></td></tr></table></figure>
+
+<p>旧客户端即使能成功读取字段，也不一定知道：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">2<br></code></pre></td></tr></table></figure>
+
+<p>代表什么。</p>
+<p>所以 RPC 接口本质上是一份长期存在的契约。</p>
+<p>接口升级时，最好遵循：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">优先增加兼容字段<br>谨慎删除字段<br>谨慎改变字段类型<br>谨慎改变字段业务语义<br>避免复用已经废弃的字段编号<br></code></pre></td></tr></table></figure>
+
+<p>协议层的兼容只是第一关，真正困难的是业务契约兼容。</p>
+<hr>
+<h2 id="Request-ID：异步-RPC-如何找到对应的-Response"><a href="#Request-ID：异步-RPC-如何找到对应的-Response" class="headerlink" title="Request ID：异步 RPC 如何找到对应的 Response"></a>Request ID：异步 RPC 如何找到对应的 Response</h2><p>RPC 为了提高吞吐量，通常会复用连接，同时发送多个请求。</p>
+<p>假设：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Request 1001<br>Request 1002<br>Request 1003<br></code></pre></td></tr></table></figure>
+
+<p>因为三个请求在服务端的执行时间不同，返回顺序完全可能是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Response 1002<br>Response 1001<br>Response 1003<br></code></pre></td></tr></table></figure>
+
+<p>因此不能依赖：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">第一个返回值就是第一个请求<br></code></pre></td></tr></table></figure>
+
+<p>常见做法是在 Request Header 中增加唯一的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Request ID<br></code></pre></td></tr></table></figure>
+
+<p>客户端发送时：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">requestId = 1001<br></code></pre></td></tr></table></figure>
+
+<p>并在内存中保存类似关系：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">1001 -&gt; Future A<br>1002 -&gt; Future B<br>1003 -&gt; Future C<br></code></pre></td></tr></table></figure>
+
+<p>服务端处理完请求以后，把相同的 Request ID 放入响应：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Response &#123;<br>    requestId = 1002<br>    result = ...<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>客户端收到后查找：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">pendingRequests[1002]<br></code></pre></td></tr></table></figure>
+
+<p>然后完成对应的 Future。</p>
+<p>整体过程：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant C as RPC Client
+    participant M as Pending Map
+    participant S as RPC Server
+
+    C-&gt;&gt;M: 1001 -&gt; Future A
+    C-&gt;&gt;S: Request(id=1001)
+
+    C-&gt;&gt;M: 1002 -&gt; Future B
+    C-&gt;&gt;S: Request(id=1002)
+
+    S--&gt;&gt;C: Response(id=1002)
+    C-&gt;&gt;M: remove(1002)
+    M--&gt;&gt;C: Future B
+    C-&gt;&gt;C: complete Future B
+
+    S--&gt;&gt;C: Response(id=1001)
+    C-&gt;&gt;M: remove(1001)
+    M--&gt;&gt;C: Future A
+    C-&gt;&gt;C: complete Future A
+</code></pre>
+
+<p>Request ID 因此是实现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">连接复用<br>+<br>异步并发<br>+<br>请求响应关联<br></code></pre></td></tr></table></figure>
+
+<p>的重要基础。</p>
+<hr>
+<h2 id="一个需要纠正的-HTTP-认识"><a href="#一个需要纠正的-HTTP-认识" class="headerlink" title="一个需要纠正的 HTTP 认识"></a>一个需要纠正的 HTTP 认识</h2><p>在解释为什么很多 RPC 框架会设计私有协议时，经常会看到一种过度简化的说法：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP/1.x 每次请求都必须重新建立连接<br></code></pre></td></tr></table></figure>
+
+<p>这个结论不能直接作为 HTTP&#x2F;1.1 的协议事实。</p>
+<p><strong>HTTP&#x2F;1.1 支持持久连接。</strong></p>
+<p>真正应该比较的是：</p>
+<ul>
+<li>协议头开销；</li>
+<li>编解码成本；</li>
+<li>连接复用能力；</li>
+<li>并发模型；</li>
+<li>是否支持多路复用；</li>
+<li>双向流能力；</li>
+<li>浏览器和基础设施兼容性；</li>
+<li>跨语言能力。</li>
+</ul>
+<p>这也解释了一个非常重要的事实：</p>
+<blockquote>
+<p><strong>RPC 并不意味着一定要直接构建在裸 TCP 私有协议之上。</strong></p>
+</blockquote>
+<p>gRPC 就是典型例子：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">RPC Programming Model<br>        |<br>        v<br>HTTP/2<br>        |<br>        v<br>TCP<br></code></pre></td></tr></table></figure>
+
+<p>所以：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP 和 RPC<br></code></pre></td></tr></table></figure>
+
+<p>并不是只能二选一。</p>
+<p>它们处在不同的抽象维度。</p>
+<hr>
+<h2 id="序列化：Java-对象为什么不能直接在网络上传输"><a href="#序列化：Java-对象为什么不能直接在网络上传输" class="headerlink" title="序列化：Java 对象为什么不能直接在网络上传输"></a>序列化：Java 对象为什么不能直接在网络上传输</h2><p>业务方法通常操作的是对象：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java">Order order;<br>User user;<br>CreateOrderRequest request;<br></code></pre></td></tr></table></figure>
+
+<p>但网络层最终处理的是字节。</p>
+<p>因此必须完成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Object<br>  |<br>  | Serialize<br>  v<br>Bytes<br></code></pre></td></tr></table></figure>
+
+<p>接收端再执行：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Bytes<br>  |<br>  | Deserialize<br>  v<br>Object<br></code></pre></td></tr></table></figure>
+
+<p>序列化框架本质上都需要解决：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">对象是什么类型？<br>有哪些字段？<br>字段是什么类型？<br>字段值是什么？<br>嵌套对象怎么表示？<br>集合怎么表示？<br>不同版本怎么兼容？<br></code></pre></td></tr></table></figure>
+
+<p>最终按照某种约定写入字节流。</p>
+<p>反序列化时，再按照同样规则恢复对象。</p>
+<hr>
+<h2 id="JDK-原生序列化"><a href="#JDK-原生序列化" class="headerlink" title="JDK 原生序列化"></a>JDK 原生序列化</h2><p>Java 提供：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">ObjectOutputStream<br></code></pre></td></tr></table></figure>
+
+<p>进行序列化，以及：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">ObjectInputStream<br></code></pre></td></tr></table></figure>
+
+<p>进行反序列化。</p>
+<p>典型对象：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">Student</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">Serializable</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-type">int</span> no;<br>    <span class="hljs-keyword">private</span> String name;<br><br>    <span class="hljs-comment">// getter / setter</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>底层序列化数据除了真正的属性值，还需要写入大量帮助恢复对象的元信息，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">Magic<br>Version<br>Class 信息<br>字段信息<br>字段类型<br>字段值<br>对象引用<br>结束标记<br></code></pre></td></tr></table></figure>
+
+<p>对象存在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">继承<br>引用<br>嵌套<br></code></pre></td></tr></table></figure>
+
+<p>时，还需要继续递归处理对象关系。</p>
+<p>JDK 序列化的优势是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Java 原生<br>使用简单<br>对象模型表达能力强<br></code></pre></td></tr></table></figure>
+
+<p>但作为 RPC 默认序列化方式时，需要非常谨慎。</p>
+<p>一方面序列化体积和性能未必理想，另一方面 Java 原生反序列化长期以来存在较大的安全攻击面。</p>
+<p>因此：</p>
+<blockquote>
+<p><strong>RPC 序列化选型时，安全性不能只作为性能之后的附加指标。</strong></p>
+</blockquote>
+<hr>
+<h2 id="JSON"><a href="#JSON" class="headerlink" title="JSON"></a>JSON</h2><p>JSON 最大的优点不是速度，而是通用性和可读性。</p>
+<p>例如：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1001</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;Mario&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>人可以直接读取，调试非常方便。</p>
+<p>它天然适合：</p>
+<ul>
+<li>HTTP API；</li>
+<li>Web 前后端通信；</li>
+<li>配置；</li>
+<li>日志；</li>
+<li>调试接口；</li>
+<li>对可读性要求高的系统。</li>
+</ul>
+<p>但 JSON 是文本格式。</p>
+<p>相对于紧凑的二进制协议，会产生更多：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">字段名<br>引号<br>分隔符<br>文本数字<br></code></pre></td></tr></table></figure>
+
+<p>另外，JSON 自身没有 Java 那样完整的静态类型信息。</p>
+<p>Java 在恢复对象时通常还需要结合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">目标 Class<br>泛型信息<br>反射<br>类型转换<br></code></pre></td></tr></table></figure>
+
+<p>因此对于大量、高频 RPC 调用，JSON 往往不是最追求性能时的第一选择。</p>
+<p>不过这并不意味着：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">JSON = 不适合 RPC<br></code></pre></td></tr></table></figure>
+
+<p>正确的结论应该是：</p>
+<blockquote>
+<p><strong>序列化方案应该服务于业务场景，而不是脱离场景比较跑分。</strong></p>
+</blockquote>
+<hr>
+<h2 id="Hessian"><a href="#Hessian" class="headerlink" title="Hessian"></a>Hessian</h2><p>Hessian 属于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">动态类型<br>二进制<br>跨语言<br>相对紧凑<br></code></pre></td></tr></table></figure>
+
+<p>的序列化方案。</p>
+<p>相比 JDK 原生序列化和 JSON，它通常可以得到更紧凑的结果，同时保留相对方便的 Java 对象使用体验。</p>
+<p>这也是传统 Java RPC 框架中 Hessian 很有吸引力的原因。</p>
+<p>不过实际使用中必须关注：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">具体 Hessian 实现<br>具体版本<br>集合类型兼容<br>特殊 Java 类型<br>数字类型转换<br></code></pre></td></tr></table></figure>
+
+<p>材料中的工程经验曾特别提到过：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">LinkedHashMap<br>LinkedHashSet<br>Locale<br>Byte / Short<br></code></pre></td></tr></table></figure>
+
+<p>等类型的兼容问题。</p>
+<p>这类行为具有明显的版本和实现差异，所以不要把某个版本的限制理解成所有 Hessian 实现的永久规则。</p>
+<p>真正上线前应该通过兼容性测试验证自己的 DTO。</p>
+<hr>
+<h2 id="Protocol-Buffer"><a href="#Protocol-Buffer" class="headerlink" title="Protocol Buffer"></a>Protocol Buffer</h2><p>Protocol Buffer 通常需要先定义 IDL：</p>
+<figure class="highlight proto"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs proto">syntax = <span class="hljs-string">&quot;proto3&quot;</span>;<br><br><span class="hljs-keyword">package</span> hello;<br><br><span class="hljs-keyword">message </span><span class="hljs-title class_">HelloRequest</span> &#123;<br>  <span class="hljs-type">string</span> name = <span class="hljs-number">1</span>;<br>&#125;<br><br><span class="hljs-keyword">message </span><span class="hljs-title class_">HelloReply</span> &#123;<br>  <span class="hljs-type">string</span> message = <span class="hljs-number">1</span>;<br>&#125;<br><br><span class="hljs-keyword">service </span><span class="hljs-title class_">HelloService</span> &#123;<br>  <span class="hljs-function"><span class="hljs-keyword">rpc</span> Say(HelloRequest) <span class="hljs-keyword">returns</span> (HelloReply)</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>然后通过编译器生成不同语言的代码。</p>
+<p>这种方式最大的变化是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">接口契约<br></code></pre></td></tr></table></figure>
+
+<p>不再依赖某一种编程语言的 Class。</p>
+<p>而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">.proto<br></code></pre></td></tr></table></figure>
+
+<p>成为跨语言契约。</p>
+<p>Protocol Buffer 的主要优势包括：</p>
+<ul>
+<li>二进制体积较小；</li>
+<li>编解码效率较高；</li>
+<li>类型信息明确；</li>
+<li>不需要运行时依赖大量反射恢复字段类型；</li>
+<li>支持多语言；</li>
+<li>字段编号机制适合协议演进。</li>
+</ul>
+<p>它非常适合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Java -&gt; Go<br>Java -&gt; C++<br>Go -&gt; Python<br></code></pre></td></tr></table></figure>
+
+<p>这类跨语言 RPC。</p>
+<p>代价则是增加：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">IDL<br>代码生成<br>Schema 管理<br></code></pre></td></tr></table></figure>
+
+<p>这一层工程流程。</p>
+<p>这其实是一种典型取舍：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">动态方便<br>        vs<br>强契约 + 高性能 + 跨语言<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="关于-Protobuf-的-null-要特别小心"><a href="#关于-Protobuf-的-null-要特别小心" class="headerlink" title="关于 Protobuf 的 null 要特别小心"></a>关于 Protobuf 的 null 要特别小心</h2><p>Java 对象世界里经常有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">null<br></code></pre></td></tr></table></figure>
+
+<p>但 Protobuf 的字段语义并不能简单等同于 Java 对象里的 <code>null</code>。</p>
+<p>因此，不应该笼统写成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Protobuf 不支持 null<br></code></pre></td></tr></table></figure>
+
+<p>然后停止分析。</p>
+<p>真正需要关注的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">字段是否存在<br>默认值<br>optional 语义<br>生成代码的表示方式<br>应用 DTO 与 Proto Message 的转换规则<br></code></pre></td></tr></table></figure>
+
+<p>如果业务内部高度依赖：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-literal">null</span><br></code></pre></td></tr></table></figure>
+
+<p>区分某种业务状态，那么在设计 Proto 契约时应该显式设计语义，而不是寄希望于 Java 对象行为自动映射过去。</p>
+<hr>
+<h2 id="Protostuff"><a href="#Protostuff" class="headerlink" title="Protostuff"></a>Protostuff</h2><p>Protostuff 的吸引力在于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">希望获得接近 Protobuf 的编码效率<br>+<br>又不想为所有 Java DTO 编写 IDL<br></code></pre></td></tr></table></figure>
+
+<p>它允许直接基于 Java 对象进行序列化。</p>
+<p>不过材料中的实践经验也说明了一个非常典型的问题：</p>
+<blockquote>
+<p>序列化框架的兼容性行为会随着版本变化。</p>
+</blockquote>
+<p>例如资料早期版本曾记录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">对象数组 null 元素<br>集合<br>Map<br></code></pre></td></tr></table></figure>
+
+<p>等兼容问题，后续版本又有所改进。</p>
+<p>所以面对任何序列化框架，都不能只记：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">支持 / 不支持<br></code></pre></td></tr></table></figure>
+
+<p>更应该问：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">哪个版本？<br>支持到什么程度？<br>跨版本行为如何？<br>生产数据升级以后还能不能读取？<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="RPC-序列化应该怎么选"><a href="#RPC-序列化应该怎么选" class="headerlink" title="RPC 序列化应该怎么选"></a>RPC 序列化应该怎么选</h2><p>序列化选型很容易陷入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">谁最快？<br></code></pre></td></tr></table></figure>
+
+<p>但生产 RPC 的优先级不能只有 benchmark。</p>
+<p>更合理的顺序是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">安全性<br>  ↓<br>通用性<br>  ↓<br>兼容性<br>  ↓<br>性能<br>  ↓<br>编解码效率<br>  ↓<br>空间开销<br></code></pre></td></tr></table></figure>
+
+<p>其中最容易被低估的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">兼容性<br></code></pre></td></tr></table></figure>
+
+<p>因为一次序列化速度慢 10%，可能只是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">多消耗一点 CPU<br></code></pre></td></tr></table></figure>
+
+<p>但升级一次之后新旧服务无法互调，结果可能是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">整个服务不可用<br></code></pre></td></tr></table></figure>
+
+<p>可靠性通常比微小的 benchmark 差距更重要。</p>
+<p>可以粗略比较：</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th align="right">可读性</th>
+<th align="right">体积</th>
+<th align="right">性能</th>
+<th align="right">跨语言</th>
+<th align="right">Schema</th>
+<th>典型特点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>JDK Serialization</td>
+<td align="right">低</td>
+<td align="right">较大</td>
+<td align="right">一般</td>
+<td align="right">差</td>
+<td align="right">无</td>
+<td>Java 原生，但 RPC 中应谨慎</td>
+</tr>
+<tr>
+<td>JSON</td>
+<td align="right">高</td>
+<td align="right">较大</td>
+<td align="right">一般</td>
+<td align="right">高</td>
+<td align="right">弱</td>
+<td>调试方便、生态极强</td>
+</tr>
+<tr>
+<td>Hessian</td>
+<td align="right">低</td>
+<td align="right">较小</td>
+<td align="right">较高</td>
+<td align="right">较好</td>
+<td align="right">无</td>
+<td>Java 使用方便</td>
+</tr>
+<tr>
+<td>Protobuf</td>
+<td align="right">低</td>
+<td align="right">小</td>
+<td align="right">高</td>
+<td align="right">高</td>
+<td align="right">强</td>
+<td>高性能、强契约、跨语言</td>
+</tr>
+<tr>
+<td>Protostuff</td>
+<td align="right">低</td>
+<td align="right">小</td>
+<td align="right">高</td>
+<td align="right">主要偏 Java</td>
+<td align="right">弱</td>
+<td>减少 Java 场景 IDL 工作</td>
+</tr>
+</tbody></table>
+<p>这个表不是绝对性能排行榜。</p>
+<p>最终还是应该以：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">自己的对象模型<br>自己的数据规模<br>自己的语言组合<br>自己的版本升级方式<br></code></pre></td></tr></table></figure>
+
+<p>进行测试。</p>
+<hr>
+<h2 id="RPC-DTO-最好保持简单"><a href="#RPC-DTO-最好保持简单" class="headerlink" title="RPC DTO 最好保持简单"></a>RPC DTO 最好保持简单</h2><p>序列化框架再快，也扛不住糟糕的对象设计。</p>
+<p>RPC 参数最常见的几个问题如下。</p>
+<h3 id="对象层级过深"><a href="#对象层级过深" class="headerlink" title="对象层级过深"></a>对象层级过深</h3><p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Order<br> ├── User<br> │    └── Address<br> │         └── Province<br> ├── Shop<br> │    └── Company<br> └── Items<br>      └── SKU<br>           └── ...<br></code></pre></td></tr></table></figure>
+
+<p>序列化时需要不断递归。</p>
+<p>对象关系越复杂：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">CPU 消耗越大<br>序列化结果越大<br>兼容风险越高<br></code></pre></td></tr></table></figure>
+
+<p>RPC DTO 不应该直接等于整个领域对象图。</p>
+<hr>
+<h3 id="一次传输超大集合"><a href="#一次传输超大集合" class="headerlink" title="一次传输超大集合"></a>一次传输超大集合</h3><p>例如：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">List&lt;Order&gt; orders;<br>Map&lt;Long, User&gt; users;<br></code></pre></td></tr></table></figure>
+
+<p>序列化之后达到数 MB。</p>
+<p>影响的不只是网络带宽，还包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">对象遍历<br>序列化 CPU<br>内存分配<br>缓冲区<br>GC<br>网络传输<br>服务端反序列化<br></code></pre></td></tr></table></figure>
+
+<p>因此“大对象 RPC 超时”未必是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">网络太慢<br></code></pre></td></tr></table></figure>
+
+<p>也可能大量时间耗费在网络之前和之后。</p>
+<hr>
+<h3 id="使用过于特殊的集合类型"><a href="#使用过于特殊的集合类型" class="headerlink" title="使用过于特殊的集合类型"></a>使用过于特殊的集合类型</h3><p>接口 DTO 最好优先选择：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">常见<br>稳定<br>语言原生<br>序列化框架明确支持<br></code></pre></td></tr></table></figure>
+
+<p>的数据结构。</p>
+<p>不要因为业务内部用了某个特殊集合实现，就直接把它暴露成远程契约。</p>
+<hr>
+<h3 id="复杂继承关系"><a href="#复杂继承关系" class="headerlink" title="复杂继承关系"></a>复杂继承关系</h3><p>序列化：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Child<br>  extends Parent<br>    extends Base<br></code></pre></td></tr></table></figure>
+
+<p>通常意味着框架还需要继续遍历父类字段。</p>
+<p>RPC DTO 更适合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">简单数据结构<br>+<br>组合<br></code></pre></td></tr></table></figure>
+
+<p>而不是复杂领域继承体系。</p>
+<hr>
+<h2 id="网络-IO-是整个-RPC-的地基"><a href="#网络-IO-是整个-RPC-的地基" class="headerlink" title="网络 IO 是整个 RPC 的地基"></a>网络 IO 是整个 RPC 的地基</h2><p>完成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">对象 -&gt; 二进制<br></code></pre></td></tr></table></figure>
+
+<p>之后，还需要真正把数据送到另一台机器。</p>
+<p>典型 RPC 请求：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs text">Client<br>  |<br>  | write<br>  v<br>Socket<br>  |<br>  v<br>Network<br>  |<br>  v<br>Socket<br>  |<br>  | read<br>  v<br>Server<br></code></pre></td></tr></table></figure>
+
+<p>因此高性能 RPC 的基础问题最终会落到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">网络 IO 模型<br></code></pre></td></tr></table></figure>
+
+<p>上。</p>
+<p>常见模型可以粗略分成：</p>
+<table>
+<thead>
+<tr>
+<th>模型</th>
+<th>特征</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Blocking IO</td>
+<td>一个 IO 操作可能长期阻塞线程</td>
+</tr>
+<tr>
+<td>Non-blocking IO</td>
+<td>IO 未就绪立即返回</td>
+</tr>
+<tr>
+<td>IO Multiplexing</td>
+<td>一个线程监听大量连接的就绪事件</td>
+</tr>
+<tr>
+<td>Asynchronous IO</td>
+<td>IO 完成后再进行异步通知</td>
+</tr>
+</tbody></table>
+<p>实际高并发 RPC 最重要的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">IO Multiplexing<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Blocking-IO-为什么简单但难扛高连接数"><a href="#Blocking-IO-为什么简单但难扛高连接数" class="headerlink" title="Blocking IO 为什么简单但难扛高连接数"></a>Blocking IO 为什么简单但难扛高连接数</h2><p>传统阻塞式 Socket：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">Thread<br>  |<br>  v<br>read()<br>  |<br>  | 数据没到<br>  |<br>  +------ 阻塞 ------&gt;<br></code></pre></td></tr></table></figure>
+
+<p>最直接的服务器模型通常是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Connection A -&gt; Thread A<br>Connection B -&gt; Thread B<br>Connection C -&gt; Thread C<br>...<br></code></pre></td></tr></table></figure>
+
+<p>优势非常明显：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">代码简单<br>同步编程容易理解<br></code></pre></td></tr></table></figure>
+
+<p>在连接数不多时完全够用。</p>
+<p>问题则是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">大量连接<br>+<br>大量阻塞线程<br></code></pre></td></tr></table></figure>
+
+<p>会带来：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">线程内存<br>上下文切换<br>线程调度<br></code></pre></td></tr></table></figure>
+
+<p>等成本。</p>
+<p>因此 RPC 服务达到较高并发后，需要另一套模型。</p>
+<hr>
+<h2 id="IO-多路复用解决的是什么"><a href="#IO-多路复用解决的是什么" class="headerlink" title="IO 多路复用解决的是什么"></a>IO 多路复用解决的是什么</h2><p>IO 多路复用的核心不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">让一个 Socket 同时执行多个请求<br></code></pre></td></tr></table></figure>
+
+<p>而是：</p>
+<blockquote>
+<p><strong>用较少的线程监控大量 Socket 的 IO 就绪状态。</strong></p>
+</blockquote>
+<p>抽象过程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Socket A ─┐<br>Socket B ─┤<br>Socket C ─┼──&gt; Selector / Poller<br>Socket D ─┤<br>Socket E ─┘<br>              |<br>              | 哪些 Socket Ready？<br>              v<br>          Event Loop<br></code></pre></td></tr></table></figure>
+
+<p>当某些连接可读：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">A ready<br>C ready<br></code></pre></td></tr></table></figure>
+
+<p>事件循环再处理：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">read(A)<br>read(C)<br></code></pre></td></tr></table></figure>
+
+<p>因此一个线程不需要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">永远阻塞在某一个连接上<br></code></pre></td></tr></table></figure>
+
+<p>而可以不断处理大量连接的就绪事件。</p>
+<hr>
+<h2 id="select、poll-和-epoll"><a href="#select、poll-和-epoll" class="headerlink" title="select、poll 和 epoll"></a>select、poll 和 epoll</h2><p>IO 多路复用在不同系统中存在不同实现。</p>
+<p>Linux 中经常讨论：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">select<br>poll<br>epoll<br></code></pre></td></tr></table></figure>
+
+<p>可以从演进思路理解。</p>
+<h3 id="select"><a href="#select" class="headerlink" title="select"></a>select</h3><p>应用提交一组文件描述符，然后内核检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">哪些已经就绪<br></code></pre></td></tr></table></figure>
+
+<p>大量连接下需要不断遍历集合。</p>
+<h3 id="poll"><a href="#poll" class="headerlink" title="poll"></a>poll</h3><p>基本思想仍然类似，但数据结构和可管理的描述符数量相比传统 select 有所改善。</p>
+<h3 id="epoll"><a href="#epoll" class="headerlink" title="epoll"></a>epoll</h3><p>更适合 Linux 高并发网络场景。</p>
+<p>不需要每次都对整个监听集合执行同样的线性扫描逻辑，而是维护事件集合，并返回已经就绪的连接。</p>
+<p>这也是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Nginx<br>Redis<br>Netty Native Transport<br></code></pre></td></tr></table></figure>
+
+<p>这类高并发组件经常围绕 epoll 进行优化的原因。</p>
+<hr>
+<h2 id="为什么-RPC-常选择-Reactor-Netty"><a href="#为什么-RPC-常选择-Reactor-Netty" class="headerlink" title="为什么 RPC 常选择 Reactor + Netty"></a>为什么 RPC 常选择 Reactor + Netty</h2><p>对于 Java RPC：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">自己直接维护 Selector<br></code></pre></td></tr></table></figure>
+
+<p>当然可以。</p>
+<p>但这意味着还要亲自解决：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">连接管理<br>事件循环<br>ByteBuffer<br>半包<br>粘包<br>异常传播<br>线程模型<br>Back Pressure<br>SSL<br>连接空闲检测<br></code></pre></td></tr></table></figure>
+
+<p>于是工程中通常会选择：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Netty<br></code></pre></td></tr></table></figure>
+
+<p>这类成熟网络框架。</p>
+<p>Netty 最核心的思想之一就是 Reactor&#x2F;EventLoop。</p>
+<p>可以简化理解成：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[Socket Connections] --&gt; B[EventLoop]
+    B --&gt; C[Channel]
+    C --&gt; D[ChannelPipeline]
+    D --&gt; E[Decoder]
+    E --&gt; F[Business Handler]
+    F --&gt; G[Encoder]
+    G --&gt; C
+</code></pre>
+
+<p>网络线程负责：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">处理 IO 事件<br></code></pre></td></tr></table></figure>
+
+<p>业务逻辑则可以根据架构进一步分发。</p>
+<p>这样就把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">高并发连接管理<br></code></pre></td></tr></table></figure>
+
+<p>和：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">业务执行<br></code></pre></td></tr></table></figure>
+
+<p>分离开来。</p>
+<hr>
+<h2 id="什么是零拷贝"><a href="#什么是零拷贝" class="headerlink" title="什么是零拷贝"></a>什么是零拷贝</h2><p>普通网络发送过程，可以粗略理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs text">Application<br>    |<br>    v<br>User Buffer<br>    |<br>    | CPU Copy<br>    v<br>Kernel Buffer<br>    |<br>    | DMA<br>    v<br>NIC<br></code></pre></td></tr></table></figure>
+
+<p>读取则大致相反。</p>
+<p>如果每次传输都发生大量：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">内存复制<br>+<br>用户态/内核态切换<br></code></pre></td></tr></table></figure>
+
+<p>在高吞吐系统中会产生明显成本。</p>
+<p>于是出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Zero-copy<br></code></pre></td></tr></table></figure>
+
+<p>思想。</p>
+<p>不过“零拷贝”这个名字非常容易产生误解。</p>
+<p>它通常并不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">一个字节一次都不复制<br></code></pre></td></tr></table></figure>
+
+<p>更准确地说，是：</p>
+<blockquote>
+<p><strong>尽量减少 CPU 参与的无意义数据复制，以及不必要的用户态和内核态数据搬运。</strong></p>
+</blockquote>
+<p>常见操作系统层面的技术包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">mmap<br>sendfile<br></code></pre></td></tr></table></figure>
+
+<p>它们通过内存映射或直接在内核数据路径之间转移数据，减少传统：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Kernel -&gt; User -&gt; Kernel<br></code></pre></td></tr></table></figure>
+
+<p>这样的重复复制。</p>
+<hr>
+<h2 id="操作系统零拷贝和-Netty-零拷贝要分开理解"><a href="#操作系统零拷贝和-Netty-零拷贝要分开理解" class="headerlink" title="操作系统零拷贝和 Netty 零拷贝要分开理解"></a>操作系统零拷贝和 Netty 零拷贝要分开理解</h2><p>Netty 中经常也会说“零拷贝”。</p>
+<p>但其中相当一部分优化发生在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">用户空间<br></code></pre></td></tr></table></figure>
+
+<p>目标是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">减少 ByteBuf 之间的数据复制<br></code></pre></td></tr></table></figure>
+
+<p>而不是 Linux 内核的 <code>sendfile</code> 那一种问题。</p>
+<p>这两个概念必须区分。</p>
+<hr>
+<h2 id="CompositeByteBuf：逻辑合并，而不是物理复制"><a href="#CompositeByteBuf：逻辑合并，而不是物理复制" class="headerlink" title="CompositeByteBuf：逻辑合并，而不是物理复制"></a>CompositeByteBuf：逻辑合并，而不是物理复制</h2><p>假设一条协议消息由：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Header<br>+<br>Body<br></code></pre></td></tr></table></figure>
+
+<p>组成。</p>
+<p>最直接的方式是新申请一个大数组：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">newBuffer<br></code></pre></td></tr></table></figure>
+
+<p>然后：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">copy(header)<br>copy(body)<br></code></pre></td></tr></table></figure>
+
+<p>形成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Header + Body<br></code></pre></td></tr></table></figure>
+
+<p>Netty 的 <code>CompositeByteBuf</code> 可以让多个 ByteBuf 在逻辑上成为一个 ByteBuf：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">ByteBuf A ─┐<br>           ├── CompositeByteBuf<br>ByteBuf B ─┘<br></code></pre></td></tr></table></figure>
+
+<p>底层数据不一定需要全部复制到新的连续空间。</p>
+<p>对于频繁进行：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">协议组装<br>拆包<br>粘包处理<br></code></pre></td></tr></table></figure>
+
+<p>的 RPC 框架非常有价值。</p>
+<hr>
+<h2 id="slice：共享底层存储区域"><a href="#slice：共享底层存储区域" class="headerlink" title="slice：共享底层存储区域"></a>slice：共享底层存储区域</h2><p>假设一个 ByteBuf：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">+-------------------------------------+<br>| Header | Payload                    |<br>+-------------------------------------+<br></code></pre></td></tr></table></figure>
+
+<p>传统方式可能复制出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">headerBytes<br>payloadBytes<br></code></pre></td></tr></table></figure>
+
+<p><code>slice()</code> 可以创建：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Header View<br>Payload View<br></code></pre></td></tr></table></figure>
+
+<p>它们仍然共享原来的底层存储。</p>
+<p>于是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">切分消息<br></code></pre></td></tr></table></figure>
+
+<p>不一定意味着：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">复制消息<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="wrap：直接包装已有数据"><a href="#wrap：直接包装已有数据" class="headerlink" title="wrap：直接包装已有数据"></a>wrap：直接包装已有数据</h2><p>对于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">byte[]<br>ByteBuffer<br>ByteBuf<br></code></pre></td></tr></table></figure>
+
+<p>如果只是为了交给 Netty 使用，没有必要永远重新复制一次。</p>
+<p>通过：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">wrap<br></code></pre></td></tr></table></figure>
+
+<p>可以把已有数据包装成 ByteBuf 视图。</p>
+<p>核心思想仍然只有一句：</p>
+<blockquote>
+<p><strong>能复用内存就不要复制。</strong></p>
+</blockquote>
+<hr>
+<h2 id="Direct-Buffer"><a href="#Direct-Buffer" class="headerlink" title="Direct Buffer"></a>Direct Buffer</h2><p>Java 堆内存的数据进行 Socket IO 时，在某些路径中可能还需要复制到适合 native IO 使用的内存区域。</p>
+<p>Netty 可以使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Direct Buffer<br></code></pre></td></tr></table></figure>
+
+<p>即 JVM 堆外直接内存。</p>
+<p>这可以减少某些：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Heap Buffer -&gt; Direct Buffer<br></code></pre></td></tr></table></figure>
+
+<p>的额外复制。</p>
+<p>不过 Direct Buffer 并不等于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">网络传输从此完全零复制<br></code></pre></td></tr></table></figure>
+
+<p>它只是优化整个数据路径中的一部分。</p>
+<hr>
+<h2 id="FileRegion-与-transferTo"><a href="#FileRegion-与-transferTo" class="headerlink" title="FileRegion 与 transferTo"></a>FileRegion 与 transferTo</h2><p>Netty 的 <code>FileRegion</code> 可以结合：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">FileChannel.transferTo(...)<br></code></pre></td></tr></table></figure>
+
+<p>传输文件内容。</p>
+<p>在支持的操作系统上，这类 API 可以进一步利用类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">sendfile<br></code></pre></td></tr></table></figure>
+
+<p>的内核能力。</p>
+<p>因此 Netty 中可以同时看到两类“零拷贝”：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">用户空间 ByteBuf 操作优化<br></code></pre></td></tr></table></figure>
+
+<p>以及：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">操作系统级文件传输优化<br></code></pre></td></tr></table></figure>
+
+<p>不要把两者混为一谈。</p>
+<hr>
+<h2 id="动态代理：RPC-为什么能“像本地调用”"><a href="#动态代理：RPC-为什么能“像本地调用”" class="headerlink" title="动态代理：RPC 为什么能“像本地调用”"></a>动态代理：RPC 为什么能“像本地调用”</h2><p>现在回到最上层的问题。</p>
+<p>假设存在接口：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">interface</span> <span class="hljs-title class_">UserService</span> &#123;<br><br>    User <span class="hljs-title function_">getUser</span><span class="hljs-params">(<span class="hljs-type">long</span> id)</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>调用代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">User</span> <span class="hljs-variable">user</span> <span class="hljs-operator">=</span> userService.getUser(<span class="hljs-number">1001L</span>);<br></code></pre></td></tr></table></figure>
+
+<p>问题来了。</p>
+<p>调用方 JVM 根本不存在真正的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">UserServiceImpl<br></code></pre></td></tr></table></figure>
+
+<p>它在另一台机器上。</p>
+<p>那这句：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">userService.getUser(...)<br></code></pre></td></tr></table></figure>
+
+<p>到底调用的是谁？</p>
+<p>答案通常是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Proxy / Stub<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="JDK-Dynamic-Proxy-的核心原理"><a href="#JDK-Dynamic-Proxy-的核心原理" class="headerlink" title="JDK Dynamic Proxy 的核心原理"></a>JDK Dynamic Proxy 的核心原理</h2><p>可以用一个简化示例理解。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">interface</span> <span class="hljs-title class_">HelloService</span> &#123;<br>    String <span class="hljs-title function_">hello</span><span class="hljs-params">(String name)</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>创建 <code>InvocationHandler</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> java.lang.reflect.InvocationHandler;<br><span class="hljs-keyword">import</span> java.lang.reflect.Method;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">RpcInvocationHandler</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">InvocationHandler</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> RpcClient client;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">RpcInvocationHandler</span><span class="hljs-params">(RpcClient client)</span> &#123;<br>        <span class="hljs-built_in">this</span>.client = client;<br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> Object <span class="hljs-title function_">invoke</span><span class="hljs-params">(</span><br><span class="hljs-params">            Object proxy,</span><br><span class="hljs-params">            Method method,</span><br><span class="hljs-params">            Object[] args)</span> <span class="hljs-keyword">throws</span> Throwable &#123;<br><br>        <span class="hljs-type">RpcRequest</span> <span class="hljs-variable">request</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">RpcRequest</span>(<br>                method.getDeclaringClass().getName(),<br>                method.getName(),<br>                method.getParameterTypes(),<br>                args<br>        );<br><br>        <span class="hljs-keyword">return</span> client.invoke(request);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>再生成接口代理：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">HelloService</span> <span class="hljs-variable">helloService</span> <span class="hljs-operator">=</span> (HelloService) Proxy.newProxyInstance(<br>        HelloService.class.getClassLoader(),<br>        <span class="hljs-keyword">new</span> <span class="hljs-title class_">Class</span>&lt;?&gt;[]&#123;HelloService.class&#125;,<br>        <span class="hljs-keyword">new</span> <span class="hljs-title class_">RpcInvocationHandler</span>(rpcClient)<br>);<br></code></pre></td></tr></table></figure>
+
+<p>此时调用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">helloService.hello(<span class="hljs-string">&quot;Mario&quot;</span>);<br></code></pre></td></tr></table></figure>
+
+<p>真正执行的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Proxy<br>  |<br>  v<br>InvocationHandler.invoke()<br>  |<br>  v<br>RpcClient.invoke()<br></code></pre></td></tr></table></figure>
+
+<p>于是远程调用细节被完全藏在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">InvocationHandler<br></code></pre></td></tr></table></figure>
+
+<p>之后。</p>
+<hr>
+<h2 id="代理类实际上帮我们干了什么"><a href="#代理类实际上帮我们干了什么" class="headerlink" title="代理类实际上帮我们干了什么"></a>代理类实际上帮我们干了什么</h2><p>可以把代理理解成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">用户调用<br>   |<br>   v<br>Interface<br>   |<br>   v<br>Generated Proxy<br>   |<br>   v<br>Invocation Handler<br>   |<br>   v<br>RPC Framework<br></code></pre></td></tr></table></figure>
+
+<p>代理层会获得：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">接口类型<br>方法<br>参数类型<br>参数值<br></code></pre></td></tr></table></figure>
+
+<p>刚好可以构造：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">RPC Request<br></code></pre></td></tr></table></figure>
+
+<p>所以动态代理与 RPC 的结合非常自然。</p>
+<p>它把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Java Method Invocation<br></code></pre></td></tr></table></figure>
+
+<p>转换成了：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Remote Invocation Metadata<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="JDK-Proxy-的限制"><a href="#JDK-Proxy-的限制" class="headerlink" title="JDK Proxy 的限制"></a>JDK Proxy 的限制</h2><p>JDK 动态代理生成的类：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">extends Proxy<br>implements YourInterface<br></code></pre></td></tr></table></figure>
+
+<p>因此天然适合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">面向接口<br></code></pre></td></tr></table></figure>
+
+<p>的编程模型。</p>
+<p>这恰好与 RPC 非常契合。</p>
+<p>另外，资料中的 JDK Proxy 源码分析基于 JDK 1.7.x 时代的内部实现，因此像：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">ProxyGenerator<br>内部包路径<br>保存生成 class 的系统属性<br></code></pre></td></tr></table></figure>
+
+<p>这类实现细节不应该直接套用到现代 JDK。</p>
+<p>真正应该记住的是稳定原理：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">生成代理类<br>    |<br>    v<br>接口方法被代理类实现<br>    |<br>    v<br>方法内部转发给 InvocationHandler<br></code></pre></td></tr></table></figure>
+
+<p>而不是某一个 JDK 版本的内部类名。</p>
+<hr>
+<h2 id="Javassist-和-Byte-Buddy"><a href="#Javassist-和-Byte-Buddy" class="headerlink" title="Javassist 和 Byte Buddy"></a>Javassist 和 Byte Buddy</h2><p>JDK Proxy 之外，也可以通过字节码生成技术创建代理类。</p>
+<h3 id="Javassist"><a href="#Javassist" class="headerlink" title="Javassist"></a>Javassist</h3><p>Javassist 可以直接操作和生成 JVM 字节码结构。</p>
+<p>优势是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">不一定需要通过传统反射完成最终调用<br></code></pre></td></tr></table></figure>
+
+<p>因此可以生成更直接的代码路径。</p>
+<p>代价则是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">字节码 API 更底层<br>理解和维护成本更高<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h3 id="Byte-Buddy"><a href="#Byte-Buddy" class="headerlink" title="Byte Buddy"></a>Byte Buddy</h3><p>Byte Buddy 提供了更高层的字节码生成 API。</p>
+<p>相比直接操作底层字节码，通常可以写出更清晰的代理生成逻辑。</p>
+<p>对于 RPC 框架而言，代理方案最终需要关注的不只是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">能不能代理<br></code></pre></td></tr></table></figure>
+
+<p>还包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">代理类生成速度<br>生成字节码大小<br>代理方法执行速度<br>API 易用性<br>依赖复杂度<br>社区成熟度<br></code></pre></td></tr></table></figure>
+
+<p>因为 RPC 接口方法可能每秒调用几十万甚至更多次。</p>
+<p>代理路径本身也属于热点代码。</p>
+<hr>
+<h2 id="动态代理并不是-RPC-唯一选择"><a href="#动态代理并不是-RPC-唯一选择" class="headerlink" title="动态代理并不是 RPC 唯一选择"></a>动态代理并不是 RPC 唯一选择</h2><p>这里有一个非常重要的设计点。</p>
+<p>RPC 需要的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Stub<br></code></pre></td></tr></table></figure>
+
+<p>而不一定非得：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">运行时动态代理<br></code></pre></td></tr></table></figure>
+
+<p>另一种方法是编译期生成代码。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">IDL<br>  |<br>  v<br>Code Generator<br>  |<br>  v<br>UserServiceGrpc<br>  |<br>  v<br>UserServiceStub<br></code></pre></td></tr></table></figure>
+
+<p>gRPC 就更接近这种模式。</p>
+<p>所以：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">JDK Dynamic Proxy<br></code></pre></td></tr></table></figure>
+
+<p>和：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">gRPC Generated Stub<br></code></pre></td></tr></table></figure>
+
+<p>表面实现不同，但它们承担了非常相似的角色：</p>
+<blockquote>
+<p><strong>把“调用方法”转换成 RPC 请求，并隐藏后面的通信细节。</strong></p>
+</blockquote>
+<p>这也是理解 RPC 抽象边界的一个关键点。</p>
+<hr>
+<h2 id="用-gRPC-把前面的知识全部串起来"><a href="#用-gRPC-把前面的知识全部串起来" class="headerlink" title="用 gRPC 把前面的知识全部串起来"></a>用 gRPC 把前面的知识全部串起来</h2><p>前面的协议、序列化、网络 IO 和 Stub 如果单独学习，很容易变成几个互不相关的知识点。</p>
+<p>gRPC 恰好可以把它们连接起来。</p>
+<p>需要先说明版本背景：</p>
+<blockquote>
+<p>本节调用链以资料分析的 grpc-java 1.27.0 时代实现为主。新版本内部类和具体调用路径可能继续演进，阅读源码时应以所使用版本为准。</p>
+</blockquote>
+<p>但整体思路非常清晰：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">IDL<br>   +<br>Generated Stub<br>   +<br>Marshaller<br>   +<br>HTTP/2<br>   +<br>Netty<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="第一步：用-Protocol-Buffer-定义契约"><a href="#第一步：用-Protocol-Buffer-定义契约" class="headerlink" title="第一步：用 Protocol Buffer 定义契约"></a>第一步：用 Protocol Buffer 定义契约</h2><p>例如：</p>
+<figure class="highlight proto"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs proto">syntax = <span class="hljs-string">&quot;proto3&quot;</span>;<br><br><span class="hljs-keyword">option</span> java_multiple_files = <span class="hljs-literal">true</span>;<br><span class="hljs-keyword">option</span> java_package = <span class="hljs-string">&quot;io.grpc.hello&quot;</span>;<br><br><span class="hljs-keyword">package</span> hello;<br><br><span class="hljs-keyword">service </span><span class="hljs-title class_">HelloService</span> &#123;<br>  <span class="hljs-function"><span class="hljs-keyword">rpc</span> Say(HelloRequest) <span class="hljs-keyword">returns</span> (HelloReply)</span>;<br>&#125;<br><br><span class="hljs-keyword">message </span><span class="hljs-title class_">HelloRequest</span> &#123;<br>  <span class="hljs-type">string</span> name = <span class="hljs-number">1</span>;<br>&#125;<br><br><span class="hljs-keyword">message </span><span class="hljs-title class_">HelloReply</span> &#123;<br>  <span class="hljs-type">string</span> message = <span class="hljs-number">1</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这份文件同时定义：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Service<br>Method<br>Request<br>Response<br></code></pre></td></tr></table></figure>
+
+<p>然后利用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">protoc<br>+<br>protoc-gen-grpc-java<br></code></pre></td></tr></table></figure>
+
+<p>生成 Java 代码。</p>
+<p>于是客户端不需要自己编写：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Socket<br>Header<br>Frame<br>Serializer<br></code></pre></td></tr></table></figure>
+
+<p>而是得到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">HelloServiceGrpc<br>Stub<br>Request Builder<br>Response Parser<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="gRPC-客户端最外层发生了什么"><a href="#gRPC-客户端最外层发生了什么" class="headerlink" title="gRPC 客户端最外层发生了什么"></a>gRPC 客户端最外层发生了什么</h2><p>典型客户端可以简化成：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">ManagedChannel</span> <span class="hljs-variable">channel</span> <span class="hljs-operator">=</span><br>        ManagedChannelBuilder<br>                .forAddress(<span class="hljs-string">&quot;127.0.0.1&quot;</span>, <span class="hljs-number">50051</span>)<br>                .usePlaintext()<br>                .build();<br><br>HelloServiceGrpc.<span class="hljs-type">HelloServiceBlockingStub</span> <span class="hljs-variable">stub</span> <span class="hljs-operator">=</span><br>        HelloServiceGrpc.newBlockingStub(channel);<br><br><span class="hljs-type">HelloRequest</span> <span class="hljs-variable">request</span> <span class="hljs-operator">=</span><br>        HelloRequest.newBuilder()<br>                .setName(<span class="hljs-string">&quot;Mario&quot;</span>)<br>                .build();<br><br><span class="hljs-type">HelloReply</span> <span class="hljs-variable">reply</span> <span class="hljs-operator">=</span> stub.say(request);<br></code></pre></td></tr></table></figure>
+
+<p>业务代码只看到：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">stub.say(request);<br></code></pre></td></tr></table></figure>
+
+<p>但它背后实际上经历了一长串调用链。</p>
+<hr>
+<h2 id="gRPC-客户端发送链路"><a href="#gRPC-客户端发送链路" class="headerlink" title="gRPC 客户端发送链路"></a>gRPC 客户端发送链路</h2><p>按照资料中的核心调用关系，可以抽象成：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[HelloWorldClient] --&gt; B[Generated Stub]
+    B --&gt; C[ClientCalls]
+    C --&gt; D[ClientCallImpl]
+    D --&gt; E[MethodDescriptor / Marshaller]
+    E --&gt; F[MessageFramer]
+    F --&gt; G[Netty Client Stream]
+    G --&gt; H[HTTP/2 Stream]
+    H --&gt; I[Network]
+</code></pre>
+
+<p>可以分成几个关键阶段。</p>
+<h3 id="Stub"><a href="#Stub" class="headerlink" title="Stub"></a>Stub</h3><p>Stub 负责提供：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">方法调用 API<br></code></pre></td></tr></table></figure>
+
+<p>也就是：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">stub.say(request);<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h3 id="ClientCalls"><a href="#ClientCalls" class="headerlink" title="ClientCalls"></a>ClientCalls</h3><p>Generated Stub 会进一步进入 gRPC 的通用客户端调用逻辑。</p>
+<p>例如同步 Unary RPC 会进入类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">blockingUnaryCall<br></code></pre></td></tr></table></figure>
+
+<p>这样的调用路径。</p>
+<hr>
+<h3 id="ClientCallImpl"><a href="#ClientCallImpl" class="headerlink" title="ClientCallImpl"></a>ClientCallImpl</h3><p><code>ClientCallImpl</code> 负责管理一次客户端 RPC 调用生命周期。</p>
+<p>其中非常关键的一件事情，就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">把 Message 变成可以发送的数据<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="MethodDescriptor-是-RPC-方法的元数据"><a href="#MethodDescriptor-是-RPC-方法的元数据" class="headerlink" title="MethodDescriptor 是 RPC 方法的元数据"></a>MethodDescriptor 是 RPC 方法的元数据</h2><p>gRPC 中的 <code>MethodDescriptor</code> 非常值得理解。</p>
+<p>它并不保存真正业务逻辑，而保存与 RPC 方法有关的元信息，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Service / Method<br>调用类型<br>Request Marshaller<br>Response Marshaller<br></code></pre></td></tr></table></figure>
+
+<p>可以把它理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">RPC Method Schema<br></code></pre></td></tr></table></figure>
+
+<p>其中 Marshaller 就负责：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">对象 &lt;-&gt; 传输表示<br></code></pre></td></tr></table></figure>
+
+<p>于是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Generated Stub<br></code></pre></td></tr></table></figure>
+
+<p>并不需要知道：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Protobuf 到底怎么编码<br></code></pre></td></tr></table></figure>
+
+<p>只需要通过 MethodDescriptor 找到对应的 Marshaller。</p>
+<p>这是非常典型的解耦设计。</p>
+<hr>
+<h2 id="为什么-gRPC-使用-InputStream，而不是直接-byte"><a href="#为什么-gRPC-使用-InputStream，而不是直接-byte" class="headerlink" title="为什么 gRPC 使用 InputStream，而不是直接 byte[]"></a>为什么 gRPC 使用 InputStream，而不是直接 byte[]</h2><p>资料中的调用链有一个很有意思的设计：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Message<br>   |<br>   v<br>Marshaller<br>   |<br>   v<br>InputStream<br></code></pre></td></tr></table></figure>
+
+<p>而不是简单返回：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">byte</span>[]<br></code></pre></td></tr></table></figure>
+
+<p>原因与高性能 IO 非常相关。</p>
+<p>如果所有数据都先强制构造成连续：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">byte[]<br></code></pre></td></tr></table></figure>
+
+<p>那么在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">序列化缓存<br>网络缓存<br>压缩<br>Frame<br></code></pre></td></tr></table></figure>
+
+<p>之间可能反复出现内存复制。</p>
+<p>使用流式抽象后，可以：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">逐段读取<br>减少必须构造大连续数组的需求<br>更容易与底层 Buffer 组合<br>适配动态压缩和未知最终长度的数据<br></code></pre></td></tr></table></figure>
+
+<p>本质还是前面的原则：</p>
+<blockquote>
+<p><strong>尽量减少没有业务价值的数据搬运。</strong></p>
+</blockquote>
+<hr>
+<h2 id="MessageFramer：把消息放入传输协议"><a href="#MessageFramer：把消息放入传输协议" class="headerlink" title="MessageFramer：把消息放入传输协议"></a>MessageFramer：把消息放入传输协议</h2><p>序列化以后，只得到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Message Bytes<br></code></pre></td></tr></table></figure>
+
+<p>还不能直接认为是一条完整的网络消息。</p>
+<p>gRPC 还需要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Framing<br></code></pre></td></tr></table></figure>
+
+<p>所以进入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">MessageFramer<br></code></pre></td></tr></table></figure>
+
+<p>其职责可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">业务 Message<br>      |<br>      v<br>gRPC Message Frame<br>      |<br>      v<br>HTTP/2 DATA<br></code></pre></td></tr></table></figure>
+
+<p>随后交给 Netty Client Stream 写入 HTTP&#x2F;2 Stream。</p>
+<hr>
+<h2 id="HTTP-2-为什么适合-gRPC"><a href="#HTTP-2-为什么适合-gRPC" class="headerlink" title="HTTP&#x2F;2 为什么适合 gRPC"></a>HTTP&#x2F;2 为什么适合 gRPC</h2><p>HTTP&#x2F;2 的核心能力之一是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Multiplexing<br></code></pre></td></tr></table></figure>
+
+<p>同一个 TCP 连接中，可以存在多个逻辑 Stream：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">TCP Connection<br>   |<br>   +-- Stream 1<br>   |<br>   +-- Stream 3<br>   |<br>   +-- Stream 5<br>   |<br>   +-- Stream 7<br></code></pre></td></tr></table></figure>
+
+<p>不同 RPC 不需要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">一个请求 = 一条 TCP 连接<br></code></pre></td></tr></table></figure>
+
+<p>多个调用可以复用同一连接。</p>
+<p>而 Stream ID 本身又提供了天然的逻辑隔离。</p>
+<p>HTTP&#x2F;2 基本传输单位是 Frame。</p>
+<p>Frame 拥有固定长度 Header，并通过长度、类型、标志和 Stream Identifier 等信息让接收方恢复消息结构。</p>
+<p>因此前面自己设计 RPC 私有协议时考虑的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">消息边界<br>消息类型<br>请求关联<br>连接复用<br></code></pre></td></tr></table></figure>
+
+<p>在 gRPC 中有很大一部分直接建立在 HTTP&#x2F;2 机制之上。</p>
+<hr>
+<h2 id="gRPC-服务端如何启动"><a href="#gRPC-服务端如何启动" class="headerlink" title="gRPC 服务端如何启动"></a>gRPC 服务端如何启动</h2><p>服务端业务实现类似：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">HelloServiceImpl</span><br>        <span class="hljs-keyword">extends</span> <span class="hljs-title class_">HelloServiceGrpc</span>.HelloServiceImplBase &#123;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">say</span><span class="hljs-params">(</span><br><span class="hljs-params">            HelloRequest request,</span><br><span class="hljs-params">            StreamObserver&lt;HelloReply&gt; observer)</span> &#123;<br><br>        <span class="hljs-type">HelloReply</span> <span class="hljs-variable">reply</span> <span class="hljs-operator">=</span><br>                HelloReply.newBuilder()<br>                        .setMessage(<span class="hljs-string">&quot;Hello &quot;</span> + request.getName())<br>                        .build();<br><br>        observer.onNext(reply);<br>        observer.onCompleted();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>然后通过：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Server</span> <span class="hljs-variable">server</span> <span class="hljs-operator">=</span> ServerBuilder<br>        .forPort(<span class="hljs-number">50051</span>)<br>        .addService(<span class="hljs-keyword">new</span> <span class="hljs-title class_">HelloServiceImpl</span>())<br>        .build()<br>        .start();<br></code></pre></td></tr></table></figure>
+
+<p>完成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">网络端口<br>+<br>Service 注册<br>+<br>请求处理链<br></code></pre></td></tr></table></figure>
+
+<p>的建立。</p>
+<hr>
+<h2 id="gRPC-服务端接收链路"><a href="#gRPC-服务端接收链路" class="headerlink" title="gRPC 服务端接收链路"></a>gRPC 服务端接收链路</h2><p>资料中的核心路径可以整理成：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[Network] --&gt; B[Netty Server]
+    B --&gt; C[HTTP/2 Frame Reader]
+    C --&gt; D[NettyServerHandler]
+    D --&gt; E[FrameListener]
+    E --&gt; F[MessageDeframer]
+    F --&gt; G[Server Stream Listener]
+    G --&gt; H[Unary Server Call Listener]
+    H --&gt; I[HelloServiceImpl]
+</code></pre>
+
+<p>关键步骤分别承担不同职责。</p>
+<h3 id="HTTP-2-Frame-Reader"><a href="#HTTP-2-Frame-Reader" class="headerlink" title="HTTP&#x2F;2 Frame Reader"></a>HTTP&#x2F;2 Frame Reader</h3><p>网络层收到的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">连续二进制数据<br></code></pre></td></tr></table></figure>
+
+<p>HTTP&#x2F;2 Frame Reader 根据协议格式恢复：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Header<br>DATA<br>Ping<br>RST<br>...<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h3 id="FrameListener"><a href="#FrameListener" class="headerlink" title="FrameListener"></a>FrameListener</h3><p>解析好的 Frame 继续进入 gRPC 的处理链。</p>
+<p>它已经不需要再从原始 TCP 字节流中猜：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">一条消息在哪里结束<br></code></pre></td></tr></table></figure>
+
+<p>因为 HTTP&#x2F;2 framing 已经解决了这一层问题。</p>
+<hr>
+<h3 id="MessageDeframer"><a href="#MessageDeframer" class="headerlink" title="MessageDeframer"></a>MessageDeframer</h3><p><code>MessageDeframer</code> 再从传输 Frame 中恢复出完整 gRPC Message。</p>
+<p>也就是发送端：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">MessageFramer<br></code></pre></td></tr></table></figure>
+
+<p>的反向过程。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">MessageFramer<br>    ↓<br>Network<br>    ↓<br>MessageDeframer<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h3 id="Marshaller-反序列化"><a href="#Marshaller-反序列化" class="headerlink" title="Marshaller 反序列化"></a>Marshaller 反序列化</h3><p>随后：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Protobuf Bytes<br></code></pre></td></tr></table></figure>
+
+<p>恢复成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">HelloRequest<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h3 id="方法分发"><a href="#方法分发" class="headerlink" title="方法分发"></a>方法分发</h3><p>服务端根据：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Service<br>Method<br></code></pre></td></tr></table></figure>
+
+<p>找到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">HelloServiceImpl.say()<br></code></pre></td></tr></table></figure>
+
+<p>最终真正进入业务代码。</p>
+<p>所以一次 gRPC Unary 调用，可以概括成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs text">Client Stub<br>   ↓<br>Marshaller<br>   ↓<br>MessageFramer<br>   ↓<br>HTTP/2<br>   ↓<br>Netty<br>   ↓<br>Network<br>   ↓<br>Netty<br>   ↓<br>HTTP/2 Frame Reader<br>   ↓<br>MessageDeframer<br>   ↓<br>Marshaller<br>   ↓<br>Service Method<br></code></pre></td></tr></table></figure>
+
+<p>前面所有 RPC 基础知识，到这里就连接成了一条完整链路。</p>
+<hr>
+<h2 id="gRPC-其实没有“魔法”"><a href="#gRPC-其实没有“魔法”" class="headerlink" title="gRPC 其实没有“魔法”"></a>gRPC 其实没有“魔法”</h2><p>从最底层来看，gRPC 仍然只是在解决几个经典问题：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><code class="hljs text">接口如何定义？<br>    -&gt; Protocol Buffer IDL<br><br>调用方如何使用？<br>    -&gt; Generated Stub<br><br>对象如何传输？<br>    -&gt; Protobuf<br><br>消息边界如何解决？<br>    -&gt; gRPC Framing + HTTP/2 Frame<br><br>连接如何高效复用？<br>    -&gt; HTTP/2 Multiplexing<br><br>网络怎么处理？<br>    -&gt; Netty<br><br>服务端怎么调用真正方法？<br>    -&gt; Service Binding + Listener<br><br>响应怎么回来？<br>    -&gt; 反向执行相同链路<br></code></pre></td></tr></table></figure>
+
+<p>所以理解 RPC 以后，再看 gRPC 就不会觉得：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">stub.say()<br></code></pre></td></tr></table></figure>
+
+<p>是一种魔法。</p>
+<p>它只是把大量复杂度隐藏到了框架内部。</p>
+<hr>
+<h2 id="点对点通信还不是完整的生产级-RPC"><a href="#点对点通信还不是完整的生产级-RPC" class="headerlink" title="点对点通信还不是完整的生产级 RPC"></a>点对点通信还不是完整的生产级 RPC</h2><p>如果实现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Client -&gt; Server<br></code></pre></td></tr></table></figure>
+
+<p>已经可以称为一个最基本的 RPC。</p>
+<p>但真正进入生产环境之后，服务通常是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">Client<br>  |<br>  v<br>Service Cluster<br> ├── Instance A<br> ├── Instance B<br> ├── Instance C<br> └── Instance D<br></code></pre></td></tr></table></figure>
+
+<p>于是又会自然出现新的问题：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">实例地址从哪里来？<br>哪个实例健康？<br>请求发给谁？<br>实例扩容后客户端怎么知道？<br>实例下线怎么办？<br>失败后能不能重试？<br>某个实例变慢怎么办？<br></code></pre></td></tr></table></figure>
+
+<p>这就进入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">服务注册<br>服务发现<br>负载均衡<br>服务治理<br></code></pre></td></tr></table></figure>
+
+<p>的范畴。</p>
+<p>所以一个成熟 RPC 框架通常不仅仅包含：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">协议 + 序列化 + 网络<br></code></pre></td></tr></table></figure>
+
+<p>还会逐渐发展出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Registry<br>Load Balance<br>Retry<br>Timeout<br>Circuit Breaker<br>Rate Limit<br>Metrics<br>Tracing<br>Configuration<br></code></pre></td></tr></table></figure>
+
+<p>等能力。</p>
+<hr>
+<h2 id="RPC-最大的坑之一：超时"><a href="#RPC-最大的坑之一：超时" class="headerlink" title="RPC 最大的坑之一：超时"></a>RPC 最大的坑之一：超时</h2><p>假设调用链：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">A -&gt; B -&gt; C<br></code></pre></td></tr></table></figure>
+
+<p>如果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">A -&gt; B timeout = 1s<br>B -&gt; C timeout = 2s<br></code></pre></td></tr></table></figure>
+
+<p>设计显然有问题。</p>
+<p>因为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">A<br></code></pre></td></tr></table></figure>
+
+<p>可能已经认为请求失败。</p>
+<p>但：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">B<br></code></pre></td></tr></table></figure>
+
+<p>仍然等待 C。</p>
+<p>更糟糕的情况是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">服务端已经执行成功<br></code></pre></td></tr></table></figure>
+
+<p>但响应因为网络问题没有及时回到客户端。</p>
+<p>客户端看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Timeout<br></code></pre></td></tr></table></figure>
+
+<p>却无法仅根据这个错误判断：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">服务端到底执行了没有<br></code></pre></td></tr></table></figure>
+
+<p>所以 RPC 超时不是简单的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">失败<br></code></pre></td></tr></table></figure>
+
+<p>而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">结果未知<br></code></pre></td></tr></table></figure>
+
+<p>这也是分布式系统比本地调用复杂得多的地方。</p>
+<hr>
+<h2 id="整条调用链必须有超时预算"><a href="#整条调用链必须有超时预算" class="headerlink" title="整条调用链必须有超时预算"></a>整条调用链必须有超时预算</h2><p>更合理的思路是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Total Deadline<br></code></pre></td></tr></table></figure>
+
+<p>而不是每个服务完全独立地：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">随便配置一个 timeout<br></code></pre></td></tr></table></figure>
+
+<p>例如整个请求允许：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">1000ms<br></code></pre></td></tr></table></figure>
+
+<p>经过：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Gateway: 50ms<br>Service A: 150ms<br></code></pre></td></tr></table></figure>
+
+<p>那么后续链路应该理解：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">剩余预算已经减少<br></code></pre></td></tr></table></figure>
+
+<p>而不是重新获得完整：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">1000ms<br></code></pre></td></tr></table></figure>
+
+<p>否则服务越调用越深：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">A -&gt; B -&gt; C -&gt; D -&gt; E<br></code></pre></td></tr></table></figure>
+
+<p>尾部调用可能早已失去继续执行的业务价值。</p>
+<hr>
+<h2 id="重试必须和幂等性一起设计"><a href="#重试必须和幂等性一起设计" class="headerlink" title="重试必须和幂等性一起设计"></a>重试必须和幂等性一起设计</h2><p>网络失败之后，很多 RPC 框架都会提供：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Retry<br></code></pre></td></tr></table></figure>
+
+<p>但：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">重试 != 永远正确<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">queryUser()<br></code></pre></td></tr></table></figure>
+
+<p>通常重复执行问题不大。</p>
+<p>但：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">createOrder()<br>pay()<br>deductStock()<br>transferMoney()<br></code></pre></td></tr></table></figure>
+
+<p>重复执行可能导致严重后果。</p>
+<p>例如第一次调用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">服务端执行成功<br></code></pre></td></tr></table></figure>
+
+<p>只是响应丢了。</p>
+<p>客户端随后自动重试：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">第二次 createOrder()<br></code></pre></td></tr></table></figure>
+
+<p>于是生成两个订单。</p>
+<p>因此：</p>
+<blockquote>
+<p><strong>任何自动重试策略都必须首先讨论接口幂等性。</strong></p>
+</blockquote>
+<p>通常需要结合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">业务唯一键<br>Request ID<br>幂等表<br>状态机<br>去重机制<br></code></pre></td></tr></table></figure>
+
+<p>共同解决。</p>
+<hr>
+<h2 id="少调用一次-RPC，往往比优化一次-RPC-更有效"><a href="#少调用一次-RPC，往往比优化一次-RPC-更有效" class="headerlink" title="少调用一次 RPC，往往比优化一次 RPC 更有效"></a>少调用一次 RPC，往往比优化一次 RPC 更有效</h2><p>RPC 框架做得再快：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">远程调用<br></code></pre></td></tr></table></figure>
+
+<p>仍然比：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">本地方法调用<br></code></pre></td></tr></table></figure>
+
+<p>昂贵得多。</p>
+<p>例如需要查询 100 个用户。</p>
+<p>差的设计：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">for userId:<br>    rpc.getUser(userId)<br></code></pre></td></tr></table></figure>
+
+<p>也就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">100 次 RPC<br></code></pre></td></tr></table></figure>
+
+<p>更好的接口可能是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">batchGetUsers(userIds)<br></code></pre></td></tr></table></figure>
+
+<p>一次完成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">1 次 RPC<br></code></pre></td></tr></table></figure>
+
+<p>类似地，如果数据分布在不同服务实例上，可以优先：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">按照目标实例分组<br></code></pre></td></tr></table></figure>
+
+<p>然后批量查询。</p>
+<p>因此：</p>
+<blockquote>
+<p><strong>高性能 RPC 的第一原则往往不是把每次 RPC 优化到极致，而是减少没有必要的 RPC 次数。</strong></p>
+</blockquote>
+<hr>
+<h2 id="不要让核心服务强依赖非核心服务"><a href="#不要让核心服务强依赖非核心服务" class="headerlink" title="不要让核心服务强依赖非核心服务"></a>不要让核心服务强依赖非核心服务</h2><p>假设支付核心链路：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Payment<br>   |<br>   +--&gt; Account<br>   |<br>   +--&gt; Risk<br>   |<br>   +--&gt; Recommendation<br></code></pre></td></tr></table></figure>
+
+<p>如果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Recommendation<br></code></pre></td></tr></table></figure>
+
+<p>只是用来展示推荐商品，却因为它故障导致：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Payment<br></code></pre></td></tr></table></figure>
+
+<p>完全不可用，这就是依赖设计出了问题。</p>
+<p>远程调用必须考虑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">这个依赖失败以后，我能不能继续？<br></code></pre></td></tr></table></figure>
+
+<p>可能的处理包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">降级<br>默认值<br>缓存<br>异步化<br>隔离<br>熔断<br></code></pre></td></tr></table></figure>
+
+<p>RPC 架构设计不仅是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">如何调用<br></code></pre></td></tr></table></figure>
+
+<p>还包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">什么时候不应该继续调用<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="调用方必须尊重服务提供方的容量"><a href="#调用方必须尊重服务提供方的容量" class="headerlink" title="调用方必须尊重服务提供方的容量"></a>调用方必须尊重服务提供方的容量</h2><p>假设下游最大能够承受：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">5000 QPS<br></code></pre></td></tr></table></figure>
+
+<p>上游突然发送：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">20000 QPS<br></code></pre></td></tr></table></figure>
+
+<p>即使 RPC 框架本身性能再高，也只是在更快地：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">把下游打挂<br></code></pre></td></tr></table></figure>
+
+<p>因此服务之间应该明确：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">容量<br>QPS<br>并发<br>超时<br>重试<br>流量模型<br></code></pre></td></tr></table></figure>
+
+<p>必要时加入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Rate Limit<br>Bulkhead<br>Circuit Breaker<br></code></pre></td></tr></table></figure>
+
+<p>高性能绝不意味着无限流量。</p>
+<hr>
+<h2 id="可观测性是-RPC-基础设施的一部分"><a href="#可观测性是-RPC-基础设施的一部分" class="headerlink" title="可观测性是 RPC 基础设施的一部分"></a>可观测性是 RPC 基础设施的一部分</h2><p>当系统只有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">A -&gt; B<br></code></pre></td></tr></table></figure>
+
+<p>日志还能人工查看。</p>
+<p>一旦变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">A<br> -&gt; B<br> -&gt; C<br> -&gt; D<br> -&gt; E<br></code></pre></td></tr></table></figure>
+
+<p>出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">整个接口 2.5s<br></code></pre></td></tr></table></figure>
+
+<p>最重要的问题是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">到底慢在哪里？<br></code></pre></td></tr></table></figure>
+
+<p>一个成熟 RPC 系统至少应该能够观测：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">调用量<br>成功率<br>失败率<br>超时率<br>平均耗时<br>最大耗时<br>P95<br>P99<br>P999<br></code></pre></td></tr></table></figure>
+
+<p>并能展示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">A<br>└── B  20ms<br>    ├── C  35ms<br>    └── D  1800ms<br>        └── E  1700ms<br></code></pre></td></tr></table></figure>
+
+<p>这样才能快速定位：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">真正的瓶颈节点<br></code></pre></td></tr></table></figure>
+
+<p>因此 Trace ID、Metrics、日志查询和调用拓扑并不是“额外锦上添花”。</p>
+<p>在大型 RPC 系统里，它们几乎属于必需品。</p>
+<hr>
+<h2 id="RPC-接口必须当成长期契约"><a href="#RPC-接口必须当成长期契约" class="headerlink" title="RPC 接口必须当成长期契约"></a>RPC 接口必须当成长期契约</h2><p>本地代码修改：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">UserDTO<br></code></pre></td></tr></table></figure>
+
+<p>编译器可能立刻提示所有错误。</p>
+<p>RPC 不一样。</p>
+<p>生产环境经常存在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Consumer V1<br>Consumer V2<br>Provider V2<br>Provider V3<br></code></pre></td></tr></table></figure>
+
+<p>多个版本同时运行。</p>
+<p>因此接口修改需要首先思考：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">旧 Consumer 能不能调用新 Provider？<br>新 Consumer 能不能临时调用旧 Provider？<br>灰度期间怎么办？<br>回滚怎么办？<br></code></pre></td></tr></table></figure>
+
+<p>这也是 Protocol Buffer 这类 Schema 机制非常有价值的原因。</p>
+<p>远程接口不只是 Java 方法。</p>
+<p>它是一份：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">跨进程<br>跨机器<br>跨版本<br>甚至跨语言<br></code></pre></td></tr></table></figure>
+
+<p>的长期契约。</p>
+<hr>
+<h2 id="RPC-和-REST-并不是简单的“内部与外部”关系"><a href="#RPC-和-REST-并不是简单的“内部与外部”关系" class="headerlink" title="RPC 和 REST 并不是简单的“内部与外部”关系"></a>RPC 和 REST 并不是简单的“内部与外部”关系</h2><p>实际工程里经常看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">内部服务 -&gt; RPC<br>公网接口 -&gt; REST<br></code></pre></td></tr></table></figure>
+
+<p>这种架构很常见，但原因不应该简单理解成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">RPC 安全<br>REST 不安全<br></code></pre></td></tr></table></figure>
+
+<p>二者都可以使用 TLS、认证和鉴权机制。</p>
+<p>真正的差异更多在于场景。</p>
+<p>REST&#x2F;HTTP API 的优势是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">标准化<br>通用<br>浏览器和网关友好<br>易调试<br>生态成熟<br></code></pre></td></tr></table></figure>
+
+<p>内部 RPC 更强调：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">强契约<br>高频服务调用<br>低通信开销<br>跨语言 Stub<br>连接复用<br>服务治理<br></code></pre></td></tr></table></figure>
+
+<p>而 gRPC 又进一步说明：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP<br></code></pre></td></tr></table></figure>
+
+<p>完全可以作为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">RPC 的传输基础<br></code></pre></td></tr></table></figure>
+
+<p>因此更合理的认识是：</p>
+<blockquote>
+<p><strong>REST 是一种面向资源的 API 风格，RPC 是一种远程调用抽象。HTTP 则是网络应用协议。三者并不是同一层面的概念。</strong></p>
+</blockquote>
+<hr>
+<h2 id="什么情况下应该考虑压缩"><a href="#什么情况下应该考虑压缩" class="headerlink" title="什么情况下应该考虑压缩"></a>什么情况下应该考虑压缩</h2><p>压缩不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">开启以后一定更快<br></code></pre></td></tr></table></figure>
+
+<p>它实际上是在交换：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">CPU<br></code></pre></td></tr></table></figure>
+
+<p>和：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">网络带宽<br></code></pre></td></tr></table></figure>
+
+<p>原始数据：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">10 MB<br></code></pre></td></tr></table></figure>
+
+<p>压缩后：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">2 MB<br></code></pre></td></tr></table></figure>
+
+<p>网络传输可能明显变快。</p>
+<p>但发送端需要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Compress CPU<br></code></pre></td></tr></table></figure>
+
+<p>接收端还需要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Decompress CPU<br></code></pre></td></tr></table></figure>
+
+<p>如果消息本来只有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">200 Bytes<br></code></pre></td></tr></table></figure>
+
+<p>开启压缩很可能得不偿失。</p>
+<p>所以是否压缩，需要关注：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">Payload 大小<br>压缩率<br>CPU 使用率<br>网络带宽<br>调用频率<br>延迟目标<br></code></pre></td></tr></table></figure>
+
+<p>实践中更适合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">达到一定消息大小才压缩<br></code></pre></td></tr></table></figure>
+
+<p>而不是所有 RPC 无脑开启。</p>
+<hr>
+<h2 id="一个生产-RPC-框架大概长什么样"><a href="#一个生产-RPC-框架大概长什么样" class="headerlink" title="一个生产 RPC 框架大概长什么样"></a>一个生产 RPC 框架大概长什么样</h2><p>把所有知识重新组合，可以得到一个完整 RPC 架构：</p>
+<pre><code class=" mermaid">flowchart TB
+    subgraph Consumer[Service Consumer]
+        A[Business Code]
+        B[Proxy / Generated Stub]
+        C[Cluster Invoker]
+        D[Load Balancer]
+        E[Serializer]
+        F[Protocol Encoder]
+        G[Netty Client]
+    end
+
+    subgraph Governance[Service Governance]
+        R[Registry / Discovery]
+        M[Metrics]
+        T[Tracing]
+        L[Rate Limit / Circuit Breaker]
+    end
+
+    subgraph Provider[Service Provider]
+        H[Netty Server]
+        I[Protocol Decoder]
+        J[Deserializer]
+        K[Service Dispatcher]
+        N[Business Service]
+    end
+
+    A --&gt; B
+    B --&gt; C
+    C --&gt; L
+    C --&gt; D
+    R --&gt; D
+    D --&gt; E
+    E --&gt; F
+    F --&gt; G
+
+    G --&gt; H
+
+    H --&gt; I
+    I --&gt; J
+    J --&gt; K
+    K --&gt; N
+
+    C --&gt; M
+    K --&gt; M
+    C --&gt; T
+    K --&gt; T
+</code></pre>
+
+<p>如果只实现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Proxy<br>Serializer<br>Protocol<br>Network<br>Dispatcher<br></code></pre></td></tr></table></figure>
+
+<p>已经可以完成一个最基本的 RPC。</p>
+<p>如果要进入生产环境，则继续增加：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Service Discovery<br>Load Balance<br>Timeout<br>Retry<br>Circuit Breaker<br>Rate Limit<br>Tracing<br>Metrics<br>Configuration<br></code></pre></td></tr></table></figure>
+
+<p>这也解释了为什么真正成熟的 RPC 框架代码量会迅速膨胀。</p>
+<p>困难的从来不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">把一个对象发送到另一台机器<br></code></pre></td></tr></table></figure>
+
+<p>而是：</p>
+<blockquote>
+<p><strong>如何让成千上万个服务在故障、升级、扩容和高并发环境下仍然稳定地相互调用。</strong></p>
+</blockquote>
+<hr>
+<h2 id="再从头看一次-RPC"><a href="#再从头看一次-RPC" class="headerlink" title="再从头看一次 RPC"></a>再从头看一次 RPC</h2><p>现在重新看业务代码：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Order</span> <span class="hljs-variable">order</span> <span class="hljs-operator">=</span> orderService.getOrder(orderId);<br></code></pre></td></tr></table></figure>
+
+<p>这一行背后可能真正发生的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br></pre></td><td class="code"><pre><code class="hljs text">1. Proxy/Stub 拦截 getOrder()<br><br>2. 获取：<br>   Service = OrderService<br>   Method = getOrder<br>   Args = [orderId]<br><br>3. 服务发现：<br>   OrderService<br>   -&gt; 10.0.1.12<br>   -&gt; 10.0.1.13<br>   -&gt; 10.0.1.14<br><br>4. 负载均衡：<br>   -&gt; 10.0.1.13<br><br>5. 创建：<br>   RequestId = 867421<br><br>6. 序列化：<br>   OrderRequest<br>   -&gt; Protobuf Bytes<br><br>7. 协议编码：<br>   Header + Payload<br><br>8. Netty：<br>   写入 Channel<br><br>9. TCP / HTTP2：<br>   网络传输<br><br>10. Server：<br>    解码 Frame<br><br>11. 反序列化：<br>    Bytes<br>    -&gt; OrderRequest<br><br>12. Dispatcher：<br>    OrderService.getOrder()<br><br>13. 执行业务逻辑<br><br>14. 构造 Response<br><br>15. 序列化 + 编码<br><br>16. 网络返回<br><br>17. Client：<br>    RequestId = 867421<br><br>18. 找到对应 Future<br><br>19. 反序列化 Response<br><br>20. Proxy/Stub 返回 Order<br></code></pre></td></tr></table></figure>
+
+<p>而开发者只看到：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">orderService.getOrder(orderId);<br></code></pre></td></tr></table></figure>
+
+<p>这才是 RPC 最大的价值。</p>
+<p>不是因为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">网络通信消失了<br></code></pre></td></tr></table></figure>
+
+<p>而是因为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">复杂度被正确放到了基础设施层<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>理解 RPC，可以围绕五个问题建立完整知识框架。</p>
+<p><strong>RPC 怎么让远程调用看起来像本地调用？</strong></p>
+<p>通过 Proxy 或 Generated Stub，把接口调用转换成 RPC Request。</p>
+<p><strong>Java 对象怎么通过网络传输？</strong></p>
+<p>通过序列化把对象转换成字节，再通过协议编码形成完整网络消息。</p>
+<p><strong>TCP 为什么知道不了一条 RPC 请求在哪里结束？</strong></p>
+<p>因为 TCP 是字节流，消息边界必须由应用层协议定义。</p>
+<p><strong>大量连接怎样高效处理？</strong></p>
+<p>通常依靠 IO 多路复用和 Reactor&#x2F;EventLoop 模型，Java 生态中 Netty 是非常典型的实现。</p>
+<p><strong>请求到了服务器以后怎么执行真正业务方法？</strong></p>
+<p>协议解码、反序列化后，根据服务和方法元数据找到目标实现，调用业务代码，再沿相反路径返回 Response。</p>
+<p>gRPC 并没有改变这些基本原理。</p>
+<p>它只是分别选择了成熟方案：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">接口契约        -&gt; Protocol Buffer IDL<br>客户端抽象      -&gt; Generated Stub<br>序列化          -&gt; Protocol Buffer<br>应用层传输      -&gt; HTTP/2<br>多路复用        -&gt; HTTP/2 Stream<br>网络实现        -&gt; Netty<br>消息组装        -&gt; Framer / Deframer<br>服务分发        -&gt; Server Call / Service Binding<br></code></pre></td></tr></table></figure>
+
+<p>当这些组件连接起来之后，RPC 就不再是一句模糊的“远程调用”，而是一套层次非常清晰的分布式通信体系。</p>
+<p>而理解 RPC 真正有价值的地方也正在这里：<strong>框架可以帮助我们隐藏网络，但架构设计者永远不能忘记网络的存在。</strong> 超时、重试、幂等、容量、协议兼容、服务治理和可观测性，最终决定的不是一次调用能不能跑通，而是整个分布式系统能不能长期稳定运行。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Architecture/" class="category-chain-item">Architecture</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/gRPC/" class="print-no-link">#gRPC</a>
+      
+        <a href="/tags/RPC/" class="print-no-link">#RPC</a>
+      
+        <a href="/tags/%E5%8A%A8%E6%80%81%E4%BB%A3%E7%90%86/" class="print-no-link">#动态代理</a>
+      
+        <a href="/tags/Netty/" class="print-no-link">#Netty</a>
+      
+        <a href="/tags/Protocol-Buffer/" class="print-no-link">#Protocol Buffer</a>
+      
+        <a href="/tags/%E5%BA%8F%E5%88%97%E5%8C%96/" class="print-no-link">#序列化</a>
+      
+        <a href="/tags/%E7%BD%91%E7%BB%9C-IO/" class="print-no-link">#网络 IO</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>RPC 核心原理：从通信流程、协议与序列化到 Netty、动态代理和 gRPC</div>
+      <div>https://allendericdalexander.github.io/2026/08/18/archtect/rpc/RPCCore/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月18日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/08/18/archtect/rpc/RPCFramework/" title="RPC 框架进阶设计：从插件化架构到服务治理与无损上下线">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">RPC 框架进阶设计：从插件化架构到服务治理与无损上下线</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/17/archtect/idp/Spring-Security-OAuth-2-0%20-JWT/" title="Spring Security OAuth 2.0 + JWT 实战：从零搭建授权服务器、资源服务器与 OAuth Client">
+                        <span class="hidden-mobile">Spring Security OAuth 2.0 + JWT 实战：从零搭建授权服务器、资源服务器与 OAuth Client</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

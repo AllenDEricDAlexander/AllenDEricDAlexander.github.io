@@ -1,0 +1,1792 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="OAuth 2.0 真正困难的地方并不是“如何拿到一个 access_token”，而是理解用户、客户端、授权服务器和资源服务器之间的委托关系，以及授权码、Scope、PKCE、JWT、网关和业务权限分别应该解决什么问题。本文从 OAuth 2.0 的核心模型出发，串联授权码流程、安全漏洞、开放平台、微服务架构与 Spring Security 实践，并重点说明早期 Spring Security">
+<meta property="og:type" content="article">
+<meta property="og:title" content="OAuth 2.0 与 Spring Security：从授权模型、安全机制到微服务架构实践">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/08/17/archtect/idp/OAuth-2-0-Spring-Security/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="OAuth 2.0 真正困难的地方并不是“如何拿到一个 access_token”，而是理解用户、客户端、授权服务器和资源服务器之间的委托关系，以及授权码、Scope、PKCE、JWT、网关和业务权限分别应该解决什么问题。本文从 OAuth 2.0 的核心模型出发，串联授权码流程、安全漏洞、开放平台、微服务架构与 Spring Security 实践，并重点说明早期 Spring Security">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-17T07:37:00.000Z">
+<meta property="article:modified_time" content="2026-08-17T07:37:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="API Gateway">
+<meta property="article:tag" content="JWT">
+<meta property="article:tag" content="OAuth 2.0">
+<meta property="article:tag" content="OpenID Connect">
+<meta property="article:tag" content="PKCE">
+<meta property="article:tag" content="Spring Authorization Server">
+<meta property="article:tag" content="Spring Security">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>OAuth 2.0 与 Spring Security：从授权模型、安全机制到微服务架构实践 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="OAuth 2.0 与 Spring Security：从授权模型、安全机制到微服务架构实践"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-08-17 15:37" pubdate>
+          2026年8月17日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          9.3k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          78 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">OAuth 2.0 与 Spring Security：从授权模型、安全机制到微服务架构实践</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>OAuth 2.0 真正困难的地方并不是“如何拿到一个 access_token”，而是理解用户、客户端、授权服务器和资源服务器之间的委托关系，以及授权码、Scope、PKCE、JWT、网关和业务权限分别应该解决什么问题。本文从 OAuth 2.0 的核心模型出发，串联授权码流程、安全漏洞、开放平台、微服务架构与 Spring Security 实践，并重点说明早期 Spring Security OAuth 实现与当前方案之间的版本演进。</p>
+<span id="more"></span>
+
+<h2 id="OAuth-2-0-的核心不是-Token，而是委托"><a href="#OAuth-2-0-的核心不是-Token，而是委托" class="headerlink" title="OAuth 2.0 的核心不是 Token，而是委托"></a>OAuth 2.0 的核心不是 Token，而是委托</h2><p>很多系统第一次引入 OAuth 2.0 时，很容易把注意力全部放在 <code>access_token</code> 上：</p>
+<p>“怎么生成 Token？”</p>
+<p>“Token 存 Redis 还是 JWT？”</p>
+<p>“Spring Security 怎么解析 Token？”</p>
+<p>这些当然重要，但如果只盯着 Token，很容易把 OAuth 2.0 做成一套普通的“登录后发 JWT”机制。</p>
+<p>OAuth 2.0 更核心的思想其实是 <strong>Delegation（委托）</strong>。</p>
+<p>假设用户拥有自己的订单、文件或者社交账号资料。某个第三方应用希望替用户读取这些数据，但用户显然不应该把自己的账号密码直接交给第三方。</p>
+<p>OAuth 2.0 做的事情就是把：</p>
+<blockquote>
+<p>“把账号密码交给第三方”</p>
+</blockquote>
+<p>变成：</p>
+<blockquote>
+<p>“由用户明确授权第三方获得一部分有限权限，再颁发一个受限制的凭据，让第三方代表用户访问资源。”</p>
+</blockquote>
+<p>这也是为什么 OAuth 2.0 中反复出现三个关键词：</p>
+<p><strong>授权、代表、委托。</strong></p>
+<p>访问令牌只是这种委托关系的一种承载形式。</p>
+<h2 id="认证、授权和-OAuth-2-0-不要混为一谈"><a href="#认证、授权和-OAuth-2-0-不要混为一谈" class="headerlink" title="认证、授权和 OAuth 2.0 不要混为一谈"></a>认证、授权和 OAuth 2.0 不要混为一谈</h2><p>OAuth 2.0 首先是一个授权框架，而不是用户身份认证协议。</p>
+<p>这两个概念很容易混淆。</p>
+<p>认证（Authentication）回答的是：</p>
+<blockquote>
+<p>你是谁？</p>
+</blockquote>
+<p>授权（Authorization）回答的是：</p>
+<blockquote>
+<p>你能够做什么？</p>
+</blockquote>
+<p>OAuth 2.0 的典型问题则更具体：</p>
+<blockquote>
+<p>某个 Client 是否被允许代表某个用户，以某个权限范围访问某个 Resource Server？</p>
+</blockquote>
+<p>在授权过程中，Authorization Server 通常确实需要让用户登录，因为它必须知道当前授权的人是谁。但“OAuth 流程里面发生了登录”并不意味着 OAuth 2.0 本身就是用户登录协议。</p>
+<p>如果系统真正需要完成“第三方登录”“统一身份认证”“SSO 登录身份传递”，通常应在 OAuth 2.0 基础上使用 OpenID Connect（OIDC）。OIDC 引入的 <code>ID Token</code> 才用于向 Client 表达最终用户身份。</p>
+<p>可以把两者理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">OAuth 2.0<br>    └── 解决授权：Client 能代表用户做什么？<br><br>OpenID Connect<br>    └── 构建在 OAuth 2.0 之上<br>        └── 解决身份：当前登录用户是谁？<br></code></pre></td></tr></table></figure>
+
+<p>早期 OAuth 2.0 实践中一个非常常见的误区，就是把 <code>access_token</code> 当成“登录凭证”使用。这会让授权模型、身份模型和会话模型全部混在一起。</p>
+<h2 id="OAuth-2-0-中的四个核心角色"><a href="#OAuth-2-0-中的四个核心角色" class="headerlink" title="OAuth 2.0 中的四个核心角色"></a>OAuth 2.0 中的四个核心角色</h2><p>理解 OAuth 2.0，先不要急着看接口参数，而是先把四个角色分清。</p>
+<table>
+<thead>
+<tr>
+<th>角色</th>
+<th>含义</th>
+<th>典型例子</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Resource Owner</td>
+<td>资源所有者</td>
+<td>用户、商家</td>
+</tr>
+<tr>
+<td>Client</td>
+<td>希望访问资源的应用</td>
+<td>Web 应用、移动 App、第三方 SaaS</td>
+</tr>
+<tr>
+<td>Authorization Server</td>
+<td>认证用户并颁发授权凭据</td>
+<td>企业 IDP、统一授权中心</td>
+</tr>
+<tr>
+<td>Resource Server</td>
+<td>真正保存并提供受保护资源</td>
+<td>订单服务、用户服务、商品服务</td>
+</tr>
+</tbody></table>
+<p>例如，一个商家使用第三方打单软件读取电商平台订单：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs text">商家<br>  │<br>  │ 授权<br>  ▼<br>第三方打单软件<br>  │<br>  │ access_token<br>  ▼<br>开放平台 API Gateway<br>  │<br>  ▼<br>订单服务<br></code></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">商家                    -&gt; Resource Owner<br>第三方打单软件           -&gt; Client<br>开放平台 OAuth 服务      -&gt; Authorization Server<br>订单服务                 -&gt; Resource Server<br></code></pre></td></tr></table></figure>
+
+<p>开放平台往往还会提供 Developer Center，用来维护：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">client_id / app_id<br>client_secret / app_secret<br>redirect_uri<br>允许申请的 scope<br>应用名称<br>开发者信息<br></code></pre></td></tr></table></figure>
+
+<p>这些信息解决的是“Client 是谁”，而不是“最终用户是谁”。开放平台通常再通过 API Gateway 统一接收第三方 API 请求，将通用的 Token 校验、客户端校验、Scope 校验集中处理。</p>
+<h2 id="OAuth-2-0-中到底有哪些凭据"><a href="#OAuth-2-0-中到底有哪些凭据" class="headerlink" title="OAuth 2.0 中到底有哪些凭据"></a>OAuth 2.0 中到底有哪些凭据</h2><p>OAuth 流程里经常同时出现 <code>code</code>、<code>access_token</code>、<code>refresh_token</code>、<code>state</code>、<code>scope</code>，如果没有先把职责分开，很快就会乱成一锅 Token 粥。</p>
+<table>
+<thead>
+<tr>
+<th>参数或凭据</th>
+<th>主要作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>client_id</code></td>
+<td>标识 OAuth Client</td>
+</tr>
+<tr>
+<td><code>client_secret</code></td>
+<td>Confidential Client 的客户端凭据</td>
+</tr>
+<tr>
+<td><code>redirect_uri</code></td>
+<td>Authorization Server 完成授权后允许返回的位置</td>
+</tr>
+<tr>
+<td><code>scope</code></td>
+<td>Client 请求或最终获得的权限范围</td>
+</tr>
+<tr>
+<td><code>state</code></td>
+<td>将授权响应与发起授权的浏览器事务关联起来，可用于 CSRF 防护</td>
+</tr>
+<tr>
+<td><code>code</code></td>
+<td>短生命周期、一次性的授权码</td>
+</tr>
+<tr>
+<td><code>code_verifier</code></td>
+<td>PKCE 中 Client 本地保存的随机秘密值</td>
+</tr>
+<tr>
+<td><code>code_challenge</code></td>
+<td>由 <code>code_verifier</code> 派生并发送给 Authorization Server 的值</td>
+</tr>
+<tr>
+<td><code>access_token</code></td>
+<td>调用 Resource Server 的凭据</td>
+</tr>
+<tr>
+<td><code>refresh_token</code></td>
+<td>在允许的情况下换取新的 Access Token</td>
+</tr>
+</tbody></table>
+<p>一个非常重要的区别是：</p>
+<p><strong>Authorization Code 不是 Access Token。</strong></p>
+<p>授权码只是 Client 用于后端换 Token 的一次性中间凭据。</p>
+<h2 id="为什么授权码流程非要“多绕一圈”"><a href="#为什么授权码流程非要“多绕一圈”" class="headerlink" title="为什么授权码流程非要“多绕一圈”"></a>为什么授权码流程非要“多绕一圈”</h2><p>刚接触 OAuth 2.0 时，授权码流程最让人困惑的问题通常是：</p>
+<blockquote>
+<p>Authorization Server 为什么不直接把 Access Token 返回给 Client？为什么还要先返回一个 Code？</p>
+</blockquote>
+<p>原因在于 OAuth 流程同时存在两条通信通道。</p>
+<p>一条是浏览器参与的 <strong>Front Channel</strong>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">浏览器<br>Client<br>Authorization Server<br></code></pre></td></tr></table></figure>
+
+<p>另一条是服务端到服务端的 <strong>Back Channel</strong>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Client Backend<br>Authorization Server<br></code></pre></td></tr></table></figure>
+
+<p>如果直接通过浏览器重定向携带长期有效或者高价值的 Access Token，它更容易暴露在 URL、浏览器历史、代理日志、Referer 或其他前端环境中。</p>
+<p>授权码流程把这两个阶段拆开：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    autonumber
+    actor U as 用户
+    participant B as 浏览器
+    participant C as Client
+    participant AS as Authorization Server
+    participant RS as Resource Server
+
+    U-&gt;&gt;C: 访问需要授权的功能
+    C-&gt;&gt;C: 生成 state、code_verifier
+    C-&gt;&gt;B: 重定向到授权端点
+    B-&gt;&gt;AS: response_type=code&lt;br/&gt;client_id&lt;br/&gt;redirect_uri&lt;br/&gt;scope&lt;br/&gt;state&lt;br/&gt;code_challenge
+    AS-&gt;&gt;U: 登录并确认授权
+    U-&gt;&gt;AS: 同意授权
+    AS--&gt;&gt;B: redirect_uri?code=...&amp;state=...
+    B-&gt;&gt;C: 回调
+    C-&gt;&gt;C: 校验 state
+    C-&gt;&gt;AS: code + code_verifier + client authentication
+    AS-&gt;&gt;AS: 校验 code、PKCE、Client、redirect_uri
+    AS--&gt;&gt;C: access_token / refresh_token
+    C-&gt;&gt;RS: Authorization: Bearer access_token
+    RS--&gt;&gt;C: Protected Resource
+</code></pre>
+
+<p>浏览器看到的是短生命周期的 <code>code</code>，真正的 Access Token 则通过后端 Token Endpoint 获取。</p>
+<p>这就是授权码看似“绕了一圈”，实际却把不同安全级别的通信分开处理的原因。</p>
+<p>今天的安全最佳实践又在授权码流程上增加了 PKCE。RFC 9700 要求 Public Client 使用 PKCE，也建议 Confidential Client 使用，并明确说明这种建议已经不限于 Native App，而适用于包括 Web 应用在内的各种 OAuth Client；<code>S256</code> 是当前应优先使用的 Challenge 方法。</p>
+<h2 id="PKCE-到底解决了什么问题"><a href="#PKCE-到底解决了什么问题" class="headerlink" title="PKCE 到底解决了什么问题"></a>PKCE 到底解决了什么问题</h2><p>PKCE（Proof Key for Code Exchange）可以简单理解为：</p>
+<blockquote>
+<p>不仅要求 Client 拿到 Authorization Code，还要求它证明“这个 Code 对应的授权事务确实是自己发起的”。</p>
+</blockquote>
+<p>Client 首先生成随机值：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">code_verifier<br></code></pre></td></tr></table></figure>
+
+<p>然后计算：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">code_challenge = BASE64URL(SHA256(code_verifier))<br></code></pre></td></tr></table></figure>
+
+<p>发起授权时只发送：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">code_challenge<br>code_challenge_method=S256<br></code></pre></td></tr></table></figure>
+
+<p>真正交换 Token 时，再发送：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">code_verifier<br></code></pre></td></tr></table></figure>
+
+<p>Authorization Server 重新计算 Challenge：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">BASE64URL(SHA256(code_verifier))<br></code></pre></td></tr></table></figure>
+
+<p>只有与最初保存的 <code>code_challenge</code> 一致，才允许兑换 Token。</p>
+<p>因此，即使攻击者截获了：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">authorization_code<br></code></pre></td></tr></table></figure>
+
+<p>只要没有对应的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">code_verifier<br></code></pre></td></tr></table></figure>
+
+<p>也无法正常兑换 Access Token。</p>
+<p>这也是现代 OAuth 安全体系与很多十年前教程最大的区别之一。</p>
+<h2 id="state-和-PKCE-是什么关系"><a href="#state-和-PKCE-是什么关系" class="headerlink" title="state 和 PKCE 是什么关系"></a><code>state</code> 和 PKCE 是什么关系</h2><p>早期 OAuth 教程通常会直接记成：</p>
+<blockquote>
+<p>防 CSRF 就使用 <code>state</code>。</p>
+</blockquote>
+<p>这个结论方向没错，但今天可以理解得更精确一些。</p>
+<p><code>state</code> 的本质是：</p>
+<blockquote>
+<p>将 Authorization Response 与 Client 发起授权时的浏览器 Session&#x2F;Transaction 绑定起来。</p>
+</blockquote>
+<p>Client 发起授权时生成随机值：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">state = cryptographically_random_value<br></code></pre></td></tr></table></figure>
+
+<p>同时在当前用户会话中保存：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">session.oauth_state = state<br></code></pre></td></tr></table></figure>
+
+<p>回调时必须比较：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">callback.state == session.oauth_state<br></code></pre></td></tr></table></figure>
+
+<p>不一致就终止流程。</p>
+<p>当前 OAuth 安全最佳实践进一步指出：如果 Client 已经确认 Authorization Server 正确支持并强制执行 PKCE，那么 PKCE 也可以承担 OAuth CSRF 防护；OIDC 中 <code>nonce</code> 同样参与相关事务绑定。不过，如果无法确认 PKCE 支持，则仍然需要正确使用 <code>state</code> 或 OIDC <code>nonce</code>。</p>
+<p>所以工程上不要把它们机械理解成“二选一”。</p>
+<p>更好的思路是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">state<br>    -&gt; 绑定浏览器授权事务<br>    -&gt; 可以携带/关联应用恢复状态<br>    -&gt; 必须防篡改、防交换<br><br>PKCE<br>    -&gt; 绑定 Authorization Request 与 Token Request<br>    -&gt; 防授权码被截获后直接兑换<br><br>OIDC nonce<br>    -&gt; 绑定 OIDC 身份认证事务<br></code></pre></td></tr></table></figure>
+
+<h2 id="OAuth-授权模式：历史设计与今天的选择"><a href="#OAuth-授权模式：历史设计与今天的选择" class="headerlink" title="OAuth 授权模式：历史设计与今天的选择"></a>OAuth 授权模式：历史设计与今天的选择</h2><p>RFC 6749 时代常见的四种 Grant 在很多 Spring Security OAuth 教程里都会出现：</p>
+<table>
+<thead>
+<tr>
+<th>Grant</th>
+<th>典型场景</th>
+<th>今天如何看待</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Authorization Code</td>
+<td>有最终用户参与的 Web、SPA、Native App</td>
+<td><strong>主流方案，配合 PKCE</strong></td>
+</tr>
+<tr>
+<td>Client Credentials</td>
+<td>服务到服务、机器身份</td>
+<td><strong>继续适用</strong></td>
+</tr>
+<tr>
+<td>Resource Owner Password Credentials</td>
+<td>Client 直接收集用户密码</td>
+<td><strong>不应再用于新系统</strong></td>
+</tr>
+<tr>
+<td>Implicit</td>
+<td>浏览器直接获得 Access Token</td>
+<td><strong>不建议使用</strong></td>
+</tr>
+</tbody></table>
+<p>很多 2018～2020 年的 Spring Security OAuth 示例会演示 Password Grant，甚至会把第一方 App 作为其典型应用场景。这些内容对于理解 OAuth 历史非常有价值，但已经不能直接作为今天的新系统设计依据。</p>
+<p>RFC 9700 已明确规定 Resource Owner Password Credentials Grant <strong>MUST NOT</strong> 使用，因为它要求用户把凭据交给 Client，扩大了密码泄漏面，并且很难兼容 MFA、WebAuthn 等现代认证方式。Implicit Grant 同样因为 Access Token 暴露于授权响应、容易泄漏和重放而被明确建议避免。</p>
+<p>所以今天可以粗略记成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs text">有人参与：<br>    Authorization Code + PKCE<br><br>纯浏览器 SPA：<br>    Authorization Code + PKCE<br><br>Native App：<br>    Authorization Code + PKCE<br><br>服务调用服务：<br>    Client Credentials<br><br>电视、CLI 等输入受限设备：<br>    Device Authorization<br><br>Password Grant：<br>    留在历史资料里<br><br>Implicit：<br>    留在历史资料里<br></code></pre></td></tr></table></figure>
+
+<h2 id="Client-Credentials：微服务之间最容易被误解的一种模式"><a href="#Client-Credentials：微服务之间最容易被误解的一种模式" class="headerlink" title="Client Credentials：微服务之间最容易被误解的一种模式"></a>Client Credentials：微服务之间最容易被误解的一种模式</h2><p>假设：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Order Service<br>    ↓<br>Inventory Service<br></code></pre></td></tr></table></figure>
+
+<p>这里不是“用户张三授权订单服务访问库存服务”，而是：</p>
+<blockquote>
+<p>Order Service 以自己的机器身份访问 Inventory Service。</p>
+</blockquote>
+<p>这种场景通常对应 Client Credentials Grant。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant O as Order Service
+    participant AS as Authorization Server
+    participant I as Inventory Service
+
+    O-&gt;&gt;AS: client_id + client authentication&lt;br/&gt;grant_type=client_credentials
+    AS--&gt;&gt;O: access_token
+    O-&gt;&gt;I: Bearer access_token
+    I-&gt;&gt;I: 校验 token / scope / audience
+    I--&gt;&gt;O: inventory data
+</code></pre>
+
+<p>这个 Token 通常表达的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">subject = order-service<br>scope = inventory.read<br>audience = inventory-service<br></code></pre></td></tr></table></figure>
+
+<p>而不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">subject = user-10086<br></code></pre></td></tr></table></figure>
+
+<p>这就是“用户委托”和“Workload Identity”之间的重要区别。</p>
+<p>如果一个下游接口既要知道：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">是谁的请求<br></code></pre></td></tr></table></figure>
+
+<p>又要知道：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">哪个上游服务发起了请求<br></code></pre></td></tr></table></figure>
+
+<p>就不应该简单把 Client Credentials Token 冒充成用户 Token，而需要明确设计 Token Exchange、Delegation 或用户上下文传递方式。</p>
+<h2 id="Scope-到底是什么"><a href="#Scope-到底是什么" class="headerlink" title="Scope 到底是什么"></a>Scope 到底是什么</h2><p><code>scope</code> 表示 Client 请求并最终获得的授权范围。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">order.read<br>order.write<br>profile.read<br>payment.refund<br></code></pre></td></tr></table></figure>
+
+<p>Client 注册时可能允许：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">order.read<br>order.write<br></code></pre></td></tr></table></figure>
+
+<p>它发起授权时可能只申请：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">order.read<br></code></pre></td></tr></table></figure>
+
+<p>而用户最终同意的权限也可能进一步缩小。</p>
+<p>因此最终 Token 中的 Scope 可以理解为多个约束共同作用的结果：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Client 被允许申请的权限<br>        ∩<br>Client 本次实际申请的权限<br>        ∩<br>用户实际同意的权限<br>        ∩<br>用户本身拥有的权限<br>        ∩<br>Authorization Server 安全策略<br></code></pre></td></tr></table></figure>
+
+<p>这也是开放平台返回的 <code>scope</code> 为什么可能比应用注册时声明的权限更小。</p>
+<h3 id="Scope-和-Spring-Security-Authority-有什么区别"><a href="#Scope-和-Spring-Security-Authority-有什么区别" class="headerlink" title="Scope 和 Spring Security Authority 有什么区别"></a>Scope 和 Spring Security Authority 有什么区别</h3><p>两者不是同一个层级的概念。</p>
+<p><code>scope</code> 是 OAuth 协议里的授权范围。</p>
+<p><code>GrantedAuthority</code> 则是 Spring Security 内部进行权限判断的抽象。</p>
+<p>当前 Spring Security Resource Server 默认会把 Token 中的 Scope 转换为带 <code>SCOPE_</code> 前缀的 Authority。例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">scope:<br>    order.read<br>    order.write<br></code></pre></td></tr></table></figure>
+
+<p>进入 Spring Security 后对应：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">SCOPE_order.read<br>SCOPE_order.write<br></code></pre></td></tr></table></figure>
+
+<p>因此可以直接进行方法鉴权：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@PreAuthorize(&quot;hasAuthority(&#x27;SCOPE_order.read&#x27;)&quot;)</span><br><span class="hljs-meta">@GetMapping(&quot;/orders/&#123;id&#125;&quot;)</span><br><span class="hljs-keyword">public</span> OrderDetail <span class="hljs-title function_">getOrder</span><span class="hljs-params">(<span class="hljs-meta">@PathVariable</span> Long id)</span> &#123;<br>    <span class="hljs-comment">// ...</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>Spring Security 当前的 JWT Resource Server 会校验签名以及 <code>exp</code>、<code>nbf</code>、<code>iss</code> 等声明，并完成 Scope 到 Authority 的转换；还可以额外配置 <code>aud</code> 校验。</p>
+<h2 id="JWT-不是-OAuth-2-0-的组成部分"><a href="#JWT-不是-OAuth-2-0-的组成部分" class="headerlink" title="JWT 不是 OAuth 2.0 的组成部分"></a>JWT 不是 OAuth 2.0 的组成部分</h2><p>另一个极其常见的误区是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">OAuth 2.0 = JWT<br></code></pre></td></tr></table></figure>
+
+<p>其实不是。</p>
+<p>OAuth 2.0 规定的是：</p>
+<blockquote>
+<p>如何授权、如何颁发 Token、Client 如何使用 Token。</p>
+</blockquote>
+<p>但 Access Token 的具体格式可以有很多种。</p>
+<p>最常见的是两类。</p>
+<h3 id="Opaque-Token"><a href="#Opaque-Token" class="headerlink" title="Opaque Token"></a>Opaque Token</h3><p>形态可能只是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">2YotnFZFEjr1zCsicMWpAA<br></code></pre></td></tr></table></figure>
+
+<p>Token 本身没有业务意义。</p>
+<p>Resource Server 或 Gateway 需要通过：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Introspection<br>Redis<br>Database<br>Authorization Server<br></code></pre></td></tr></table></figure>
+
+<p>才能知道它代表什么。</p>
+<h3 id="JWT-Access-Token"><a href="#JWT-Access-Token" class="headerlink" title="JWT Access Token"></a>JWT Access Token</h3><p>形态是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">header.payload.signature<br></code></pre></td></tr></table></figure>
+
+<p>Payload 中可以携带：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;sub&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;user-10086&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;iss&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;https://idp.example.com&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;aud&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;order-service&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;scope&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;order.read order.write&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;exp&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1787000000</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>Resource Server 可以利用 Authorization Server 公钥在本地完成验签和大部分校验。</p>
+<p>早期 Spring Security OAuth 示例里常使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java">JwtTokenStore<br>JwtAccessTokenConverter<br>TokenEnhancer<br></code></pre></td></tr></table></figure>
+
+<p>把用户信息直接放进 JWT，然后让 Resource Server 使用公钥本地验证。这种思路本身一直延续到了今天，但具体 API 已经发生了很大变化。</p>
+<h2 id="JWT-是签名，不是默认加密"><a href="#JWT-是签名，不是默认加密" class="headerlink" title="JWT 是签名，不是默认加密"></a>JWT 是签名，不是默认加密</h2><p>JWT 特别容易产生一种错觉：</p>
+<blockquote>
+<p>Token 看起来是一长串乱码，所以里面的数据应该是加密的。</p>
+</blockquote>
+<p>实际上普通 JWS JWT 的 Payload 只是 Base64URL 编码。</p>
+<p>拿到 Token 的人完全可以读取其中的内容。</p>
+<p>签名解决的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Token 有没有被篡改？<br>Token 是否由可信签发方产生？<br></code></pre></td></tr></table></figure>
+
+<p>而不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">别人能不能看到 Payload？<br></code></pre></td></tr></table></figure>
+
+<p>因此不应该把下面这些敏感数据随便塞进 Access Token：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">密码<br>身份证号<br>银行卡信息<br>手机号<br>内部风控数据<br>完整 UserDetails<br>大量容易变化的业务信息<br></code></pre></td></tr></table></figure>
+
+<p>旧版示例中把整个 <code>userDetails</code> 注入 JWT 很适合演示 <code>TokenEnhancer</code> 的能力，但生产环境更合理的做法通常是只携带稳定、必要的 Claims，例如：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;sub&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;10086&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;tenant_id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;tenant-a&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;scope&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;order.read&quot;</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;aud&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;order-service&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<h2 id="JWT-和-Opaque-Token-应该怎么选"><a href="#JWT-和-Opaque-Token-应该怎么选" class="headerlink" title="JWT 和 Opaque Token 应该怎么选"></a>JWT 和 Opaque Token 应该怎么选</h2><p>不存在“JWT 一定比普通 Token 高级”这样的结论。</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>JWT</th>
+<th>Opaque Token</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Resource Server 验证</td>
+<td>本地验签</td>
+<td>通常需要 Introspection&#x2F;共享存储</td>
+</tr>
+<tr>
+<td>网络调用</td>
+<td>少</td>
+<td>相对多</td>
+</tr>
+<tr>
+<td>水平扩展</td>
+<td>很方便</td>
+<td>依赖中心状态</td>
+</tr>
+<tr>
+<td>用户信息</td>
+<td>可以自包含</td>
+<td>Token 本身通常无意义</td>
+</tr>
+<tr>
+<td>权限变化实时性</td>
+<td>较弱</td>
+<td>较强</td>
+</tr>
+<tr>
+<td>即时吊销</td>
+<td>相对困难</td>
+<td>容易</td>
+</tr>
+<tr>
+<td>泄漏后的信息暴露</td>
+<td>Payload 可见</td>
+<td>Token 本身无业务信息</td>
+</tr>
+<tr>
+<td>适合</td>
+<td>高频微服务调用</td>
+<td>强撤销、强集中管控</td>
+</tr>
+</tbody></table>
+<p>当前 Spring Security Authorization Server 同时支持 Self-contained JWT 和 Reference&#x2F;Opaque Token，并提供 Introspection、Revocation、JWK 等相关端点，所以 Token 形式本身应该由业务的安全模型和运维需求决定，而不是被框架绑死。</p>
+<h2 id="一种很实用的微服务混合-Token-架构"><a href="#一种很实用的微服务混合-Token-架构" class="headerlink" title="一种很实用的微服务混合 Token 架构"></a>一种很实用的微服务混合 Token 架构</h2><p>在微服务场景里，可以采用这样一种模式：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">公网：<br>    Opaque Access Token<br><br>Gateway 之后：<br>    JWT<br></code></pre></td></tr></table></figure>
+
+<p>它的基本逻辑是：</p>
+<pre><code class=" mermaid">flowchart LR
+    U[Browser / App / Third-party Client]
+    N[Nginx / Ingress]
+    W[Web / BFF]
+    G[API Gateway]
+    IDP[Authorization Server / IDP]
+    D[Developer Center]
+    O[Order Service]
+    P[Product Service]
+    PAY[Payment Service]
+
+    U --&gt; N
+    N --&gt; W
+    N --&gt; G
+    W --&gt; G
+
+    G --&gt;|Token Introspection| IDP
+    G --&gt;|读取 Client 信息| D
+
+    G --&gt;|内部 JWT| O
+    G --&gt;|内部 JWT| P
+    G --&gt;|内部 JWT| PAY
+</code></pre>
+
+<p>对公网而言，客户端只拿到一个无业务语义的 Opaque Token。</p>
+<p>Gateway 收到请求后：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs text">Opaque Token<br>    ↓<br>Authorization Server / Introspection<br>    ↓<br>user_id<br>tenant_id<br>scope<br>client_id<br>    ↓<br>生成或转换为内部安全上下文/JWT<br>    ↓<br>Backend Services<br></code></pre></td></tr></table></figure>
+
+<p>这种“外部 Token + 内部 JWT”的设计并不是 OAuth 标准强制要求，而是一种企业架构取舍。它的价值在于兼顾：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">外部令牌可集中吊销<br>+<br>内部服务避免每次访问 IDP<br>+<br>内部 JWT 可以承载必要用户上下文<br></code></pre></td></tr></table></figure>
+
+<p>相关微服务参考架构还会进一步划分：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Nginx / Ingress<br>        ↓<br>Web<br>        ↓<br>API Gateway<br>        ↓<br>BFF<br>        ↓<br>Domain Service<br></code></pre></td></tr></table></figure>
+
+<p>BFF 负责面向不同前端聚合多个领域 API，Domain Service 则承载领域业务逻辑和自己的数据。</p>
+<p>需要强调的是，诸如“领域服务绝不能调用其他领域服务”属于具体微服务架构约束，不是 OAuth 2.0 的要求。实际系统可以根据同步调用、事件驱动、数据冗余和领域边界选择合适方案。</p>
+<h2 id="API-Gateway-能做什么，不能做什么"><a href="#API-Gateway-能做什么，不能做什么" class="headerlink" title="API Gateway 能做什么，不能做什么"></a>API Gateway 能做什么，不能做什么</h2><p>开放平台和微服务实践中，经常会把 Token 校验集中到 Gateway。</p>
+<p>这是合理的，因为否则：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Order Service     -&gt; 写一套 Token 校验<br>Product Service   -&gt; 写一套 Token 校验<br>Payment Service   -&gt; 写一套 Token 校验<br>User Service      -&gt; 写一套 Token 校验<br></code></pre></td></tr></table></figure>
+
+<p>既重复，又难以统一升级。</p>
+<p>Gateway 适合负责：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Access Token 是否有效<br>Issuer 是否可信<br>Audience 是否匹配<br>Client 是否有效<br>Scope 是否允许调用这个 API<br>路由<br>限流<br>CORS<br>安全日志<br></code></pre></td></tr></table></figure>
+
+<p>但这并不意味着：</p>
+<blockquote>
+<p>经过 Gateway 后，业务服务就再也不需要做任何授权。</p>
+</blockquote>
+<p>这是微服务安全设计中极其危险的误区。</p>
+<p>Gateway 能判断：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">你有没有调用 GET /orders/&#123;id&#125; 的权限<br></code></pre></td></tr></table></figure>
+
+<p>但通常只有 Order Service 才知道：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">这个 orderId 到底是不是你的<br></code></pre></td></tr></table></figure>
+
+<p>因此应该形成两层授权。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Gateway<br>    -&gt; 粗粒度 API / Scope Authorization<br><br>Resource Server<br>    -&gt; 细粒度 Resource / Object Authorization<br></code></pre></td></tr></table></figure>
+
+<p>开放平台资料里“网关负责 Token 校验，但订单服务仍要判断订单是否属于当前商家”正是这个边界。</p>
+<h2 id="最危险的漏洞之一：水平越权"><a href="#最危险的漏洞之一：水平越权" class="headerlink" title="最危险的漏洞之一：水平越权"></a>最危险的漏洞之一：水平越权</h2><p>假设：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">商家 A -&gt; merchant_id = 1001<br>商家 B -&gt; merchant_id = 2002<br></code></pre></td></tr></table></figure>
+
+<p>商家 A 有一个合法的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">access_token<br></code></pre></td></tr></table></figure>
+
+<p>Token 里身份也是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">merchant_id = 1001<br></code></pre></td></tr></table></figure>
+
+<p>然后它调用：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs http">GET /orders/ORDER_OF_2002<br><span class="hljs-attribute">Authorization</span><span class="hljs-punctuation">: </span>Bearer &lt;token-of-1001&gt;<br></code></pre></td></tr></table></figure>
+
+<p>如果系统只判断：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Token 合法 ✔<br>Scope 包含 order.read ✔<br></code></pre></td></tr></table></figure>
+
+<p>然后执行：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> orders<br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> :orderId;<br></code></pre></td></tr></table></figure>
+
+<p>商家 A 就可能读到商家 B 的订单。</p>
+<p>这就是典型的水平越权，也常被称为对象级授权缺失。</p>
+<p>正确查询应该把当前安全上下文带进资源归属判断：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span><br><span class="hljs-keyword">FROM</span> orders<br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> :orderId<br>  <span class="hljs-keyword">AND</span> merchant_id <span class="hljs-operator">=</span> :currentMerchantId;<br></code></pre></td></tr></table></figure>
+
+<p>在 Spring Resource Server 中，可以写成类似：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@RestController</span><br><span class="hljs-meta">@RequestMapping(&quot;/orders&quot;)</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">OrderController</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> OrderRepository orderRepository;<br><br>    <span class="hljs-meta">@PreAuthorize(&quot;hasAuthority(&#x27;SCOPE_order.read&#x27;)&quot;)</span><br>    <span class="hljs-meta">@GetMapping(&quot;/&#123;orderId&#125;&quot;)</span><br>    <span class="hljs-keyword">public</span> OrderDTO <span class="hljs-title function_">getOrder</span><span class="hljs-params">(</span><br><span class="hljs-params">            <span class="hljs-meta">@PathVariable</span> Long orderId,</span><br><span class="hljs-params">            JwtAuthenticationToken authentication)</span> &#123;<br><br>        <span class="hljs-type">String</span> <span class="hljs-variable">merchantId</span> <span class="hljs-operator">=</span><br>                authentication.getToken().getClaimAsString(<span class="hljs-string">&quot;merchant_id&quot;</span>);<br><br>        <span class="hljs-type">Order</span> <span class="hljs-variable">order</span> <span class="hljs-operator">=</span> orderRepository<br>                .findByIdAndMerchantId(orderId, merchantId)<br>                .orElseThrow(() -&gt; <span class="hljs-keyword">new</span> <span class="hljs-title class_">ResponseStatusException</span>(<br>                        HttpStatus.NOT_FOUND));<br><br>        <span class="hljs-keyword">return</span> OrderDTO.from(order);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里的关键不是 Java 代码，而是这个安全模型：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Token 有权限<br>    ≠<br>Token 对所有同类数据都有权限<br></code></pre></td></tr></table></figure>
+
+<p>OAuth 只能告诉 Resource Server“这个调用者拥有哪些授权”，真正的对象归属关系必须由业务服务处理。</p>
+<h2 id="OAuth-2-0-的-CSRF-到底是怎么发生的"><a href="#OAuth-2-0-的-CSRF-到底是怎么发生的" class="headerlink" title="OAuth 2.0 的 CSRF 到底是怎么发生的"></a>OAuth 2.0 的 CSRF 到底是怎么发生的</h2><p>早期 OAuth 资料中的 CSRF 示例很容易把人绕晕，因为它并不是简单的：</p>
+<blockquote>
+<p>攻击者偷了受害者的 Code。</p>
+</blockquote>
+<p>更准确的理解是 <strong>Authorization Response Injection &#x2F; Login CSRF</strong>：</p>
+<blockquote>
+<p>攻击者把“属于攻击者授权事务的 Authorization Code”注入到受害者的 Client Session 中。</p>
+</blockquote>
+<p>可以把过程重画成：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    actor A as 攻击者
+    actor V as 受害者
+    participant C as 合法 OAuth Client
+    participant AS as Authorization Server
+
+    A-&gt;&gt;C: 发起自己的 OAuth 授权
+    C-&gt;&gt;AS: Authorization Request
+    AS--&gt;&gt;A: code_attacker
+    Note over A: 攻击者截获自己的授权响应&lt;br/&gt;暂不完成回调
+
+    A-&gt;&gt;V: 诱导访问 Client Callback&lt;br/&gt;?code=code_attacker
+    V-&gt;&gt;C: 浏览器携带受害者自己的 Client Session
+    C-&gt;&gt;AS: 使用 code_attacker 换 Token
+    AS--&gt;&gt;C: 返回攻击者授权上下文对应的 Token
+    Note over V,C: 受害者浏览器会话&lt;br/&gt;被错误绑定到攻击者授权上下文
+</code></pre>
+
+<p>这里的危险在于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">受害者的 Client Session<br>+<br>攻击者的 OAuth Authorization Response<br></code></pre></td></tr></table></figure>
+
+<p>被错误拼接到了一起。</p>
+<p>例如“绑定微信账号”的功能中，就可能导致：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">受害者的网站账号<br>    ↓<br>错误绑定<br>    ↓<br>攻击者的微信账号<br></code></pre></td></tr></table></figure>
+
+<p>攻击者以后通过自己的微信，就可能登录到受害者账号。</p>
+<p>所以 CSRF 防护不是为了隐藏 Code，而是为了确认：</p>
+<blockquote>
+<p>当前回调是否就是当前浏览器会话之前发起的那笔授权事务的响应。</p>
+</blockquote>
+<p>传统方案依赖正确生成并校验 <code>state</code>，现代系统还应结合 PKCE；RFC 9700 对这些防护关系进行了更精确的约束。</p>
+<h2 id="授权码失窃为什么危险"><a href="#授权码失窃为什么危险" class="headerlink" title="授权码失窃为什么危险"></a>授权码失窃为什么危险</h2><p>授权码是临时凭据，但“临时”不等于“随便泄漏也没问题”。</p>
+<p>假设攻击者截获：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">code=abc123<br></code></pre></td></tr></table></figure>
+
+<p>如果 Authorization Server 又存在以下设计缺陷：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Code 没有正确绑定 Client<br>Code 没有正确绑定 redirect_uri<br>Code 可以重复使用<br>没有 PKCE<br>Code 生命周期过长<br></code></pre></td></tr></table></figure>
+
+<p>攻击者就可能拿这个 Code 去 Token Endpoint 换取 Access Token。</p>
+<p>早期资料提出的几个基础防护至今仍然重要：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Code 短生命周期<br>Code 一次性使用<br>Code 必须与 Client 绑定<br>Token Endpoint 必须验证 Client<br>redirect_uri 必须一致<br></code></pre></td></tr></table></figure>
+
+<p>现代安全模型则进一步通过 PKCE 将：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Authorization Request<br></code></pre></td></tr></table></figure>
+
+<p>和：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Token Request<br></code></pre></td></tr></table></figure>
+
+<p>绑定在一起，即使 Code 被截获，缺少 <code>code_verifier</code> 也无法兑换。</p>
+<h2 id="Redirect-URI-为什么必须严格校验"><a href="#Redirect-URI-为什么必须严格校验" class="headerlink" title="Redirect URI 为什么必须严格校验"></a>Redirect URI 为什么必须严格校验</h2><p>假设合法回调地址是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">https://client.example.com/oauth/callback<br></code></pre></td></tr></table></figure>
+
+<p>如果 Authorization Server 只做非常宽松的前缀判断：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">只要以 https://client.example.com 开头就算合法<br></code></pre></td></tr></table></figure>
+
+<p>那么类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">https://client.example.com/some/open-redirect?target=https://evil.example.com<br></code></pre></td></tr></table></figure>
+
+<p>或者利用路径解析差异构造的地址，就可能成为 Authorization Code 泄漏的跳板。</p>
+<p>所以生产系统不要写这种校验：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">redirectUri.startsWith(registeredRedirectUri)<br></code></pre></td></tr></table></figure>
+
+<p>也不要随意：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">redirectUri.contains(<span class="hljs-string">&quot;example.com&quot;</span>)<br></code></pre></td></tr></table></figure>
+
+<p>当前 OAuth 安全最佳实践要求采用严格的 Redirect URI 比较，Native App 的 localhost 动态端口是其中一个特殊场景。</p>
+<h2 id="XSS-和-OAuth-2-0-没有“绝缘层”"><a href="#XSS-和-OAuth-2-0-没有“绝缘层”" class="headerlink" title="XSS 和 OAuth 2.0 没有“绝缘层”"></a>XSS 和 OAuth 2.0 没有“绝缘层”</h2><p>OAuth 2.0 可以防授权问题，但它不能让 Web 系统自动免疫 XSS。</p>
+<p>例如 Resource Server 返回：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;error&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;&lt;script&gt;stealToken()&lt;/script&gt;&quot;</span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果前端把错误信息直接作为 HTML 渲染，就可能造成脚本执行。</p>
+<p>同理：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">client_id<br>redirect_uri<br>scope<br>error_description<br>用户昵称<br>第三方应用名称<br></code></pre></td></tr></table></figure>
+
+<p>只要它们最终进入 HTML，都应该按照输出上下文正确编码。</p>
+<p>因此 OAuth 系统仍然需要普通 Web 安全措施：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">Output Encoding<br>CSP<br>HttpOnly Cookie<br>Secure Cookie<br>SameSite<br>输入校验<br>模板默认转义<br>避免 innerHTML<br></code></pre></td></tr></table></figure>
+
+<p>OAuth 2.0 不会替代 OWASP 那一整套 Web 安全基础设施。</p>
+<h2 id="Bearer-Token-泄漏后为什么那么麻烦"><a href="#Bearer-Token-泄漏后为什么那么麻烦" class="headerlink" title="Bearer Token 泄漏后为什么那么麻烦"></a>Bearer Token 泄漏后为什么那么麻烦</h2><p>大部分 OAuth Access Token 都是 Bearer Token。</p>
+<p>Bearer 的含义基本可以理解成：</p>
+<blockquote>
+<p>谁拿到它，谁就能使用它。</p>
+</blockquote>
+<p>因此：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Token 泄漏<br>≈<br>授权能力泄漏<br></code></pre></td></tr></table></figure>
+
+<p>这也是为什么 HTTPS 在 OAuth 系统里不是“优化项”，而是安全前提。</p>
+<p>同时还要避免把 Access Token 放进：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">URL Query String<br>应用日志<br>Nginx Access Log<br>异常栈<br>埋点参数<br>前端监控系统<br>聊天截图<br></code></pre></td></tr></table></figure>
+
+<p>RFC 9700 还建议在合适的高安全场景使用 Sender-Constrained Token，例如 mTLS 或 DPoP，让“拿到 Token”本身不足以完成重放攻击。</p>
+<h2 id="Refresh-Token-比-Access-Token-更值得保护"><a href="#Refresh-Token-比-Access-Token-更值得保护" class="headerlink" title="Refresh Token 比 Access Token 更值得保护"></a>Refresh Token 比 Access Token 更值得保护</h2><p>Access Token 通常生命周期较短：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">5 min<br>15 min<br>30 min<br></code></pre></td></tr></table></figure>
+
+<p>Refresh Token 却可能持续：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">数小时<br>数天<br>数周<br></code></pre></td></tr></table></figure>
+
+<p>如果攻击者获得 Refresh Token，就可能不断换取新的 Access Token。</p>
+<p>因此不能因为 Refresh Token“不直接调用 API”就降低安全等级。</p>
+<p>当前最佳实践要求 Public Client 的 Refresh Token 使用 Sender Constraint 或 Refresh Token Rotation。</p>
+<p>Rotation 的基本思想是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">refresh_token_1<br>    ↓ refresh<br>refresh_token_2<br><br>此后 refresh_token_1 失效<br></code></pre></td></tr></table></figure>
+
+<p>如果之后再次看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">refresh_token_1<br></code></pre></td></tr></table></figure>
+
+<p>就意味着可能发生了 Token Replay，可以直接使整个 Token Family 失效。</p>
+<h2 id="用户注销、禁用、改密之后-Token-怎么办"><a href="#用户注销、禁用、改密之后-Token-怎么办" class="headerlink" title="用户注销、禁用、改密之后 Token 怎么办"></a>用户注销、禁用、改密之后 Token 怎么办</h2><p>这也是 JWT 系统经常被忽略的问题。</p>
+<p>假设用户：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">删除账号<br>禁用账号<br>修改高风险凭据<br>被管理员冻结<br>主动撤销第三方授权<br></code></pre></td></tr></table></figure>
+
+<p>但它之前签发的 Access Token 仍然有效 30 分钟，那么 Resource Server 如果只做 JWT 本地验签，在这 30 分钟内仍可能继续接受请求。</p>
+<p>开放平台实践中常见的方式是通过用户中心产生安全事件：</p>
+<pre><code class=" mermaid">flowchart LR
+    U[User Center]
+    MQ[Message Queue]
+    AS[Authorization Server]
+    TS[(Token / Authorization Store)]
+
+    U --&gt;|用户禁用 / 撤销授权 / 高风险凭据变化| MQ
+    MQ --&gt; AS
+    AS --&gt;|Revoke / Cleanup| TS
+</code></pre>
+
+<p>对于 Opaque Token，由于通常需要中心查询，立即撤销比较自然。</p>
+<p>对于纯 JWT，则需要在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">短有效期<br>安全事件<br>密钥轮换<br>黑名单<br>Token Version<br>Introspection<br></code></pre></td></tr></table></figure>
+
+<p>之间做取舍。</p>
+<p>所以“JWT 无状态”不是免费午餐。越追求完全本地验证，就越要接受授权状态传播存在延迟。开放平台使用消息事件清理关联 Token 的设计，非常值得企业内部统一身份系统借鉴。</p>
+<h2 id="SSO-为什么经常和-OAuth-2-0-混在一起"><a href="#SSO-为什么经常和-OAuth-2-0-混在一起" class="headerlink" title="SSO 为什么经常和 OAuth 2.0 混在一起"></a>SSO 为什么经常和 OAuth 2.0 混在一起</h2><p>典型 Web SSO 流程如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">App A<br>  ↓ redirect<br>Identity Provider<br>  ↓ login<br>App A<br><br>App B<br>  ↓ redirect<br>Identity Provider<br>  ↓ 已经存在 IdP Session，无需再次输入密码<br>App B<br></code></pre></td></tr></table></figure>
+
+<p>真正让用户“不用再次输入密码”的关键，不是 App A 把 Access Token 给 App B，而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">IdP 自己还保存着用户的认证会话<br></code></pre></td></tr></table></figure>
+
+<p>App B 仍然会重新发起自己的 Authorization&#x2F;OIDC Flow，只是到 IdP 时发现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">用户已经认证<br></code></pre></td></tr></table></figure>
+
+<p>于是授权流程可以快速完成。</p>
+<p>因此正确的 SSO 边界应该是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">各应用：<br>    自己维护自己的 Session / Token<br><br>IdP：<br>    维护统一认证状态<br></code></pre></td></tr></table></figure>
+
+<p>而不是多个业务系统互相复制 Cookie 或共享 Access Token。</p>
+<p>如果需求是用户登录身份，应进一步使用 OIDC，而不是只依靠 OAuth Access Token。</p>
+<h2 id="开放平台中的完整-OAuth-2-0-架构"><a href="#开放平台中的完整-OAuth-2-0-架构" class="headerlink" title="开放平台中的完整 OAuth 2.0 架构"></a>开放平台中的完整 OAuth 2.0 架构</h2><p>把前面的角色拼起来，一个成熟开放平台往往会形成：</p>
+<pre><code class=" mermaid">flowchart TB
+    DEV[第三方开发者]
+    APP[第三方应用 / ISV]
+    USER[用户]
+    CENTER[Developer Center]
+    AUTH[Authorization Server]
+    GW[API Gateway]
+    ORDER[Order Service]
+    PRODUCT[Product Service]
+    USER_SVC[User Service]
+
+    DEV --&gt;|注册应用| CENTER
+    CENTER --&gt;|client_id / client policy| AUTH
+    CENTER --&gt; GW
+
+    USER --&gt; APP
+    APP --&gt;|Authorization Request| AUTH
+    AUTH --&gt;|Authorization Code| APP
+    APP --&gt;|Code Exchange| AUTH
+    AUTH --&gt;|Access Token| APP
+
+    APP --&gt;|Bearer Token| GW
+    GW --&gt;|校验 Token / Client / Scope| AUTH
+    GW --&gt; ORDER
+    GW --&gt; PRODUCT
+    GW --&gt; USER_SVC
+</code></pre>
+
+<p>这里可以把开放平台的三个核心能力分开：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">Developer Center<br>    -&gt; Client Lifecycle<br><br>Authorization Server<br>    -&gt; User Delegation / Token Lifecycle<br><br>API Gateway<br>    -&gt; API Access Enforcement<br></code></pre></td></tr></table></figure>
+
+<p>而内部订单、商品、用户等服务，则是真正的 Protected Resources。微信、支付宝、美团等开放平台虽然接口和参数命名不同，但相关资料中的整体授权流程本质上都可以映射回 Authorization Code 模型。</p>
+<h2 id="微服务内部到底应该传-Access-Token-还是用户信息"><a href="#微服务内部到底应该传-Access-Token-还是用户信息" class="headerlink" title="微服务内部到底应该传 Access Token 还是用户信息"></a>微服务内部到底应该传 Access Token 还是用户信息</h2><p>这没有唯一答案。</p>
+<h3 id="方案一：原-Token-一路透传"><a href="#方案一：原-Token-一路透传" class="headerlink" title="方案一：原 Token 一路透传"></a>方案一：原 Token 一路透传</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">Client<br>  ↓ Access Token<br>Gateway<br>  ↓ Access Token<br>Service A<br>  ↓ Access Token<br>Service B<br></code></pre></td></tr></table></figure>
+
+<p>优点是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">授权上下文完整<br>审计链清晰<br>每个服务可以独立校验<br></code></pre></td></tr></table></figure>
+
+<p>缺点是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">每个服务都有 OAuth 安全逻辑<br>可能频繁 Introspection<br>Token 暴露范围扩大<br></code></pre></td></tr></table></figure>
+
+<h3 id="方案二：Gateway-解析后直接传用户头"><a href="#方案二：Gateway-解析后直接传用户头" class="headerlink" title="方案二：Gateway 解析后直接传用户头"></a>方案二：Gateway 解析后直接传用户头</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Gateway<br>  ↓<br>X-User-Id: 10086<br>X-Tenant-Id: tenant-a<br>X-Scope: order.read<br></code></pre></td></tr></table></figure>
+
+<p>实现最简单，但一定要满足一个关键前提：</p>
+<blockquote>
+<p>下游服务只能被可信 Gateway 调用，并且 Gateway 必须删除外部客户端伪造的同名 Header，再重新生成。</p>
+</blockquote>
+<p>否则攻击者可以直接：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs http"><span class="hljs-attribute">X-User-Id</span><span class="hljs-punctuation">: </span>admin<br></code></pre></td></tr></table></figure>
+
+<p>那就不是 OAuth 了，而是“相信客户端自己填身份证”。</p>
+<h3 id="方案三：Gateway-转成内部-JWT"><a href="#方案三：Gateway-转成内部-JWT" class="headerlink" title="方案三：Gateway 转成内部 JWT"></a>方案三：Gateway 转成内部 JWT</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">External Access Token<br>        ↓<br>Gateway<br>        ↓<br>Internal JWT<br>        ↓<br>Microservices<br></code></pre></td></tr></table></figure>
+
+<p>这是前面介绍的混合模式。</p>
+<p>微服务参考架构中采用的就是类似思路：Gateway 验证 OAuth Access Token 后，把用户和权限信息转换成内部 JWT，再交给 BFF 和领域服务。</p>
+<h2 id="旧版-Spring-Security-OAuth-到底是怎么工作的"><a href="#旧版-Spring-Security-OAuth-到底是怎么工作的" class="headerlink" title="旧版 Spring Security OAuth 到底是怎么工作的"></a>旧版 Spring Security OAuth 到底是怎么工作的</h2><p>很多经典文章里的 Spring OAuth 代码大致长这样：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Configuration</span><br><span class="hljs-meta">@EnableAuthorizationServer</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">OAuth2ServerConfiguration</span><br>        <span class="hljs-keyword">extends</span> <span class="hljs-title class_">AuthorizationServerConfigurerAdapter</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>Resource Server 则是：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Configuration</span><br><span class="hljs-meta">@EnableResourceServer</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ResourceServerConfiguration</span><br>        <span class="hljs-keyword">extends</span> <span class="hljs-title class_">ResourceServerConfigurerAdapter</span> &#123;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>用户安全配置继续继承：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">WebSecurityConfigurerAdapter<br></code></pre></td></tr></table></figure>
+
+<p>Token 相关使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java">JwtTokenStore<br>JwtAccessTokenConverter<br>TokenEnhancer<br></code></pre></td></tr></table></figure>
+
+<p>客户端则可能出现：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@EnableOAuth2Sso</span><br>OAuth2RestTemplate<br></code></pre></td></tr></table></figure>
+
+<p>再配上一组数据库表：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">users<br>authorities<br>oauth_client_details<br>oauth_code<br>oauth_approvals<br></code></pre></td></tr></table></figure>
+
+<p>这些代码在当年的 Spring Boot 2.x + Spring Cloud OAuth2 环境里非常典型，也很好地演示了：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Authorization Server<br>Resource Server<br>OAuth Client<br>Authorization Code<br>Password Grant<br>Client Credentials<br>JWT<br>Method Security<br>SSO<br></code></pre></td></tr></table></figure>
+
+<p>整个 OAuth 体系。</p>
+<p>但是这些 API <strong>不能直接当成今天的新项目模板继续复制</strong>。</p>
+<h2 id="Spring-Security-OAuth-已经进入历史阶段"><a href="#Spring-Security-OAuth-已经进入历史阶段" class="headerlink" title="Spring Security OAuth 已经进入历史阶段"></a>Spring Security OAuth 已经进入历史阶段</h2><p>原来的 Spring Security OAuth 项目已经在 2022 年结束生命周期。Spring 官方把 OAuth Client 和 Resource Server 能力迁入 Spring Security，并由 Spring Authorization Server 承担 Authorization Server 能力。随后 Spring Authorization Server 又从独立项目进一步整合进入 Spring Security 7；独立的 <code>1.5.x</code> 成为最后一代分支，后续新特性进入 Spring Security。</p>
+<p>因此阅读老代码时，应该做一层“概念翻译”。</p>
+<table>
+<thead>
+<tr>
+<th>旧实现</th>
+<th>当前应该理解成</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>spring-cloud-starter-oauth2</code></td>
+<td>Spring Security OAuth2 Client &#x2F; Resource Server &#x2F; Authorization Server</td>
+</tr>
+<tr>
+<td><code>@EnableAuthorizationServer</code></td>
+<td>Authorization Server DSL + <code>SecurityFilterChain</code></td>
+</tr>
+<tr>
+<td><code>AuthorizationServerConfigurerAdapter</code></td>
+<td>Bean + Component-based Configuration</td>
+</tr>
+<tr>
+<td><code>@EnableResourceServer</code></td>
+<td><code>oauth2ResourceServer()</code></td>
+</tr>
+<tr>
+<td><code>ResourceServerConfigurerAdapter</code></td>
+<td><code>SecurityFilterChain</code></td>
+</tr>
+<tr>
+<td><code>WebSecurityConfigurerAdapter</code></td>
+<td><code>SecurityFilterChain</code></td>
+</tr>
+<tr>
+<td><code>JwtAccessTokenConverter</code></td>
+<td><code>JwtEncoder</code> &#x2F; <code>JwtDecoder</code> &#x2F; JWK</td>
+</tr>
+<tr>
+<td><code>TokenEnhancer</code></td>
+<td><code>OAuth2TokenCustomizer</code></td>
+</tr>
+<tr>
+<td><code>OAuth2RestTemplate</code></td>
+<td><code>RestClient</code> OAuth2 Integration</td>
+</tr>
+<tr>
+<td><code>@EnableOAuth2Sso</code></td>
+<td>OAuth2 Client + <code>oauth2Login()</code></td>
+</tr>
+<tr>
+<td><code>oauth_client_details</code></td>
+<td><code>RegisteredClientRepository</code> 等当前模型</td>
+</tr>
+</tbody></table>
+<p><code>WebSecurityConfigurerAdapter</code> 从 Spring Security 5.7 开始就已经被弃用，推荐改为基于 <code>SecurityFilterChain</code> 的组件化配置。</p>
+<p>理解这个映射以后，老教程依然很有价值：</p>
+<blockquote>
+<p>OAuth 原理没有因为 Spring API 改名而消失，只是框架实现方式变了。</p>
+</blockquote>
+<h2 id="当前-Spring-Security-的-Authorization-Server"><a href="#当前-Spring-Security-的-Authorization-Server" class="headerlink" title="当前 Spring Security 的 Authorization Server"></a>当前 Spring Security 的 Authorization Server</h2><p>截至当前 Spring Security 官方稳定文档，Authorization Server 已经直接纳入 Spring Security 体系，支持 Authorization Code、Client Credentials、Refresh Token、Device Code、Token Exchange，以及 JWT&#x2F;Opaque Token、OIDC、Introspection、Revocation、JWK 等能力。</p>
+<p>Spring Boot 项目可以直接引入：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-oauth2-authorization-server<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>官方当前入门配置使用 <code>SecurityFilterChain</code> 和 Authorization Server DSL；Authorization Server 当前要求 Java 17 或更高版本。</p>
+<p>开发环境可以先注册一个简单 Client：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">spring:</span><br>  <span class="hljs-attr">security:</span><br>    <span class="hljs-attr">oauth2:</span><br>      <span class="hljs-attr">authorizationserver:</span><br>        <span class="hljs-attr">client:</span><br>          <span class="hljs-attr">demo-client:</span><br>            <span class="hljs-attr">registration:</span><br>              <span class="hljs-attr">client-id:</span> <span class="hljs-string">demo-client</span><br>              <span class="hljs-attr">client-secret:</span> <span class="hljs-string">&quot;&#123;noop&#125;change-me&quot;</span><br>              <span class="hljs-attr">client-authentication-methods:</span><br>                <span class="hljs-bullet">-</span> <span class="hljs-string">client_secret_basic</span><br>              <span class="hljs-attr">authorization-grant-types:</span><br>                <span class="hljs-bullet">-</span> <span class="hljs-string">authorization_code</span><br>                <span class="hljs-bullet">-</span> <span class="hljs-string">refresh_token</span><br>              <span class="hljs-attr">redirect-uris:</span><br>                <span class="hljs-bullet">-</span> <span class="hljs-string">http://127.0.0.1:8080/login/oauth2/code/demo-client</span><br>              <span class="hljs-attr">scopes:</span><br>                <span class="hljs-bullet">-</span> <span class="hljs-string">openid</span><br>                <span class="hljs-bullet">-</span> <span class="hljs-string">profile</span><br>                <span class="hljs-bullet">-</span> <span class="hljs-string">order.read</span><br>            <span class="hljs-attr">require-authorization-consent:</span> <span class="hljs-literal">true</span><br></code></pre></td></tr></table></figure>
+
+<p>这里的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">&#123;noop&#125;change-me<br></code></pre></td></tr></table></figure>
+
+<p>只适合本地演示。</p>
+<p>生产环境的 Client Secret 应该通过可靠的密码编码、Secret Manager、Vault、Kubernetes Secret 等机制管理，绝不能提交到 Git 仓库，更不能打包到浏览器 JavaScript 或移动 App 中。</p>
+<p>对于真正的企业系统，Client Registration、Authorization、Consent、JWK 和密钥轮换通常也需要持久化和运维体系，而不是照搬内存 Demo。</p>
+<h2 id="当前-Spring-Resource-Server-的最小配置"><a href="#当前-Spring-Resource-Server-的最小配置" class="headerlink" title="当前 Spring Resource Server 的最小配置"></a>当前 Spring Resource Server 的最小配置</h2><p>资源服务器通常只需要：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.boot<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-boot-starter-oauth2-resource-server<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>配置 Authorization Server 的 Issuer：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">spring:</span><br>  <span class="hljs-attr">security:</span><br>    <span class="hljs-attr">oauth2:</span><br>      <span class="hljs-attr">resourceserver:</span><br>        <span class="hljs-attr">jwt:</span><br>          <span class="hljs-attr">issuer-uri:</span> <span class="hljs-string">https://idp.example.com</span><br>          <span class="hljs-attr">audiences:</span><br>            <span class="hljs-bullet">-</span> <span class="hljs-string">https://order-service.example.com</span><br></code></pre></td></tr></table></figure>
+
+<p>安全配置不再继承 <code>WebSecurityConfigurerAdapter</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Configuration</span><br><span class="hljs-meta">@EnableMethodSecurity</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">SecurityConfig</span> &#123;<br><br>    <span class="hljs-meta">@Bean</span><br>    SecurityFilterChain <span class="hljs-title function_">securityFilterChain</span><span class="hljs-params">(HttpSecurity http)</span><br>            <span class="hljs-keyword">throws</span> Exception &#123;<br><br>        http<br>            .authorizeHttpRequests(authorize -&gt; authorize<br>                .requestMatchers(<span class="hljs-string">&quot;/actuator/health&quot;</span>).permitAll()<br>                .anyRequest().authenticated()<br>            )<br>            .oauth2ResourceServer(oauth2 -&gt;<br>                oauth2.jwt(Customizer.withDefaults())<br>            );<br><br>        <span class="hljs-keyword">return</span> http.build();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>当前 Resource Server 可以通过 Authorization Server Metadata&#x2F;JWK 获取验证密钥，对 JWT 签名进行校验，并校验包括 <code>iss</code>、<code>exp</code>、<code>nbf</code> 在内的声明；Scope 默认转换为 <code>SCOPE_</code> Authority。</p>
+<p>这和旧时代：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">JwtAccessTokenConverter</span> <span class="hljs-variable">converter</span> <span class="hljs-operator">=</span><br>        <span class="hljs-keyword">new</span> <span class="hljs-title class_">JwtAccessTokenConverter</span>();<br>converter.setVerifierKey(publicKey);<br></code></pre></td></tr></table></figure>
+
+<p>本质上解决的是同一件事，只是今天的 JWK Discovery、Key Rotation 和声明验证已经更加标准化。</p>
+<h2 id="TokenEnhancer-在今天怎么写"><a href="#TokenEnhancer-在今天怎么写" class="headerlink" title="TokenEnhancer 在今天怎么写"></a>TokenEnhancer 在今天怎么写</h2><p>旧代码可能会这样：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CustomTokenEnhancer</span> <span class="hljs-keyword">implements</span> <span class="hljs-title class_">TokenEnhancer</span> &#123;<br>    <span class="hljs-comment">// 往 JWT 里增加 userDetails</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>当前 Authorization Server 提供 <code>OAuth2TokenCustomizer&lt;JwtEncodingContext&gt;</code>。</p>
+<p>例如只放必要的租户标识：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Bean</span><br>OAuth2TokenCustomizer&lt;JwtEncodingContext&gt; <span class="hljs-title function_">jwtTokenCustomizer</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-keyword">return</span> context -&gt; &#123;<br>        <span class="hljs-keyword">if</span> (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) &#123;<br>            <span class="hljs-type">Authentication</span> <span class="hljs-variable">principal</span> <span class="hljs-operator">=</span> context.getPrincipal();<br><br>            context.getClaims().claims(claims -&gt; &#123;<br>                claims.put(<span class="hljs-string">&quot;username&quot;</span>, principal.getName());<br>                claims.put(<span class="hljs-string">&quot;tenant_id&quot;</span>, resolveTenantId(principal));<br>            &#125;);<br>        &#125;<br>    &#125;;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>当前官方模型允许通过 <code>OAuth2TokenCustomizer</code> 分别定制 JWT 或 Opaque Token Claims。</p>
+<p>这里仍然遵守一个原则：</p>
+<blockquote>
+<p>Token 放“授权判断必须的数据”，而不是把用户数据库整行搬进 JWT。</p>
+</blockquote>
+<h2 id="OAuth2RestTemplate-今天怎么替代"><a href="#OAuth2RestTemplate-今天怎么替代" class="headerlink" title="OAuth2RestTemplate 今天怎么替代"></a><code>OAuth2RestTemplate</code> 今天怎么替代</h2><p>旧版微服务客户端常见：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">OAuth2RestTemplate<br></code></pre></td></tr></table></figure>
+
+<p>它会自动：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">获取 Token<br>刷新 Token<br>向 HTTP Header 写入 Bearer Token<br></code></pre></td></tr></table></figure>
+
+<p>当前 Spring Security 已经为 <code>RestClient</code> 提供 OAuth2 集成，可以利用 <code>OAuth2ClientHttpRequestInterceptor</code> 与 <code>OAuth2AuthorizedClientManager</code> 自动处理 Authorization Code 或 Client Credentials 等授权客户端流程。</p>
+<p>典型配置：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Configuration</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">RestClientConfig</span> &#123;<br><br>    <span class="hljs-meta">@Bean</span><br>    RestClient <span class="hljs-title function_">restClient</span><span class="hljs-params">(</span><br><span class="hljs-params">            OAuth2AuthorizedClientManager authorizedClientManager)</span> &#123;<br><br>        <span class="hljs-type">OAuth2ClientHttpRequestInterceptor</span> <span class="hljs-variable">interceptor</span> <span class="hljs-operator">=</span><br>                <span class="hljs-keyword">new</span> <span class="hljs-title class_">OAuth2ClientHttpRequestInterceptor</span>(<br>                        authorizedClientManager);<br><br>        <span class="hljs-keyword">return</span> RestClient.builder()<br>                .requestInterceptor(interceptor)<br>                .build();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>服务到服务的 Client Registration 可以配置成：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">spring:</span><br>  <span class="hljs-attr">security:</span><br>    <span class="hljs-attr">oauth2:</span><br>      <span class="hljs-attr">client:</span><br>        <span class="hljs-attr">registration:</span><br>          <span class="hljs-attr">inventory-client:</span><br>            <span class="hljs-attr">provider:</span> <span class="hljs-string">company-idp</span><br>            <span class="hljs-attr">client-id:</span> <span class="hljs-string">order-service</span><br>            <span class="hljs-attr">client-secret:</span> <span class="hljs-string">$&#123;INVENTORY_CLIENT_SECRET&#125;</span><br>            <span class="hljs-attr">authorization-grant-type:</span> <span class="hljs-string">client_credentials</span><br>            <span class="hljs-attr">scope:</span><br>              <span class="hljs-bullet">-</span> <span class="hljs-string">inventory.read</span><br>        <span class="hljs-attr">provider:</span><br>          <span class="hljs-attr">company-idp:</span><br>            <span class="hljs-attr">token-uri:</span> <span class="hljs-string">https://idp.example.com/oauth2/token</span><br></code></pre></td></tr></table></figure>
+
+<p>这正是 Client Credentials 在微服务里的典型落地方式。</p>
+<h2 id="Spring-Security-中如何区分-Authentication-和-Authorization"><a href="#Spring-Security-中如何区分-Authentication-和-Authorization" class="headerlink" title="Spring Security 中如何区分 Authentication 和 Authorization"></a>Spring Security 中如何区分 Authentication 和 Authorization</h2><p>有了 OAuth Resource Server 以后，一个请求大致会经历：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs text">HTTP Request<br>    ↓<br>BearerTokenAuthenticationFilter<br>    ↓<br>JwtDecoder / OpaqueTokenIntrospector<br>    ↓<br>Authentication<br>    ↓<br>SecurityContext<br>    ↓<br>Request Authorization<br>    ↓<br>Method Authorization<br>    ↓<br>Business Object Authorization<br></code></pre></td></tr></table></figure>
+
+<p>可以把安全检查分成三个层次。</p>
+<p>第一层是 Token Authentication：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Token 是否可信？<br>是否过期？<br>Issuer 对不对？<br>Audience 对不对？<br>签名对不对？<br></code></pre></td></tr></table></figure>
+
+<p>第二层是功能 Authorization：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">有没有 order.read？<br>有没有 payment.refund？<br></code></pre></td></tr></table></figure>
+
+<p>第三层才是业务对象 Authorization：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">order-1001 是不是当前用户的？<br>当前租户能不能修改这张结算单？<br>这个用户是不是这个项目的成员？<br></code></pre></td></tr></table></figure>
+
+<p>很多系统只做前两层，真正的数据越权就藏在第三层。</p>
+<h2 id="一套更合理的企业微服务鉴权边界"><a href="#一套更合理的企业微服务鉴权边界" class="headerlink" title="一套更合理的企业微服务鉴权边界"></a>一套更合理的企业微服务鉴权边界</h2><p>综合 OAuth、开放平台和微服务实践，可以形成这样的责任模型：</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>主要安全责任</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Authorization Server &#x2F; IDP</td>
+<td>用户认证、Client 认证、授权、Token 生命周期</td>
+</tr>
+<tr>
+<td>API Gateway</td>
+<td>Token 基础校验、Scope&#x2F;API 权限、入口安全策略</td>
+</tr>
+<tr>
+<td>Resource Server</td>
+<td>Token 二次防御、业务权限、对象归属、租户隔离</td>
+</tr>
+<tr>
+<td>BFF</td>
+<td>面向前端的聚合授权、上下文传播</td>
+</tr>
+<tr>
+<td>Client</td>
+<td>安全保存凭据、PKCE&#x2F;state、正确处理 Token</td>
+</tr>
+<tr>
+<td>User Service</td>
+<td>用户状态与安全事件</td>
+</tr>
+<tr>
+<td>Developer Center</td>
+<td>Client 注册、Secret、Redirect URI、Scope 策略</td>
+</tr>
+</tbody></table>
+<p>这里要避免两个极端。</p>
+<p>一个极端是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">所有权限全部放 Gateway<br></code></pre></td></tr></table></figure>
+
+<p>那么 Gateway 会慢慢长成一个“全公司业务权限中心”，最后不得不理解订单、支付、库存和财务全部领域知识。</p>
+<p>另一个极端是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Gateway 什么都不管，每个服务自己完整实现 OAuth<br></code></pre></td></tr></table></figure>
+
+<p>又会形成大量重复代码和安全策略漂移。</p>
+<p>更合理的方式是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">通用安全策略集中<br>+<br>领域授权自治<br></code></pre></td></tr></table></figure>
+
+<h2 id="client-secret-永远不要放在不能保密的-Client-中"><a href="#client-secret-永远不要放在不能保密的-Client-中" class="headerlink" title="client_secret 永远不要放在不能保密的 Client 中"></a><code>client_secret</code> 永远不要放在不能保密的 Client 中</h2><p>OAuth Client 又可以分成两种重要类型：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Confidential Client<br>Public Client<br></code></pre></td></tr></table></figure>
+
+<p>服务器端 Web 应用通常有能力保护 Secret，可以使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">client_secret_basic<br>private_key_jwt<br>mTLS<br></code></pre></td></tr></table></figure>
+
+<p>而：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">SPA<br>Native Mobile App<br>桌面客户端<br></code></pre></td></tr></table></figure>
+
+<p>最终代码都运行在用户设备上。</p>
+<p>无论怎么混淆、加壳：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">client_secret<br></code></pre></td></tr></table></figure>
+
+<p>都不能真正称为秘密。</p>
+<p>因此 Public Client 的安全不能建立在：</p>
+<blockquote>
+<p>“攻击者拿不到我的 client_secret。”</p>
+</blockquote>
+<p>而要建立在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Authorization Code<br>PKCE<br>Redirect URI<br>Authorization Server Policy<br></code></pre></td></tr></table></figure>
+
+<p>这些机制上。</p>
+<h2 id="API-Gateway-不应该盲目信任上游-Header"><a href="#API-Gateway-不应该盲目信任上游-Header" class="headerlink" title="API Gateway 不应该盲目信任上游 Header"></a>API Gateway 不应该盲目信任上游 Header</h2><p>假设 Gateway 验证完 Token 后向下游发送：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs http"><span class="hljs-attribute">X-User-Id</span><span class="hljs-punctuation">: </span>10086<br><span class="hljs-attribute">X-Tenant-Id</span><span class="hljs-punctuation">: </span>tenant-a<br><span class="hljs-attribute">X-Scope</span><span class="hljs-punctuation">: </span>order.read<br></code></pre></td></tr></table></figure>
+
+<p>那么一定要保证：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">外部客户端不能绕过 Gateway<br></code></pre></td></tr></table></figure>
+
+<p>而且 Gateway 收到外部请求时，应先删除：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">X-User-Id<br>X-Tenant-Id<br>X-Scope<br>X-Roles<br></code></pre></td></tr></table></figure>
+
+<p>再根据受信任 Token 重新写入。</p>
+<p>否则攻击者可以自己构造：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs http"><span class="hljs-attribute">X-Tenant-Id</span><span class="hljs-punctuation">: </span>another-company<br></code></pre></td></tr></table></figure>
+
+<p>直接把多租户系统变成“自助切租户”。</p>
+<p>内部网络也不能天然等同于可信网络。OAuth 能解决身份和授权的一部分问题，但服务网格、网络策略、mTLS、Gateway ACL 仍然需要根据威胁模型设计。</p>
+<h2 id="常见的-OAuth-2-0-安全基线"><a href="#常见的-OAuth-2-0-安全基线" class="headerlink" title="常见的 OAuth 2.0 安全基线"></a>常见的 OAuth 2.0 安全基线</h2><p>真正上线一套 OAuth 2.0 系统时，可以至少检查下面这些内容：</p>
+<ul>
+<li><input disabled="" type="checkbox"> 所有 Authorization、Token、Resource Endpoint 都使用 HTTPS，不允许 Token 通过 URL Query、日志或异常信息泄漏。</li>
+<li><input disabled="" type="checkbox"> 有最终用户参与的现代应用优先采用 Authorization Code + PKCE，Public Client 强制 PKCE，并使用 <code>S256</code>。</li>
+<li><input disabled="" type="checkbox"> <code>redirect_uri</code> 使用严格匹配，禁止危险的通配符和 Open Redirector。</li>
+<li><input disabled="" type="checkbox"> Authorization Code 生命周期足够短、只能使用一次，并正确绑定 Client、Redirect URI 和授权事务。</li>
+<li><input disabled="" type="checkbox"> 正确实现 <code>state</code> &#x2F; PKCE &#x2F; OIDC <code>nonce</code>，不能使用固定值，更不能只传不校验。</li>
+<li><input disabled="" type="checkbox"> 新系统不再使用 Resource Owner Password Credentials Grant，也避免 Implicit Grant。</li>
+<li><input disabled="" type="checkbox"> Access Token 权限遵循最小权限原则，并校验 <code>iss</code>、<code>aud</code>、有效期和必要 Scope。</li>
+<li><input disabled="" type="checkbox"> Public Client 的 Refresh Token 使用 Rotation 或 Sender Constraint，并具备 Replay Detection。</li>
+<li><input disabled="" type="checkbox"> JWT Payload 不存放密码、敏感隐私或完整用户对象，理解“签名不等于加密”。</li>
+<li><input disabled="" type="checkbox"> Client Secret 只存在能够真正保密的服务端环境，不进入 SPA、Native App、Git 仓库或客户端包。</li>
+<li><input disabled="" type="checkbox"> Gateway 负责通用 Token&#x2F;Scope 校验，但 Resource Server 仍执行订单归属、租户隔离等对象级授权。</li>
+<li><input disabled="" type="checkbox"> Gateway 向下游透传身份 Header 时必须覆盖外部同名 Header，并阻止绕过 Gateway 的访问路径。</li>
+<li><input disabled="" type="checkbox"> 用户冻结、注销、撤销授权等安全事件能够触发 Token&#x2F;Session 撤销策略。</li>
+<li><input disabled="" type="checkbox"> 日志、Tracing、APM、监控和审计系统默认对 <code>Authorization</code>、Cookie、Refresh Token 等敏感字段脱敏。</li>
+<li><input disabled="" type="checkbox"> 如果需求本质是“用户登录和 SSO”，使用 OIDC，不把 OAuth Access Token 当作用户身份协议。</li>
+</ul>
+<h2 id="一次-OAuth-请求应该如何排查"><a href="#一次-OAuth-请求应该如何排查" class="headerlink" title="一次 OAuth 请求应该如何排查"></a>一次 OAuth 请求应该如何排查</h2><p>OAuth 出问题时，不要一上来就 DEBUG Spring Security 几千行日志。</p>
+<p>更有效的方法是按协议阶段定位。</p>
+<p>如果问题发生在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/authorize<br></code></pre></td></tr></table></figure>
+
+<p>重点检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">client_id<br>redirect_uri<br>response_type<br>scope<br>state<br>code_challenge<br>用户登录状态<br>Consent<br></code></pre></td></tr></table></figure>
+
+<p>如果问题发生在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/token<br></code></pre></td></tr></table></figure>
+
+<p>重点检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">grant_type<br>Authorization Code<br>code_verifier<br>Client Authentication<br>redirect_uri<br>Code 是否已经使用<br></code></pre></td></tr></table></figure>
+
+<p>如果 Token 已经拿到，但：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">401 Unauthorized<br></code></pre></td></tr></table></figure>
+
+<p>重点检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">Authorization: Bearer<br>JWT Signature<br>iss<br>aud<br>exp<br>nbf<br>JWK<br>Introspection<br></code></pre></td></tr></table></figure>
+
+<p>如果返回：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">403 Forbidden<br></code></pre></td></tr></table></figure>
+
+<p>则通常已经通过身份校验，更应该看：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">scope<br>GrantedAuthority<br>角色<br>方法权限<br>业务权限<br></code></pre></td></tr></table></figure>
+
+<p>如果请求成功却拿到了别人的数据，就不要再盯着 OAuth Token 了：</p>
+<blockquote>
+<p>这时最应该排查的是对象级授权和数据归属条件。</p>
+</blockquote>
+<h2 id="怎么看待那些经典-Spring-Security-OAuth-教程"><a href="#怎么看待那些经典-Spring-Security-OAuth-教程" class="headerlink" title="怎么看待那些经典 Spring Security OAuth 教程"></a>怎么看待那些经典 Spring Security OAuth 教程</h2><p>经典教程并没有“失效到完全不能看”。</p>
+<p>恰恰相反，它们非常适合理解 OAuth 的系统结构：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Authorization Server<br>Client<br>Resource Server<br>Token Store<br>Authorization Code Store<br>Approval Store<br>JWT<br>Method Security<br>SSO<br></code></pre></td></tr></table></figure>
+
+<p>它们还很好地说明了：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">为什么 Authorization Code 要先回浏览器<br>为什么 Token 更适合后端获取<br>JWT 为什么能够本地校验<br>Resource Server 为什么需要公钥<br>Client Credentials 为什么没有用户信息<br>用户权限和 Client 权限为什么不是同一个概念<br></code></pre></td></tr></table></figure>
+
+<p>真正需要避免的是：</p>
+<blockquote>
+<p>把 2018～2020 年的 Spring API、Grant 选择和安全假设原样复制进 2026 年的新系统。</p>
+</blockquote>
+<p>框架会变，协议最佳实践也会演进。</p>
+<p>但这些核心边界不会轻易变化：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">谁在授权？<br>授权给谁？<br>允许做什么？<br>访问哪个资源？<br>凭据如何绑定？<br>凭据在哪里流转？<br>资源服务最终如何确认“你能操作这条数据”？<br></code></pre></td></tr></table></figure>
+
+<p>只要这几个问题能够回答清楚，换成 Spring Security、Keycloak、Auth0、企业自建 IDP，整体思路都不会乱。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>OAuth 2.0 最值得掌握的并不是几个 Endpoint，而是一套关于 <strong>委托、边界和凭据生命周期</strong> 的思维模型。</p>
+<p>Authorization Code 把浏览器 Front Channel 与服务端 Back Channel 分开；PKCE 将授权请求与 Token 兑换进一步绑定；<code>state</code> 和 OIDC <code>nonce</code> 用于保护授权事务；Scope 描述授权范围，而 Resource Server 仍然必须完成真正的数据归属和领域权限判断。</p>
+<p>JWT 只是 Token 的一种表达方式。它用本地验签换来了低耦合和高扩展性，同时也带来了撤销延迟、Claims 暴露和权限过期等代价；Opaque Token 则更适合集中控制和即时撤销。大型开放平台和微服务系统还可以通过 Gateway 在两种 Token 或安全上下文之间进行转换。</p>
+<p>Spring 生态本身也经历了明显的技术演进：早期 <code>@EnableAuthorizationServer</code>、<code>@EnableResourceServer</code>、<code>OAuth2RestTemplate</code>、<code>WebSecurityConfigurerAdapter</code> 已经属于历史实现；当前应该从 <code>SecurityFilterChain</code>、OAuth2 Client、Resource Server 和 Spring Security Authorization Server 的组件化模型重新理解这套体系。</p>
+<p>最终，一套真正可靠的 OAuth 2.0 架构应该让每个组件只回答自己最擅长的问题：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">Authorization Server：<br>    这个授权应该不应该被颁发？<br><br>Gateway：<br>    这个 Token 能不能调用这个 API？<br><br>Resource Server：<br>    这个调用者能不能操作这条具体业务数据？<br><br>OIDC：<br>    当前登录的最终用户到底是谁？<br></code></pre></td></tr></table></figure>
+
+<p>把这四个问题分清楚，OAuth 2.0 就不再只是“一套发 Token 的机制”，而会真正成为整个开放平台和微服务安全体系中的授权基础。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Security/" class="category-chain-item">Security</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Spring-Security/" class="print-no-link">#Spring Security</a>
+      
+        <a href="/tags/API-Gateway/" class="print-no-link">#API Gateway</a>
+      
+        <a href="/tags/OAuth-2-0/" class="print-no-link">#OAuth 2.0</a>
+      
+        <a href="/tags/JWT/" class="print-no-link">#JWT</a>
+      
+        <a href="/tags/Spring-Authorization-Server/" class="print-no-link">#Spring Authorization Server</a>
+      
+        <a href="/tags/PKCE/" class="print-no-link">#PKCE</a>
+      
+        <a href="/tags/OpenID-Connect/" class="print-no-link">#OpenID Connect</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>OAuth 2.0 与 Spring Security：从授权模型、安全机制到微服务架构实践</div>
+      <div>https://allendericdalexander.github.io/2026/08/17/archtect/idp/OAuth-2-0-Spring-Security/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年8月17日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/08/17/archtect/idp/Spring-Security-OAuth-2-0%20-JWT/" title="Spring Security OAuth 2.0 + JWT 实战：从零搭建授权服务器、资源服务器与 OAuth Client">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Spring Security OAuth 2.0 + JWT 实战：从零搭建授权服务器、资源服务器与 OAuth Client</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/08/17/archtect/idp/OAuth-2-0-jwt-pcke-oidc/" title="OAuth 2.0 深入理解：授权码、令牌、PKCE、JWT、OIDC 与开放平台实践">
+                        <span class="hidden-mobile">OAuth 2.0 深入理解：授权码、令牌、PKCE、JWT、OIDC 与开放平台实践</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
