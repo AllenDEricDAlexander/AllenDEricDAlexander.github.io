@@ -1,0 +1,1309 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="简介在 Linux 服务器管理中，SSH 几乎是所有远程运维动作的基础。无论是日常登录服务器、远程执行命令、使用 scp 传输文件，还是通过 rsync 做增量同步，底层通常都依赖 SSH。 最开始接触 SSH 时，我们往往使用最直接的方式： 1ssh rocky@192.168.0.50  然后输入服务器密码。 这种方式对于一台服务器没有问题，但当需要长期管理多台机器时，问题会很快暴露出来： 1">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux SSH 免密登录与批量主机管理：从 Passphrase、ssh-agent 到 SSH Config">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/09/09/devops/learn/linux-ssh-key-agent-config-rsync-hexo/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="简介在 Linux 服务器管理中，SSH 几乎是所有远程运维动作的基础。无论是日常登录服务器、远程执行命令、使用 scp 传输文件，还是通过 rsync 做增量同步，底层通常都依赖 SSH。 最开始接触 SSH 时，我们往往使用最直接的方式： 1ssh rocky@192.168.0.50  然后输入服务器密码。 这种方式对于一台服务器没有问题，但当需要长期管理多台机器时，问题会很快暴露出来： 1">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-08T23:24:00.000Z">
+<meta property="article:modified_time" content="2026-09-08T23:26:29.868Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Linux 运维">
+<meta property="article:tag" content="OpenSSH">
+<meta property="article:tag" content="Passphrase">
+<meta property="article:tag" content="Rocky Linux">
+<meta property="article:tag" content="SSH">
+<meta property="article:tag" content="SSH Config">
+<meta property="article:tag" content="macOS">
+<meta property="article:tag" content="rsync">
+<meta property="article:tag" content="ssh-agent">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Linux SSH 免密登录与批量主机管理：从 Passphrase、ssh-agent 到 SSH Config - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Linux SSH 免密登录与批量主机管理：从 Passphrase、ssh-agent 到 SSH Config"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-09-09 07:24" pubdate>
+          2026年9月9日 早上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          4.1k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          35 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Linux SSH 免密登录与批量主机管理：从 Passphrase、ssh-agent 到 SSH Config</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <h1 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h1><p>在 Linux 服务器管理中，SSH 几乎是所有远程运维动作的基础。无论是日常登录服务器、远程执行命令、使用 <code>scp</code> 传输文件，还是通过 <code>rsync</code> 做增量同步，底层通常都依赖 SSH。</p>
+<p>最开始接触 SSH 时，我们往往使用最直接的方式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh rocky@192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<p>然后输入服务器密码。</p>
+<p>这种方式对于一台服务器没有问题，但当需要长期管理多台机器时，问题会很快暴露出来：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">ssh server01 -&gt; 输入密码<br>ssh server02 -&gt; 输入密码<br>ssh server03 -&gt; 输入密码<br>rsync        -&gt; 再输入密码<br>自动脚本      -&gt; 无法交互输入密码<br></code></pre></td></tr></table></figure>
+
+<p>因此，真正适合服务器管理的方案通常会演变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">SSH 公钥认证<br>    ↓<br>Passphrase 保护私钥<br>    ↓<br>ssh-agent 管理解锁后的私钥<br>    ↓<br>SSH Config 管理主机连接参数<br>    ↓<br>批量 Shell / rsync / Ansible<br></code></pre></td></tr></table></figure>
+
+<p>本文使用如下实验环境进行演示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs text">本地系统：<br>macOS<br><br>远程系统：<br>Raspberry Pi<br>Rocky Linux 9<br><br>远程 IP：<br>192.168.0.50<br><br>远程用户：<br>rocky<br><br>SSH 端口：<br>22<br></code></pre></td></tr></table></figure>
+
+<p>需要特别说明的是，本文不会把 SSH“免密登录”理解成简单地“不要密码”。</p>
+<p>更准确地说，它应该叫：</p>
+<blockquote>
+<p>使用 SSH 公钥认证替代远程账户密码认证。</p>
+</blockquote>
+<p>如果进一步给私钥设置 Passphrase，再配合 <code>ssh-agent</code> 和 macOS Keychain，就可以同时兼顾安全性和使用体验。</p>
+<hr>
+<h1 id="详解"><a href="#详解" class="headerlink" title="详解"></a>详解</h1><h2 id="SSH-密码认证和公钥认证有什么区别"><a href="#SSH-密码认证和公钥认证有什么区别" class="headerlink" title="SSH 密码认证和公钥认证有什么区别"></a>SSH 密码认证和公钥认证有什么区别</h2><p>最普通的 SSH 登录方式是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh rocky@192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<p>服务器随后要求输入远程用户 <code>rocky</code> 的密码。</p>
+<p>其逻辑大致是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Mac                              Rocky Linux<br> │                                   │<br> │──── 建立 SSH 连接 ───────────────→│<br> │                                   │<br> │←──── 请求身份认证 ────────────────│<br> │                                   │<br> │──── rocky + 用户密码 ────────────→│<br> │                                   │<br> │←──── 登录成功 ────────────────────│<br></code></pre></td></tr></table></figure>
+
+<p>而使用 SSH Key 后，结构变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs text">Mac<br>├── 私钥<br>│   ~/.ssh/id_ed25519_lab_admin<br>│<br>└── 公钥<br>    ~/.ssh/id_ed25519_lab_admin.pub<br>                  │<br>                  ▼<br>Rocky Linux<br>└── ~/.ssh/authorized_keys<br></code></pre></td></tr></table></figure>
+
+<p>远程服务器只保存你的公钥。</p>
+<p>私钥始终保留在 Mac 上。</p>
+<p>连接时并不会把私钥发送给服务器，而是由 SSH 客户端使用私钥对认证数据进行签名，服务器再使用已经保存的公钥验证签名。</p>
+<p>可以简单理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">Mac                                Rocky Linux<br> │                                     │<br> │──── 我要以 rocky 身份登录 ─────────→│<br> │                                     │<br> │←──── 证明你持有对应私钥 ────────────│<br> │                                     │<br> │──── 使用私钥完成签名 ──────────────→│<br> │                                     │<br> │      使用 authorized_keys 验证      │<br> │                                     │<br> │←──────── 验证成功 ─────────────────│<br></code></pre></td></tr></table></figure>
+
+<p>其中有一个非常关键的安全点：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">私钥不会发送给服务器<br>私钥不会通过网络传输<br>服务器只保存公钥<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="authorized-keys-是什么"><a href="#authorized-keys-是什么" class="headerlink" title="authorized_keys 是什么"></a>authorized_keys 是什么</h2><p>服务器端通常有这样一个文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">~/.ssh/authorized_keys<br></code></pre></td></tr></table></figure>
+
+<p>对于当前实验用户 <code>rocky</code> 来说，实际路径就是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">/home/rocky/.ssh/authorized_keys<br></code></pre></td></tr></table></figure>
+
+<p>它的作用可以理解成：</p>
+<blockquote>
+<p>哪些公钥对应的用户有资格登录这个 Linux 账户。</p>
+</blockquote>
+<p>文件内容通常类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... supermario-mac-lab-admin<br></code></pre></td></tr></table></figure>
+
+<p>如果有多个管理员，则可能存在多行：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">ssh-ed25519 AAAA... admin-a<br>ssh-ed25519 AAAA... admin-b<br>ssh-ed25519 AAAA... automation<br></code></pre></td></tr></table></figure>
+
+<p>因此，所谓“分发 SSH Key”，实际分发的通常并不是私钥，而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">公钥 -&gt; 远程 ~/.ssh/authorized_keys<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="known-hosts-又是什么"><a href="#known-hosts-又是什么" class="headerlink" title="known_hosts 又是什么"></a>known_hosts 又是什么</h2><p>很多人容易把：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">authorized_keys<br></code></pre></td></tr></table></figure>
+
+<p>和：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">known_hosts<br></code></pre></td></tr></table></figure>
+
+<p>混淆。</p>
+<p>Mac 上通常存在：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">~/.ssh/known_hosts<br></code></pre></td></tr></table></figure>
+
+<p>它的作用不是记录“谁可以登录服务器”，而是记录：</p>
+<blockquote>
+<p>我连接过的服务器是谁。</p>
+</blockquote>
+<p>第一次执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh rocky@192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<p>通常会看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">The authenticity of host &#x27;192.168.0.50&#x27; can&#x27;t be established.<br>Are you sure you want to continue connecting?<br></code></pre></td></tr></table></figure>
+
+<p>确认后，远程服务器的 Host Key 会记录到：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">~/.ssh/known_hosts<br></code></pre></td></tr></table></figure>
+
+<p>所以可以这样区分：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">authorized_keys<br>    ↓<br>服务器判断：<br>谁可以登录我？<br><br>known_hosts<br>    ↓<br>客户端判断：<br>我要连接的服务器是不是原来那台？<br></code></pre></td></tr></table></figure>
+
+<p>这意味着 SSH 实际上包含两个不同方向的身份确认。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">客户端验证服务器身份<br>        +<br>服务器验证客户端身份<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Passphrase-是什么"><a href="#Passphrase-是什么" class="headerlink" title="Passphrase 是什么"></a>Passphrase 是什么</h2><p>创建 SSH Key 时，经常会看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Enter passphrase:<br></code></pre></td></tr></table></figure>
+
+<p>很多人会直接回车跳过。</p>
+<p>但对于管理员使用的 SSH 私钥来说，Passphrase 非常有意义。</p>
+<p>假设私钥路径是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">~/.ssh/id_ed25519_lab_admin<br></code></pre></td></tr></table></figure>
+
+<p>如果这个文件没有 Passphrase，一旦私钥被别人复制走，对方可能就可以直接：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh -i id_ed25519_lab_admin rocky@192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<p>如果这把 Key 同时部署到了 50 台服务器，那么风险就变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">一把私钥泄漏<br>     ↓<br>多台服务器同时失去安全边界<br></code></pre></td></tr></table></figure>
+
+<p>Passphrase 的作用就是：</p>
+<blockquote>
+<p>加密保护磁盘上的私钥文件。</p>
+</blockquote>
+<p>可以用一个不完全严格但非常直观的类比：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">私钥        = 银行卡<br>Passphrase  = 银行卡 PIN<br></code></pre></td></tr></table></figure>
+
+<p>所以：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">SSH 私钥<br>    ↓<br>证明“我拥有这个身份”<br><br>Passphrase<br>    ↓<br>保护“这把私钥本身”<br></code></pre></td></tr></table></figure>
+
+<p>两者解决的不是同一个问题。</p>
+<hr>
+<h2 id="为什么设置-Passphrase-后还能做到近似免密"><a href="#为什么设置-Passphrase-后还能做到近似免密" class="headerlink" title="为什么设置 Passphrase 后还能做到近似免密"></a>为什么设置 Passphrase 后还能做到近似免密</h2><p>如果私钥设置了 Passphrase，那么直接使用时可能会看到：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh -i ~/.ssh/id_ed25519_lab_admin rocky@192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<p>提示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Enter passphrase for key &#x27;/Users/xxx/.ssh/id_ed25519_lab_admin&#x27;:<br></code></pre></td></tr></table></figure>
+
+<p>如果每次 SSH、rsync、Git 都重新输入一次 Passphrase，使用体验仍然很差。</p>
+<p>因此才有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ssh-agent<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="ssh-agent-是什么"><a href="#ssh-agent-是什么" class="headerlink" title="ssh-agent 是什么"></a>ssh-agent 是什么</h2><p>可以把 <code>ssh-agent</code> 理解成：</p>
+<blockquote>
+<p>内存中的 SSH 私钥代理。</p>
+</blockquote>
+<p>第一次通过：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh-add ~/.ssh/id_ed25519_lab_admin<br></code></pre></td></tr></table></figure>
+
+<p>将私钥加入 Agent 时，会要求输入一次 Passphrase。</p>
+<p>之后：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">私钥解锁<br>   ↓<br>ssh-agent 持有可使用的私钥能力<br>   ↓<br>ssh / rsync / git 调用 ssh-agent 完成签名<br></code></pre></td></tr></table></figure>
+
+<p>其结构类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs text">Private Key<br>    │<br>    │ 第一次输入 Passphrase<br>    ▼<br>┌──────────────┐<br>│  ssh-agent   │<br>│ 已解锁的 Key │<br>└──────┬───────┘<br>       │<br>   ┌───┼─────────┐<br>   ▼   ▼         ▼<br>  ssh rsync      git<br></code></pre></td></tr></table></figure>
+
+<p>ssh-agent 并不是简单地“记住 Passphrase 并自动帮你输入”。</p>
+<p>更准确地说，它持有的是已经解锁的密钥能力。</p>
+<p>当 SSH 客户端需要签名时：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs text">ssh<br> │<br> │ 请求签名<br> ▼<br>ssh-agent<br> │<br> │ 使用私钥签名<br> ▼<br>signature<br> │<br> ▼<br>ssh<br></code></pre></td></tr></table></figure>
+
+<p>这样应用程序本身不需要重新读取并解锁磁盘上的私钥。</p>
+<hr>
+<h2 id="macOS-Keychain-和-ssh-agent-的关系"><a href="#macOS-Keychain-和-ssh-agent-的关系" class="headerlink" title="macOS Keychain 和 ssh-agent 的关系"></a>macOS Keychain 和 ssh-agent 的关系</h2><p>macOS 上还可以进一步使用 Apple Keychain。</p>
+<p>可以把它们理解成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Apple Keychain<br>      │<br>      │ 保存 Passphrase<br>      ▼<br>ssh-agent<br>      │<br>      │ 管理解锁后的 Key<br>      ▼<br>ssh / rsync / git<br></code></pre></td></tr></table></figure>
+
+<p>添加私钥：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh-add --apple-use-keychain ~/.ssh/id_ed25519_lab_admin<br></code></pre></td></tr></table></figure>
+
+<p>第一次需要输入 Passphrase。</p>
+<p>后续 macOS 可以借助 Keychain 帮助恢复私钥使用状态。</p>
+<p>这样最终可以做到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">磁盘上的私钥<br>    ↓<br>依然有 Passphrase 加密<br><br>日常使用<br>    ↓<br>几乎不用重复输入 Passphrase<br></code></pre></td></tr></table></figure>
+
+<p>这比“创建一个完全没有 Passphrase 的管理员私钥”更加合理。</p>
+<hr>
+<h2 id="SSH-Config-是什么"><a href="#SSH-Config-是什么" class="headerlink" title="SSH Config 是什么"></a>SSH Config 是什么</h2><p>如果不使用 SSH Config，连接树莓派可能写成：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh \<br>  -p 22 \<br>  -i ~/.ssh/id_ed25519_lab_admin \<br>  rocky@192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<p>如果以后服务器越来越多，你需要记忆：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">IP<br>用户名<br>端口<br>使用哪把 Key<br>是否经过跳板机<br>其他 SSH 参数<br></code></pre></td></tr></table></figure>
+
+<p>SSH Config 就是为了解决这个问题。</p>
+<p>默认位置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">~/.ssh/config<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">Host rocky-pi<br>    HostName 192.168.0.50<br>    User rocky<br>    Port 22<br>    IdentityFile ~/.ssh/id_ed25519_lab_admin<br>    IdentitiesOnly yes<br></code></pre></td></tr></table></figure>
+
+<p>此时：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh rocky-pi<br></code></pre></td></tr></table></figure>
+
+<p>基本相当于：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh \<br>  -p 22 \<br>  -i ~/.ssh/id_ed25519_lab_admin \<br>  rocky@192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<p>所以可以把 SSH Config 理解成：</p>
+<blockquote>
+<p>SSH 的服务器连接通讯录。</p>
+</blockquote>
+<hr>
+<h2 id="Host-和-HostName-的区别"><a href="#Host-和-HostName-的区别" class="headerlink" title="Host 和 HostName 的区别"></a>Host 和 HostName 的区别</h2><p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Host rocky-pi<br>    HostName 192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<p>这里：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Host rocky-pi<br></code></pre></td></tr></table></figure>
+
+<p>是自己定义的别名。</p>
+<p>而：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">HostName 192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<p>才是真正连接的服务器地址。</p>
+<p>因此：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh rocky-pi<br></code></pre></td></tr></table></figure>
+
+<p>会先解析：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">rocky-pi<br>    ↓<br>192.168.0.50<br>    ↓<br>rocky@192.168.0.50:22<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="IdentityFile-是什么"><a href="#IdentityFile-是什么" class="headerlink" title="IdentityFile 是什么"></a>IdentityFile 是什么</h2><p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">IdentityFile ~/.ssh/id_ed25519_lab_admin<br></code></pre></td></tr></table></figure>
+
+<p>它告诉 SSH：</p>
+<blockquote>
+<p>连接这个 Host 时优先使用哪把私钥。</p>
+</blockquote>
+<p>如果有多个 Key：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">~/.ssh/id_ed25519_github<br>~/.ssh/id_ed25519_company<br>~/.ssh/id_ed25519_lab_admin<br>~/.ssh/id_ed25519_personal<br></code></pre></td></tr></table></figure>
+
+<p>SSH Config 可以明确指定每台服务器使用哪一把。</p>
+<hr>
+<h2 id="IdentitiesOnly-yes-是什么"><a href="#IdentitiesOnly-yes-是什么" class="headerlink" title="IdentitiesOnly yes 是什么"></a>IdentitiesOnly yes 是什么</h2><p>如果 ssh-agent 中存在很多 Key，SSH 客户端可能尝试多个身份。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">GitHub Key<br>公司 Key<br>实验室 Key<br>个人服务器 Key<br></code></pre></td></tr></table></figure>
+
+<p>SSH 可能：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">尝试 Key A<br>失败<br><br>尝试 Key B<br>失败<br><br>尝试 Key C<br>失败<br></code></pre></td></tr></table></figure>
+
+<p>部分服务器会限制认证次数，最终可能出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Too many authentication failures<br></code></pre></td></tr></table></figure>
+
+<p>配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">IdentityFile ~/.ssh/id_ed25519_lab_admin<br>IdentitiesOnly yes<br></code></pre></td></tr></table></figure>
+
+<p>就是明确告诉 SSH：</p>
+<blockquote>
+<p>这个 Host 只按照我指定的身份文件进行认证，不要自动乱试其他 Key。</p>
+</blockquote>
+<hr>
+<h2 id="AddKeysToAgent-和-UseKeychain"><a href="#AddKeysToAgent-和-UseKeychain" class="headerlink" title="AddKeysToAgent 和 UseKeychain"></a>AddKeysToAgent 和 UseKeychain</h2><p>在 macOS 中，可以进一步配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">AddKeysToAgent yes<br>UseKeychain yes<br></code></pre></td></tr></table></figure>
+
+<p>推荐配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">Host rocky-pi<br>    HostName 192.168.0.50<br>    User rocky<br>    Port 22<br>    IdentityFile ~/.ssh/id_ed25519_lab_admin<br>    IdentitiesOnly yes<br>    AddKeysToAgent yes<br>    UseKeychain yes<br></code></pre></td></tr></table></figure>
+
+<p>它们可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">IdentityFile<br>    ↓<br>使用哪把 Key<br><br>AddKeysToAgent<br>    ↓<br>把 Key 加入 ssh-agent<br><br>UseKeychain<br>    ↓<br>macOS Keychain 帮助保存和使用 Passphrase<br></code></pre></td></tr></table></figure>
+
+<p>最终日常使用就是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh rocky-pi<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="SSH-Config-对-rsync-同样有效"><a href="#SSH-Config-对-rsync-同样有效" class="headerlink" title="SSH Config 对 rsync 同样有效"></a>SSH Config 对 rsync 同样有效</h2><p>SSH Config 并不只服务于 <code>ssh</code> 命令。</p>
+<p>比如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">rsync -avP \<br>  ./data/ \<br>  rocky-pi:/home/rocky/data/<br></code></pre></td></tr></table></figure>
+
+<p>rsync 在通过 SSH 连接时，同样会读取：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">~/.ssh/config<br></code></pre></td></tr></table></figure>
+
+<p>因此无需再写：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">rsync -e <span class="hljs-string">&quot;ssh -i ~/.ssh/id_ed25519_lab_admin -p 22&quot;</span> ...<br></code></pre></td></tr></table></figure>
+
+<p>这也是配置 SSH Config 后非常明显的收益。</p>
+<hr>
+<h2 id="多服务器环境怎么理解"><a href="#多服务器环境怎么理解" class="headerlink" title="多服务器环境怎么理解"></a>多服务器环境怎么理解</h2><p>假设未来有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.0.50<br>192.168.0.51<br>192.168.0.52<br>192.168.0.60<br></code></pre></td></tr></table></figure>
+
+<p>SSH Config 可以写成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><code class="hljs text">Host rocky-pi<br>    HostName 192.168.0.50<br>    User rocky<br>    Port 22<br>    IdentityFile ~/.ssh/id_ed25519_lab_admin<br>    IdentitiesOnly yes<br><br>Host app01<br>    HostName 192.168.0.51<br>    User rocky<br>    Port 22<br>    IdentityFile ~/.ssh/id_ed25519_lab_admin<br>    IdentitiesOnly yes<br><br>Host app02<br>    HostName 192.168.0.52<br>    User rocky<br>    Port 22<br>    IdentityFile ~/.ssh/id_ed25519_lab_admin<br>    IdentitiesOnly yes<br><br>Host mysql01<br>    HostName 192.168.0.60<br>    User rocky<br>    Port 22<br>    IdentityFile ~/.ssh/id_ed25519_lab_admin<br>    IdentitiesOnly yes<br></code></pre></td></tr></table></figure>
+
+<p>之后只需要记：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh rocky-pi<br>ssh app01<br>ssh app02<br>ssh mysql01<br></code></pre></td></tr></table></figure>
+
+<p>这就是 SSH Config 在服务器管理中的实际价值。</p>
+<hr>
+<h1 id="实操实验"><a href="#实操实验" class="headerlink" title="实操实验"></a>实操实验</h1><h2 id="实验一：检查当前-SSH-环境"><a href="#实验一：检查当前-SSH-环境" class="headerlink" title="实验一：检查当前 SSH 环境"></a>实验一：检查当前 SSH 环境</h2><p>Mac 上查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> -la ~/.ssh<br></code></pre></td></tr></table></figure>
+
+<p>可能会看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">id_ed25519<br>id_ed25519.pub<br>known_hosts<br>config<br></code></pre></td></tr></table></figure>
+
+<p>查看当前 ssh-agent 中已经加载的 Key：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh-add -l<br></code></pre></td></tr></table></figure>
+
+<p>如果没有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">The agent has no identities.<br></code></pre></td></tr></table></figure>
+
+<p>说明当前 Agent 中没有已加载的 SSH 私钥。</p>
+<hr>
+<h2 id="实验二：为服务器管理创建独立-SSH-Key"><a href="#实验二：为服务器管理创建独立-SSH-Key" class="headerlink" title="实验二：为服务器管理创建独立 SSH Key"></a>实验二：为服务器管理创建独立 SSH Key</h2><p>建议不要随便复用已有的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">~/.ssh/id_ed25519<br></code></pre></td></tr></table></figure>
+
+<p>而是创建专门用于实验服务器管理的 Key：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh-keygen \<br>  -t ed25519 \<br>  -a 64 \<br>  -f ~/.ssh/id_ed25519_lab_admin \<br>  -C <span class="hljs-string">&quot;supermario-mac-lab-admin&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>过程中会提示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Enter passphrase:<br>Enter same passphrase again:<br></code></pre></td></tr></table></figure>
+
+<p>建议设置 Passphrase。</p>
+<p>生成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">~/.ssh/id_ed25519_lab_admin<br>~/.ssh/id_ed25519_lab_admin.pub<br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> -l ~/.ssh/id_ed25519_lab_admin*<br></code></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">id_ed25519_lab_admin<br></code></pre></td></tr></table></figure>
+
+<p>是私钥。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">id_ed25519_lab_admin.pub<br></code></pre></td></tr></table></figure>
+
+<p>是公钥。</p>
+<p>查看公钥：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> ~/.ssh/id_ed25519_lab_admin.pub<br></code></pre></td></tr></table></figure>
+
+<p>私钥不要输出到终端复制、不要上传 Git、不要通过 rsync 分发到服务器。</p>
+<hr>
+<h2 id="实验三：手工分发公钥"><a href="#实验三：手工分发公钥" class="headerlink" title="实验三：手工分发公钥"></a>实验三：手工分发公钥</h2><p>将公钥写入 Rocky Linux：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> ~/.ssh/id_ed25519_lab_admin.pub | \<br>ssh rocky@192.168.0.50 \<br><span class="hljs-string">&#x27;umask 077;</span><br><span class="hljs-string"> mkdir -p ~/.ssh;</span><br><span class="hljs-string"> touch ~/.ssh/authorized_keys;</span><br><span class="hljs-string"> key=$(cat);</span><br><span class="hljs-string"> grep -qxF &quot;$key&quot; ~/.ssh/authorized_keys ||</span><br><span class="hljs-string"> printf &quot;%s\n&quot; &quot;$key&quot; &gt;&gt; ~/.ssh/authorized_keys&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>当前仍然需要输入服务器密码。</p>
+<p>第一次配置完成后，在服务器检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh rocky@192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<p>然后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> ~/.ssh/authorized_keys<br></code></pre></td></tr></table></figure>
+
+<p>确认其中存在刚刚添加的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ssh-ed25519 ...<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验四：检查-SSH-文件权限"><a href="#实验四：检查-SSH-文件权限" class="headerlink" title="实验四：检查 SSH 文件权限"></a>实验四：检查 SSH 文件权限</h2><p>在 Rocky Linux 上：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> -ld ~/.ssh<br><span class="hljs-built_in">ls</span> -l ~/.ssh/authorized_keys<br></code></pre></td></tr></table></figure>
+
+<p>推荐权限：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">drwx------ ~/.ssh<br>-rw------- ~/.ssh/authorized_keys<br></code></pre></td></tr></table></figure>
+
+<p>如果不正确：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">chmod</span> 700 ~/.ssh<br><span class="hljs-built_in">chmod</span> 600 ~/.ssh/authorized_keys<br></code></pre></td></tr></table></figure>
+
+<p>确保所有者正确：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">chown</span> -R rocky:rocky ~/.ssh<br></code></pre></td></tr></table></figure>
+
+<p>Rocky Linux 还启用了 SELinux。</p>
+<p>如果文件曾经由 root 手工移动或创建，权限正确但仍然认证失败，可以执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">restorecon -Rv ~/.ssh<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验五：强制验证公钥认证"><a href="#实验五：强制验证公钥认证" class="headerlink" title="实验五：强制验证公钥认证"></a>实验五：强制验证公钥认证</h2><p>普通测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh \<br>  -i ~/.ssh/id_ed25519_lab_admin \<br>  rocky@192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<p>为了确认不是 SSH 自动退回密码认证，可以执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh \<br>  -o BatchMode=<span class="hljs-built_in">yes</span> \<br>  -o PasswordAuthentication=no \<br>  -o IdentitiesOnly=<span class="hljs-built_in">yes</span> \<br>  -i ~/.ssh/id_ed25519_lab_admin \<br>  rocky@192.168.0.50 \<br>  <span class="hljs-string">&#x27;whoami&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>正常输出：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">rocky<br></code></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">PasswordAuthentication=no<br></code></pre></td></tr></table></figure>
+
+<p>明确禁止使用密码认证。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">BatchMode=yes<br></code></pre></td></tr></table></figure>
+
+<p>禁止弹出交互式密码输入。</p>
+<p>如果仍然成功，就说明 SSH Key 认证真正配置成功。</p>
+<hr>
+<h2 id="实验六：将-Key-加入-ssh-agent"><a href="#实验六：将-Key-加入-ssh-agent" class="headerlink" title="实验六：将 Key 加入 ssh-agent"></a>实验六：将 Key 加入 ssh-agent</h2><p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh-add ~/.ssh/id_ed25519_lab_admin<br></code></pre></td></tr></table></figure>
+
+<p>输入一次 Passphrase。</p>
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh-add -l<br></code></pre></td></tr></table></figure>
+
+<p>正常可以看到类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">256 SHA256:xxxx... supermario-mac-lab-admin (ED25519)<br></code></pre></td></tr></table></figure>
+
+<p>此时再次：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh \<br>  -i ~/.ssh/id_ed25519_lab_admin \<br>  rocky@192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<p>通常不需要重新输入 Passphrase。</p>
+<hr>
+<h2 id="实验七：使用-macOS-Keychain"><a href="#实验七：使用-macOS-Keychain" class="headerlink" title="实验七：使用 macOS Keychain"></a>实验七：使用 macOS Keychain</h2><p>在 Mac 上：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh-add --apple-use-keychain ~/.ssh/id_ed25519_lab_admin<br></code></pre></td></tr></table></figure>
+
+<p>输入一次 Passphrase。</p>
+<p>然后创建或者编辑：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">nano ~/.ssh/config<br></code></pre></td></tr></table></figure>
+
+<p>加入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">Host rocky-pi<br>    HostName 192.168.0.50<br>    User rocky<br>    Port 22<br>    IdentityFile ~/.ssh/id_ed25519_lab_admin<br>    IdentitiesOnly yes<br>    AddKeysToAgent yes<br>    UseKeychain yes<br></code></pre></td></tr></table></figure>
+
+<p>设置权限：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">chmod</span> 600 ~/.ssh/config<br></code></pre></td></tr></table></figure>
+
+<p>测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh rocky-pi<br></code></pre></td></tr></table></figure>
+
+<p>如果成功，则 SSH Config、ssh-agent 和 macOS Keychain 已经串联起来。</p>
+<hr>
+<h2 id="实验八：查看-SSH-最终解析出来的配置"><a href="#实验八：查看-SSH-最终解析出来的配置" class="headerlink" title="实验八：查看 SSH 最终解析出来的配置"></a>实验八：查看 SSH 最终解析出来的配置</h2><p>可以使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh -G rocky-pi<br></code></pre></td></tr></table></figure>
+
+<p>查看 SSH 最终实际使用的配置。</p>
+<p>过滤几个重要字段：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh -G rocky-pi | grep -E <span class="hljs-string">&#x27;^(hostname|user|port|identityfile|identitiesonly)&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>应该看到类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">hostname 192.168.0.50<br>user rocky<br>port 22<br>identitiesonly yes<br>identityfile ~/.ssh/id_ed25519_lab_admin<br></code></pre></td></tr></table></figure>
+
+<p>这个命令对于排查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">SSH Config 到底有没有生效<br>使用的是哪把 Key<br>端口有没有被覆盖<br>HostName 到底解析成什么<br></code></pre></td></tr></table></figure>
+
+<p>非常实用。</p>
+<hr>
+<h2 id="实验九：查看详细-SSH-认证过程"><a href="#实验九：查看详细-SSH-认证过程" class="headerlink" title="实验九：查看详细 SSH 认证过程"></a>实验九：查看详细 SSH 认证过程</h2><p>如果 SSH Key 登录失败：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh -vvv rocky-pi<br></code></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">-v<br>-vv<br>-vvv<br></code></pre></td></tr></table></figure>
+
+<p>会逐步增加调试信息。</p>
+<p>重点关注：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Offering public key<br>Server accepts key<br>Authenticated to ...<br></code></pre></td></tr></table></figure>
+
+<p>服务器端可以同时观察：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> journalctl -u sshd -f<br></code></pre></td></tr></table></figure>
+
+<p>这样可以同时看到客户端和服务端的认证过程。</p>
+<hr>
+<h2 id="实验十：使用-SSH-Config-简化-rsync"><a href="#实验十：使用-SSH-Config-简化-rsync" class="headerlink" title="实验十：使用 SSH Config 简化 rsync"></a>实验十：使用 SSH Config 简化 rsync</h2><p>原本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">rsync -avP \<br>  -e <span class="hljs-string">&quot;ssh -i ~/.ssh/id_ed25519_lab_admin -p 22&quot;</span> \<br>  ./data/ \<br>  rocky@192.168.0.50:/home/rocky/data/<br></code></pre></td></tr></table></figure>
+
+<p>配置 SSH Config 后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">rsync -avP \<br>  ./data/ \<br>  rocky-pi:/home/rocky/data/<br></code></pre></td></tr></table></figure>
+
+<p>可以看到，SSH Config 不仅简化登录，也可以简化后续所有基于 SSH 的工具。</p>
+<hr>
+<h2 id="实验十一：创建批量服务器清单"><a href="#实验十一：创建批量服务器清单" class="headerlink" title="实验十一：创建批量服务器清单"></a>实验十一：创建批量服务器清单</h2><p>建立目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">mkdir</span> -p ~/ssh-admin<br><span class="hljs-built_in">cd</span> ~/ssh-admin<br></code></pre></td></tr></table></figure>
+
+<p>创建：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">nano hosts.txt<br></code></pre></td></tr></table></figure>
+
+<p>当前只有一台机器：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">rocky-pi 192.168.0.50 rocky 22<br></code></pre></td></tr></table></figure>
+
+<p>以后可以增加：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">rocky-pi    192.168.0.50 rocky 22<br>app01       192.168.0.51 rocky 22<br>app02       192.168.0.52 rocky 22<br>mysql01     192.168.0.60 rocky 22<br></code></pre></td></tr></table></figure>
+
+<p>格式：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">alias host user port<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验十二：批量分发-SSH-公钥"><a href="#实验十二：批量分发-SSH-公钥" class="headerlink" title="实验十二：批量分发 SSH 公钥"></a>实验十二：批量分发 SSH 公钥</h2><p>创建：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">nano distribute-key.sh<br></code></pre></td></tr></table></figure>
+
+<p>写入：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/usr/bin/env bash</span><br><br><span class="hljs-built_in">set</span> -Eeuo pipefail<br><br>INVENTORY=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;1:-hosts.txt&#125;</span>&quot;</span><br>KEY=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;HOME&#125;</span>/.ssh/id_ed25519_lab_admin&quot;</span><br>PUB_KEY=<span class="hljs-string">&quot;<span class="hljs-variable">$&#123;KEY&#125;</span>.pub&quot;</span><br><br><span class="hljs-keyword">if</span> [[ ! -f <span class="hljs-string">&quot;<span class="hljs-variable">$INVENTORY</span>&quot;</span> ]]; <span class="hljs-keyword">then</span><br>    <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;ERROR: inventory not found: <span class="hljs-variable">$INVENTORY</span>&quot;</span><br>    <span class="hljs-built_in">exit</span> 1<br><span class="hljs-keyword">fi</span><br><br><span class="hljs-keyword">if</span> [[ ! -f <span class="hljs-string">&quot;<span class="hljs-variable">$KEY</span>&quot;</span> || ! -f <span class="hljs-string">&quot;<span class="hljs-variable">$PUB_KEY</span>&quot;</span> ]]; <span class="hljs-keyword">then</span><br>    <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;ERROR: SSH key does not exist: <span class="hljs-variable">$KEY</span>&quot;</span><br>    <span class="hljs-built_in">exit</span> 1<br><span class="hljs-keyword">fi</span><br><br><span class="hljs-keyword">while</span> <span class="hljs-built_in">read</span> -r <span class="hljs-built_in">alias</span> host user port; <span class="hljs-keyword">do</span><br><br>    [[ -z <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;alias:-&#125;</span>&quot;</span> ]] &amp;&amp; <span class="hljs-built_in">continue</span><br>    [[ <span class="hljs-string">&quot;<span class="hljs-variable">$alias</span>&quot;</span> == \#* ]] &amp;&amp; <span class="hljs-built_in">continue</span><br><br>    <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;========================================&quot;</span><br>    <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Host : <span class="hljs-variable">$alias</span>&quot;</span><br>    <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;IP   : <span class="hljs-variable">$host</span>&quot;</span><br>    <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;User : <span class="hljs-variable">$user</span>&quot;</span><br>    <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;Port : <span class="hljs-variable">$port</span>&quot;</span><br>    <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;========================================&quot;</span><br><br>    <span class="hljs-keyword">if</span> ! ssh \<br>        -p <span class="hljs-string">&quot;<span class="hljs-variable">$port</span>&quot;</span> \<br>        -o ConnectTimeout=5 \<br>        -o StrictHostKeyChecking=accept-new \<br>        <span class="hljs-string">&quot;<span class="hljs-variable">$user</span>@<span class="hljs-variable">$host</span>&quot;</span> \<br>        <span class="hljs-string">&#x27;</span><br><span class="hljs-string">        set -e</span><br><span class="hljs-string"></span><br><span class="hljs-string">        umask 077</span><br><span class="hljs-string"></span><br><span class="hljs-string">        mkdir -p ~/.ssh</span><br><span class="hljs-string">        chmod 700 ~/.ssh</span><br><span class="hljs-string"></span><br><span class="hljs-string">        touch ~/.ssh/authorized_keys</span><br><span class="hljs-string">        chmod 600 ~/.ssh/authorized_keys</span><br><span class="hljs-string"></span><br><span class="hljs-string">        key=$(cat)</span><br><span class="hljs-string"></span><br><span class="hljs-string">        if grep -qxF &quot;$key&quot; ~/.ssh/authorized_keys; then</span><br><span class="hljs-string">            echo &quot;Public key already exists.&quot;</span><br><span class="hljs-string">        else</span><br><span class="hljs-string">            printf &quot;%s\n&quot; &quot;$key&quot; &gt;&gt; ~/.ssh/authorized_keys</span><br><span class="hljs-string">            echo &quot;Public key installed.&quot;</span><br><span class="hljs-string">        fi</span><br><span class="hljs-string">        &#x27;</span> &lt; <span class="hljs-string">&quot;<span class="hljs-variable">$PUB_KEY</span>&quot;</span><br>    <span class="hljs-keyword">then</span><br>        <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;ERROR: failed to install key on <span class="hljs-variable">$alias</span>&quot;</span><br>        <span class="hljs-built_in">continue</span><br>    <span class="hljs-keyword">fi</span><br><br>    <span class="hljs-keyword">if</span> ssh \<br>        -p <span class="hljs-string">&quot;<span class="hljs-variable">$port</span>&quot;</span> \<br>        -i <span class="hljs-string">&quot;<span class="hljs-variable">$KEY</span>&quot;</span> \<br>        -o BatchMode=<span class="hljs-built_in">yes</span> \<br>        -o PasswordAuthentication=no \<br>        -o IdentitiesOnly=<span class="hljs-built_in">yes</span> \<br>        -o ConnectTimeout=5 \<br>        <span class="hljs-string">&quot;<span class="hljs-variable">$user</span>@<span class="hljs-variable">$host</span>&quot;</span> \<br>        <span class="hljs-string">&#x27;printf &quot;SSH KEY AUTH OK - &quot;; hostname; whoami&#x27;</span><br>    <span class="hljs-keyword">then</span><br>        <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;SUCCESS: <span class="hljs-variable">$alias</span>&quot;</span><br>    <span class="hljs-keyword">else</span><br>        <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;ERROR: key verification failed: <span class="hljs-variable">$alias</span>&quot;</span><br>    <span class="hljs-keyword">fi</span><br><br><span class="hljs-keyword">done</span> &lt; <span class="hljs-string">&quot;<span class="hljs-variable">$INVENTORY</span>&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>增加执行权限：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">chmod</span> +x distribute-key.sh<br></code></pre></td></tr></table></figure>
+
+<p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">./distribute-key.sh<br></code></pre></td></tr></table></figure>
+
+<p>这个脚本具备一个很重要的特性：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">同一把公钥不会被重复追加<br></code></pre></td></tr></table></figure>
+
+<p>实现逻辑：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">grep -qxF <span class="hljs-string">&quot;<span class="hljs-variable">$key</span>&quot;</span> ~/.ssh/authorized_keys ||<br><span class="hljs-built_in">printf</span> <span class="hljs-string">&quot;%s\n&quot;</span> <span class="hljs-string">&quot;<span class="hljs-variable">$key</span>&quot;</span> &gt;&gt; ~/.ssh/authorized_keys<br></code></pre></td></tr></table></figure>
+
+<p>因此可以重复运行。</p>
+<p>这种特性通常称为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">幂等<br>idempotent<br></code></pre></td></tr></table></figure>
+
+<p>它也是自动化运维脚本非常重要的设计原则。</p>
+<hr>
+<h2 id="实验十三：批量执行-SSH-命令"><a href="#实验十三：批量执行-SSH-命令" class="headerlink" title="实验十三：批量执行 SSH 命令"></a>实验十三：批量执行 SSH 命令</h2><p>例如检查所有机器：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-keyword">while</span> <span class="hljs-built_in">read</span> -r <span class="hljs-built_in">alias</span> host user port; <span class="hljs-keyword">do</span><br><br>    [[ -z <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;alias:-&#125;</span>&quot;</span> ]] &amp;&amp; <span class="hljs-built_in">continue</span><br>    [[ <span class="hljs-string">&quot;<span class="hljs-variable">$alias</span>&quot;</span> == \#* ]] &amp;&amp; <span class="hljs-built_in">continue</span><br><br>    <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;===== <span class="hljs-variable">$alias</span> (<span class="hljs-variable">$host</span>) =====&quot;</span><br><br>    ssh \<br>      -i ~/.ssh/id_ed25519_lab_admin \<br>      -p <span class="hljs-string">&quot;<span class="hljs-variable">$port</span>&quot;</span> \<br>      -o BatchMode=<span class="hljs-built_in">yes</span> \<br>      -o IdentitiesOnly=<span class="hljs-built_in">yes</span> \<br>      <span class="hljs-string">&quot;<span class="hljs-variable">$user</span>@<span class="hljs-variable">$host</span>&quot;</span> \<br>      <span class="hljs-string">&#x27;hostname; uptime&#x27;</span><br><br><span class="hljs-keyword">done</span> &lt; hosts.txt<br></code></pre></td></tr></table></figure>
+
+<p>这已经可以完成非常基础的批量服务器管理。</p>
+<hr>
+<h2 id="实验十四：批量-rsync"><a href="#实验十四：批量-rsync" class="headerlink" title="实验十四：批量 rsync"></a>实验十四：批量 rsync</h2><p>假设本地目录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">~/deploy/<br></code></pre></td></tr></table></figure>
+
+<p>需要同步到所有服务器：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-keyword">while</span> <span class="hljs-built_in">read</span> -r <span class="hljs-built_in">alias</span> host user port; <span class="hljs-keyword">do</span><br><br>    [[ -z <span class="hljs-string">&quot;<span class="hljs-variable">$&#123;alias:-&#125;</span>&quot;</span> ]] &amp;&amp; <span class="hljs-built_in">continue</span><br>    [[ <span class="hljs-string">&quot;<span class="hljs-variable">$alias</span>&quot;</span> == \#* ]] &amp;&amp; <span class="hljs-built_in">continue</span><br><br>    <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;===== Sync <span class="hljs-variable">$alias</span> =====&quot;</span><br><br>    ssh \<br>      -i ~/.ssh/id_ed25519_lab_admin \<br>      -p <span class="hljs-string">&quot;<span class="hljs-variable">$port</span>&quot;</span> \<br>      -o BatchMode=<span class="hljs-built_in">yes</span> \<br>      -o IdentitiesOnly=<span class="hljs-built_in">yes</span> \<br>      <span class="hljs-string">&quot;<span class="hljs-variable">$user</span>@<span class="hljs-variable">$host</span>&quot;</span> \<br>      <span class="hljs-string">&#x27;mkdir -p ~/deploy&#x27;</span><br><br>    rsync -avP \<br>      -e <span class="hljs-string">&quot;ssh -i <span class="hljs-variable">$&#123;HOME&#125;</span>/.ssh/id_ed25519_lab_admin -p <span class="hljs-variable">$&#123;port&#125;</span> -o BatchMode=yes -o IdentitiesOnly=yes&quot;</span> \<br>      ~/deploy/ \<br>      <span class="hljs-string">&quot;<span class="hljs-variable">$user</span>@<span class="hljs-variable">$host</span>:/home/<span class="hljs-variable">$user</span>/deploy/&quot;</span><br><br><span class="hljs-keyword">done</span> &lt; hosts.txt<br></code></pre></td></tr></table></figure>
+
+<p>整体结构就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">                    ┌──&gt; server01<br>                    │<br>Mac ── SSH/rsync ───├──&gt; server02<br>                    │<br>                    ├──&gt; server03<br>                    │<br>                    └──&gt; serverN<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验十五：什么时候应该升级到-Ansible"><a href="#实验十五：什么时候应该升级到-Ansible" class="headerlink" title="实验十五：什么时候应该升级到 Ansible"></a>实验十五：什么时候应该升级到 Ansible</h2><p>Shell + SSH 非常适合学习 SSH 原理，也适合少量机器。</p>
+<p>大致可以这样理解：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs text">1～5 台<br>    ↓<br>SSH Config + 手工管理<br><br>5～20 台<br>    ↓<br>hosts.txt + Shell<br><br>20～100 台<br>    ↓<br>Ansible 更合适<br><br>更大规模<br>    ↓<br>Ansible<br>堡垒机<br>集中身份管理<br>OpenSSH CA<br></code></pre></td></tr></table></figure>
+
+<p>Shell 脚本适合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">理解底层原理<br>执行简单批量任务<br>快速构建自己的管理工具<br></code></pre></td></tr></table></figure>
+
+<p>但机器规模越来越大后，还要解决：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">并发<br>失败重试<br>变量<br>权限提升<br>不同系统差异<br>配置状态管理<br>密钥轮换<br>Secret 管理<br>执行结果汇总<br></code></pre></td></tr></table></figure>
+
+<p>这正是 Ansible 这类工具存在的意义。</p>
+<hr>
+<h2 id="实验十六：理解-OpenSSH-CA-的价值"><a href="#实验十六：理解-OpenSSH-CA-的价值" class="headerlink" title="实验十六：理解 OpenSSH CA 的价值"></a>实验十六：理解 OpenSSH CA 的价值</h2><p>传统 SSH Key 管理是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">管理员公钥<br>   ↓<br>server01 authorized_keys<br>server02 authorized_keys<br>server03 authorized_keys<br>...<br>server100 authorized_keys<br></code></pre></td></tr></table></figure>
+
+<p>如果管理员离职或者私钥泄漏：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">需要从所有服务器删除对应公钥<br></code></pre></td></tr></table></figure>
+
+<p>服务器数量多以后，这会变得非常麻烦。</p>
+<p>OpenSSH CA 的思路则是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">          SSH CA<br>            │<br>            │ 签发证书<br>            ▼<br>       管理员 SSH 证书<br>            │<br>  ┌─────────┼─────────┐<br>  ▼         ▼         ▼<br>server01  server02   serverN<br></code></pre></td></tr></table></figure>
+
+<p>服务器只需要信任 CA：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">TrustedUserCAKeys<br></code></pre></td></tr></table></figure>
+
+<p>而不需要给每个管理员单独维护大量 <code>authorized_keys</code>。</p>
+<p>这更加适合大型基础设施。</p>
+<hr>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>SSH 免密认证真正应该理解成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">使用公钥认证替代远程账户密码认证<br></code></pre></td></tr></table></figure>
+
+<p>而不是简单地“把密码取消”。</p>
+<p>一套相对完整的 SSH 管理体系可以理解为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><code class="hljs text">SSH Config<br>    ↓<br>告诉 SSH：<br>连接哪台服务器<br>使用哪个用户<br>哪个端口<br>哪把私钥<br><br>ssh-agent<br>    ↓<br>管理已经解锁的私钥<br><br>Passphrase<br>    ↓<br>保护磁盘上的私钥文件<br><br>authorized_keys<br>    ↓<br>服务器记录允许登录的公钥<br><br>known_hosts<br>    ↓<br>客户端记录并验证服务器身份<br></code></pre></td></tr></table></figure>
+
+<p>对于当前 Mac + Raspberry Pi Rocky Linux 9 的实验环境：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs text">Mac<br>│<br>├── ~/.ssh/id_ed25519_lab_admin<br>│       私钥 + Passphrase<br>│<br>├── ssh-agent<br>│       管理解锁后的 Key<br>│<br>├── Apple Keychain<br>│       保存 Passphrase<br>│<br>└── ~/.ssh/config<br>        │<br>        │ Host rocky-pi<br>        ▼<br>192.168.0.50<br>Rocky Linux 9<br>│<br>└── /home/rocky/.ssh/authorized_keys<br>        保存 Mac 的公钥<br></code></pre></td></tr></table></figure>
+
+<p>最终日常登录可以简化为：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh rocky-pi<br></code></pre></td></tr></table></figure>
+
+<p>rsync 也可以直接：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">rsync -avP \<br>  ./data/ \<br>  rocky-pi:/home/rocky/data/<br></code></pre></td></tr></table></figure>
+
+<p>学习 SSH 时，建议按照如下顺序逐步深入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs text">密码 SSH<br>    ↓<br>单机 SSH 公钥认证<br>    ↓<br>authorized_keys<br>    ↓<br>Passphrase<br>    ↓<br>ssh-agent<br>    ↓<br>macOS Keychain<br>    ↓<br>SSH Config<br>    ↓<br>批量 Shell<br>    ↓<br>批量 rsync<br>    ↓<br>Ansible<br>    ↓<br>OpenSSH CA<br></code></pre></td></tr></table></figure>
+
+<p>理解这条链路之后，SSH 就不再只是一个“远程登录命令”，而会成为后续 Linux 服务器管理、rsync 文件同步、自动部署、Ansible 自动化、堡垒机和大规模主机身份管理的基础设施。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Linux/" class="category-chain-item">Linux</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/Linux/%E8%BF%90%E7%BB%B4/" class="category-chain-item">运维</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Rocky-Linux/" class="print-no-link">#Rocky Linux</a>
+      
+        <a href="/tags/macOS/" class="print-no-link">#macOS</a>
+      
+        <a href="/tags/SSH/" class="print-no-link">#SSH</a>
+      
+        <a href="/tags/OpenSSH/" class="print-no-link">#OpenSSH</a>
+      
+        <a href="/tags/ssh-agent/" class="print-no-link">#ssh-agent</a>
+      
+        <a href="/tags/SSH-Config/" class="print-no-link">#SSH Config</a>
+      
+        <a href="/tags/Passphrase/" class="print-no-link">#Passphrase</a>
+      
+        <a href="/tags/rsync/" class="print-no-link">#rsync</a>
+      
+        <a href="/tags/Linux-%E8%BF%90%E7%BB%B4/" class="print-no-link">#Linux 运维</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Linux SSH 免密登录与批量主机管理：从 Passphrase、ssh-agent 到 SSH Config</div>
+      <div>https://allendericdalexander.github.io/2026/09/09/devops/learn/linux-ssh-key-agent-config-rsync-hexo/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年9月9日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/09/09/java/maven-core-notes-hexo/" title="Maven 核心机制学习笔记：POM 继承、Profiles、生命周期、依赖作用域与版本">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Maven 核心机制学习笔记：POM 继承、Profiles、生命周期、依赖作用域与版本</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/09/09/devops/learn/rocky-linux-9-nfs-complete-guide/" title="Rocky Linux 9 NFS 完整学习笔记：原理、配置、自动挂载与实操实验">
+                        <span class="hidden-mobile">Rocky Linux 9 NFS 完整学习笔记：原理、配置、自动挂载与实操实验</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

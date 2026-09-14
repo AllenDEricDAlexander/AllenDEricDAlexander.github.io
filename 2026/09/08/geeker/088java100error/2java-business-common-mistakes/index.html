@@ -1,0 +1,1550 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="Java 业务代码真正难排查的 Bug，往往不是复杂算法写错，而是一些“看起来理所当然”的语义在边界条件下突然失效：&#x3D;&#x3D; 偶尔能正确比较包装类型、BigDecimal.equals 不认为 1.0 和 1 相等、subList 只是原 List 的视图、异步日志会丢数据、submit 会把线程池异常藏进 Future，甚至一个看似只是“放大限制”的 Tomcat 参数也可能把堆内存吃光。本文把对象">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Java 业务开发中的十类隐蔽陷阱：从对象判等到 OOM">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/09/08/geeker/088java100error/2java-business-common-mistakes/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="Java 业务代码真正难排查的 Bug，往往不是复杂算法写错，而是一些“看起来理所当然”的语义在边界条件下突然失效：&#x3D;&#x3D; 偶尔能正确比较包装类型、BigDecimal.equals 不认为 1.0 和 1 相等、subList 只是原 List 的视图、异步日志会丢数据、submit 会把线程池异常藏进 Future，甚至一个看似只是“放大限制”的 Tomcat 参数也可能把堆内存吃光。本文把对象">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-08T05:24:00.000Z">
+<meta property="article:modified_time" content="2026-09-08T05:24:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="BigDecimal">
+<meta property="article:tag" content="Collections">
+<meta property="article:tag" content="JVM">
+<meta property="article:tag" content="Jackson">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="Logback">
+<meta property="article:tag" content="Spring Boot">
+<meta property="article:tag" content="java.time">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Java 业务开发中的十类隐蔽陷阱：从对象判等到 OOM - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Java 业务开发中的十类隐蔽陷阱：从对象判等到 OOM"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-09-08 13:24" pubdate>
+          2026年9月8日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          13k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          105 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Java 业务开发中的十类隐蔽陷阱：从对象判等到 OOM</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>Java 业务代码真正难排查的 Bug，往往不是复杂算法写错，而是一些“看起来理所当然”的语义在边界条件下突然失效：<code>==</code> 偶尔能正确比较包装类型、<code>BigDecimal.equals</code> 不认为 <code>1.0</code> 和 <code>1</code> 相等、<code>subList</code> 只是原 List 的视图、异步日志会丢数据、<code>submit</code> 会把线程池异常藏进 <code>Future</code>，甚至一个看似只是“放大限制”的 Tomcat 参数也可能把堆内存吃光。本文把对象判等、数值、集合、空值、异常、日志、文件 IO、序列化、日期时间和 OOM 十类问题重新组织成一套面向真实业务开发的防错模型，并结合现代 Java 的实践说明哪些旧习惯已经应该被替换。</p>
+<span id="more"></span>
+
+<h2 id="为什么这些问题总是在“看起来没问题”时出问题"><a href="#为什么这些问题总是在“看起来没问题”时出问题" class="headerlink" title="为什么这些问题总是在“看起来没问题”时出问题"></a>为什么这些问题总是在“看起来没问题”时出问题</h2><p>这批问题表面上分散在 Java 语法、集合、Spring、Redis、Jackson、Tomcat 和 JVM 中，实际上都指向同一件事：<strong>代码依赖了一个没有被明确写出来的隐含契约</strong>。</p>
+<table>
+<thead>
+<tr>
+<th>领域</th>
+<th>常见错误</th>
+<th>真正被忽略的契约</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>对象判等</td>
+<td><code>Integer</code>、<code>String</code> 用 <code>==</code></td>
+<td>引用相等与值相等不是一回事</td>
+</tr>
+<tr>
+<td>数值计算</td>
+<td><code>double</code> 算金额、整数静默溢出</td>
+<td>数字在机器中的表示范围与精度有限</td>
+</tr>
+<tr>
+<td>集合</td>
+<td>把 <code>asList</code>、<code>subList</code> 当独立 <code>ArrayList</code></td>
+<td>很多集合 API 返回的是视图或受限实现</td>
+</tr>
+<tr>
+<td>空值</td>
+<td>到处判空但业务仍然错</td>
+<td><code>null</code> 的业务含义没有定义清楚</td>
+</tr>
+<tr>
+<td>异常</td>
+<td>全局 <code>catch Exception</code>、只记 message</td>
+<td>异常既是控制流，也是故障现场</td>
+</tr>
+<tr>
+<td>日志</td>
+<td>重复日志、异步丢日志</td>
+<td>Logger、Appender、队列之间存在传播与背压</td>
+</tr>
+<tr>
+<td>文件 IO</td>
+<td>乱码、句柄泄漏、逐字节读写</td>
+<td>字符集、资源生命周期和系统调用成本必须显式管理</td>
+</tr>
+<tr>
+<td>序列化</td>
+<td>Redis 乱码、JSON 一来一回类型变了</td>
+<td>序列化协议必须在生产者和消费者之间稳定一致</td>
+</tr>
+<tr>
+<td>日期时间</td>
+<td>时区错乱、跨年格式错误</td>
+<td>“时间点”和“本地时间表示”是两个概念</td>
+</tr>
+<tr>
+<td>OOM</td>
+<td>有 GC 就认为不会泄漏</td>
+<td>GC 只能回收不可达对象，不能替你控制容量</td>
+</tr>
+</tbody></table>
+<p>可以把这些问题归纳成四种边界：</p>
+<pre><code class=" mermaid">flowchart LR
+    A[语言与类型语义] --&gt; A1[判等]
+    A --&gt; A2[数值]
+    A --&gt; A3[null]
+
+    B[容器与资源生命周期] --&gt; B1[集合视图]
+    B --&gt; B2[文件句柄]
+    B --&gt; B3[线程池与日志队列]
+
+    C[系统边界与协议] --&gt; C1[JSON / Redis]
+    C --&gt; C2[数据库 NULL]
+    C --&gt; C3[时间与时区]
+
+    D[容量与可达性] --&gt; D1[缓存]
+    D --&gt; D2[对象副本]
+    D --&gt; D3[Tomcat / JVM 参数]
+</code></pre>
+
+<p>真正稳定的业务代码，不是把每一个 API 都背下来，而是在看到“缓存、视图、自动转换、默认值、异步、序列化、时间、限制参数”这些词时，主动追问：<strong>谁拥有数据、谁负责释放、比较的到底是什么、默认行为是什么、异常去了哪里，以及这项配置会按什么维度放大资源消耗。</strong></p>
+<h2 id="对象判等：-、equals、hashCode-和-compareTo-必须是一套语义"><a href="#对象判等：-、equals、hashCode-和-compareTo-必须是一套语义" class="headerlink" title="对象判等：==、equals、hashCode 和 compareTo 必须是一套语义"></a>对象判等：<code>==</code>、<code>equals</code>、<code>hashCode</code> 和 <code>compareTo</code> 必须是一套语义</h2><h3 id="基本类型比较值，引用类型的-比较身份"><a href="#基本类型比较值，引用类型的-比较身份" class="headerlink" title="基本类型比较值，引用类型的 == 比较身份"></a>基本类型比较值，引用类型的 <code>==</code> 比较身份</h3><p>Java 中 <code>==</code> 对基本类型比较数值，对引用类型比较两个引用是否指向同一个对象。业务代码通常关心的是“内容是不是一样”，因此引用类型的内容比较应该使用 <code>equals</code>。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">int</span> <span class="hljs-variable">a</span> <span class="hljs-operator">=</span> <span class="hljs-number">128</span>;<br><span class="hljs-type">int</span> <span class="hljs-variable">b</span> <span class="hljs-operator">=</span> <span class="hljs-number">128</span>;<br>System.out.println(a == b);              <span class="hljs-comment">// true</span><br><br><span class="hljs-type">Integer</span> <span class="hljs-variable">x</span> <span class="hljs-operator">=</span> <span class="hljs-number">128</span>;<br><span class="hljs-type">Integer</span> <span class="hljs-variable">y</span> <span class="hljs-operator">=</span> <span class="hljs-number">128</span>;<br>System.out.println(x == y);              <span class="hljs-comment">// 不应依赖这个结果</span><br>System.out.println(x.equals(y));         <span class="hljs-comment">// true</span><br></code></pre></td></tr></table></figure>
+
+<p>最危险的地方不是 <code>==</code> 永远错误，而是它<strong>有时正确</strong>。自动装箱会调用 <code>Integer.valueOf</code>，而 <code>Integer</code> 默认至少缓存 <code>[-128, 127]</code> 范围内的对象：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Integer</span> <span class="hljs-variable">a</span> <span class="hljs-operator">=</span> <span class="hljs-number">127</span>;<br><span class="hljs-type">Integer</span> <span class="hljs-variable">b</span> <span class="hljs-operator">=</span> <span class="hljs-number">127</span>;<br>System.out.println(a == b); <span class="hljs-comment">// 通常 true，命中了 IntegerCache</span><br><br><span class="hljs-type">Integer</span> <span class="hljs-variable">c</span> <span class="hljs-operator">=</span> <span class="hljs-number">128</span>;<br><span class="hljs-type">Integer</span> <span class="hljs-variable">d</span> <span class="hljs-operator">=</span> <span class="hljs-number">128</span>;<br>System.out.println(c == d); <span class="hljs-comment">// 通常 false</span><br></code></pre></td></tr></table></figure>
+
+<p>这也是这类 Bug 隐蔽的原因。状态码最初只有 100、101、102，<code>==</code> 似乎一直工作；状态增长到 128 以后，逻辑突然失效。JVM 还可以通过参数调整部分装箱缓存范围，但业务代码绝不能建立在这种实现细节上。</p>
+<p>自动拆箱还会制造另一种错觉：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Integer</span> <span class="hljs-variable">boxed</span> <span class="hljs-operator">=</span> <span class="hljs-number">128</span>;<br><span class="hljs-type">int</span> <span class="hljs-variable">primitive</span> <span class="hljs-operator">=</span> <span class="hljs-number">128</span>;<br>System.out.println(boxed == primitive); <span class="hljs-comment">// true，boxed 被拆箱后比较 int</span><br></code></pre></td></tr></table></figure>
+
+<p>所以代码审查时看到包装类型参与 <code>==</code>，最好的反应不是分析“这次到底会不会命中缓存”，而是直接消除这种依赖。</p>
+<h3 id="String-常量池也不能成为业务判等规则"><a href="#String-常量池也不能成为业务判等规则" class="headerlink" title="String 常量池也不能成为业务判等规则"></a>String 常量池也不能成为业务判等规则</h3><p>字符串字面量会进入字符串常量池：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">String</span> <span class="hljs-variable">a</span> <span class="hljs-operator">=</span> <span class="hljs-string">&quot;hello&quot;</span>;<br><span class="hljs-type">String</span> <span class="hljs-variable">b</span> <span class="hljs-operator">=</span> <span class="hljs-string">&quot;hello&quot;</span>;<br>System.out.println(a == b); <span class="hljs-comment">// true</span><br><br><span class="hljs-type">String</span> <span class="hljs-variable">c</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">String</span>(<span class="hljs-string">&quot;hello&quot;</span>);<br><span class="hljs-type">String</span> <span class="hljs-variable">d</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">String</span>(<span class="hljs-string">&quot;hello&quot;</span>);<br>System.out.println(c == d);        <span class="hljs-comment">// false</span><br>System.out.println(c.equals(d));   <span class="hljs-comment">// true</span><br></code></pre></td></tr></table></figure>
+
+<p><code>String.intern()</code> 可以把字符串驻留到字符串表中，但它是内存优化机制，不是内容判等 API。大量、低重复率的动态字符串全部 <code>intern</code>，会把压力转移到 StringTable。资料中的实验在字符串表桶数量很少时驻留 1000 万个字符串耗时超过 40 秒，调大 <code>StringTableSize</code> 后才明显改善；这个数字与 JDK、机器和参数有关，但结论不变：<strong>不要为了省一次 <code>equals</code> 或做普通去重而滥用 <code>intern</code>。</strong></p>
+<p>需要分析字符串表时，可以使用对应 JDK 支持的统计参数，例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">-XX:+PrintStringTableStatistics<br>-XX:StringTableSize=&lt;bucket-count&gt;<br></code></pre></td></tr></table></figure>
+
+<p>参数名和行为需要以当前 JDK 为准，尤其不要把某次压测得到的桶数量直接当生产推荐值。</p>
+<h3 id="自定义值对象必须同时设计-equals-和-hashCode"><a href="#自定义值对象必须同时设计-equals-和-hashCode" class="headerlink" title="自定义值对象必须同时设计 equals 和 hashCode"></a>自定义值对象必须同时设计 <code>equals</code> 和 <code>hashCode</code></h3><p>如果一个点只由 <code>x</code>、<code>y</code> 决定身份，那么 <code>desc</code> 不应该参与相等判断：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">final</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">Point</span> &#123;<br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">int</span> x;<br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">int</span> y;<br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> String desc;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">Point</span><span class="hljs-params">(<span class="hljs-type">int</span> x, <span class="hljs-type">int</span> y, String desc)</span> &#123;<br>        <span class="hljs-built_in">this</span>.x = x;<br>        <span class="hljs-built_in">this</span>.y = y;<br>        <span class="hljs-built_in">this</span>.desc = desc;<br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">equals</span><span class="hljs-params">(Object o)</span> &#123;<br>        <span class="hljs-keyword">if</span> (<span class="hljs-built_in">this</span> == o) <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>;<br>        <span class="hljs-keyword">if</span> (o == <span class="hljs-literal">null</span> || getClass() != o.getClass()) <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;<br>        <span class="hljs-type">Point</span> <span class="hljs-variable">that</span> <span class="hljs-operator">=</span> (Point) o;<br>        <span class="hljs-keyword">return</span> x == that.x &amp;&amp; y == that.y;<br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">int</span> <span class="hljs-title function_">hashCode</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> Objects.hash(x, y);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>只重写 <code>equals</code> 而不重写 <code>hashCode</code> 会直接破坏 <code>HashSet</code>、<code>HashMap</code> 的语义：两个 <code>equals</code> 为 <code>true</code> 的对象如果 hash code 不一致，会被分配到不同桶，<code>contains</code>、<code>get</code> 等操作可能找不到“逻辑上相等”的对象。</p>
+<p>核心契约是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">如果 a.equals(b) == true<br>那么 a.hashCode() 必须等于 b.hashCode()<br></code></pre></td></tr></table></figure>
+
+<p>反过来不成立，不同对象允许 hash 冲突。</p>
+<p>对于真正的不可变值对象，现代 Java 还可以优先考虑 <code>record</code>，它会基于组件自动生成 <code>equals</code>、<code>hashCode</code> 和 <code>toString</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">record</span> <span class="hljs-title class_">Point</span><span class="hljs-params">(<span class="hljs-type">int</span> x, <span class="hljs-type">int</span> y)</span> &#123;&#125;<br></code></pre></td></tr></table></figure>
+
+<p>前提仍然是：record 中声明的组件正好就是你的“值语义”。</p>
+<h3 id="compareTo-0-最好与-equals-true-保持一致"><a href="#compareTo-0-最好与-equals-true-保持一致" class="headerlink" title="compareTo == 0 最好与 equals == true 保持一致"></a><code>compareTo == 0</code> 最好与 <code>equals == true</code> 保持一致</h3><p>一个更难发现的问题出现在有序集合和二分搜索中。</p>
+<p>假设 <code>Student.equals</code> 由 <code>id + name</code> 决定，但 <code>compareTo</code> 只比较 <code>id</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-type">int</span> <span class="hljs-title function_">compareTo</span><span class="hljs-params">(Student other)</span> &#123;<br>    <span class="hljs-keyword">return</span> Integer.compare(<span class="hljs-built_in">this</span>.id, other.id);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>那么：</p>
+<ul>
+<li><code>ArrayList.indexOf</code> 通过 <code>equals</code> 搜索；</li>
+<li><code>Collections.binarySearch</code> 通过排序规则搜索；</li>
+<li><code>HashSet.contains</code> 依赖 <code>hashCode + equals</code>；</li>
+<li><code>TreeSet.contains</code> 依赖 <code>Comparator / compareTo</code>。</li>
+</ul>
+<p>于是 <code>id=2,name=wang</code> 与 <code>id=2,name=li</code> 对 <code>equals</code> 来说不是同一个学生，对排序规则来说却是“相等”的。代码从线性搜索优化为二分搜索后，就可能出现业务行为变化。</p>
+<p>更安全的实现是让排序规则覆盖同一组身份字段：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Override</span><br><span class="hljs-keyword">public</span> <span class="hljs-type">int</span> <span class="hljs-title function_">compareTo</span><span class="hljs-params">(Student other)</span> &#123;<br>    <span class="hljs-keyword">return</span> Comparator.comparingInt(Student::getId)<br>            .thenComparing(Student::getName)<br>            .compare(<span class="hljs-built_in">this</span>, other);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>严格来说，<code>Comparable</code> 规范允许“自然顺序与 equals 不一致”的类型，<code>BigDecimal</code> 就是著名例子；但业务实体如果同时进入 Hash 容器和 Tree 容器，最好不要制造两套“相等”定义。</p>
+<h3 id="getClass-和-instanceof-是两种不同的继承语义"><a href="#getClass-和-instanceof-是两种不同的继承语义" class="headerlink" title="getClass() 和 instanceof 是两种不同的继承语义"></a><code>getClass()</code> 和 <code>instanceof</code> 是两种不同的继承语义</h3><p><code>equals</code> 中常见两种类型判断：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">if</span> (o == <span class="hljs-literal">null</span> || getClass() != o.getClass()) <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;<br></code></pre></td></tr></table></figure>
+
+<p>以及：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">if</span> (!(o <span class="hljs-keyword">instanceof</span> Point)) <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;<br></code></pre></td></tr></table></figure>
+
+<p><code>getClass()</code> 要求运行时类型完全相同，父类和子类不会相等；<code>instanceof</code> 允许子类型通过判断。两者没有绝对的“正确答案”，关键是你的值语义是否允许跨继承层级相等，并且必须保证对称性、传递性。</p>
+<p>热加载、插件系统和自定义 ClassLoader 还会引入另一层边界：在 JVM 中，<strong>类身份由“类的全限定名 + 定义它的 ClassLoader”共同决定</strong>。名字相同但由两个不同 ClassLoader 加载的类，运行时并不是同一个类型。这也是热部署环境里某些 <code>equals</code>、强制类型转换问题特别诡异的原因。</p>
+<h3 id="Lombok-不是免思考按钮"><a href="#Lombok-不是免思考按钮" class="headerlink" title="Lombok 不是免思考按钮"></a>Lombok 不是免思考按钮</h3><p><code>@Data</code> 会生成 <code>equals</code> 和 <code>hashCode</code>，但“生成了”不代表“业务语义正确”。默认把不该参与身份的字段加入比较，会让对象看起来总不相等；继承层级中忽略父类字段，则可能把完全不同的两个子类对象判断为相等。</p>
+<p>可以显式控制字段：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Data</span><br><span class="hljs-meta">@EqualsAndHashCode(onlyExplicitlyIncluded = true)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">Person</span> &#123;<br>    <span class="hljs-keyword">private</span> String name;<br><br>    <span class="hljs-meta">@EqualsAndHashCode</span>.Include<br>    <span class="hljs-keyword">private</span> String identity;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>子类确实需要把父类语义纳入判等时：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Data</span><br><span class="hljs-meta">@EqualsAndHashCode(callSuper = true)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">Employee</span> <span class="hljs-keyword">extends</span> <span class="hljs-title class_">Person</span> &#123;<br>    <span class="hljs-keyword">private</span> String company;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>Lombok、IDE 代码生成和 record 都只是减少模板代码。真正需要设计的，始终是“什么字段定义对象身份”。</p>
+<h2 id="数值计算：精度、舍入、比较和溢出是四个不同问题"><a href="#数值计算：精度、舍入、比较和溢出是四个不同问题" class="headerlink" title="数值计算：精度、舍入、比较和溢出是四个不同问题"></a>数值计算：精度、舍入、比较和溢出是四个不同问题</h2><h3 id="double-的问题不是“Java-算错了”"><a href="#double-的问题不是“Java-算错了”" class="headerlink" title="double 的问题不是“Java 算错了”"></a><code>double</code> 的问题不是“Java 算错了”</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">System.out.println(<span class="hljs-number">0.1</span> + <span class="hljs-number">0.2</span>);<br><span class="hljs-comment">// 0.30000000000000004</span><br></code></pre></td></tr></table></figure>
+
+<p>Java 浮点数遵循 IEEE 754。十进制 <code>0.1</code> 在二进制中是无限循环小数，只能保存为最接近的可表示值。因此浮点误差不是某次加法造成的偶然问题，而是表示层就已经存在。</p>
+<p>对于科学计算、统计等容忍误差的场景，<code>double</code> 完全合理；对于金额、利率、税额、结算等要求十进制定点语义的业务，应该使用 <code>BigDecimal</code> 或明确的最小货币单位模型。</p>
+<h3 id="BigDecimal-最大的坑发生在构造之前"><a href="#BigDecimal-最大的坑发生在构造之前" class="headerlink" title="BigDecimal 最大的坑发生在构造之前"></a>BigDecimal 最大的坑发生在构造之前</h3><p>错误写法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">BigDecimal</span> <span class="hljs-variable">a</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">BigDecimal</span>(<span class="hljs-number">0.1</span>);<br></code></pre></td></tr></table></figure>
+
+<p>传进去的 <code>0.1</code> 已经是一个近似的二进制浮点值，<code>BigDecimal</code> 只是忠实地把这个近似值展开出来，并不会“修复精度”。</p>
+<p>优先写成：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">BigDecimal</span> <span class="hljs-variable">a</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">BigDecimal</span>(<span class="hljs-string">&quot;0.1&quot;</span>);<br><span class="hljs-type">BigDecimal</span> <span class="hljs-variable">b</span> <span class="hljs-operator">=</span> BigDecimal.valueOf(<span class="hljs-number">0.1</span>);<br></code></pre></td></tr></table></figure>
+
+<p>如果原始数据本来就是字符串、数据库 <code>DECIMAL</code>、接口中的十进制文本，应该从源头保持十进制表示，不要先转 <code>double</code> 再转回来。</p>
+<h3 id="scale-和-precision-会影响表现形式与相等性"><a href="#scale-和-precision-会影响表现形式与相等性" class="headerlink" title="scale 和 precision 会影响表现形式与相等性"></a><code>scale</code> 和 <code>precision</code> 会影响表现形式与相等性</h3><p><code>BigDecimal</code> 不只有 value，还有 scale：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">BigDecimal</span> <span class="hljs-variable">a</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">BigDecimal</span>(<span class="hljs-string">&quot;1.0&quot;</span>); <span class="hljs-comment">// scale = 1</span><br><span class="hljs-type">BigDecimal</span> <span class="hljs-variable">b</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">BigDecimal</span>(<span class="hljs-string">&quot;1&quot;</span>);   <span class="hljs-comment">// scale = 0</span><br><br>System.out.println(a.equals(b));          <span class="hljs-comment">// false</span><br>System.out.println(a.compareTo(b) == <span class="hljs-number">0</span>);  <span class="hljs-comment">// true</span><br></code></pre></td></tr></table></figure>
+
+<p>这意味着两个概念必须分开：</p>
+<ul>
+<li>“表示是否完全相同”使用 <code>equals</code>；</li>
+<li>“数值是否相同”使用 <code>compareTo</code>。</li>
+</ul>
+<p>这对集合尤其重要：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java">Set&lt;BigDecimal&gt; set = <span class="hljs-keyword">new</span> <span class="hljs-title class_">HashSet</span>&lt;&gt;();<br>set.add(<span class="hljs-keyword">new</span> <span class="hljs-title class_">BigDecimal</span>(<span class="hljs-string">&quot;1.0&quot;</span>));<br>System.out.println(set.contains(<span class="hljs-keyword">new</span> <span class="hljs-title class_">BigDecimal</span>(<span class="hljs-string">&quot;1&quot;</span>))); <span class="hljs-comment">// false</span><br></code></pre></td></tr></table></figure>
+
+<p>如果业务只关心数值，可在进入 Hash 容器前规范化：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">BigDecimal</span> <span class="hljs-variable">normalized</span> <span class="hljs-operator">=</span> value.stripTrailingZeros();<br></code></pre></td></tr></table></figure>
+
+<p>或者使用基于自然顺序判断的 <code>TreeSet</code>，但要明确接受它的集合相等语义来自 <code>compareTo</code>。</p>
+<h3 id="舍入模式必须是业务规则，不应该藏在格式化里"><a href="#舍入模式必须是业务规则，不应该藏在格式化里" class="headerlink" title="舍入模式必须是业务规则，不应该藏在格式化里"></a>舍入模式必须是业务规则，不应该藏在格式化里</h3><p>现代代码应使用 <code>RoundingMode</code>，而不是旧版 <code>BigDecimal.ROUND_*</code> 常量：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">BigDecimal</span> <span class="hljs-variable">price</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">BigDecimal</span>(<span class="hljs-string">&quot;3.35&quot;</span>);<br>System.out.println(price.setScale(<span class="hljs-number">1</span>, RoundingMode.DOWN));    <span class="hljs-comment">// 3.3</span><br>System.out.println(price.setScale(<span class="hljs-number">1</span>, RoundingMode.HALF_UP)); <span class="hljs-comment">// 3.4</span><br></code></pre></td></tr></table></figure>
+
+<p>常见模式含义如下：</p>
+<table>
+<thead>
+<tr>
+<th>RoundingMode</th>
+<th>方向</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>UP</code></td>
+<td>远离 0</td>
+</tr>
+<tr>
+<td><code>DOWN</code></td>
+<td>向 0 截断</td>
+</tr>
+<tr>
+<td><code>CEILING</code></td>
+<td>向正无穷</td>
+</tr>
+<tr>
+<td><code>FLOOR</code></td>
+<td>向负无穷</td>
+</tr>
+<tr>
+<td><code>HALF_UP</code></td>
+<td>0.5 时向远离 0 的方向，最接近日常“四舍五入”</td>
+</tr>
+<tr>
+<td><code>HALF_DOWN</code></td>
+<td>恰好 0.5 时向 0</td>
+</tr>
+<tr>
+<td><code>HALF_EVEN</code></td>
+<td>0.5 时舍入到相邻偶数，常称银行家舍入</td>
+</tr>
+<tr>
+<td><code>UNNECESSARY</code></td>
+<td>断言无需舍入，否则抛异常</td>
+</tr>
+</tbody></table>
+<p>金额精度、价格精度、数量精度和舍入模式最好成为领域配置，而不是散落在 Controller、SQL、报表代码中的 <code>setScale(2)</code>。</p>
+<h3 id="整数溢出更危险，因为默认不会报错"><a href="#整数溢出更危险，因为默认不会报错" class="headerlink" title="整数溢出更危险，因为默认不会报错"></a>整数溢出更危险，因为默认不会报错</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">long</span> <span class="hljs-variable">value</span> <span class="hljs-operator">=</span> Long.MAX_VALUE;<br>System.out.println(value + <span class="hljs-number">1</span>); <span class="hljs-comment">// Long.MIN_VALUE</span><br></code></pre></td></tr></table></figure>
+
+<p>默认整数运算采用补码环绕，不会因为溢出自动抛异常。对需要安全边界的计算，可使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">long</span> <span class="hljs-variable">result</span> <span class="hljs-operator">=</span> Math.addExact(a, b);<br><span class="hljs-type">long</span> <span class="hljs-variable">result2</span> <span class="hljs-operator">=</span> Math.multiplyExact(x, y);<br></code></pre></td></tr></table></figure>
+
+<p>超出范围时会得到 <code>ArithmeticException</code>。</p>
+<p>真正的大整数运算使用 <code>BigInteger</code>，转换回基础类型时也应使用带 <code>Exact</code> 的方法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">BigInteger</span> <span class="hljs-variable">big</span> <span class="hljs-operator">=</span> BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE);<br><span class="hljs-type">long</span> <span class="hljs-variable">value</span> <span class="hljs-operator">=</span> big.longValueExact(); <span class="hljs-comment">// 超出 long 范围时抛异常</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="金额落库时不要混入二进制浮点语义"><a href="#金额落库时不要混入二进制浮点语义" class="headerlink" title="金额落库时不要混入二进制浮点语义"></a>金额落库时不要混入二进制浮点语义</h3><p>资料中的实践建议优先使用数据库 <code>DECIMAL(p, s)</code> 保存金额，例如 <code>DECIMAL(13,2)</code> 或 <code>DECIMAL(13,4)</code> 只是示例，真实 <code>precision/scale</code> 必须根据最大金额、币种和业务精度确定。</p>
+<p>使用 <code>long</code> 保存“分”也能避免浮点误差，但它把单位换算的正确性推给了应用：一次漏乘 100 或漏除 100 就可能产生严重事故。无论选择哪种模型，都要让“单位 + 精度 + 舍入”成为类型或领域对象的一部分，而不是依赖开发者记忆。</p>
+<h2 id="集合：很多-List-API-返回的不是你以为的那个-List"><a href="#集合：很多-List-API-返回的不是你以为的那个-List" class="headerlink" title="集合：很多 List API 返回的不是你以为的那个 List"></a>集合：很多 List API 返回的不是你以为的那个 List</h2><h3 id="Arrays-asList-有三个典型陷阱"><a href="#Arrays-asList-有三个典型陷阱" class="headerlink" title="Arrays.asList 有三个典型陷阱"></a><code>Arrays.asList</code> 有三个典型陷阱</h3><p>第一个是基本类型数组：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">int</span>[] array = &#123;<span class="hljs-number">1</span>, <span class="hljs-number">2</span>, <span class="hljs-number">3</span>&#125;;<br>List&lt;<span class="hljs-type">int</span>[]&gt; list = Arrays.asList(array);<br>System.out.println(list.size()); <span class="hljs-comment">// 1</span><br></code></pre></td></tr></table></figure>
+
+<p><code>int[]</code> 自身被当成一个对象传给了泛型可变参数。需要 <code>List&lt;Integer&gt;</code> 时：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java">List&lt;Integer&gt; list = Arrays.stream(array)<br>        .boxed()<br>        .collect(Collectors.toCollection(ArrayList::<span class="hljs-keyword">new</span>));<br></code></pre></td></tr></table></figure>
+
+<p>第二个是它返回的不是普通 <code>java.util.ArrayList</code>，而是 <code>Arrays</code> 内部的定长 List。可以 <code>set</code>，不能改变大小：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">List&lt;String&gt; list = Arrays.asList(<span class="hljs-string">&quot;a&quot;</span>, <span class="hljs-string">&quot;b&quot;</span>, <span class="hljs-string">&quot;c&quot;</span>);<br>list.add(<span class="hljs-string">&quot;d&quot;</span>); <span class="hljs-comment">// UnsupportedOperationException</span><br></code></pre></td></tr></table></figure>
+
+<p>第三个是它与原数组共享底层存储：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java">String[] array = &#123;<span class="hljs-string">&quot;a&quot;</span>, <span class="hljs-string">&quot;b&quot;</span>, <span class="hljs-string">&quot;c&quot;</span>&#125;;<br>List&lt;String&gt; list = Arrays.asList(array);<br>array[<span class="hljs-number">1</span>] = <span class="hljs-string">&quot;x&quot;</span>;<br>System.out.println(list); <span class="hljs-comment">// [a, x, c]</span><br></code></pre></td></tr></table></figure>
+
+<p>需要独立、可变的 List 时，明确复制：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">List&lt;String&gt; list = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ArrayList</span>&lt;&gt;(Arrays.asList(array));<br></code></pre></td></tr></table></figure>
+
+<p>现代 Java 的 <code>List.of(...)</code> 更明确地表达“不可变集合”，但它同样不能拿来当可变 <code>ArrayList</code> 使用。</p>
+<h3 id="subList-是视图，不是切出来的新数组"><a href="#subList-是视图，不是切出来的新数组" class="headerlink" title="subList 是视图，不是切出来的新数组"></a><code>subList</code> 是视图，不是切出来的新数组</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java">List&lt;Integer&gt; list = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ArrayList</span>&lt;&gt;(List.of(<span class="hljs-number">1</span>, <span class="hljs-number">2</span>, <span class="hljs-number">3</span>, <span class="hljs-number">4</span>, <span class="hljs-number">5</span>));<br>List&lt;Integer&gt; sub = list.subList(<span class="hljs-number">1</span>, <span class="hljs-number">4</span>);<br>sub.remove(<span class="hljs-number">1</span>);<br>System.out.println(list); <span class="hljs-comment">// 原 list 也发生变化</span><br></code></pre></td></tr></table></figure>
+
+<p><code>SubList</code> 保存着对原始 List 的引用，结构修改会互相影响。更隐蔽的是内存问题：即使只保存一个元素的 <code>subList</code>，只要这个视图仍然引用着一个巨大的原 List，原 List 也可能无法回收。</p>
+<p>如果想得到独立切片：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">List&lt;Integer&gt; copy = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ArrayList</span>&lt;&gt;(list.subList(from, to));<br></code></pre></td></tr></table></figure>
+
+<p>原始 List 在创建 SubList 后发生结构性修改，还可能因为 <code>modCount</code> 不一致触发 <code>ConcurrentModificationException</code>。这个异常名字里虽然有 “Concurrent”，但<strong>并不要求真的存在多线程</strong>，单线程边遍历边错误修改同样会触发。</p>
+<h3 id="remove-1-到底是删索引还是删数字-1"><a href="#remove-1-到底是删索引还是删数字-1" class="headerlink" title="remove(1) 到底是删索引还是删数字 1"></a><code>remove(1)</code> 到底是删索引还是删数字 1</h3><p>对于 <code>List&lt;Integer&gt;</code>，下面两个调用语义完全不同：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">list.remove(<span class="hljs-number">1</span>);                  <span class="hljs-comment">// 调用 remove(int index)</span><br>list.remove(Integer.valueOf(<span class="hljs-number">1</span>)); <span class="hljs-comment">// 调用 remove(Object o)</span><br></code></pre></td></tr></table></figure>
+
+<p>自动装箱和重载结合在一起，很容易把“删除值”写成“删除下标”。</p>
+<p>遍历时删除也不要直接修改原集合：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java">Iterator&lt;Integer&gt; it = list.iterator();<br><span class="hljs-keyword">while</span> (it.hasNext()) &#123;<br>    <span class="hljs-keyword">if</span> (it.next() == <span class="hljs-number">2</span>) &#123;<br>        it.remove();<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>Java 8 以后更简单：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">list.removeIf(i -&gt; i == <span class="hljs-number">2</span>);<br></code></pre></td></tr></table></figure>
+
+<p>迭代器自己的 <code>remove</code> 会同步维护 <code>expectedModCount</code>，直接调用 <code>list.remove</code> 则破坏了迭代器看到的结构版本。</p>
+<h3 id="数据结构选型必须同时看时间和空间"><a href="#数据结构选型必须同时看时间和空间" class="headerlink" title="数据结构选型必须同时看时间和空间"></a>数据结构选型必须同时看时间和空间</h3><p>对百万级 List 反复按 ID 搜索，线性扫描的累计成本很高：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Order</span> <span class="hljs-variable">order</span> <span class="hljs-operator">=</span> list.stream()<br>        .filter(x -&gt; x.id() == targetId)<br>        .findFirst()<br>        .orElse(<span class="hljs-literal">null</span>);<br></code></pre></td></tr></table></figure>
+
+<p>如果业务本质就是按 ID 随机查找，应该在构建阶段建立索引：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java">Map&lt;Long, Order&gt; byId = orders.stream()<br>        .collect(Collectors.toMap(Order::id, Function.identity()));<br><br><span class="hljs-type">Order</span> <span class="hljs-variable">order</span> <span class="hljs-operator">=</span> byId.get(targetId);<br></code></pre></td></tr></table></figure>
+
+<p>资料中的实验里，100 万元素、1000 次随机搜索，List 需要数秒而 Map 只需要百毫秒量级；同时 HashMap 占用内存显著高于 ArrayList。这里真正要记住的不是某个毫秒数，而是：<strong>索引是用空间换时间的结构。</strong></p>
+<p>同理，大 List 去重不要循环 <code>contains</code>，应考虑 <code>HashSet</code>；固定区间查询可以提前构造分组索引。</p>
+<h3 id="不要把“大-O”脱离实际调用路径"><a href="#不要把“大-O”脱离实际调用路径" class="headerlink" title="不要把“大 O”脱离实际调用路径"></a>不要把“大 O”脱离实际调用路径</h3><p>教科书说：</p>
+<ul>
+<li>ArrayList 随机访问 <code>O(1)</code>，中间插入 <code>O(n)</code>；</li>
+<li>LinkedList 随机访问 <code>O(n)</code>，已知节点后的插入 <code>O(1)</code>。</li>
+</ul>
+<p>问题出在“已知节点”四个字。<code>linkedList.add(index, value)</code> 为了找到第 <code>index</code> 个节点，本身就要遍历，因此整个操作仍然可能是 <code>O(n)</code>。此外 ArrayList 的连续内存访问更符合 CPU cache，链表每个节点还有对象和指针开销。</p>
+<p>所以“插入多就用 LinkedList”不是一个可靠的工程规则。真正的规则是：<strong>按实际调用方式和数据规模做 benchmark。</strong> 在大多数普通业务 List 场景中，ArrayList 是更稳妥的默认选择。</p>
+<h2 id="null：最难的不是避免-NPE，而是定义“空”到底是什么意思"><a href="#null：最难的不是避免-NPE，而是定义“空”到底是什么意思" class="headerlink" title="null：最难的不是避免 NPE，而是定义“空”到底是什么意思"></a>null：最难的不是避免 NPE，而是定义“空”到底是什么意思</h2><h3 id="最常见的五类-NullPointerException"><a href="#最常见的五类-NullPointerException" class="headerlink" title="最常见的五类 NullPointerException"></a>最常见的五类 NullPointerException</h3><p>业务代码中最常见的空指针来源可以归为几类：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Integer</span> <span class="hljs-variable">count</span> <span class="hljs-operator">=</span> <span class="hljs-literal">null</span>;<br><span class="hljs-type">int</span> <span class="hljs-variable">next</span> <span class="hljs-operator">=</span> count + <span class="hljs-number">1</span>; <span class="hljs-comment">// 自动拆箱 NPE</span><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">String</span> <span class="hljs-variable">status</span> <span class="hljs-operator">=</span> <span class="hljs-literal">null</span>;<br>status.equals(<span class="hljs-string">&quot;OK&quot;</span>);  <span class="hljs-comment">// NPE</span><br><span class="hljs-string">&quot;OK&quot;</span>.equals(status);  <span class="hljs-comment">// 安全</span><br>Objects.equals(a, b);  <span class="hljs-comment">// 两边都允许为 null</span><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">Map&lt;String, String&gt; map = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ConcurrentHashMap</span>&lt;&gt;();<br>map.put(<span class="hljs-literal">null</span>, <span class="hljs-string">&quot;value&quot;</span>); <span class="hljs-comment">// NPE</span><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">foo.getBar().doSomething(); <span class="hljs-comment">// foo 或 bar 任一为空都可能 NPE</span><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">List&lt;Item&gt; items = remoteCall();<br>items.size(); <span class="hljs-comment">// 远程方法如果返回 null，直接 NPE</span><br></code></pre></td></tr></table></figure>
+
+<p><code>ConcurrentHashMap</code> 不支持 null 并不是简单“少一个功能”。并发 Map 如果允许 value 为 null，当 <code>get(key)</code> 返回 null 时无法判断“key 不存在”还是“key 显式映射到 null”；再用 <code>containsKey</code> 二次确认时，Map 又可能已经被其他线程修改。因此它通过 API 约束直接消除这种歧义。</p>
+<h3 id="Optional-能减少判空代码，但不能替你定义业务规则"><a href="#Optional-能减少判空代码，但不能替你定义业务规则" class="headerlink" title="Optional 能减少判空代码，但不能替你定义业务规则"></a>Optional 能减少判空代码，但不能替你定义业务规则</h3><p>可以把级联访问写得更安全：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java">Optional.ofNullable(fooService)<br>        .map(FooService::getBarService)<br>        .map(BarService::bar)<br>        .filter(<span class="hljs-string">&quot;OK&quot;</span>::equals)<br>        .ifPresent(v -&gt; log.info(<span class="hljs-string">&quot;OK&quot;</span>));<br></code></pre></td></tr></table></figure>
+
+<p>也可以为“可能返回 null 的集合”提供空集合兜底：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java">List&lt;Item&gt; items = Optional.ofNullable(loadItems())<br>        .orElseGet(Collections::emptyList);<br></code></pre></td></tr></table></figure>
+
+<p>但这里有一个非常重要的边界：<strong>没有 NPE 不代表程序是对的。</strong> 如果 <code>barService</code> 按设计必须存在，那么把它静默过滤掉，只会把初始化 Bug 变成一个“什么也没发生”的业务 Bug。</p>
+<p>因此遇到 null 要先回答：</p>
+<ul>
+<li>这是正常的“无数据”吗？</li>
+<li>是调用方参数缺失吗？</li>
+<li>是业务状态不允许吗？</li>
+<li>是系统初始化或远程依赖故障吗？</li>
+<li>应该返回默认值、跳过、告警，还是立即失败？</li>
+</ul>
+<h3 id="更新接口最怕“未传”和“显式传-null”混为一谈"><a href="#更新接口最怕“未传”和“显式传-null”混为一谈" class="headerlink" title="更新接口最怕“未传”和“显式传 null”混为一谈"></a>更新接口最怕“未传”和“显式传 null”混为一谈</h3><p>假设客户端只想修改用户名：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs json"><span class="hljs-punctuation">&#123;</span><br>  <span class="hljs-attr">&quot;id&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1</span><span class="hljs-punctuation">,</span><br>  <span class="hljs-attr">&quot;name&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">null</span></span><br><span class="hljs-punctuation">&#125;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果直接把同一个 <code>User</code> 同时当 Request DTO 和 JPA Entity，再 <code>save(user)</code>，没有出现在请求里的 <code>age</code>、<code>createTime</code> 等字段也可能被覆盖。</p>
+<p>真正需要建模的是三态：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">字段缺失       -&gt; 不修改<br>字段存在且为 null -&gt; 显式清空 / 重置<br>字段存在且有值   -&gt; 更新为新值<br></code></pre></td></tr></table></figure>
+
+<p>资料中的做法是让 DTO 字段使用 <code>Optional&lt;T&gt;</code>，配合 Jackson JDK8 module 区分“字段缺失”与“字段显式为 null”：字段缺失时 Optional 字段本身仍为 null，显式 null 则反序列化为 <code>Optional.empty()</code>。这是一种可行技巧，但它依赖序列化配置，也会增加团队理解成本。</p>
+<p>现代接口更重要的是<strong>把三态契约显式化</strong>：可以使用专门的 Patch DTO、显式字段状态包装类型，或者采用 JSON Merge Patch 一类有明确语义的协议。不要靠“Entity 中 null 的偶然含义”完成部分更新。</p>
+<p>同时应把 DTO 和 Entity 分离：</p>
+<ul>
+<li>客户端能修改的字段才进入 DTO；</li>
+<li>数据库生成字段不要暴露给请求；</li>
+<li>先读取现有 Entity，再按 patch 规则修改；</li>
+<li>ORM 的动态更新能力只能减少 SQL 列，不会自动替你定义 patch 语义。</li>
+</ul>
+<h3 id="SQL-中的-NULL-遵循三值逻辑"><a href="#SQL-中的-NULL-遵循三值逻辑" class="headerlink" title="SQL 中的 NULL 遵循三值逻辑"></a>SQL 中的 NULL 遵循三值逻辑</h3><p>三个经典坑：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-built_in">SUM</span>(score) <span class="hljs-keyword">FROM</span> <span class="hljs-keyword">user</span>;<br></code></pre></td></tr></table></figure>
+
+<p>没有可参与聚合的值时，结果可能是 <code>NULL</code>，需要按业务决定是否 <code>COALESCE/IFNULL</code> 为 0：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-built_in">COALESCE</span>(<span class="hljs-built_in">SUM</span>(score), <span class="hljs-number">0</span>) <span class="hljs-keyword">FROM</span> <span class="hljs-keyword">user</span>;<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-built_in">COUNT</span>(score) <span class="hljs-keyword">FROM</span> <span class="hljs-keyword">user</span>;<br></code></pre></td></tr></table></figure>
+
+<p>只统计 <code>score IS NOT NULL</code> 的行。统计记录数通常应使用：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">SELECT</span> <span class="hljs-built_in">COUNT</span>(<span class="hljs-operator">*</span>) <span class="hljs-keyword">FROM</span> <span class="hljs-keyword">user</span>;<br></code></pre></td></tr></table></figure>
+
+<p>查询 NULL 不能写：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> score <span class="hljs-operator">=</span> <span class="hljs-keyword">NULL</span><br></code></pre></td></tr></table></figure>
+
+<p>而要写：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">WHERE</span> score <span class="hljs-keyword">IS</span> <span class="hljs-keyword">NULL</span><br></code></pre></td></tr></table></figure>
+
+<p>因为 SQL 的 NULL 代表 unknown，普通比较运算得到的仍是 unknown，而不是 true。</p>
+<h3 id="生产-NPE-不好复现时，先观察现场而不是疯狂加日志"><a href="#生产-NPE-不好复现时，先观察现场而不是疯狂加日志" class="headerlink" title="生产 NPE 不好复现时，先观察现场而不是疯狂加日志"></a>生产 NPE 不好复现时，先观察现场而不是疯狂加日志</h3><p>资料中使用 Arthas 的 <code>watch</code>、<code>stack</code> 来观察线上方法入参和调用路径：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">watch com.example.UserService update params -x 2<br>stack com.example.UserService update<br></code></pre></td></tr></table></figure>
+
+<p>对只在特定参数、特定分支下发生的问题，这比本地盲猜更高效。线上诊断同样要注意访问控制、脱敏和执行开销，避免把工具本身变成新的风险。</p>
+<h2 id="异常处理：异常不是“统一-catch-掉”，而是逐层决定是否还能处理"><a href="#异常处理：异常不是“统一-catch-掉”，而是逐层决定是否还能处理" class="headerlink" title="异常处理：异常不是“统一 catch 掉”，而是逐层决定是否还能处理"></a>异常处理：异常不是“统一 catch 掉”，而是逐层决定是否还能处理</h2><h3 id="Controller、Service、Repository-对异常的责任不同"><a href="#Controller、Service、Repository-对异常的责任不同" class="headerlink" title="Controller、Service、Repository 对异常的责任不同"></a>Controller、Service、Repository 对异常的责任不同</h3><p>典型三层系统可以这样理解：</p>
+<pre><code class=" mermaid">flowchart TB
+    Client[调用方] --&gt; Controller
+    Controller --&gt; Service
+    Service --&gt; Repository
+    Repository --&gt; DB[(Database)]
+    Service --&gt; Remote[外部服务 / MQ / Cache]
+
+    Repository -. 原始技术异常 .-&gt; Service
+    Service -. 转换 / 降级 / 回滚 / 继续抛出 .-&gt; Controller
+    Controller -. API 错误模型 .-&gt; Client
+</code></pre>
+
+<p>Repository 层的数据库异常，有时需要重试，有时要转换，有时应该直接向上传播；Service 层承载事务和业务分支，过早 <code>catch</code> 可能让本该回滚的事务继续提交；Controller 层更适合把最终仍未处理的异常转换成稳定的 API 响应。</p>
+<p>所以全局异常处理器应该是<strong>兜底和协议转换层</strong>，不是把所有业务方法统一包上 <code>try/catch</code> 的地方。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@RestControllerAdvice</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ApiExceptionHandler</span> &#123;<br><br>    <span class="hljs-meta">@ExceptionHandler(BusinessException.class)</span><br>    ResponseEntity&lt;ApiError&gt; <span class="hljs-title function_">business</span><span class="hljs-params">(BusinessException ex)</span> &#123;<br>        <span class="hljs-keyword">return</span> ResponseEntity.badRequest()<br>                .body(<span class="hljs-keyword">new</span> <span class="hljs-title class_">ApiError</span>(ex.getCode(), ex.getMessage()));<br>    &#125;<br><br>    <span class="hljs-meta">@ExceptionHandler(Exception.class)</span><br>    ResponseEntity&lt;ApiError&gt; <span class="hljs-title function_">system</span><span class="hljs-params">(Exception ex)</span> &#123;<br>        log.error(<span class="hljs-string">&quot;unhandled system exception&quot;</span>, ex);<br>        <span class="hljs-keyword">return</span> ResponseEntity.internalServerError()<br>                .body(<span class="hljs-keyword">new</span> <span class="hljs-title class_">ApiError</span>(<span class="hljs-string">&quot;SERVER_ERROR&quot;</span>, <span class="hljs-string">&quot;服务器忙，请稍后再试&quot;</span>));<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>真实系统还应记录 traceId、请求路径和必要的脱敏上下文，而不是把敏感请求体原样打入日志。</p>
+<h3 id="最糟糕的异常处理是“生吞”"><a href="#最糟糕的异常处理是“生吞”" class="headerlink" title="最糟糕的异常处理是“生吞”"></a>最糟糕的异常处理是“生吞”</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> &#123;<br>    readFile();<br>&#125; <span class="hljs-keyword">catch</span> (IOException e) &#123;<br>    <span class="hljs-comment">// 什么都不做</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这比不捕获更难排查，因为故障已经发生，唯一的证据却被主动删除了。</p>
+<p>只记录 message 也不够：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">log.error(<span class="hljs-string">&quot;read failed: &#123;&#125;&quot;</span>, e.getMessage());<br></code></pre></td></tr></table></figure>
+
+<p>它丢掉了异常类型、cause 和 stack trace。应该记录 Throwable：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">log.error(<span class="hljs-string">&quot;read failed, path=&#123;&#125;&quot;</span>, path, e);<br></code></pre></td></tr></table></figure>
+
+<p>如果要转换异常，把原异常作为 cause：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileProcessException</span>(<span class="hljs-string">&quot;读取对账文件失败: &quot;</span> + path, e);<br></code></pre></td></tr></table></figure>
+
+<p>一个好的异常至少保留三件事：<strong>发生了什么、在哪个业务上下文发生、原始根因是什么。</strong></p>
+<h3 id="捕获异常后通常只有三类合法动作"><a href="#捕获异常后通常只有三类合法动作" class="headerlink" title="捕获异常后通常只有三类合法动作"></a>捕获异常后通常只有三类合法动作</h3><ul>
+<li><strong>转换</strong>：把底层异常转成上层能理解的异常，同时保留 cause；</li>
+<li><strong>恢复</strong>：使用缓存、默认值、降级路径继续工作；</li>
+<li><strong>重试</strong>：仅对可恢复、通常幂等的瞬时失败进行，并配合退避、次数上限和熔断。</li>
+</ul>
+<p>“远程调用失败就无限重试”会把下游故障放大成雪崩。</p>
+<h3 id="finally-自己抛异常会覆盖真正的根因"><a href="#finally-自己抛异常会覆盖真正的根因" class="headerlink" title="finally 自己抛异常会覆盖真正的根因"></a>finally 自己抛异常会覆盖真正的根因</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> &#123;<br>    <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">RuntimeException</span>(<span class="hljs-string">&quot;business failed&quot;</span>);<br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">RuntimeException</span>(<span class="hljs-string">&quot;close failed&quot;</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>最后看到的只会是 <code>close failed</code>。这就是为什么资源类型应该优先使用 try-with-resources：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> (<span class="hljs-type">InputStream</span> <span class="hljs-variable">in</span> <span class="hljs-operator">=</span> Files.newInputStream(path)) &#123;<br>    <span class="hljs-comment">// read</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果业务逻辑和 <code>close()</code> 都抛异常，try-with-resources 会保留业务异常作为主异常，并把关闭异常作为 suppressed exception 挂在上面。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">PrimaryException<br>  Suppressed: CloseException<br></code></pre></td></tr></table></figure>
+
+<p>不要在 <code>finally</code> 中 <code>return</code>，它同样可能覆盖 try&#x2F;catch 的返回值或异常，使控制流极难理解。</p>
+<h3 id="不要把-Exception-对象定义成-static-常量"><a href="#不要把-Exception-对象定义成-static-常量" class="headerlink" title="不要把 Exception 对象定义成 static 常量"></a>不要把 Exception 对象定义成 static 常量</h3><p>下面这种“统一管理异常”的写法会制造假现场：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> <span class="hljs-type">BusinessException</span> <span class="hljs-variable">ORDER_NOT_FOUND</span> <span class="hljs-operator">=</span><br>        <span class="hljs-keyword">new</span> <span class="hljs-title class_">BusinessException</span>(<span class="hljs-string">&quot;订单不存在&quot;</span>);<br></code></pre></td></tr></table></figure>
+
+<p>Throwable 的栈信息与它被创建的时刻有关。重复抛同一个实例，后续请求看到的 stack trace 可能始终指向第一次初始化的位置。</p>
+<p>统一管理的应该是错误码和消息模板，而不是 Throwable 实例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> BusinessException <span class="hljs-title function_">orderNotFound</span><span class="hljs-params">(<span class="hljs-type">long</span> id)</span> &#123;<br>    <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">BusinessException</span>(<span class="hljs-string">&quot;ORDER_NOT_FOUND&quot;</span>, <span class="hljs-string">&quot;订单不存在: &quot;</span> + id);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<h3 id="线程池里的异常会因为提交方式不同而表现完全不同"><a href="#线程池里的异常会因为提交方式不同而表现完全不同" class="headerlink" title="线程池里的异常会因为提交方式不同而表现完全不同"></a>线程池里的异常会因为提交方式不同而表现完全不同</h3><p><code>execute</code> 提交的 Runnable 如果抛出未捕获 RuntimeException，工作线程会结束，并由线程池按需补充新 worker；异常通常交给 <code>UncaughtExceptionHandler</code>。</p>
+<p>因此任务内部应明确处理异常，并为线程工厂设置兜底 handler。</p>
+<p><code>submit</code> 则不同：任务会被包装成 <code>FutureTask</code>，异常被保存在 Future 中，工作线程不会因为这次任务异常退出，<code>UncaughtExceptionHandler</code> 也通常看不到它。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java">Future&lt;?&gt; future = pool.submit(() -&gt; &#123;<br>    <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">RuntimeException</span>(<span class="hljs-string">&quot;boom&quot;</span>);<br>&#125;);<br><br><span class="hljs-keyword">try</span> &#123;<br>    future.get();<br>&#125; <span class="hljs-keyword">catch</span> (ExecutionException e) &#123;<br>    log.error(<span class="hljs-string">&quot;async task failed&quot;</span>, e.getCause());<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果你根本不关心结果，却用 <code>submit</code> 后把 Future 扔掉，就等于主动隐藏异常。<code>CompletableFuture</code>、虚拟线程任务同样需要明确消费失败结果；并发模型变新了，异常传播契约并没有消失。</p>
+<h2 id="日志：能打出来不等于日志系统配置正确"><a href="#日志：能打出来不等于日志系统配置正确" class="headerlink" title="日志：能打出来不等于日志系统配置正确"></a>日志：能打出来不等于日志系统配置正确</h2><h3 id="SLF4J-是门面，桥接方向不能形成环"><a href="#SLF4J-是门面，桥接方向不能形成环" class="headerlink" title="SLF4J 是门面，桥接方向不能形成环"></a>SLF4J 是门面，桥接方向不能形成环</h3><p>Java 生态中曾长期并存 Log4j、Log4j2、JUL、Commons Logging、Logback。SLF4J 的价值是把“业务代码调用的 API”和“最终日志实现”解耦：</p>
+<pre><code class=" mermaid">flowchart TB
+    App[业务代码] --&gt; SLF4J[SLF4J API]
+    JCL[Commons Logging API] --&gt; Bridge1[jcl-over-slf4j] --&gt; SLF4J
+    JUL[java.util.logging] --&gt; Bridge2[jul-to-slf4j] --&gt; SLF4J
+    L4J2[Log4j2 API] --&gt; Bridge3[log4j-to-slf4j] --&gt; SLF4J
+    SLF4J --&gt; Logback[Logback]
+</code></pre>
+
+<p>桥接是有方向的。不要同时引入“Log4j -&gt; SLF4J”和“SLF4J -&gt; Log4j”这种相反方向的桥，最终会形成调用循环。排查日志冲突时第一步不是改 XML，而是先看 Maven&#x2F;Gradle 依赖树。</p>
+<h3 id="日志重复往往来自-Logger-继承"><a href="#日志重复往往来自-Logger-继承" class="headerlink" title="日志重复往往来自 Logger 继承"></a>日志重复往往来自 Logger 继承</h3><p>Logback 中子 Logger 默认具有 additivity，会把事件继续交给父 Logger。下面的配置会让同一条日志同时经过自定义 logger 和 root 中的 <code>CONSOLE</code>：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">logger</span> <span class="hljs-attr">name</span>=<span class="hljs-string">&quot;com.example&quot;</span> <span class="hljs-attr">level</span>=<span class="hljs-string">&quot;DEBUG&quot;</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">appender-ref</span> <span class="hljs-attr">ref</span>=<span class="hljs-string">&quot;CONSOLE&quot;</span>/&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">logger</span>&gt;</span><br><br><span class="hljs-tag">&lt;<span class="hljs-name">root</span> <span class="hljs-attr">level</span>=<span class="hljs-string">&quot;INFO&quot;</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">appender-ref</span> <span class="hljs-attr">ref</span>=<span class="hljs-string">&quot;CONSOLE&quot;</span>/&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">root</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果只是想让某个包开启 DEBUG，不要重复挂 Appender：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">logger</span> <span class="hljs-attr">name</span>=<span class="hljs-string">&quot;com.example&quot;</span> <span class="hljs-attr">level</span>=<span class="hljs-string">&quot;DEBUG&quot;</span>/&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果它确实要走独立 Appender，则关闭继承：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">logger</span> <span class="hljs-attr">name</span>=<span class="hljs-string">&quot;com.example&quot;</span> <span class="hljs-attr">level</span>=<span class="hljs-string">&quot;DEBUG&quot;</span> <span class="hljs-attr">additivity</span>=<span class="hljs-string">&quot;false&quot;</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">appender-ref</span> <span class="hljs-attr">ref</span>=<span class="hljs-string">&quot;APP_FILE&quot;</span>/&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">logger</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>日志重复不仅浪费磁盘，还会在 ELK、Loki 一类集中式系统中放大存储、索引和告警成本。</p>
+<h3 id="LevelFilter-和-ThresholdFilter-不是一回事"><a href="#LevelFilter-和-ThresholdFilter-不是一回事" class="headerlink" title="LevelFilter 和 ThresholdFilter 不是一回事"></a><code>LevelFilter</code> 和 <code>ThresholdFilter</code> 不是一回事</h3><p><code>ThresholdFilter(WARN)</code> 的语义是允许 <code>WARN</code> 及以上级别。</p>
+<p><code>LevelFilter(INFO)</code> 则是“匹配 INFO 后怎么处理，不匹配又怎么处理”。如果只配置 level 而不配置 <code>onMatch/onMismatch</code>，默认都可能继续交给后续过滤器，结果并不等于“只收 INFO”。</p>
+<p>只记录 INFO 可以明确写：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">filter</span> <span class="hljs-attr">class</span>=<span class="hljs-string">&quot;ch.qos.logback.classic.filter.LevelFilter&quot;</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">level</span>&gt;</span>INFO<span class="hljs-tag">&lt;/<span class="hljs-name">level</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">onMatch</span>&gt;</span>ACCEPT<span class="hljs-tag">&lt;/<span class="hljs-name">onMatch</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">onMismatch</span>&gt;</span>DENY<span class="hljs-tag">&lt;/<span class="hljs-name">onMismatch</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">filter</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<h3 id="AsyncAppender-的性能来自把成本移到队列，不是把-IO-变没了"><a href="#AsyncAppender-的性能来自把成本移到队列，不是把-IO-变没了" class="headerlink" title="AsyncAppender 的性能来自把成本移到队列，不是把 IO 变没了"></a>AsyncAppender 的性能来自把成本移到队列，不是把 IO 变没了</h3><p>异步日志的核心是生产线程把事件放入队列，后台线程再写 Appender。于是你必须同时决定：</p>
+<ul>
+<li>队列可以占多少内存；</li>
+<li>队列快满时能否丢 DEBUG&#x2F;INFO；</li>
+<li>队列满时业务线程能否阻塞；</li>
+<li>是否需要 caller data；</li>
+<li>应用退出时能等待多久完成 flush。</li>
+</ul>
+<p>资料所对应的 Logback 版本中，<code>AsyncAppender</code> 的关键默认行为包括：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>当时默认行为</th>
+<th>风险</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>queueSize</code></td>
+<td>256</td>
+<td>突发日志非常容易把队列打满</td>
+</tr>
+<tr>
+<td><code>discardingThreshold</code></td>
+<td>队列容量的 1&#x2F;5</td>
+<td>剩余空间不足时可丢弃较低级别日志</td>
+</tr>
+<tr>
+<td><code>neverBlock</code></td>
+<td>false</td>
+<td>队列满时可能反向阻塞业务线程</td>
+</tr>
+<tr>
+<td><code>includeCallerData</code></td>
+<td>false</td>
+<td>行号、方法等调用方信息可能缺失</td>
+</tr>
+</tbody></table>
+<p>这些默认值属于版本实现细节，升级 Logback 时应重新检查当前文档。真正的取舍只有三个：</p>
+<ul>
+<li><strong>绝对不阻塞</strong>：就必须允许某些日志丢失；</li>
+<li><strong>绝对不丢</strong>：队列满时就必须等待，日志系统可能拖慢业务；</li>
+<li><strong>队列无限大</strong>：最终只是把日志问题变成 OOM。</li>
+</ul>
+<p>所以异步日志参数必须经过峰值流量压测，不能从别的项目复制一个 <code>queueSize</code> 就结束。</p>
+<h3 id="只延迟-toString，不会阻止你先执行昂贵的方法"><a href="#只延迟-toString，不会阻止你先执行昂贵的方法" class="headerlink" title="{} 只延迟 toString，不会阻止你先执行昂贵的方法"></a><code>{}</code> 只延迟 toString，不会阻止你先执行昂贵的方法</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">log.debug(<span class="hljs-string">&quot;result=&#123;&#125;&quot;</span>, slowQuery());<br></code></pre></td></tr></table></figure>
+
+<p>即使 DEBUG 关闭，Java 也会先执行 <code>slowQuery()</code> 再调用 <code>debug</code>。占位符省掉的是字符串拼接和部分 <code>toString</code> 成本，不是参数计算本身。</p>
+<p>传统写法：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">if</span> (log.isDebugEnabled()) &#123;<br>    log.debug(<span class="hljs-string">&quot;result=&#123;&#125;&quot;</span>, slowQuery());<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>原资料写作时的 SLF4J API 还没有现代 fluent logging。SLF4J 2.x 已支持 Supplier 风格的延迟参数，可在当前依赖版本支持时使用：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java">log.atDebug()<br>        .addArgument(() -&gt; slowQuery())<br>        .log(<span class="hljs-string">&quot;result=&#123;&#125;&quot;</span>);<br></code></pre></td></tr></table></figure>
+
+<p>对于大对象 JSON 化、数据库查询、复杂集合展开等日志参数，这一点非常重要。</p>
+<h2 id="文件-IO：编码、句柄和缓冲区缺一个都会出事故"><a href="#文件-IO：编码、句柄和缓冲区缺一个都会出事故" class="headerlink" title="文件 IO：编码、句柄和缓冲区缺一个都会出事故"></a>文件 IO：编码、句柄和缓冲区缺一个都会出事故</h2><h3 id="字符流必须明确字符集"><a href="#字符流必须明确字符集" class="headerlink" title="字符流必须明确字符集"></a>字符流必须明确字符集</h3><p>文件本质上只有字节。只有把字节解释成字符时，字符集才参与进来。</p>
+<p>如果文件按 GBK 写入，却依赖机器默认字符集读取：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> (<span class="hljs-type">FileReader</span> <span class="hljs-variable">reader</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileReader</span>(<span class="hljs-string">&quot;hello.txt&quot;</span>)) &#123;<br>    <span class="hljs-comment">// 使用默认 charset，环境一变就可能乱码</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>同一份代码在旧服务器正常、新服务器乱码，往往不是“机器有问题”，而是代码偷偷依赖了 <code>Charset.defaultCharset()</code>。</p>
+<p>应显式指定：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Charset</span> <span class="hljs-variable">charset</span> <span class="hljs-operator">=</span> Charset.forName(<span class="hljs-string">&quot;GBK&quot;</span>);<br><span class="hljs-keyword">try</span> (<span class="hljs-type">BufferedReader</span> <span class="hljs-variable">reader</span> <span class="hljs-operator">=</span> Files.newBufferedReader(path, charset)) &#123;<br>    <span class="hljs-comment">// read</span><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>更理想的是协议层统一 UTF-8；如果必须对接历史系统，也应把对方编码当接口协议字段管理，而不是猜。</p>
+<h3 id="readAllLines-和-Files-lines-解决的是两种问题"><a href="#readAllLines-和-Files-lines-解决的是两种问题" class="headerlink" title="readAllLines 和 Files.lines 解决的是两种问题"></a><code>readAllLines</code> 和 <code>Files.lines</code> 解决的是两种问题</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">List&lt;String&gt; all = Files.readAllLines(path, charset);<br></code></pre></td></tr></table></figure>
+
+<p>会把所有行装进内存，适合确定很小的文件，不适合 GB 级文件。</p>
+<p>大文件更适合流式消费：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> (Stream&lt;String&gt; lines = Files.lines(path, charset)) &#123;<br>    lines.limit(<span class="hljs-number">200_000</span>)<br>            .forEach(<span class="hljs-built_in">this</span>::process);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>关键是 <code>Stream</code> 必须关闭。<code>Files.lines</code> 背后持有 <code>BufferedReader</code> 和文件描述符，如果每次调用后都不 close，最终会出现：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Too many open files<br></code></pre></td></tr></table></figure>
+
+<p>在 Linux 上可以辅助检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">lsof -p &lt;pid&gt; | grep <span class="hljs-string">&#x27;&lt;filename&gt;&#x27;</span> | <span class="hljs-built_in">wc</span> -l<br></code></pre></td></tr></table></figure>
+
+<p>凡是返回 <code>Stream</code>、<code>DirectoryStream</code> 或其他 <code>AutoCloseable</code> 资源的文件 API，都要先确认它的关闭语义，不能因为“这是个静态方法”就默认资源会在方法返回后释放。</p>
+<h3 id="逐字节-IO-的问题是系统调用次数"><a href="#逐字节-IO-的问题是系统调用次数" class="headerlink" title="逐字节 IO 的问题是系统调用次数"></a>逐字节 IO 的问题是系统调用次数</h3><p>这种代码功能没错，性能却可能差几个数量级：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">int</span> b;<br><span class="hljs-keyword">while</span> ((b = in.read()) != -<span class="hljs-number">1</span>) &#123;<br>    out.write(b);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>改为块读写：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">byte</span>[] buffer = <span class="hljs-keyword">new</span> <span class="hljs-title class_">byte</span>[<span class="hljs-number">8192</span>];<br><span class="hljs-type">int</span> len;<br><span class="hljs-keyword">while</span> ((len = in.read(buffer)) != -<span class="hljs-number">1</span>) &#123;<br>    out.write(buffer, <span class="hljs-number">0</span>, len);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>资料中的 35MB 文件实验，从逐字节的百秒级下降到使用缓冲区的百毫秒级；具体数据受磁盘、OS、缓存和 JDK 影响，但差异的来源很明确：<strong>减少跨 Java&#x2F;OS 边界的 IO 调用次数。</strong></p>
+<p><code>BufferedInputStream</code>&#x2F;<code>BufferedOutputStream</code> 自身已有缓冲，但如果外层仍然逐字节调用 Java 方法，方法调用次数依然巨大。业务通常应让调用粒度本身也是块状的。</p>
+<h3 id="文件复制可以考虑-FileChannel，但要正确管理资源"><a href="#文件复制可以考虑-FileChannel，但要正确管理资源" class="headerlink" title="文件复制可以考虑 FileChannel，但要正确管理资源"></a>文件复制可以考虑 FileChannel，但要正确管理资源</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> (<span class="hljs-type">FileChannel</span> <span class="hljs-variable">in</span> <span class="hljs-operator">=</span> FileChannel.open(src, StandardOpenOption.READ);<br>     <span class="hljs-type">FileChannel</span> <span class="hljs-variable">out</span> <span class="hljs-operator">=</span> FileChannel.open(dst,<br>             StandardOpenOption.CREATE,<br>             StandardOpenOption.TRUNCATE_EXISTING,<br>             StandardOpenOption.WRITE)) &#123;<br><br>    <span class="hljs-type">long</span> <span class="hljs-variable">position</span> <span class="hljs-operator">=</span> <span class="hljs-number">0</span>;<br>    <span class="hljs-type">long</span> <span class="hljs-variable">size</span> <span class="hljs-operator">=</span> in.size();<br>    <span class="hljs-keyword">while</span> (position &lt; size) &#123;<br>        <span class="hljs-type">long</span> <span class="hljs-variable">transferred</span> <span class="hljs-operator">=</span> in.transferTo(position, size - position, out);<br>        <span class="hljs-keyword">if</span> (transferred &lt;= <span class="hljs-number">0</span>) <span class="hljs-keyword">break</span>;<br>        position += transferred;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>在支持的操作系统上，<code>transferTo</code> 可以利用更高效的数据传输路径，减少用户态数据搬运。不要把“零拷贝”理解成绝对没有任何复制，它通常指减少 CPU&#x2F;用户态参与的数据拷贝。</p>
+<h3 id="文件系统操作默认不是事务"><a href="#文件系统操作默认不是事务" class="headerlink" title="文件系统操作默认不是事务"></a>文件系统操作默认不是事务</h3><p>复制一半失败、重命名跨文件系统、删除失败，都不会像数据库事务一样自动回滚。<code>Files.move</code> 可以请求 <code>ATOMIC_MOVE</code>，但是否支持取决于文件系统和具体场景；跨文件系统通常无法保证。</p>
+<p>需要业务原子性的场景，常见策略是：写临时文件 -&gt; <code>fsync</code>&#x2F;校验 -&gt; 在同一文件系统内原子 rename -&gt; 再更新元数据。不要把多步 File&#x2F;Files 调用想象成天然事务。</p>
+<h2 id="序列化：一来一回仍然是同一个对象，需要协议双方共同保证"><a href="#序列化：一来一回仍然是同一个对象，需要协议双方共同保证" class="headerlink" title="序列化：一来一回仍然是同一个对象，需要协议双方共同保证"></a>序列化：一来一回仍然是同一个对象，需要协议双方共同保证</h2><h3 id="Redis-的“乱码”通常只是序列化协议不一致"><a href="#Redis-的“乱码”通常只是序列化协议不一致" class="headerlink" title="Redis 的“乱码”通常只是序列化协议不一致"></a>Redis 的“乱码”通常只是序列化协议不一致</h3><p><code>RedisTemplate</code> 与 <code>StringRedisTemplate</code> 不是简单的“一个返回 Object、一个返回 String”。资料对应的 Spring Data Redis 默认行为中：</p>
+<ul>
+<li><code>RedisTemplate</code> 默认使用 JDK 序列化处理 key&#x2F;value；</li>
+<li><code>StringRedisTemplate</code> 使用字符串序列化处理 key&#x2F;value。</li>
+</ul>
+<p>于是同样写入 key <code>user:1</code>，JDK 序列化后在 <code>redis-cli</code> 看到的是二进制转义串，而不是可读文本。更关键的是：两种 Template 按各自算法重新序列化 key 后，连同一个 key 都可能互相找不到。</p>
+<p>工程上更常见的是明确 key 和 value 协议：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java">RedisTemplate&lt;String, Object&gt; template = <span class="hljs-keyword">new</span> <span class="hljs-title class_">RedisTemplate</span>&lt;&gt;();<br>template.setConnectionFactory(connectionFactory);<br>template.setKeySerializer(RedisSerializer.string());<br>template.setHashKeySerializer(RedisSerializer.string());<br>template.setValueSerializer(RedisSerializer.json());<br>template.setHashValueSerializer(RedisSerializer.json());<br>template.afterPropertiesSet();<br></code></pre></td></tr></table></figure>
+
+<p>具体 serializer API 随 Spring Data Redis 版本可能变化，但原则应该固定下来并写进架构规范：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">key: UTF-8 String<br>value: JSON（带明确类型策略/Schema 版本）<br></code></pre></td></tr></table></figure>
+
+<p>否则 Redis 升级、服务拆分、多语言接入时都会把“框架默认值”变成兼容性债务。</p>
+<h3 id="JSON-带类型信息很方便，但不要无边界开启多态反序列化"><a href="#JSON-带类型信息很方便，但不要无边界开启多态反序列化" class="headerlink" title="JSON 带类型信息很方便，但不要无边界开启多态反序列化"></a>JSON 带类型信息很方便，但不要无边界开启多态反序列化</h3><p>资料中通过 Jackson default typing 把 Java 类型信息一起写入 Redis，从而避免反序列化后只得到 <code>LinkedHashMap</code>。这个思路能解决类型恢复问题，但现代工程必须额外考虑安全边界。</p>
+<p>不要对不可信输入开放“任意类名 -&gt; 任意 Java 类型”的多态反序列化。更稳妥的做法是：</p>
+<ul>
+<li>缓存数据只由受信任服务生产；</li>
+<li>使用明确的目标类型 serializer；</li>
+<li>多态场景配置允许列表或受限的 <code>PolymorphicTypeValidator</code>；</li>
+<li>不把外部 HTTP JSON 与内部 Redis 类型元数据协议混用；</li>
+<li>缓存 schema 变更时设计版本和迁移策略。</li>
+</ul>
+<p>“反序列化方便”不能以扩大反序列化攻击面为代价。</p>
+<h3 id="不要为了改一个-Jackson-特性就替换整个-ObjectMapper"><a href="#不要为了改一个-Jackson-特性就替换整个-ObjectMapper" class="headerlink" title="不要为了改一个 Jackson 特性就替换整个 ObjectMapper"></a>不要为了改一个 Jackson 特性就替换整个 ObjectMapper</h3><p>Spring Boot 会为默认 <code>ObjectMapper</code> 配置一组 Web 友好的行为。如果直接：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Bean</span><br>ObjectMapper <span class="hljs-title function_">objectMapper</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">ObjectMapper</span>();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>很可能把框架自动配置全部覆盖掉。原资料中的事故就是为了修改枚举序列化方式，自定义 Bean 后意外恢复了 <code>FAIL_ON_UNKNOWN_PROPERTIES</code>，客户端多传一个字段就开始大量 400。</p>
+<p>更合理的是在现有 builder 上做增量定制：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Bean</span><br>Jackson2ObjectMapperBuilderCustomizer <span class="hljs-title function_">jacksonCustomizer</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-keyword">return</span> builder -&gt; builder.featuresToDisable(<br>            DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>或者使用 <code>spring.jackson.*</code> 配置。核心思想是：<strong>增量修改框架默认配置，不要为一个小需求重新造完整基础设施 Bean。</strong></p>
+<h3 id="反序列化不会自动走你“希望它走”的业务构造器"><a href="#反序列化不会自动走你“希望它走”的业务构造器" class="headerlink" title="反序列化不会自动走你“希望它走”的业务构造器"></a>反序列化不会自动走你“希望它走”的业务构造器</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">ApiResult</span> &#123;<br>    <span class="hljs-keyword">private</span> <span class="hljs-type">boolean</span> success;<br>    <span class="hljs-keyword">private</span> <span class="hljs-type">int</span> code;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title function_">ApiResult</span><span class="hljs-params">(<span class="hljs-type">int</span> code)</span> &#123;<br>        <span class="hljs-built_in">this</span>.code = code;<br>        <span class="hljs-built_in">this</span>.success = code == <span class="hljs-number">2000</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果 Jackson 反序列化时使用无参构造 + setter&#x2F;字段赋值，上面构造器里的业务逻辑可能根本没有执行。</p>
+<p>需要构造器创建语义时显式声明：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@JsonCreator</span><br><span class="hljs-keyword">public</span> <span class="hljs-title function_">ApiResult</span><span class="hljs-params">(<span class="hljs-meta">@JsonProperty(&quot;code&quot;)</span> <span class="hljs-type">int</span> code)</span> &#123;<br>    <span class="hljs-built_in">this</span>.code = code;<br>    <span class="hljs-built_in">this</span>.success = code == <span class="hljs-number">2000</span>;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>不过更值得反思的是：<code>success</code> 如果完全可以由 <code>code</code> 推导，是否应该被反序列化为独立状态？派生字段越多，越容易出现“一来一回以后内部状态不一致”。</p>
+<h3 id="API-边界不要直接暴露-Java-枚举的-ordinal"><a href="#API-边界不要直接暴露-Java-枚举的-ordinal" class="headerlink" title="API 边界不要直接暴露 Java 枚举的 ordinal"></a>API 边界不要直接暴露 Java 枚举的 ordinal</h3><p>客户端有 4 个状态，服务端新增第 5 个状态时，旧客户端直接反序列化枚举就可能失败。用 <code>ordinal()</code> 更危险：只要枚举插入、重排，原来的数字含义就改变。</p>
+<p>更稳妥的 API 是稳定 code：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">enum</span> <span class="hljs-title class_">OrderStatus</span> &#123;<br>    CREATED(<span class="hljs-number">1000</span>),<br>    PAID(<span class="hljs-number">1001</span>),<br>    DELIVERED(<span class="hljs-number">1002</span>),<br>    FINISHED(<span class="hljs-number">1003</span>),<br>    UNKNOWN(-<span class="hljs-number">1</span>);<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> <span class="hljs-type">int</span> code;<br><br>    OrderStatus(<span class="hljs-type">int</span> code) &#123;<br>        <span class="hljs-built_in">this</span>.code = code;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-type">int</span> <span class="hljs-title function_">code</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> code;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> OrderStatus <span class="hljs-title function_">fromCode</span><span class="hljs-params">(<span class="hljs-type">int</span> code)</span> &#123;<br>        <span class="hljs-keyword">return</span> Arrays.stream(values())<br>                .filter(x -&gt; x.code == code)<br>                .findFirst()<br>                .orElse(UNKNOWN);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>更彻底的做法是在 DTO 中直接传 <code>statusCode</code>，Java 枚举只存在于服务内部，通过显式 mapper 转换。这样客户端协议不会被 Java 枚举实现细节绑架。</p>
+<h3 id="还在使用-JDK-Serializable-时，serialVersionUID-是兼容性协议的一部分"><a href="#还在使用-JDK-Serializable-时，serialVersionUID-是兼容性协议的一部分" class="headerlink" title="还在使用 JDK Serializable 时，serialVersionUID 是兼容性协议的一部分"></a>还在使用 JDK Serializable 时，serialVersionUID 是兼容性协议的一部分</h3><p>现代 REST&#x2F;RPC 场景更多使用 JSON、Protobuf 等跨语言格式，但某些历史缓存、文件或 Java 内部通信仍可能使用 <code>Serializable</code>。这时应显式声明：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> <span class="hljs-type">long</span> <span class="hljs-variable">serialVersionUID</span> <span class="hljs-operator">=</span> <span class="hljs-number">1L</span>;<br></code></pre></td></tr></table></figure>
+
+<p>否则编译器会根据类结构计算默认值，不同编译器或类结构变化可能导致反序列化时出现 <code>InvalidClassException</code>。这再次说明：<strong>任何序列化都不是“把对象写出去”这么简单，而是在建立版本兼容协议。</strong></p>
+<h2 id="日期时间：先区分“时间点”和“本地时间表示”，时区问题就清楚了一半"><a href="#日期时间：先区分“时间点”和“本地时间表示”，时区问题就清楚了一半" class="headerlink" title="日期时间：先区分“时间点”和“本地时间表示”，时区问题就清楚了一半"></a>日期时间：先区分“时间点”和“本地时间表示”，时区问题就清楚了一半</h2><h3 id="Date-不是-LocalDateTime"><a href="#Date-不是-LocalDateTime" class="headerlink" title="Date 不是 LocalDateTime"></a><code>Date</code> 不是 <code>LocalDateTime</code></h3><p>理解 Java 时间 API，最重要的是这张概念表：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>表达的概念</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Instant</code></td>
+<td>UTC 时间线上的一个确定时间点</td>
+</tr>
+<tr>
+<td><code>LocalDate</code></td>
+<td>无时区的日期</td>
+</tr>
+<tr>
+<td><code>LocalTime</code></td>
+<td>无时区的时间</td>
+</tr>
+<tr>
+<td><code>LocalDateTime</code></td>
+<td>无时区的日期 + 时间，只是本地表示</td>
+</tr>
+<tr>
+<td><code>OffsetDateTime</code></td>
+<td>日期时间 + UTC offset</td>
+</tr>
+<tr>
+<td><code>ZonedDateTime</code></td>
+<td>日期时间 + ZoneId，包含时区规则</td>
+</tr>
+<tr>
+<td><code>Duration</code></td>
+<td>基于秒&#x2F;纳秒的时间量</td>
+</tr>
+<tr>
+<td><code>Period</code></td>
+<td>基于年&#x2F;月&#x2F;日历日的日期量</td>
+</tr>
+</tbody></table>
+<p><code>java.util.Date</code> 内部本质上是 epoch 毫秒时间点，它自己不携带“上海&#x2F;纽约”这种时区属性。<code>Date.toString()</code> 之所以会打印 CST 等字样，是格式化展示时使用了 JVM 默认时区，不代表 Date 内部存了这个时区。</p>
+<p><code>LocalDateTime</code> 刚好相反：<code>2026-09-08 13:00:00</code> 只是一组本地字段。如果不知道它是上海时间、东京时间还是纽约时间，就无法唯一定位到 UTC 时间线。</p>
+<h3 id="存储和传输优先使用时间点，展示时再应用时区"><a href="#存储和传输优先使用时间点，展示时再应用时区" class="headerlink" title="存储和传输优先使用时间点，展示时再应用时区"></a>存储和传输优先使用时间点，展示时再应用时区</h3><p>如果业务事件是“订单在某一瞬间创建”，更清晰的模型是保存 <code>Instant</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Instant</span> <span class="hljs-variable">createdAt</span> <span class="hljs-operator">=</span> Instant.now();<br></code></pre></td></tr></table></figure>
+
+<p>展示给东京用户：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">ZonedDateTime</span> <span class="hljs-variable">tokyo</span> <span class="hljs-operator">=</span> createdAt.atZone(ZoneId.of(<span class="hljs-string">&quot;Asia/Tokyo&quot;</span>));<br></code></pre></td></tr></table></figure>
+
+<p>把一个本地时间转换成时间点，必须提供时区：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">LocalDateTime</span> <span class="hljs-variable">local</span> <span class="hljs-operator">=</span> LocalDateTime.of(<span class="hljs-number">2026</span>, <span class="hljs-number">9</span>, <span class="hljs-number">8</span>, <span class="hljs-number">13</span>, <span class="hljs-number">0</span>);<br><span class="hljs-type">Instant</span> <span class="hljs-variable">instant</span> <span class="hljs-operator">=</span> local.atZone(ZoneId.of(<span class="hljs-string">&quot;Asia/Shanghai&quot;</span>)).toInstant();<br></code></pre></td></tr></table></figure>
+
+<p>这不是 API 设计得麻烦，而是物理事实：没有时区就没有唯一时间点。</p>
+<h3 id="同一个字面时间在不同时区解析，本来就应该得到不同-Instant"><a href="#同一个字面时间在不同时区解析，本来就应该得到不同-Instant" class="headerlink" title="同一个字面时间在不同时区解析，本来就应该得到不同 Instant"></a>同一个字面时间在不同时区解析，本来就应该得到不同 Instant</h3><p><code>2020-01-02 22:00:00</code> 如果解释为上海时间和纽约时间，代表两个不同的瞬间；反过来，同一个 Instant 在纽约和上海显示出来的本地时钟时间也必然不同。</p>
+<p>不要遇到“数据库时间差了 8 小时”就直接在代码里 <code>plusHours(8)</code>。应该沿链路检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">客户端时区<br>-&gt; JSON 时区/offset<br>-&gt; JVM ZoneId<br>-&gt; JDBC 驱动配置<br>-&gt; 数据库 session time_zone<br>-&gt; 数据库存储类型<br>-&gt; 输出格式化时区<br></code></pre></td></tr></table></figure>
+
+<p>人为补 8 小时通常只是把配置错误永久写进业务逻辑。</p>
+<h3 id="YYYY-和-yyyy-不是大小写风格问题"><a href="#YYYY-和-yyyy-不是大小写风格问题" class="headerlink" title="YYYY 和 yyyy 不是大小写风格问题"></a><code>YYYY</code> 和 <code>yyyy</code> 不是大小写风格问题</h3><p><code>Y</code> 表示 week-based-year，<code>y</code> 表示 year-of-era。年末几天可能已经属于下一“周序年”：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">DateTimeFormatter</span> <span class="hljs-variable">wrong</span> <span class="hljs-operator">=</span> DateTimeFormatter.ofPattern(<span class="hljs-string">&quot;YYYY-MM-dd&quot;</span>);<br><span class="hljs-type">DateTimeFormatter</span> <span class="hljs-variable">normal</span> <span class="hljs-operator">=</span> DateTimeFormatter.ofPattern(<span class="hljs-string">&quot;yyyy-MM-dd&quot;</span>);<br></code></pre></td></tr></table></figure>
+
+<p>如果只是普通日历日期，不要用 <code>YYYY</code>。</p>
+<p>现代代码做严格解析时，可以进一步显式指定 resolver style，并优先用 <code>uuuu</code> 表示 proleptic year：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">DateTimeFormatter</span> <span class="hljs-variable">strict</span> <span class="hljs-operator">=</span> DateTimeFormatter<br>        .ofPattern(<span class="hljs-string">&quot;uuuu-MM-dd&quot;</span>)<br>        .withResolverStyle(ResolverStyle.STRICT);<br></code></pre></td></tr></table></figure>
+
+<p>这比依赖 <code>SimpleDateFormat</code> 默认宽松解析可靠得多。</p>
+<h3 id="SimpleDateFormat-的最大问题是“可变且共享”"><a href="#SimpleDateFormat-的最大问题是“可变且共享”" class="headerlink" title="SimpleDateFormat 的最大问题是“可变且共享”"></a>SimpleDateFormat 的最大问题是“可变且共享”</h3><p><code>SimpleDateFormat</code> 内部持有可变 Calendar，多线程共享一个 static 实例会互相修改解析状态，出现随机错误甚至荒谬年份。</p>
+<p>旧代码如果不能迁移，只能线程隔离或加锁；新代码应直接使用线程安全、不可变的 <code>DateTimeFormatter</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> <span class="hljs-type">DateTimeFormatter</span> <span class="hljs-variable">FORMATTER</span> <span class="hljs-operator">=</span><br>        DateTimeFormatter.ofPattern(<span class="hljs-string">&quot;uuuu-MM-dd HH:mm:ss&quot;</span>);<br></code></pre></td></tr></table></figure>
+
+<h3 id="时间计算不要手写毫秒乘法"><a href="#时间计算不要手写毫秒乘法" class="headerlink" title="时间计算不要手写毫秒乘法"></a>时间计算不要手写毫秒乘法</h3><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">new</span> <span class="hljs-title class_">Date</span>(System.currentTimeMillis() + <span class="hljs-number">30</span> * <span class="hljs-number">24</span> * <span class="hljs-number">60</span> * <span class="hljs-number">60</span> * <span class="hljs-number">1000</span>);<br></code></pre></td></tr></table></figure>
+
+<p>这段代码中常量表达式先按 int 计算，可能在转换为 long 之前就已经溢出。即使改成 <code>30L</code>，手工毫秒运算遇到夏令时、月长度等日历规则仍然容易表达错业务语义。</p>
+<p>Java Time 直接写业务意图：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">LocalDateTime</span> <span class="hljs-variable">after30Days</span> <span class="hljs-operator">=</span> LocalDateTime.now().plusDays(<span class="hljs-number">30</span>);<br><span class="hljs-type">LocalDate</span> <span class="hljs-variable">firstDay</span> <span class="hljs-operator">=</span> LocalDate.now()<br>        .with(TemporalAdjusters.firstDayOfMonth());<br><span class="hljs-type">LocalDate</span> <span class="hljs-variable">lastFriday</span> <span class="hljs-operator">=</span> LocalDate.now()<br>        .with(TemporalAdjusters.lastInMonth(DayOfWeek.FRIDAY));<br></code></pre></td></tr></table></figure>
+
+<p>计算两个日期的“2 个月 11 天”与“总共 72 天”也是两种不同问题：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Period</span> <span class="hljs-variable">period</span> <span class="hljs-operator">=</span> Period.between(start, end);            <span class="hljs-comment">// P2M11D</span><br><span class="hljs-type">long</span> <span class="hljs-variable">days</span> <span class="hljs-operator">=</span> ChronoUnit.DAYS.between(start, end);       <span class="hljs-comment">// 72</span><br></code></pre></td></tr></table></figure>
+
+<p><code>period.getDays()</code> 只返回 Period 中“日”这一部分，不是总天数。</p>
+<h3 id="MySQL-DATETIME-和-TIMESTAMP-要按语义选，不要背旧版本字节数"><a href="#MySQL-DATETIME-和-TIMESTAMP-要按语义选，不要背旧版本字节数" class="headerlink" title="MySQL DATETIME 和 TIMESTAMP 要按语义选，不要背旧版本字节数"></a>MySQL DATETIME 和 TIMESTAMP 要按语义选，不要背旧版本字节数</h3><p>资料评论区基于较老 MySQL 版本讨论过 DATETIME&#x2F;TIMESTAMP 的存储字节数和自动初始化规则，这些实现细节随版本变化，不应该直接照搬到现代 MySQL。</p>
+<p>长期稳定的概念区别是：</p>
+<ul>
+<li><code>DATETIME</code> 更像“日历字段的字面值”，本身不做 session time zone 的 UTC 往返转换；</li>
+<li><code>TIMESTAMP</code> 写入和读取时会受到连接&#x2F;session 时区影响，适合表达时间线上的时间点，但范围和行为需要按当前 MySQL 版本确认；</li>
+<li>JDBC 驱动、JVM 时区、数据库 session 时区必须一起测试；</li>
+<li>如果应用本身使用 <code>Instant</code>，要明确 ORM&#x2F;JDBC 最终如何映射，而不是只看 Java 字段类型名字。</li>
+</ul>
+<p>跨时区系统最好把这些选择写成数据库设计规范和集成测试，而不是依赖服务器默认时区。</p>
+<h2 id="OOM：GC-是自动回收，不是自动容量管理"><a href="#OOM：GC-是自动回收，不是自动容量管理" class="headerlink" title="OOM：GC 是自动回收，不是自动容量管理"></a>OOM：GC 是自动回收，不是自动容量管理</h2><h3 id="一份业务数据，在堆里可能有很多份对象"><a href="#一份业务数据，在堆里可能有很多份对象" class="headerlink" title="一份业务数据，在堆里可能有很多份对象"></a>一份业务数据，在堆里可能有很多份对象</h3><p>资料中的自动补全案例只有约 1 万用户，但为了给用户名的每个前缀建立索引，每个前缀 List 都重新 new 一份完整 UserDTO，最终生成约 6 万份大对象，MAT 中占用超过 1GB。</p>
+<p>问题不是 HashMap 本身，而是“索引引用同一对象”被误写成了“索引复制对象”：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs java">Set&lt;UserDTO&gt; users = entities.stream()<br>        .map(<span class="hljs-built_in">this</span>::toDto)<br>        .collect(Collectors.toSet());<br><br>Map&lt;String, List&lt;UserDTO&gt;&gt; index = <span class="hljs-keyword">new</span> <span class="hljs-title class_">HashMap</span>&lt;&gt;();<br><span class="hljs-keyword">for</span> (UserDTO user : users) &#123;<br>    <span class="hljs-keyword">for</span> (String prefix : prefixes(user.getName())) &#123;<br>        index.computeIfAbsent(prefix, k -&gt; <span class="hljs-keyword">new</span> <span class="hljs-title class_">ArrayList</span>&lt;&gt;())<br>                .add(user); <span class="hljs-comment">// 引用同一份 DTO</span><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这类问题在导出、ORM 映射、DTO 转换、批量聚合中非常常见：数据库看起来只有 100MB，不代表 JVM 只需要 100MB。ResultSet、框架中间对象、Entity、DTO、序列化缓冲区可能同时存在。</p>
+<p>容量评估应该用真实数据做 heap dump 或 profiler 验证，而不是简单用“数据库字节数 × 1”。</p>
+<p>对于前缀自动补全本身，Trie&#x2F;前缀树往往比“所有前缀字符串 -&gt; List”更贴近问题结构，但无论用什么结构，都要关注对象副本和索引膨胀。</p>
+<h3 id="WeakHashMap-的-key-是弱引用，不代表-Entry-一定能被回收"><a href="#WeakHashMap-的-key-是弱引用，不代表-Entry-一定能被回收" class="headerlink" title="WeakHashMap 的 key 是弱引用，不代表 Entry 一定能被回收"></a>WeakHashMap 的 key 是弱引用，不代表 Entry 一定能被回收</h3><p>考虑：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java">Map&lt;User, UserProfile&gt; cache = <span class="hljs-keyword">new</span> <span class="hljs-title class_">WeakHashMap</span>&lt;&gt;();<br><br><span class="hljs-type">User</span> <span class="hljs-variable">user</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">User</span>(<span class="hljs-string">&quot;mario&quot;</span>);<br>cache.put(user, <span class="hljs-keyword">new</span> <span class="hljs-title class_">UserProfile</span>(user, <span class="hljs-string">&quot;Tokyo&quot;</span>));<br></code></pre></td></tr></table></figure>
+
+<p>引用关系实际上是：</p>
+<pre><code class=" mermaid">flowchart LR
+    M[WeakHashMap] --&gt; E[Entry]
+    E -. weak reference .-&gt; K[User key]
+    E --&gt; V[UserProfile value]
+    V --&gt; K
+</code></pre>
+
+<p>虽然 Entry 到 Key 是弱引用，但 Value 又强引用 Key，于是仍然存在：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">WeakHashMap -&gt; Entry -&gt; Value -&gt; Key<br></code></pre></td></tr></table></figure>
+
+<p>这是一条完整强引用路径，Key 当然不会被 GC。</p>
+<p>如果确实使用弱引用结构，要检查整个对象图，而不只是 Map 的 key 类型。资料中通过把 Value 包装为 <code>WeakReference&lt;UserProfile&gt;</code>，或让 Value 不再反向引用同一个 Key 来打断强引用路径。</p>
+<p>生产缓存更推荐<strong>有界缓存</strong>：最大条目数&#x2F;权重、过期策略、命中率、淘汰统计都可观测，而不是把缓存生命周期完全交给 GC 的软&#x2F;弱引用。GC 驱动的缓存容量很难和业务 SLA 对齐。</p>
+<h3 id="ThreadLocal-也有类似的“弱-key、强-value”风险"><a href="#ThreadLocal-也有类似的“弱-key、强-value”风险" class="headerlink" title="ThreadLocal 也有类似的“弱 key、强 value”风险"></a>ThreadLocal 也有类似的“弱 key、强 value”风险</h3><p><code>ThreadLocalMap</code> 的 Entry key 是弱引用，但 value 是强引用。线程池线程长期存活时，如果业务忘记 <code>remove()</code>，即使 ThreadLocal key 被回收，value 仍可能在线程下一次清理前长期滞留。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">try</span> &#123;<br>    context.set(value);<br>    <span class="hljs-comment">// business</span><br>&#125; <span class="hljs-keyword">finally</span> &#123;<br>    context.remove();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这和 WeakHashMap 案例本质相同：<strong>不要只看某一条引用是 weak 还是 strong，要看 GC Root 到对象是否仍存在完整强引用路径。</strong></p>
+<h3 id="容量参数会被并发数乘起来"><a href="#容量参数会被并发数乘起来" class="headerlink" title="容量参数会被并发数乘起来"></a>容量参数会被并发数乘起来</h3><p>资料中的 Tomcat 事故把：</p>
+<figure class="highlight properties"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs properties"><span class="hljs-attr">server.max-http-header-size</span>=<span class="hljs-string">10000000</span><br></code></pre></td></tr></table></figure>
+
+<p>设置到了约 10MB，只是为了绕过一次 “Request header is too large”。当时对应 Tomcat 实现会按这个上限为请求&#x2F;响应头缓冲分配空间，工作线程一多，单请求的十几&#x2F;几十 MB 级别缓冲乘以并发数，很快吃满 2GB 堆。</p>
+<p>这个案例的通用公式是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">总资源 ≈ 单连接/单请求资源 × 并发量 × 同时存活时长<br></code></pre></td></tr></table></figure>
+
+<p>线程栈、HTTP header buffer、上传缓冲、日志队列、数据库连接池、批量查询 page size 都遵循类似规律。</p>
+<p>资料中的 Spring Boot 配置名属于当时版本；新版本 Spring Boot&#x2F;Tomcat 的请求头&#x2F;响应头配置键和限制语义可能变化，升级时必须查当前版本文档。不要把旧配置名或旧默认值当永久 API。</p>
+<p>“限制参数调得足够大就不会报错”通常是错误思路。限制的本质是给资源加边界，应该根据真实请求分布留合理余量，并追查为什么客户端会发送异常大的 header。</p>
+<h3 id="动态脚本还可能把-OOM-打到-Metaspace"><a href="#动态脚本还可能把-OOM-打到-Metaspace" class="headerlink" title="动态脚本还可能把 OOM 打到 Metaspace"></a>动态脚本还可能把 OOM 打到 Metaspace</h3><p>如果每次请求都 <code>new GroovyShell().evaluate(script)</code>，可能持续生成大量动态类。即使堆没有泄漏，Metaspace 也会因为类和 ClassLoader 生命周期失控而出现压力。</p>
+<p>更合理的思路是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">script content/hash<br>        -&gt; compile/parse once<br>        -&gt; cache compiled Script/Class<br>        -&gt; subsequent invocation reuses compiled result<br></code></pre></td></tr></table></figure>
+
+<p>缓存同样必须有界，并确保废弃脚本关联的 ClassLoader 可以卸载。动态表达式引擎的资源模型不能按普通字符串工具类理解。</p>
+<h3 id="OOM-发生后先保留现场"><a href="#OOM-发生后先保留现场" class="headerlink" title="OOM 发生后先保留现场"></a>OOM 发生后先保留现场</h3><p>生产环境至少应该让 OOM 自动产生 heap dump：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">-XX:+HeapDumpOnOutOfMemoryError<br>-XX:HeapDumpPath=/var/log/app/heap.hprof<br></code></pre></td></tr></table></figure>
+
+<p>JDK 8 常见 GC 日志参数是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">-XX:+PrintGCDateStamps<br>-XX:+PrintGCDetails<br>-Xloggc:/var/log/app/gc.log<br></code></pre></td></tr></table></figure>
+
+<p>JDK 9+ 已统一到 Unified Logging，现代 JDK 更常用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">-Xlog:gc*:file=/var/log/app/gc.log:time,uptime,level,tags<br></code></pre></td></tr></table></figure>
+
+<p>排查路径通常是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">异常信息确认 OOM 区域<br>-&gt; GC 日志确认回收是否失效<br>-&gt; jstat / JFR 观察趋势<br>-&gt; heap dump<br>-&gt; MAT / VisualVM / profiler 看 dominator tree 与 retained size<br>-&gt; 顺着 GC Root 找“为什么还可达”<br></code></pre></td></tr></table></figure>
+
+<p>命令行也可以辅助：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">jstat -gcutil &lt;pid&gt; 1000<br>jmap -histo:live &lt;pid&gt; | <span class="hljs-built_in">head</span> -50<br></code></pre></td></tr></table></figure>
+
+<p>现代 JDK 还可以使用 <code>jcmd</code> 触发 heap dump。注意 heap dump、<code>jmap -histo:live</code> 等操作可能带来停顿或额外压力，生产执行前要评估风险和磁盘空间。</p>
+<p>最重要的是不要看到 OOM 就先把 <code>-Xmx</code> 翻倍。加内存可以缓解容量不足，却无法修复无界缓存、重复对象、强引用泄漏或错误的“每请求资源 × 并发”配置。</p>
+<h2 id="把十类问题收敛成一套代码审查习惯"><a href="#把十类问题收敛成一套代码审查习惯" class="headerlink" title="把十类问题收敛成一套代码审查习惯"></a>把十类问题收敛成一套代码审查习惯</h2><p>这些 Bug 很难靠“记住 100 个坑”彻底解决，更有效的方式是把它们变成固定的审查问题。</p>
+<h3 id="看到比较代码时"><a href="#看到比较代码时" class="headerlink" title="看到比较代码时"></a>看到比较代码时</h3><ul>
+<li>这是身份比较还是值比较？</li>
+<li>包装类型&#x2F;String 是否错误使用 <code>==</code>？</li>
+<li><code>equals</code>、<code>hashCode</code>、<code>compareTo</code> 的字段集合是否一致？</li>
+<li>对象会不会进入 Hash&#x2F;Tree 容器？</li>
+<li>Lombok&#x2F;record 生成的值语义真的是业务需要的吗？</li>
+</ul>
+<h3 id="看到金额和数字时"><a href="#看到金额和数字时" class="headerlink" title="看到金额和数字时"></a>看到金额和数字时</h3><ul>
+<li>原始值是否经过 <code>double</code> 才进入 <code>BigDecimal</code>？</li>
+<li>scale、precision、单位、舍入模式在哪里定义？</li>
+<li>判等需要 <code>equals</code> 还是 <code>compareTo</code>？</li>
+<li>运算有没有整数溢出风险？</li>
+<li>转换回 int&#x2F;long 是否应该用 <code>xxxValueExact</code>？</li>
+</ul>
+<h3 id="看到集合-API-时"><a href="#看到集合-API-时" class="headerlink" title="看到集合 API 时"></a>看到集合 API 时</h3><ul>
+<li>返回的是独立集合、只读集合还是原对象视图？</li>
+<li>是否意外共享 backing array&#x2F;list？</li>
+<li>遍历期间有没有结构修改？</li>
+<li>搜索场景是否应该提前建立 Map&#x2F;Set 索引？</li>
+<li>性能判断有没有真实 benchmark，而不是只背大 O？</li>
+</ul>
+<h3 id="看到-null-时"><a href="#看到-null-时" class="headerlink" title="看到 null 时"></a>看到 null 时</h3><ul>
+<li>null 是“缺失”“未知”“清空”还是“系统错误”？</li>
+<li>API 是否需要区分字段缺失和显式 null？</li>
+<li>DTO 和 Entity 是否不当地共用？</li>
+<li>数据库 NULL 是否会影响聚合、统计和条件判断？</li>
+<li>Optional 是在表达语义，还是只是在隐藏错误？</li>
+</ul>
+<h3 id="看到-catch-时"><a href="#看到-catch-时" class="headerlink" title="看到 catch 时"></a>看到 catch 时</h3><ul>
+<li>这一层真的有能力处理这个异常吗？</li>
+<li>原始 cause 和 stack trace 是否保留？</li>
+<li>是转换、恢复还是重试？</li>
+<li>catch 后事务还会按预期回滚吗？</li>
+<li>线程池 Future 的异常有没有被消费？</li>
+</ul>
+<h3 id="看到日志配置时"><a href="#看到日志配置时" class="headerlink" title="看到日志配置时"></a>看到日志配置时</h3><ul>
+<li>依赖树中是否存在多套日志绑定或桥接环？</li>
+<li>logger additivity 是否导致重复？</li>
+<li>filter 是精确等级还是阈值？</li>
+<li>AsyncAppender 满了以后是丢、等还是撑内存？</li>
+<li>DEBUG 参数计算是否本身很昂贵？</li>
+</ul>
+<h3 id="看到文件、流和资源时"><a href="#看到文件、流和资源时" class="headerlink" title="看到文件、流和资源时"></a>看到文件、流和资源时</h3><ul>
+<li>字符集是否显式？</li>
+<li>资源是否 <code>AutoCloseable</code>，谁负责 close？</li>
+<li>是否把大文件一次性读入堆？</li>
+<li>IO 粒度是不是太小？</li>
+<li>多步文件操作失败后是否有中间状态？</li>
+</ul>
+<h3 id="看到-JSON、Redis、RPC-时"><a href="#看到-JSON、Redis、RPC-时" class="headerlink" title="看到 JSON、Redis、RPC 时"></a>看到 JSON、Redis、RPC 时</h3><ul>
+<li>两端序列化器是否真的一致？</li>
+<li>类型信息&#x2F;schema 是否有版本策略？</li>
+<li>ObjectMapper 是增量定制还是整 Bean 覆盖？</li>
+<li>枚举是否把 name&#x2F;ordinal 暴露成了外部协议？</li>
+<li>多态反序列化是否限制了允许类型？</li>
+</ul>
+<h3 id="看到时间字段时"><a href="#看到时间字段时" class="headerlink" title="看到时间字段时"></a>看到时间字段时</h3><ul>
+<li>它表示时间点还是本地日历时间？</li>
+<li>时区&#x2F;offset 在哪一层确定？</li>
+<li>是否错误使用 <code>YYYY</code>？</li>
+<li>是否还在共享 <code>SimpleDateFormat</code>？</li>
+<li>“差几天”需要日历 Period 还是总 elapsed days？</li>
+</ul>
+<h3 id="看到缓存和容量参数时"><a href="#看到缓存和容量参数时" class="headerlink" title="看到缓存和容量参数时"></a>看到缓存和容量参数时</h3><ul>
+<li>缓存是否有最大容量和淘汰策略？</li>
+<li>一份业务数据在 JVM 中到底有几份副本？</li>
+<li>value 有没有反向强引用 weak key？</li>
+<li>参数的单实例成本乘以并发后是多少？</li>
+<li>OOM 时是否有 GC 日志和 heap dump 能保留现场？</li>
+</ul>
+<h2 id="结语"><a href="#结语" class="headerlink" title="结语"></a>结语</h2><p>这十类错误有一个共同特点：单看某一行代码几乎都“说得过去”。<code>==</code> 在 127 以内确实能工作，<code>subList</code> 确实是一个 List，<code>Optional</code> 确实能避免 NPE，AsyncAppender 确实能让请求线程更快，调大 header size 也确实能让“大请求头”不再报错。</p>
+<p>问题发生在这些局部正确的行为进入真实系统以后：对象会放进不同集合，数据会跨进程和跨版本，线程会复用，时区会变化，队列会积压，文件会变大，缓存会一直增长，并发会把单次几 MB 的分配放大成几 GB。</p>
+<p>所以业务开发里真正值得培养的不是“遇到坑再记一个 API”，而是对默认行为保持敏感：<strong>值与引用要分开，数据与视图要分开，缺失与空值要分开，时间点与本地时间要分开，异常与日志要保留上下文，序列化和数据库要有稳定协议，所有缓存、队列和容量参数都必须有边界。</strong> 当这些边界在设计阶段就被明确写出来，很多原本需要线上事故才能学会的经验，就可以在代码提交之前解决。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Java/" class="category-chain-item">Java</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Spring-Boot/" class="print-no-link">#Spring Boot</a>
+      
+        <a href="/tags/Java/" class="print-no-link">#Java</a>
+      
+        <a href="/tags/JVM/" class="print-no-link">#JVM</a>
+      
+        <a href="/tags/Logback/" class="print-no-link">#Logback</a>
+      
+        <a href="/tags/Collections/" class="print-no-link">#Collections</a>
+      
+        <a href="/tags/Jackson/" class="print-no-link">#Jackson</a>
+      
+        <a href="/tags/BigDecimal/" class="print-no-link">#BigDecimal</a>
+      
+        <a href="/tags/java-time/" class="print-no-link">#java.time</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Java 业务开发中的十类隐蔽陷阱：从对象判等到 OOM</div>
+      <div>https://allendericdalexander.github.io/2026/09/08/geeker/088java100error/2java-business-common-mistakes/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年9月8日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/09/08/geeker/088java100error/4java-business-system-engineering-practices/" title="Java 业务系统工程化设计：从反射、Spring 到缓存、异步与多存储架构">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Java 业务系统工程化设计：从反射、Spring 到缓存、异步与多存储架构</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/09/08/geeker/088java100error/1java-business-common-pitfalls/" title="Java 业务开发常见陷阱：并发、池化、HTTP、事务与索引的工程化实践">
+                        <span class="hidden-mobile">Java 业务开发常见陷阱：并发、池化、HTTP、事务与索引的工程化实践</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

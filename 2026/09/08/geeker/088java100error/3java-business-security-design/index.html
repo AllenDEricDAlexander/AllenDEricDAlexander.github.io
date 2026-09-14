@@ -1,0 +1,1241 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="很多业务安全事故并不是因为缺少复杂的密码学算法，而是因为最基本的边界没有守住：服务端相信了客户端计算结果，把外部输入拼进了 SQL 或脚本，把用户 ID 当成普通参数接收，资金操作没有全链路幂等，敏感数据又以不合适的方式保存。本文从 Java 业务开发视角重新组织这些问题，建立一条从请求入口、身份与权限、资源防刷、资金幂等、注入防护，到密码、隐私数据和 TLS 传输的完整安全链路，并结合现代 Sp">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Java 业务安全设计：从不信任客户端到幂等、注入防护与敏感数据保护">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/09/08/geeker/088java100error/3java-business-security-design/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="很多业务安全事故并不是因为缺少复杂的密码学算法，而是因为最基本的边界没有守住：服务端相信了客户端计算结果，把外部输入拼进了 SQL 或脚本，把用户 ID 当成普通参数接收，资金操作没有全链路幂等，敏感数据又以不合适的方式保存。本文从 Java 业务开发视角重新组织这些问题，建立一条从请求入口、身份与权限、资源防刷、资金幂等、注入防护，到密码、隐私数据和 TLS 传输的完整安全链路，并结合现代 Sp">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-08T06:38:00.000Z">
+<meta property="article:modified_time" content="2026-09-08T06:38:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="AES-GCM">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="SQL 注入">
+<meta property="article:tag" content="Spring Security">
+<meta property="article:tag" content="TLS">
+<meta property="article:tag" content="Web 安全">
+<meta property="article:tag" content="XSS">
+<meta property="article:tag" content="幂等">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Java 业务安全设计：从不信任客户端到幂等、注入防护与敏感数据保护 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Java 业务安全设计：从不信任客户端到幂等、注入防护与敏感数据保护"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-09-08 14:38" pubdate>
+          2026年9月8日 下午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          9k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          76 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Java 业务安全设计：从不信任客户端到幂等、注入防护与敏感数据保护</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>很多业务安全事故并不是因为缺少复杂的密码学算法，而是因为最基本的边界没有守住：服务端相信了客户端计算结果，把外部输入拼进了 SQL 或脚本，把用户 ID 当成普通参数接收，资金操作没有全链路幂等，敏感数据又以不合适的方式保存。本文从 Java 业务开发视角重新组织这些问题，建立一条从请求入口、身份与权限、资源防刷、资金幂等、注入防护，到密码、隐私数据和 TLS 传输的完整安全链路，并结合现代 Spring Boot、JDK 与 TLS 的版本变化说明哪些旧做法今天已经不再适用。</p>
+<span id="more"></span>
+
+<h2 id="安全真正从“信任边界”开始"><a href="#安全真正从“信任边界”开始" class="headerlink" title="安全真正从“信任边界”开始"></a>安全真正从“信任边界”开始</h2><p>业务系统里最重要的一条安全原则，不是“把参数校验写得更严”，而是先回答一个问题：<strong>哪些数据属于系统自己的事实，哪些数据只是外部参与者提交的意图？</strong></p>
+<p>浏览器、App、小程序、第三方调用方，甚至经过前端页面约束后的请求，本质上都处在服务端的信任边界之外。客户端可以被修改，请求可以脱离 UI 直接构造，请求头可以伪造，隐藏字段也可以修改。因此，服务端不能把“客户端能提交这个字段”理解为“客户端有资格决定这个字段”。</p>
+<p>一个更准确的模型是：</p>
+<pre><code class=" mermaid">flowchart LR
+    C[Client / App / Browser] --&gt;|提交操作意图| G[Gateway / Web Layer]
+    G --&gt; A[Authentication]
+    A --&gt; V[Validation &amp; Authorization]
+    V --&gt; B[Business Service]
+    B --&gt; D[(Authoritative Data)]
+    B --&gt; X[External Services]
+
+    C -. 不可信 .-&gt; G
+    D -. 服务端事实来源 .-&gt; B
+</code></pre>
+
+<p>客户端负责表达“我要买哪个商品、买多少”“我要修改哪个地址”“我要执行哪项操作”；商品价格、订单金额、账户余额、优惠金额、订单状态、当前用户身份等真正决定业务结果的数据，应由服务端根据权威数据重新计算或读取。</p>
+<h3 id="客户端只提交意图，服务端维护最终状态"><a href="#客户端只提交意图，服务端维护最终状态" class="headerlink" title="客户端只提交意图，服务端维护最终状态"></a>客户端只提交意图，服务端维护最终状态</h3><p>最典型的例子是下单。页面为了展示订单，当然会知道商品单价，也可以在前端计算总价。但这只是交互层的计算结果，不能成为最终入账依据。</p>
+<p>接口设计上，最好直接把“客户端有权决定的字段”收敛成 Request DTO，而不是把完整领域对象暴露给客户端：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">record</span> <span class="hljs-title class_">CreateOrderRequest</span><span class="hljs-params">(</span><br><span class="hljs-params">        @NotNull Long itemId,</span><br><span class="hljs-params">        @Positive <span class="hljs-type">int</span> quantity</span><br><span class="hljs-params">)</span> &#123;&#125;<br></code></pre></td></tr></table></figure>
+
+<p>服务端收到请求后重新查询商品并计算金额：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Service</span><br><span class="hljs-meta">@RequiredArgsConstructor</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">OrderService</span> &#123;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> ItemRepository itemRepository;<br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> OrderRepository orderRepository;<br><br>    <span class="hljs-meta">@Transactional</span><br>    <span class="hljs-keyword">public</span> Order <span class="hljs-title function_">create</span><span class="hljs-params">(CreateOrderRequest request, Long currentUserId)</span> &#123;<br>        <span class="hljs-type">Item</span> <span class="hljs-variable">item</span> <span class="hljs-operator">=</span> itemRepository.findById(request.itemId())<br>                .orElseThrow(() -&gt; <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;商品不存在&quot;</span>));<br><br>        <span class="hljs-type">BigDecimal</span> <span class="hljs-variable">total</span> <span class="hljs-operator">=</span> item.getPrice()<br>                .multiply(BigDecimal.valueOf(request.quantity()));<br><br>        <span class="hljs-type">Order</span> <span class="hljs-variable">order</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Order</span>();<br>        order.setUserId(currentUserId);<br>        order.setItemId(item.getId());<br>        order.setItemPrice(item.getPrice());<br>        order.setQuantity(request.quantity());<br>        order.setTotalPrice(total);<br>        <span class="hljs-keyword">return</span> orderRepository.save(order);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果前端同时提交了“展示时看到的价格”，它可以用于做价格变化提示，但不能覆盖服务端查询出的价格。这个区别很重要：<strong>客户端计算结果可以参与校对，不能参与裁决。</strong></p>
+<p>这种原则不只适用于价格。库存是否足够、优惠券是否可用、当前状态是否允许流转、用户是否拥有目标资源，都应该以服务端的实时状态为准。</p>
+<h3 id="UI-限制不是安全限制"><a href="#UI-限制不是安全限制" class="headerlink" title="UI 限制不是安全限制"></a>UI 限制不是安全限制</h3><p>页面下拉框只显示三个国家，并不意味着接口只能收到这三个值。攻击者不需要通过页面操作，可以直接构造 HTTP 请求。</p>
+<p>因此，参数合法性必须是 API 契约的一部分，而不是 UI 的附带效果。Spring Boot 3 使用 <code>jakarta.validation</code> 可以把基础约束直接放到 DTO 上：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">record</span> <span class="hljs-title class_">RegisterRequest</span><span class="hljs-params">(</span><br><span class="hljs-params">        @NotBlank String username,</span><br><span class="hljs-params">        @Min(1)</span> <span class="hljs-meta">@Max(3)</span> Integer countryId<br>) &#123;&#125;<br><br><span class="hljs-meta">@PostMapping(&quot;/register&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">register</span><span class="hljs-params">(<span class="hljs-meta">@Valid</span> <span class="hljs-meta">@RequestBody</span> RegisterRequest request)</span> &#123;<br>    registrationService.register(request);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>但注解校验只能处理“长度、范围、格式”这类通用约束。像“这个国家当前是否开放注册”“这个优惠券是否属于当前活动”“这个资源是否归当前用户所有”，仍然必须进入业务层做白名单、状态和权限校验。</p>
+<p>隐藏域也不例外。只要数据从客户端回来，它就是普通请求数据，不能因为用户在页面上看不到输入框就提升其可信等级。</p>
+<h3 id="请求头、Cookie-和-IP-也属于客户端输入"><a href="#请求头、Cookie-和-IP-也属于客户端输入" class="headerlink" title="请求头、Cookie 和 IP 也属于客户端输入"></a>请求头、Cookie 和 IP 也属于客户端输入</h3><p><code>User-Agent</code>、<code>Referer</code>、Cookie、<code>X-Forwarded-For</code> 都可以被构造。尤其是 <code>X-Forwarded-For</code>，业务代码常用它获取真实 IP，但它只有在一条<strong>受控代理链</strong>中才有意义。</p>
+<p>正确的信任方式不是“看到 <code>X-Forwarded-For</code> 就相信第一个 IP”，而是：</p>
+<ul>
+<li>应用只接受来自可信反向代理或网关的流量；</li>
+<li>边缘代理清理客户端原始的转发头，再按照自身规则写入或追加；</li>
+<li>后端只信任已知代理链生成的转发信息；</li>
+<li>IP 仍然更适合作为风控维度，而不是用户身份。</li>
+</ul>
+<p>一个学校、公司、运营商 NAT 出口后可能有大量用户共享同一个 IP；同一个用户也可能频繁切换网络。因此，仅用 IP 判断“一个人只能领取一次”既可能误伤正常用户，也容易被绕过。</p>
+<h3 id="用户身份不能从业务参数里拿"><a href="#用户身份不能从业务参数里拿" class="headerlink" title="用户身份不能从业务参数里拿"></a>用户身份不能从业务参数里拿</h3><p>如果一个面向浏览器或 App 的接口这样设计：</p>
+<figure class="highlight http"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs http">POST /coupon/claim?userId=10001<br></code></pre></td></tr></table></figure>
+
+<p>那么最大的风险不是参数有没有做数字校验，而是<strong>用户身份本身被设计成了客户端可决定的数据</strong>。</p>
+<p>当前用户应该来自认证上下文。使用 Spring Security 时，可以直接注入认证主体：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@PostMapping(&quot;/coupon/claim&quot;)</span><br><span class="hljs-keyword">public</span> ClaimResult <span class="hljs-title function_">claim</span><span class="hljs-params">(<span class="hljs-meta">@AuthenticationPrincipal</span> LoginUser loginUser,</span><br><span class="hljs-params">                         <span class="hljs-meta">@Valid</span> <span class="hljs-meta">@RequestBody</span> ClaimRequest request)</span> &#123;<br>    <span class="hljs-keyword">return</span> couponService.claim(loginUser.userId(), request);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>如果系统没有使用 Spring Security，也可以像传统 Spring MVC 项目一样通过 <code>HandlerMethodArgumentResolver</code> 统一从 Session、Token 解析结果或网关写入的可信上下文中组装当前用户，而不是让每个 Controller 自己接收 <code>userId</code>。</p>
+<p>这里还要区分“外部客户端”和“内部服务”。内部 RPC 确实可能显式传递用户 ID，但这不代表该参数天然可信。服务间仍然需要认证、授权和调用方约束，不能把“只在内网”当成安全模型。</p>
+<h3 id="重定向地址同样不能直接信任"><a href="#重定向地址同样不能直接信任" class="headerlink" title="重定向地址同样不能直接信任"></a>重定向地址同样不能直接信任</h3><p>登录后回跳通常会带 <code>redirectUrl</code>。如果服务端不校验就直接跳转，攻击者可以构造一个真实站点的登录链接，却把回跳地址指向钓鱼站点，形成开放重定向（Open Redirect）。</p>
+<p>更稳妥的处理方式是：</p>
+<ol>
+<li>优先只允许站内相对路径；</li>
+<li>或者使用后端维护的目标编号，而不是客户端提交完整 URL；</li>
+<li>必须跨域时使用严格的域名白名单，并规范化 URL 后再校验；</li>
+<li>对非本站跳转增加明确的离站提示。</li>
+</ol>
+<p>不要只用字符串 <code>startsWith(&quot;https://example.com&quot;)</code> 做域名判断，因为编码、子域、userinfo、双斜杠等 URL 细节很容易制造绕过条件。</p>
+<h2 id="涉及资源和资金时：防刷、限量、防重缺一不可"><a href="#涉及资源和资金时：防刷、限量、防重缺一不可" class="headerlink" title="涉及资源和资金时：防刷、限量、防重缺一不可"></a>涉及资源和资金时：防刷、限量、防重缺一不可</h2><p>业务代码一旦涉及“有价值的东西”，安全要求会立刻提高。这里的“钱”不只是银行卡资金，还包括三类资源：</p>
+<ul>
+<li>按调用量收费的短信、邮件、OCR、地图、AI API 等第三方服务；</li>
+<li>优惠券、积分、红包、会员时长等可兑换价值的虚拟资产；</li>
+<li>扣款、退款、返现、提现、付款等真实资金流。</li>
+</ul>
+<p>这三类场景分别对应三个关键词：<strong>防刷、限量、幂等。</strong></p>
+<h3 id="防刷不是只做一个-IP-限流"><a href="#防刷不是只做一个-IP-限流" class="headerlink" title="防刷不是只做一个 IP 限流"></a>防刷不是只做一个 IP 限流</h3><p>以短信验证码为例，它通常在注册前就需要使用，因此天然是匿名开放接口。如果没有任何限制，攻击者拿到接口地址后就可以把平台的短信额度当成自己的资源使用。</p>
+<p>真正可落地的防刷应该是分层的：</p>
+<pre><code class=" mermaid">flowchart TD
+    R[发送验证码请求] --&gt; P&#123;是否符合正常业务流程&#125;
+    P -- 否 --&gt; X[拒绝]
+    P -- 是 --&gt; F&#123;手机号/账号频率是否超限&#125;
+    F -- 是 --&gt; X
+    F -- 否 --&gt; I&#123;IP/设备/网络维度是否异常&#125;
+    I -- 正常 --&gt; S[发送短信]
+    I -- 异常 --&gt; C[触发人机验证]
+    C --&gt;|通过| S
+    C --&gt;|失败| X
+    S --&gt; M[计量、监控、告警]
+</code></pre>
+
+<p>入口可以结合以下维度：</p>
+<ul>
+<li>同一手机号最短发送间隔；</li>
+<li>单手机号、单账号、单设备每日上限；</li>
+<li>单 IP、网段或设备指纹的异常速率；</li>
+<li>全局发送量和活动级预算；</li>
+<li>正常页面流程产生的短期一次性凭证；</li>
+<li>仅在风险升高时触发验证码或其他人机识别。</li>
+</ul>
+<p>固定请求头只能作为很薄的一层门槛，因为请求头本身可以伪造。它能挡住一部分只抓 URL 的低成本脚本，但不能承担真正的认证或授权职责。</p>
+<p>更关键的是，防刷必须和监控一起设计。只有限流没有告警，一旦阈值设计错误，系统可能在“不违反单个限制”的情况下持续产生高额费用。</p>
+<h3 id="虚拟资产必须先有预算，再有发放"><a href="#虚拟资产必须先有预算，再有发放" class="headerlink" title="虚拟资产必须先有预算，再有发放"></a>虚拟资产必须先有预算，再有发放</h3><p>优惠券、积分等资产最危险的设计，是“业务想发多少就现场生成多少”。如果资产可以立即抵扣真实消费，那么它本质上已经接近资金。</p>
+<p>更合理的模型应该引入批次和总量：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">活动申请 -&gt; 审批/预算 -&gt; 生成批次 -&gt; 批次额度 -&gt; 逐笔发放 -&gt; 核销/过期/注销 -&gt; 对账<br></code></pre></td></tr></table></figure>
+
+<p>在单机 Demo 中用 <code>AtomicInteger</code> 可以表达“剩余数量递减”的思想，但生产环境通常是多实例部署，不能依赖 JVM 内存计数。一个更稳妥的数据库原子扣减方式是：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">UPDATE</span> coupon_batch<br><span class="hljs-keyword">SET</span> remain_count <span class="hljs-operator">=</span> remain_count <span class="hljs-operator">-</span> <span class="hljs-number">1</span><br><span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> :batchId<br>  <span class="hljs-keyword">AND</span> remain_count <span class="hljs-operator">&gt;</span> <span class="hljs-number">0</span>;<br></code></pre></td></tr></table></figure>
+
+<p>只有更新行数为 1 才代表成功抢到一份额度，然后在同一业务事务里创建具有唯一 ID 的优惠券记录。这样“数量”从一个程序变量变成了可审计、可恢复、可追踪的业务资产。</p>
+<p>批次至少应该能回答这些问题：谁申请的、为什么申请、总额度多少、已发多少、剩多少、属于哪个活动、什么时候失效。安全不是只阻止攻击，也包括出了问题以后能够查清楚发生了什么。</p>
+<h3 id="资金防重的关键是业务订单号贯穿全链路"><a href="#资金防重的关键是业务订单号贯穿全链路" class="headerlink" title="资金防重的关键是业务订单号贯穿全链路"></a>资金防重的关键是业务订单号贯穿全链路</h3><p>支付系统中最常见的错误之一，是每次重试都生成一个新的支付订单号。业务层认为“我重试的是同一笔订单”，支付通道看到的却是多个不同商户订单，于是每次都可能被当成一笔新支付。</p>
+<p>幂等的核心不是“接口上加一个锁”，而是先确定一个稳定的<strong>业务幂等键</strong>，并让它从业务系统一直贯穿到最终资金通道。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant B as Business Service
+    participant P as Payment Service
+    participant C as Payment Channel
+
+    B-&gt;&gt;B: 创建 bizOrderNo
+    B-&gt;&gt;P: pay(bizOrderNo, amount)
+    P-&gt;&gt;P: bizOrderNo 唯一约束/状态机
+    P-&gt;&gt;C: pay(bizOrderNo, amount)
+    C--&gt;&gt;P: 相同商户订单号返回同一业务结果
+    P--&gt;&gt;B: SUCCESS / FAIL / UNKNOWN
+
+    Note over B,C: 重试时仍使用同一个 bizOrderNo
+</code></pre>
+
+<p>数据库层应当再用唯一约束兜底，而不是只依赖应用层先查再插：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">UNIQUE</span> INDEX uk_payment_biz_order<br><span class="hljs-keyword">ON</span> payment_order (biz_order_no);<br></code></pre></td></tr></table></figure>
+
+<p>资金订单还应该有明确状态机。例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">INIT -&gt; PROCESSING -&gt; SUCCESS<br>                  \-&gt; FAIL<br>                  \-&gt; UNKNOWN -&gt; RECONCILING -&gt; SUCCESS / FAIL<br></code></pre></td></tr></table></figure>
+
+<p><code>UNKNOWN</code> 很重要。调用第三方超时，并不能证明对方没有成功。如果此时简单把本地事务回滚，再用新订单号重试，就可能形成“对方已经扣款，本地却没有记录”的典型对账事故。</p>
+<p>因此，更稳妥的思路是<strong>先落本地业务单，再调用外部系统</strong>。外部结果不确定时保留状态和请求标识，通过原业务订单号重试或对账确认，而不是把一次网络超时等同于业务失败。</p>
+<h3 id="监控和对账是最后一道止损线"><a href="#监控和对账是最后一道止损线" class="headerlink" title="监控和对账是最后一道止损线"></a>监控和对账是最后一道止损线</h3><p>防刷、防重属于事前控制，但任何控制都有可能被绕过或实现出错。涉及价值的业务至少应该监控：</p>
+<ul>
+<li>第三方 API 调用量和调用费用；</li>
+<li>优惠券、积分等资产的生产量、发放量、核销量；</li>
+<li>交易笔数、交易金额、退款&#x2F;返现比例；</li>
+<li>单用户、单活动、单渠道的异常增长；</li>
+<li>本地记录与第三方账单之间的差异。</li>
+</ul>
+<p>报警阈值不要只有一个固定值。把当前值与昨日同时段、上周同时段、活动预算和历史基线对比，更容易发现“绝对值不大但变化异常”的问题。</p>
+<p>对于支付、短信等第三方交互，请求前后的关键流水、请求 ID、业务订单号和结果状态都应该可追踪。出现“我方记录少、对方记录多”时，往往意味着调用成功后本地未落库、超时重试、事务回滚或进程异常等边界问题。</p>
+<h2 id="数据必须永远只是数据：注入漏洞的共同根源"><a href="#数据必须永远只是数据：注入漏洞的共同根源" class="headerlink" title="数据必须永远只是数据：注入漏洞的共同根源"></a>数据必须永远只是数据：注入漏洞的共同根源</h2><p>SQL 注入、脚本注入、模板注入虽然表现不同，但根因非常一致：<strong>把外部输入从“数据”升级成了“代码”。</strong></p>
+<p>一旦数据参与了 SQL 结构、表达式结构、脚本结构或 HTML 结构，攻击者就可能通过构造特殊输入改变原来的程序语义。</p>
+<h3 id="SQL-注入不只发生在登录接口"><a href="#SQL-注入不只发生在登录接口" class="headerlink" title="SQL 注入不只发生在登录接口"></a>SQL 注入不只发生在登录接口</h3><p>SQL 注入并不要求满足“GET 参数、接口返回数据、能看到错误信息”这些条件。POST Body、Cookie、Header 只要最终参与 SQL 拼接，都可能成为注入点。</p>
+<p>即使接口没有任何返回内容，也可能通过盲注获取数据。常见方式包括：</p>
+<ul>
+<li><strong>报错注入</strong>：让数据库错误信息带出目标数据；</li>
+<li><strong>布尔盲注</strong>：通过真假条件造成不同响应；</li>
+<li><strong>时间盲注</strong>：通过 <code>SLEEP</code> 等延迟构造真假差异；</li>
+<li><strong>联合查询注入</strong>：利用 <code>UNION</code> 把攻击者希望查询的数据拼入原查询结果。</li>
+</ul>
+<p>所以“统一隐藏异常信息”是必要的，但它不是 SQL 注入的根治手段。真正有效的边界是：<strong>SQL 结构由程序确定，外部值只能通过参数绑定进入。</strong></p>
+<p>JdbcTemplate 不要这样拼接：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">String</span> <span class="hljs-variable">sql</span> <span class="hljs-operator">=</span> <span class="hljs-string">&quot;SELECT id, name FROM userdata WHERE name LIKE &#x27;%&quot;</span> + name + <span class="hljs-string">&quot;%&#x27;&quot;</span>;<br></code></pre></td></tr></table></figure>
+
+<p>而应该参数化：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">String</span> <span class="hljs-variable">sql</span> <span class="hljs-operator">=</span> <span class="hljs-string">&quot;SELECT id, name FROM userdata WHERE name LIKE ?&quot;</span>;<br>List&lt;Map&lt;String, Object&gt;&gt; rows = jdbcTemplate.queryForList(sql, <span class="hljs-string">&quot;%&quot;</span> + name + <span class="hljs-string">&quot;%&quot;</span>);<br></code></pre></td></tr></table></figure>
+
+<p>参数值再奇怪，也只会作为一个字符串值传给数据库，而不会改变 SQL 的语法结构。</p>
+<h3 id="MyBatis-中-和-完全不是一回事"><a href="#MyBatis-中-和-完全不是一回事" class="headerlink" title="MyBatis 中 #{} 和 ${} 完全不是一回事"></a>MyBatis 中 <code>#{}</code> 和 <code>${}</code> 完全不是一回事</h3><p>MyBatis 里，<code>#{}</code> 会走参数绑定，<code>${}</code> 本质上是字符串替换。对于 LIKE 查询，应写成：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Select(&quot;&quot;&quot;</span><br><span class="hljs-meta">    SELECT id, name</span><br><span class="hljs-meta">    FROM userdata</span><br><span class="hljs-meta">    WHERE name LIKE CONCAT(&#x27;%&#x27;, #&#123;name&#125;, &#x27;%&#x27;)</span><br><span class="hljs-meta">    &quot;&quot;&quot;)</span><br>List&lt;UserData&gt; <span class="hljs-title function_">findByName</span><span class="hljs-params">(<span class="hljs-meta">@Param(&quot;name&quot;)</span> String name)</span>;<br></code></pre></td></tr></table></figure>
+
+<p>IN 查询不要让客户端直接传一个逗号拼接字符串再用 <code>${}</code> 展开，而是传 <code>List</code>，使用 <code>foreach</code>：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">select</span> <span class="hljs-attr">id</span>=<span class="hljs-string">&quot;findByNames&quot;</span> <span class="hljs-attr">resultType</span>=<span class="hljs-string">&quot;com.example.UserData&quot;</span>&gt;</span><br>    SELECT id, name<br>    FROM userdata<br>    WHERE name IN<br>    <span class="hljs-tag">&lt;<span class="hljs-name">foreach</span> <span class="hljs-attr">collection</span>=<span class="hljs-string">&quot;names&quot;</span> <span class="hljs-attr">item</span>=<span class="hljs-string">&quot;name&quot;</span> <span class="hljs-attr">open</span>=<span class="hljs-string">&quot;(&quot;</span> <span class="hljs-attr">separator</span>=<span class="hljs-string">&quot;,&quot;</span> <span class="hljs-attr">close</span>=<span class="hljs-string">&quot;)&quot;</span>&gt;</span><br>        #&#123;name&#125;<br>    <span class="hljs-tag">&lt;/<span class="hljs-name">foreach</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">select</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>确实存在参数绑定无法直接覆盖的场景，比如动态列名、排序字段、表名，因为这些属于 SQL 结构而不是值。这时不能简单得出“只能用 <code>${}</code>，所以没办法防注入”的结论。正确做法是把外部输入映射到服务端白名单：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">enum</span> <span class="hljs-title class_">SortField</span> &#123;<br>    ID(<span class="hljs-string">&quot;id&quot;</span>),<br>    AGE(<span class="hljs-string">&quot;age&quot;</span>);<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> String column;<br><br>    SortField(String column) &#123;<br>        <span class="hljs-built_in">this</span>.column = column;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> String <span class="hljs-title function_">column</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-keyword">return</span> column;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>客户端提交的是 <code>ID</code> 或 <code>AGE</code> 这样的业务枚举，真正进入 SQL 结构的是服务端预定义列名，而不是任意字符串。</p>
+<h3 id="动态脚本和规则引擎也有同样的问题"><a href="#动态脚本和规则引擎也有同样的问题" class="headerlink" title="动态脚本和规则引擎也有同样的问题"></a>动态脚本和规则引擎也有同样的问题</h3><p>如果业务使用表达式引擎、规则引擎或脚本引擎，下面这种模式和 SQL 拼接没有本质区别：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs java">engine.eval(<span class="hljs-string">&quot;var name=&#x27;&quot;</span> + name + <span class="hljs-string">&quot;&#x27;; name == &#x27;admin&#x27;;&quot;</span>);<br></code></pre></td></tr></table></figure>
+
+<p>攻击者只要构造能够闭合字符串的输入，就可能把后续内容变成可执行代码。正确方向是把变量通过 Binding、Context 或框架提供的参数机制传入，让脚本本身保持固定：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">Bindings</span> <span class="hljs-variable">bindings</span> <span class="hljs-operator">=</span> engine.createBindings();<br>bindings.put(<span class="hljs-string">&quot;name&quot;</span>, name);<br><span class="hljs-type">Object</span> <span class="hljs-variable">result</span> <span class="hljs-operator">=</span> engine.eval(<span class="hljs-string">&quot;name == &#x27;admin&#x27;&quot;</span>, bindings);<br></code></pre></td></tr></table></figure>
+
+<p>不过这里必须加一个版本说明。早期 Java 项目常用 Nashorn JavaScript 引擎，并通过 <code>SecurityManager + AccessControlContext</code> 限制脚本权限。<strong>这套方案在现代 JDK 中已经不能照搬：Nashorn 已从 JDK 移除，Security Manager 也已经走完弃用并被永久禁用的路线。</strong></p>
+<p>今天更推荐的设计顺序是：</p>
+<ol>
+<li>能不用通用脚本执行，就改成受限 DSL、规则模型或显式配置；</li>
+<li>必须执行动态代码时，优先使用引擎自身提供的权限模型；</li>
+<li>对真正不可信代码，使用独立进程、容器或其他 OS 级隔离，而不是指望 JVM 内部沙箱兜底。</li>
+</ol>
+<p>这也是一个典型的版本演进：资料中的“限制脚本权限”这个安全目标仍然成立，但具体实现已经发生变化。</p>
+<h2 id="XSS：输入、存储和输出必须放在同一个上下文里理解"><a href="#XSS：输入、存储和输出必须放在同一个上下文里理解" class="headerlink" title="XSS：输入、存储和输出必须放在同一个上下文里理解"></a>XSS：输入、存储和输出必须放在同一个上下文里理解</h2><p>XSS（Cross-Site Scripting）的本质仍然是把数据变成代码。用户原本提交的是姓名、评论、简介，攻击者却提交了 HTML&#x2F;JavaScript；如果页面在输出时把它当成可执行标记解释，脚本就会运行。</p>
+<p>特别危险的是 Stored XSS：恶意内容先进入数据库，之后每个读取该数据的用户都可能触发脚本。</p>
+<h3 id="最重要的是按输出上下文编码"><a href="#最重要的是按输出上下文编码" class="headerlink" title="最重要的是按输出上下文编码"></a>最重要的是按输出上下文编码</h3><p>对于 Thymeleaf：</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs html"><span class="hljs-comment">&lt;!-- 安全的普通文本输出，会转义 --&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">span</span> <span class="hljs-attr">th:text</span>=<span class="hljs-string">&quot;$&#123;username&#125;&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">span</span>&gt;</span><br><br><span class="hljs-comment">&lt;!-- 会把内容当 HTML 解释，不能直接放不可信数据 --&gt;</span><br><span class="hljs-tag">&lt;<span class="hljs-name">span</span> <span class="hljs-attr">th:utext</span>=<span class="hljs-string">&quot;$&#123;username&#125;&quot;</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">span</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果业务真的需要“富文本评论”这类 HTML 输入，不能简单做字符串替换，而要使用 HTML Sanitizer 按允许的标签和属性做白名单清洗，然后在明确的富文本上下文中输出。</p>
+<p>早期项目里常见一种做法：在 Servlet Filter、<code>HttpServletRequestWrapper</code>、Jackson 反序列化器中统一把所有字符串做 HTML Escape，然后把转义后的内容存进数据库。这种方式能够挡住一部分攻击，但不应该成为现代系统唯一的 XSS 策略。</p>
+<p>原因是 HTML、JavaScript、URL、CSS 的安全编码规则并不相同。输入阶段统一把 <code>&lt;</code> 变成 <code>&amp;lt;</code>，会把“展示上下文”耦合进数据存储层，既可能污染原始数据，也无法保证它未来进入其他上下文时仍然安全。</p>
+<p>更稳妥的原则是：</p>
+<ul>
+<li>输入阶段做业务合法性校验和必要的规范化；</li>
+<li>富文本场景做明确的 HTML 白名单清洗；</li>
+<li>输出阶段根据具体上下文做编码；</li>
+<li>历史库中已经存在的危险内容，也要在输出侧继续防守；</li>
+<li>模板默认使用自动转义能力，不轻易使用 raw&#x2F;unsafe 输出。</li>
+</ul>
+<h3 id="HttpOnly-只能降低-XSS-的损失，不能消灭-XSS"><a href="#HttpOnly-只能降低-XSS-的损失，不能消灭-XSS" class="headerlink" title="HttpOnly 只能降低 XSS 的损失，不能消灭 XSS"></a>HttpOnly 只能降低 XSS 的损失，不能消灭 XSS</h3><p>Session Cookie 应开启 <code>HttpOnly</code>，这样 JavaScript 无法通过 <code>document.cookie</code> 直接读取它；同时通常还应配置 <code>Secure</code>，并根据业务选择适当的 <code>SameSite</code> 策略。</p>
+<p>但需要理解它的边界：<code>HttpOnly</code> 只能阻止脚本直接读取 Cookie，<strong>不能阻止已经运行在页面里的恶意脚本以当前用户身份发起请求、读取页面内容或修改 DOM</strong>。因此它是纵深防御，而不是 XSS 的替代方案。</p>
+<p>现代 Web 应用还可以通过 CSP（Content Security Policy）进一步压缩脚本注入的可利用空间，例如限制脚本来源、禁用不必要的内联脚本。安全设计越接近“即使某一层漏了，下一层仍能降低损失”，系统越不容易因为单点失误彻底失守。</p>
+<h2 id="敏感数据保护：先判断它到底需不需要“还原”"><a href="#敏感数据保护：先判断它到底需不需要“还原”" class="headerlink" title="敏感数据保护：先判断它到底需不需要“还原”"></a>敏感数据保护：先判断它到底需不需要“还原”</h2><p>密码、身份证、手机号、姓名、密钥看起来都属于敏感数据，但不能使用同一种方式处理。选择算法前，先判断业务是否需要恢复原文。</p>
+<table>
+<thead>
+<tr>
+<th>数据类型</th>
+<th>是否需要恢复原文</th>
+<th>推荐方向</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>登录密码</td>
+<td>不需要</td>
+<td>专用密码哈希</td>
+</tr>
+<tr>
+<td>身份证、手机号、姓名等隐私数据</td>
+<td>可能需要</td>
+<td>认证加密 + 密钥管理</td>
+</tr>
+<tr>
+<td>精确检索辅助索引</td>
+<td>不需要展示原文</td>
+<td>HMAC&#x2F;受控哈希索引</td>
+</tr>
+<tr>
+<td>API Secret、加密主密钥</td>
+<td>业务代码不应直接持有明文</td>
+<td>KMS&#x2F;HSM&#x2F;Secret Manager</td>
+</tr>
+<tr>
+<td>网络传输中的敏感数据</td>
+<td>传输结束后不需要保持该密文</td>
+<td>TLS</td>
+</tr>
+</tbody></table>
+<h3 id="密码不是“加密保存”，而是做专用密码哈希"><a href="#密码不是“加密保存”，而是做专用密码哈希" class="headerlink" title="密码不是“加密保存”，而是做专用密码哈希"></a>密码不是“加密保存”，而是做专用密码哈希</h3><p>密码登录只需要验证“用户这次输入的密码是否和注册时相同”，并不需要恢复用户原始密码。因此数据库不应该保存可解密的密码密文。</p>
+<p>MD5、SHA-1 这类通用高速哈希也不适合直接保存密码。问题不在于它们是否“可逆”，而在于它们太快，攻击者可以高速枚举候选密码。多做几次 MD5、加一个全站固定盐，也不会从根本上改变这个问题。</p>
+<p>安全密码存储需要两个特征：</p>
+<ul>
+<li>每个密码使用独立随机盐，消除预计算和彩虹表优势；</li>
+<li>使用故意设计得较慢、可调成本的 Password Hashing 算法，提高离线爆破成本。</li>
+</ul>
+<p>在 Spring Security 中可以使用 <code>PasswordEncoder</code>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Bean</span><br>PasswordEncoder <span class="hljs-title function_">passwordEncoder</span><span class="hljs-params">()</span> &#123;<br>    <span class="hljs-keyword">return</span> PasswordEncoderFactories.createDelegatingPasswordEncoder();<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>注册时：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-type">String</span> <span class="hljs-variable">encoded</span> <span class="hljs-operator">=</span> passwordEncoder.encode(rawPassword);<br>user.setPassword(encoded);<br></code></pre></td></tr></table></figure>
+
+<p>登录时：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">if</span> (!passwordEncoder.matches(rawPassword, user.getPassword())) &#123;<br>    <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">BadCredentialsException</span>(<span class="hljs-string">&quot;用户名或密码错误&quot;</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p><code>DelegatingPasswordEncoder</code> 的价值不仅是避免自己处理盐，还能通过编码前缀支持算法迁移。BCrypt 仍然是成熟选择；新系统也可以评估 Argon2id 等内存硬型 Password Hashing 算法。具体成本参数不要照抄固定数字，而应该在生产硬件上基准测试，在可接受登录延迟和抗暴力破解能力之间取平衡。</p>
+<p>即使密码哈希做得很好，在线暴力破解仍然存在，所以登录链路还需要失败次数控制、风险验证、账号保护和异常登录监控。</p>
+<h3 id="可逆隐私数据使用认证加密，而不是-ECB"><a href="#可逆隐私数据使用认证加密，而不是-ECB" class="headerlink" title="可逆隐私数据使用认证加密，而不是 ECB"></a>可逆隐私数据使用认证加密，而不是 ECB</h3><p>身份证、手机号、姓名等数据有时需要恢复原文，因此必须使用可逆加密。AES 是常见对称加密标准，但“用了 AES”并不等于安全，工作模式同样重要。</p>
+<p>ECB 会让相同明文块产生相同密文块，而且各分组独立，泄露结构模式，也缺少完整性保护。因此不应该用于敏感业务数据。</p>
+<p>CBC 比 ECB 更好地隐藏重复模式，但它本身只提供机密性，不天然提供密文认证。今天处理业务敏感数据，更推荐使用 AEAD（Authenticated Encryption with Associated Data）模式，例如 <strong>AES-GCM</strong>。</p>
+<p>AES-GCM 同时提供：</p>
+<ul>
+<li>机密性：不知道密钥无法恢复明文；</li>
+<li>完整性：密文被篡改时认证校验失败；</li>
+<li>AAD：可以把未加密但需要绑定的数据一起纳入认证。</li>
+</ul>
+<p>Java 中的核心加密逻辑可以这样写：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">record</span> <span class="hljs-title class_">EncryptedValue</span><span class="hljs-params">(<span class="hljs-type">byte</span>[] iv, <span class="hljs-type">byte</span>[] cipherText)</span> &#123;&#125;<br><br><span class="hljs-keyword">public</span> EncryptedValue <span class="hljs-title function_">encrypt</span><span class="hljs-params">(<span class="hljs-type">byte</span>[] plaintext,</span><br><span class="hljs-params">                              SecretKey key,</span><br><span class="hljs-params">                              <span class="hljs-type">byte</span>[] aad)</span> <span class="hljs-keyword">throws</span> GeneralSecurityException &#123;<br>    <span class="hljs-type">byte</span>[] iv = <span class="hljs-keyword">new</span> <span class="hljs-title class_">byte</span>[<span class="hljs-number">12</span>];<br>    <span class="hljs-keyword">new</span> <span class="hljs-title class_">SecureRandom</span>().nextBytes(iv);<br><br>    <span class="hljs-type">Cipher</span> <span class="hljs-variable">cipher</span> <span class="hljs-operator">=</span> Cipher.getInstance(<span class="hljs-string">&quot;AES/GCM/NoPadding&quot;</span>);<br>    cipher.init(<br>            Cipher.ENCRYPT_MODE,<br>            key,<br>            <span class="hljs-keyword">new</span> <span class="hljs-title class_">GCMParameterSpec</span>(<span class="hljs-number">128</span>, iv)<br>    );<br><br>    <span class="hljs-keyword">if</span> (aad != <span class="hljs-literal">null</span>) &#123;<br>        cipher.updateAAD(aad);<br>    &#125;<br><br>    <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">EncryptedValue</span>(iv, cipher.doFinal(plaintext));<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里最容易踩的坑不是 API 调用，而是密钥和 IV 管理：</p>
+<ul>
+<li>不要把 AES Key 写死在代码或 Git 仓库里；</li>
+<li>GCM 在同一密钥下不能复用 nonce&#x2F;IV；</li>
+<li>密钥、密文、访问权限最好分离；</li>
+<li>业务服务不应随意读取长期主密钥。</li>
+</ul>
+<p>独立加密服务、密钥与业务密文分开保存的设计方向仍然成立。现代生产系统通常进一步使用 KMS&#x2F;HSM 做密钥托管和 Envelope Encryption（信封加密）：业务使用 Data Key 加密数据，再由 KMS 的主密钥加密 Data Key，数据库保存的是密文、IV、认证 Tag、被包裹的 Data Key 和必要元数据。</p>
+<pre><code class=" mermaid">flowchart LR
+    B[Business Service] --&gt;|请求 Data Key| K[KMS / HSM]
+    K --&gt;|Plain DEK + Encrypted DEK| B
+    B --&gt;|AES-GCM| C[Ciphertext]
+    B --&gt; DB[(Business DB)]
+    DB --- C
+    DB --- E[Encrypted DEK]
+    DB --- I[IV / Tag / Key Version]
+    B -. 不长期保存主密钥 .-&gt; K
+</code></pre>
+
+<p>AAD 可以绑定 <code>tenantId</code>、<code>userId</code>、字段类型或业务记录 ID。这样即使有人把一条记录的密文复制到另一条记录上，解密时也可能因为 AAD 不匹配而失败。</p>
+<h3 id="加密后的手机号、身份证怎么查"><a href="#加密后的手机号、身份证怎么查" class="headerlink" title="加密后的手机号、身份证怎么查"></a>加密后的手机号、身份证怎么查</h3><p>随机 IV 的 AES-GCM 会让同一个明文每次产生不同密文，所以不能依赖“把查询值再加密一次然后等值匹配”来做一般检索。</p>
+<p>如果只需要精确查询，可以单独保存一个检索索引：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">phone_ciphertext = AES-GCM(phone)<br>phone_masked     = 138****1234<br>phone_lookup     = HMAC-SHA-256(indexKey, normalize(phone))<br></code></pre></td></tr></table></figure>
+
+<p>查询时对用户输入做相同规范化和 HMAC，再按 <code>phone_lookup</code> 精确匹配；真正展示时再按权限解密 <code>phone_ciphertext</code>。</p>
+<p>相比直接保存普通 SHA-256，HMAC 对手机号、身份证这类低熵数据更安全，因为攻击者即使拿到数据库，也不能在不知道独立 <code>indexKey</code> 的情况下轻易枚举所有可能值生成字典。</p>
+<p>这种索引只适合精确匹配，不适合模糊搜索。对高敏感字段来说，“不能方便地 <code>%LIKE%</code>”通常是有意的安全取舍，而不是需要想办法绕过的限制。</p>
+<h3 id="日志、配置文件和第三方-Secret-也属于敏感数据面"><a href="#日志、配置文件和第三方-Secret-也属于敏感数据面" class="headerlink" title="日志、配置文件和第三方 Secret 也属于敏感数据面"></a>日志、配置文件和第三方 Secret 也属于敏感数据面</h3><p>数据库字段做了加密，并不代表敏感数据已经安全。如果请求日志、异常日志、审计日志里仍然打印身份证、手机号、密码、支付卡号或第三方 Secret，攻击者甚至不需要碰数据库。</p>
+<p>日志脱敏最好在统一日志组件或结构化日志层完成，而不是依赖每个开发者手工 <code>replace</code>。例如把 <code>mobile</code>、<code>idCard</code>、<code>bankCard</code> 这类字段定义为敏感字段，在 Logback Converter、日志序列化器、网关日志插件或统一审计组件中做遮掩。密码、Token、Cookie、私钥和 SecretKey 原则上不应该进入业务日志。</p>
+<p>第三方平台的 <code>SecretId/SecretKey</code>、数据库密码、TLS 私钥、KMS 凭据也不要提交到 Git 仓库或写死在 <code>application.yml</code>。生产系统应通过 Secret Manager、Kubernetes Secret 配合外部密钥管理、Vault、云厂商凭据服务或短期 IAM 凭证注入，并具备轮换和吊销能力。</p>
+<p>这里要区分三个经常混在一起的词：<strong>脱敏用于展示，加密用于受控恢复，Secret Management 用于保护系统自身凭据。</strong> 三者解决的是不同问题，不能互相替代。</p>
+<h2 id="传输安全：理解-TLS，而不是在客户端自己再造一层“加密”"><a href="#传输安全：理解-TLS，而不是在客户端自己再造一层“加密”" class="headerlink" title="传输安全：理解 TLS，而不是在客户端自己再造一层“加密”"></a>传输安全：理解 TLS，而不是在客户端自己再造一层“加密”</h2><p>HTTP 明文传输无法保证机密性、完整性和对端身份。客户端自己把密码做一次 MD5、AES 或 Base64 再发给服务端，并不能替代 HTTPS：如果攻击者能够截获通信，同样可以重放客户端产生的那串“加密后密码”。</p>
+<p>TLS 的目标是解决三件事：</p>
+<ul>
+<li><strong>机密性</strong>：第三方不能读懂传输内容；</li>
+<li><strong>完整性</strong>：数据被篡改可以被发现；</li>
+<li><strong>身份认证</strong>：客户端能够确认自己连接的是目标服务端。</li>
+</ul>
+<h3 id="TLS-1-2-RSA-握手的历史模型"><a href="#TLS-1-2-RSA-握手的历史模型" class="headerlink" title="TLS 1.2 RSA 握手的历史模型"></a>TLS 1.2 RSA 握手的历史模型</h3><p>经典 TLS 1.2 RSA 握手可以抽象成：客户端拿到服务端证书中的 RSA 公钥，用它加密一个用于派生会话密钥的秘密；服务端用私钥解开；之后双方改用更高效的对称密钥加密业务数据。</p>
+<p>它体现了典型的混合密码系统：<strong>非对称密码解决身份和密钥建立，对称密码承担大流量数据加密。</strong></p>
+<p>不过今天阅读这段流程时需要明确它的历史位置。现代 HTTPS 更推荐 TLS 1.3，静态 RSA 密钥交换已经退出主流握手流程，密钥建立使用 (EC)DHE 一类临时密钥交换，从而提供前向保密。</p>
+<p>TLS 1.3 可以简化理解为：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant C as Client
+    participant S as Server
+    C-&gt;&gt;S: ClientHello + supported_versions + key_share
+    S-&gt;&gt;C: ServerHello + key_share
+    Note over C,S: 双方通过 (EC)DHE 派生握手密钥
+    S-&gt;&gt;C: Certificate + CertificateVerify + Finished
+    C-&gt;&gt;C: 验证证书链、域名和签名
+    C-&gt;&gt;S: Finished
+    Note over C,S: 派生应用流量密钥
+    C-&gt;&gt;S: Encrypted HTTP Request
+    S--&gt;&gt;C: Encrypted HTTP Response
+</code></pre>
+
+<p>证书链的核心信任关系仍然没有改变：站点证书由中间 CA 签发，中间 CA 最终链到操作系统或浏览器信任的根 CA；客户端验证签名链、域名、有效期等信息后，才认为当前公钥确实属于目标站点。</p>
+<p>对于服务间通信，如果双方都需要认证身份，可以使用 mTLS，让服务端也验证客户端证书。但 mTLS 的粒度主要是“这个客户端是否拥有合法证书”，它不自动等价于具体业务权限。因此，服务间仍然需要应用层授权、租户隔离、业务签名或请求权限控制。</p>
+<h2 id="把这些规则组合成一条完整的业务安全链路"><a href="#把这些规则组合成一条完整的业务安全链路" class="headerlink" title="把这些规则组合成一条完整的业务安全链路"></a>把这些规则组合成一条完整的业务安全链路</h2><p>前面的内容看起来分别属于输入校验、风控、支付、Web 安全和密码学，实际上它们可以落到同一条调用链上：</p>
+<pre><code class=" mermaid">flowchart TD
+    C[外部客户端] --&gt; E[可信边缘代理 / Gateway]
+    E --&gt; T[认证与 Token 校验]
+    T --&gt; V[参数校验 / 业务白名单 / 授权]
+    V --&gt; R[防刷 / 配额 / 风险控制]
+    R --&gt; S[业务服务]
+
+    S --&gt; I[幂等键 / 状态机 / 唯一约束]
+    I --&gt; D[(业务数据库)]
+    I --&gt; X[第三方支付 / 短信 / 外部服务]
+
+    S --&gt; Q[参数化 SQL / 安全模板输出]
+    S --&gt; P[敏感数据加密 / 脱敏 / 查询索引]
+    P --&gt; K[KMS / HSM]
+
+    D --&gt; O[审计 / 指标 / 对账]
+    X --&gt; O
+    O --&gt; A[告警 / 熔断 / 人工止损]
+</code></pre>
+
+<p>这张图里没有哪一层可以单独宣称“系统已经安全”。安全更像木桶：最薄弱的那条路径足以绕过其他所有保护。</p>
+<p>例如：</p>
+<ul>
+<li>HTTPS 做得再好，服务端如果直接相信客户端传来的 <code>userId</code>，仍然会越权；</li>
+<li>参数校验做得再严，SQL 仍然用字符串拼接，依旧可能被注入；</li>
+<li>支付接口有数据库锁，但每次重试换一个商户订单号，仍然可能重复扣款；</li>
+<li>数据库用了 AES-GCM，但密钥和密文放在同一份配置备份里，分层保护就失去了意义；</li>
+<li>XSS 已经修复输入入口，但历史脏数据输出时仍使用 raw HTML，旧数据依旧可能触发攻击。</li>
+</ul>
+<p>真正稳定的做法是从数据生命周期思考：<strong>它从哪里来、谁有权决定、进入系统时如何校验、在内部如何流转、是否会被解释成代码、是否代表资产、如何持久化、如何传输、出了错怎么发现和恢复。</strong></p>
+<h2 id="现代-Java-项目中需要特别修正的旧版本认知"><a href="#现代-Java-项目中需要特别修正的旧版本认知" class="headerlink" title="现代 Java 项目中需要特别修正的旧版本认知"></a>现代 Java 项目中需要特别修正的旧版本认知</h2><p>如果从现代 Java&#x2F;Spring 技术栈回看这些实现，会发现核心安全原则仍然成立，但有几处历史方案已经不能原样复制到新项目：</p>
+<table>
+<thead>
+<tr>
+<th>历史做法</th>
+<th>今天应该如何理解</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Nashorn JavaScript <code>ScriptEngine</code></td>
+<td>Nashorn 已从 JDK 移除；动态执行应优先改为受限 DSL&#x2F;规则模型，必要时使用独立引擎或进程隔离</td>
+</tr>
+<tr>
+<td><code>SecurityManager</code> 做脚本沙箱</td>
+<td>Security Manager 已被弃用并在现代 JDK 中永久禁用，不能再作为新系统沙箱方案</td>
+</tr>
+<tr>
+<td>Spring MVC 自定义 Session 注解获取用户</td>
+<td>仍然可用，但 Spring Security 项目优先使用认证上下文与 <code>@AuthenticationPrincipal</code></td>
+</tr>
+<tr>
+<td>全局输入 HTML Escape 防 XSS</td>
+<td>可作为局部补充，但现代实践更强调按输出上下文编码、富文本白名单 Sanitization 和 CSP</td>
+</tr>
+<tr>
+<td>MD5 + Salt 保存密码</td>
+<td>不应继续使用；选择 BCrypt、Argon2id 等专用 Password Hashing 算法</td>
+</tr>
+<tr>
+<td>AES-CBC 作为主要敏感数据加密</td>
+<td>更推荐 AES-GCM 等 AEAD 模式，同时配套 KMS&#x2F;HSM 与密钥生命周期管理</td>
+</tr>
+<tr>
+<td>TLS 1.2 RSA 握手作为 HTTPS 主模型</td>
+<td>适合理解历史机制；新系统应优先启用 TLS 1.3，必要时兼容 TLS 1.2</td>
+</tr>
+</tbody></table>
+<p>这里反映出一个重要规律：<strong>安全目标通常比具体 API 活得更久。</strong> “不把数据当代码”“不信任客户端身份”“限制动态代码权限”“密码使用慢哈希”“密钥与密文隔离”这些目标没有过时，过时的是某些实现它们的工具。</p>
+<h2 id="一份可以直接用于-Code-Review-的检查清单"><a href="#一份可以直接用于-Code-Review-的检查清单" class="headerlink" title="一份可以直接用于 Code Review 的检查清单"></a>一份可以直接用于 Code Review 的检查清单</h2><p>当一个新接口上线前，可以按下面的顺序快速检查：</p>
+<table>
+<thead>
+<tr>
+<th>检查面</th>
+<th>需要回答的问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>信任边界</td>
+<td>哪些字段由客户端决定？哪些必须服务端重算或查询？</td>
+</tr>
+<tr>
+<td>身份</td>
+<td>当前用户是否来自认证上下文，而不是请求参数？</td>
+</tr>
+<tr>
+<td>权限</td>
+<td>用户有权操作目标资源吗？是否只校验了“已登录”？</td>
+</tr>
+<tr>
+<td>参数</td>
+<td>是否有范围、格式、枚举、状态和业务白名单校验？</td>
+</tr>
+<tr>
+<td>请求头</td>
+<td>是否错误地把 IP、Referer、Cookie、自定义 Header 当成身份？</td>
+</tr>
+<tr>
+<td>防刷</td>
+<td>匿名资源是否有频率、单人、设备、全局和预算限制？</td>
+</tr>
+<tr>
+<td>虚拟资产</td>
+<td>是否先有批次、额度和审批，再有发放？</td>
+</tr>
+<tr>
+<td>幂等</td>
+<td>重试是否复用同一个业务幂等键？数据库是否有唯一约束？</td>
+</tr>
+<tr>
+<td>外部调用</td>
+<td>超时后如何判断结果？是否存在“第三方成功、本地回滚”的窗口？</td>
+</tr>
+<tr>
+<td>SQL</td>
+<td>外部输入是否全部参数化？动态结构是否严格白名单？</td>
+</tr>
+<tr>
+<td>动态执行</td>
+<td>是否把外部字符串拼进表达式、模板、命令或脚本？</td>
+</tr>
+<tr>
+<td>XSS</td>
+<td>输出是否按上下文编码？富文本是否经过 Sanitization？</td>
+</tr>
+<tr>
+<td>Cookie</td>
+<td>Session Cookie 是否按场景配置 HttpOnly、Secure、SameSite？</td>
+</tr>
+<tr>
+<td>密码</td>
+<td>是否使用专用 Password Hashing，而不是 MD5&#x2F;SHA 快速哈希？</td>
+</tr>
+<tr>
+<td>隐私数据</td>
+<td>是否使用 AEAD 加密？密钥是否脱离代码和业务数据库管理？</td>
+</tr>
+<tr>
+<td>查询索引</td>
+<td>低熵敏感字段是否避免直接普通哈希，改用受控 HMAC 索引？</td>
+</tr>
+<tr>
+<td>传输</td>
+<td>是否强制 HTTPS&#x2F;TLS，内部敏感 RPC 是否也加密？</td>
+</tr>
+<tr>
+<td>审计监控</td>
+<td>调用量、资产量、交易金额、异常增长和对账差异是否可观测？</td>
+</tr>
+<tr>
+<td>止损</td>
+<td>一旦异常，能否快速限流、熔断、暂停活动或冻结资金操作？</td>
+</tr>
+</tbody></table>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>业务安全并不是在代码完成以后补几个过滤器，也不是接入一次漏洞扫描就结束。它首先是一种建模方式：客户端只表达意图，服务端掌握事实；用户身份来自可信认证链；所有外部输入都要在进入不同执行上下文前建立明确边界；有价值的资源必须有额度，资金操作必须有全链路幂等；密码与可逆隐私数据使用完全不同的保护方式；网络传输则交给成熟的 TLS 协议，而不是自己发明“加密参数”。</p>
+<p>如果把整篇文章压缩成几句话，可以记住这几条：<strong>不信任客户端，不把数据当代码，不让资产凭空产生，不让同一笔钱执行两次，不保存原始密码，不把密钥和密文放在同一个篮子里，并且任何防线都要配套监控和对账。</strong> 这些原则看似基础，却恰恰是业务系统最容易因为“图方便”而被破坏的地方。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Security/" class="category-chain-item">Security</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Java/" class="print-no-link">#Java</a>
+      
+        <a href="/tags/Spring-Security/" class="print-no-link">#Spring Security</a>
+      
+        <a href="/tags/%E5%B9%82%E7%AD%89/" class="print-no-link">#幂等</a>
+      
+        <a href="/tags/Web-%E5%AE%89%E5%85%A8/" class="print-no-link">#Web 安全</a>
+      
+        <a href="/tags/SQL-%E6%B3%A8%E5%85%A5/" class="print-no-link">#SQL 注入</a>
+      
+        <a href="/tags/XSS/" class="print-no-link">#XSS</a>
+      
+        <a href="/tags/AES-GCM/" class="print-no-link">#AES-GCM</a>
+      
+        <a href="/tags/TLS/" class="print-no-link">#TLS</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Java 业务安全设计：从不信任客户端到幂等、注入防护与敏感数据保护</div>
+      <div>https://allendericdalexander.github.io/2026/09/08/geeker/088java100error/3java-business-security-design/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年9月8日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/09/08/geeker/088java100error/5java-production-engineering/" title="Java 生产级工程实践：从函数式编程到故障诊断与 Kubernetes">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Java 生产级工程实践：从函数式编程到故障诊断与 Kubernetes</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/09/08/geeker/088java100error/4java-business-system-engineering-practices/" title="Java 业务系统工程化设计：从反射、Spring 到缓存、异步与多存储架构">
+                        <span class="hidden-mobile">Java 业务系统工程化设计：从反射、Spring 到缓存、异步与多存储架构</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

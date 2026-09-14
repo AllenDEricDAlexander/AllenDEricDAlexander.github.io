@@ -1,0 +1,1794 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="以 Rocky Linux 9 为实验环境，从 NFS 基础原理、服务端配置、UID&#x2F;GID 权限模型，到 NFSv3&#x2F;NFSv4、fstab、systemd automount、autofs、故障排查与完整实验，系统学习 Linux NFS。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Rocky Linux 9 NFS 完整学习笔记：原理、配置、自动挂载与实操实验">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/09/09/devops/learn/rocky-linux-9-nfs-complete-guide/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="以 Rocky Linux 9 为实验环境，从 NFS 基础原理、服务端配置、UID&#x2F;GID 权限模型，到 NFSv3&#x2F;NFSv4、fstab、systemd automount、autofs、故障排查与完整实验，系统学习 Linux NFS。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-08T23:24:00.000Z">
+<meta property="article:modified_time" content="2026-09-08T23:26:22.215Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="Linux">
+<meta property="article:tag" content="NFS">
+<meta property="article:tag" content="NFSv4">
+<meta property="article:tag" content="Rocky Linux 9">
+<meta property="article:tag" content="autofs">
+<meta property="article:tag" content="fstab">
+<meta property="article:tag" content="systemd">
+<meta property="article:tag" content="文件共享">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>Rocky Linux 9 NFS 完整学习笔记：原理、配置、自动挂载与实操实验 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Rocky Linux 9 NFS 完整学习笔记：原理、配置、自动挂载与实操实验"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-09-09 07:24" pubdate>
+          2026年9月9日 早上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          5k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          43 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">Rocky Linux 9 NFS 完整学习笔记：原理、配置、自动挂载与实操实验</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <h1 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h1><p>NFS（Network File System，网络文件系统）是一种让客户端通过网络访问远程服务器目录的文件系统协议。</p>
+<p>它和 <code>scp</code>、<code>rsync</code> 最大的区别是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">scp / rsync<br>客户端 ──复制/同步──&gt; 服务端<br>              ↓<br>          两边各有文件<br></code></pre></td></tr></table></figure>
+
+<p>而 NFS 是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">客户端<br>   │<br>   │ 网络文件系统访问<br>   ↓<br>NFS Server<br>   │<br>   ↓<br>真实文件系统<br></code></pre></td></tr></table></figure>
+
+<p>客户端把服务端的目录挂载到本地以后，使用体验和本地目录非常接近。</p>
+<p>例如服务端：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">Hostname: rocky-pi<br>IP:       192.168.0.50<br>用户:     rocky<br>共享目录: /srv/nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>客户端把它挂载到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>之后访问：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /mnt/nfs-lab/hello.txt<br></code></pre></td></tr></table></figure>
+
+<p>实际上访问的是服务器上的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/srv/nfs/lab/hello.txt<br></code></pre></td></tr></table></figure>
+
+<p>这不是文件复制，而是客户端通过 NFS 协议实时访问远程文件系统。</p>
+<p>本篇使用如下实验环境：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs text">操作系统：Rocky Linux 9<br>Hostname：rocky-pi<br>IP：192.168.0.50<br>用户：rocky<br>SSH：已配置免密登录<br><br>NFS Server：<br>192.168.0.50<br><br>NFS 共享目录：<br>/srv/nfs/lab<br><br>Linux Client 挂载目录：<br>/mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>实验默认局域网网段：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.0.0/24<br></code></pre></td></tr></table></figure>
+
+<p>可以通过：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ip route<br></code></pre></td></tr></table></figure>
+
+<p>确认。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">default via 192.168.0.1 dev eth0<br>192.168.0.0/24 dev eth0 proto kernel scope link src 192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h1 id="详解"><a href="#详解" class="headerlink" title="详解"></a>详解</h1><h2 id="一、NFS-的核心工作模型"><a href="#一、NFS-的核心工作模型" class="headerlink" title="一、NFS 的核心工作模型"></a>一、NFS 的核心工作模型</h2><p>NFS 本质上是 Client&#x2F;Server 模型：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><code class="hljs text">     NFS Client<br>         │<br>         │ read/write/open<br>         ↓<br>  NFS Client Kernel<br>         │<br>         │ RPC / TCP<br>         ↓<br>    网络传输<br>         │<br>         ↓<br>   NFS Server<br>         │<br>         ↓<br>  Linux VFS 层<br>         │<br>         ↓<br>XFS / ext4 / 其他文件系统<br>         │<br>         ↓<br>     实际磁盘<br></code></pre></td></tr></table></figure>
+
+<p>应用程序并不需要知道文件位于远程服务器。</p>
+<p>例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">vim /mnt/nfs-lab/test.txt<br></code></pre></td></tr></table></figure>
+
+<p>对于 <code>vim</code> 来说，它只是打开了一个普通文件。</p>
+<p>实际上 Linux 内核会把文件操作转换为 NFS 请求：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">vim<br> ↓<br>open()<br> ↓<br>Linux VFS<br> ↓<br>NFS Client<br> ↓<br>TCP/IP<br> ↓<br>NFS Server<br> ↓<br>服务器文件系统<br></code></pre></td></tr></table></figure>
+
+<p>因此 NFS 可以让多个服务器共享同一份文件。</p>
+<p>典型用途包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">共享配置文件<br>共享静态资源<br>共享备份目录<br>共享软件包<br>虚拟化存储<br>集群共享目录<br>开发测试环境共享文件<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="二、NFS-与-rsync、scp-的区别"><a href="#二、NFS-与-rsync、scp-的区别" class="headerlink" title="二、NFS 与 rsync、scp 的区别"></a>二、NFS 与 rsync、scp 的区别</h2><p><code>scp</code> 是文件传输：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">A ──────&gt; B<br></code></pre></td></tr></table></figure>
+
+<p>文件复制完成后，A 和 B 各自拥有独立副本。</p>
+<p><code>rsync</code> 是同步：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">A ──比较差异──&gt; B<br></code></pre></td></tr></table></figure>
+
+<p>它更适合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">备份<br>镜像同步<br>发布文件<br>增量同步<br></code></pre></td></tr></table></figure>
+
+<p>NFS 则不同：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Client<br>   │<br>   └──────────────&gt; Server File System<br></code></pre></td></tr></table></figure>
+
+<p>客户端看到的是服务端的同一份文件。</p>
+<p>因此：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">scp / rsync = 数据传输<br><br>NFS = 远程文件系统访问<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="三、NFS-Server-与-Client"><a href="#三、NFS-Server-与-Client" class="headerlink" title="三、NFS Server 与 Client"></a>三、NFS Server 与 Client</h2><p>在 Linux 中，NFS Server 负责：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">导出目录<br>控制哪些客户端可以访问<br>控制读写权限<br>处理 NFS 请求<br></code></pre></td></tr></table></figure>
+
+<p>客户端负责：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">发现 NFS Server<br>挂载远程目录<br>执行文件读写<br>处理缓存和重试<br></code></pre></td></tr></table></figure>
+
+<p>在 Rocky Linux 9 中，NFS 相关工具主要来自：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">nfs-utils<br></code></pre></td></tr></table></figure>
+
+<p>安装：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dnf install -y nfs-utils<br></code></pre></td></tr></table></figure>
+
+<p>其中常见命令包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">exportfs<br>showmount<br>nfsstat<br>mount.nfs<br>rpcinfo<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="四、NFSv3-与-NFSv4"><a href="#四、NFSv3-与-NFSv4" class="headerlink" title="四、NFSv3 与 NFSv4"></a>四、NFSv3 与 NFSv4</h2><p>NFSv3 与 NFSv4 在架构上差别很明显。</p>
+<p>NFSv3 依赖多个 RPC 服务：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">Client<br>  │<br>  ├──── 111 ───── rpcbind<br>  │<br>  ├──── xxxx ──── mountd<br>  │<br>  ├──── xxxx ──── lockd<br>  │<br>  └──── 2049 ──── nfsd<br></code></pre></td></tr></table></figure>
+
+<p>其中一些 RPC 服务使用动态端口，因此防火墙配置相对复杂。</p>
+<p>NFSv4 将很多能力整合到了协议本身：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">Client<br>   │<br>   │ TCP 2049<br>   ↓<br>NFS Server<br></code></pre></td></tr></table></figure>
+
+<p>因此现代 Linux 环境应该重点掌握 NFSv4。</p>
+<p>Rocky Linux 9 可以通过：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/fs/nfsd/versions<br></code></pre></td></tr></table></figure>
+
+<p>查看 Server 支持的版本。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">+3 +4 +4.0 +4.1 +4.2<br></code></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">+3    支持 NFSv3<br>+4    支持 NFSv4<br>+4.1  支持 NFSv4.1<br>+4.2  支持 NFSv4.2<br></code></pre></td></tr></table></figure>
+
+<p>客户端挂载时可以指定：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-o vers=3<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">-o vers=4.2<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="五、-etc-exports"><a href="#五、-etc-exports" class="headerlink" title="五、&#x2F;etc&#x2F;exports"></a>五、&#x2F;etc&#x2F;exports</h2><p>NFS Server 最重要的配置就是 export。</p>
+<p>传统配置文件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/exports<br></code></pre></td></tr></table></figure>
+
+<p>也可以使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/exports.d/<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/exports.d/lab.exports<br></code></pre></td></tr></table></figure>
+
+<p>配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/srv/nfs/lab 192.168.0.0/24(rw,sync,root_squash)<br></code></pre></td></tr></table></figure>
+
+<p>格式：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">共享目录 客户端范围(参数)<br></code></pre></td></tr></table></figure>
+
+<p>拆开来看：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/srv/nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>表示要共享的目录。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.0.0/24<br></code></pre></td></tr></table></figure>
+
+<p>表示整个：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.0.x<br></code></pre></td></tr></table></figure>
+
+<p>网段都允许访问。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">rw<br></code></pre></td></tr></table></figure>
+
+<p>表示协议层允许读写。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">sync<br></code></pre></td></tr></table></figure>
+
+<p>表示写请求同步提交。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">root_squash<br></code></pre></td></tr></table></figure>
+
+<p>表示客户端 root 不会直接成为服务器 root。</p>
+<p>注意：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.0.0/24(rw)<br></code></pre></td></tr></table></figure>
+
+<p>客户端地址和括号之间不要添加空格。</p>
+<hr>
+<h2 id="六、常用-exports-参数"><a href="#六、常用-exports-参数" class="headerlink" title="六、常用 exports 参数"></a>六、常用 exports 参数</h2><h3 id="rw"><a href="#rw" class="headerlink" title="rw"></a>rw</h3><p>允许读写：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">rw<br></code></pre></td></tr></table></figure>
+
+<h3 id="ro"><a href="#ro" class="headerlink" title="ro"></a>ro</h3><p>只读：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ro<br></code></pre></td></tr></table></figure>
+
+<h3 id="sync"><a href="#sync" class="headerlink" title="sync"></a>sync</h3><p>同步写入：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">sync<br></code></pre></td></tr></table></figure>
+
+<p>Server 在数据真正提交之后才返回成功。</p>
+<p>优点是数据一致性更好。</p>
+<h3 id="async"><a href="#async" class="headerlink" title="async"></a>async</h3><p>异步：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">async<br></code></pre></td></tr></table></figure>
+
+<p>可能提高性能，但是服务器突然宕机时存在更高的数据丢失风险。</p>
+<h3 id="root-squash"><a href="#root-squash" class="headerlink" title="root_squash"></a>root_squash</h3><p>默认推荐：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">root_squash<br></code></pre></td></tr></table></figure>
+
+<p>客户端：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">UID=0<br></code></pre></td></tr></table></figure>
+
+<p>不会直接成为 Server：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">UID=0<br></code></pre></td></tr></table></figure>
+
+<p>而会映射为匿名用户。</p>
+<h3 id="no-root-squash"><a href="#no-root-squash" class="headerlink" title="no_root_squash"></a>no_root_squash</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">no_root_squash<br></code></pre></td></tr></table></figure>
+
+<p>意味着客户端 root 可以作为服务器 root 操作共享文件。</p>
+<p>除非明确知道自己在做什么，否则不要使用。</p>
+<h3 id="all-squash"><a href="#all-squash" class="headerlink" title="all_squash"></a>all_squash</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">all_squash<br></code></pre></td></tr></table></figure>
+
+<p>把所有客户端用户都映射为匿名用户。</p>
+<p>可以配合：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">anonuid=<br>anongid=<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">all_squash,anonuid=1000,anongid=1000<br></code></pre></td></tr></table></figure>
+
+<p>这在客户端 UID&#x2F;GID 不一致时很有用。</p>
+<hr>
+<h2 id="七、NFS-最关键的权限模型：UID-GID"><a href="#七、NFS-最关键的权限模型：UID-GID" class="headerlink" title="七、NFS 最关键的权限模型：UID&#x2F;GID"></a>七、NFS 最关键的权限模型：UID&#x2F;GID</h2><p>很多第一次学习 NFS 的人会以为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">客户端用户名 = 服务端用户名<br></code></pre></td></tr></table></figure>
+
+<p>实际上普通 NFS <code>sec=sys</code> 主要看的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">UID<br>GID<br></code></pre></td></tr></table></figure>
+
+<p>例如 Server：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">id</span> rocky<br></code></pre></td></tr></table></figure>
+
+<p>得到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">uid=1000(rocky) gid=1000(rocky)<br></code></pre></td></tr></table></figure>
+
+<p>Mac 客户端可能：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">uid=501<br>gid=20<br></code></pre></td></tr></table></figure>
+
+<p>如果 Mac 通过 NFS 创建文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">touch</span> /Volumes/rocky-nfs/mac.txt<br></code></pre></td></tr></table></figure>
+
+<p>Server 上：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> -<span class="hljs-built_in">ln</span> /srv/nfs/lab/mac.txt<br></code></pre></td></tr></table></figure>
+
+<p>可能看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">-rw-r--r-- 1 501 20 ... mac.txt<br></code></pre></td></tr></table></figure>
+
+<p>Server 并不会自动把它变成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">rocky:rocky<br></code></pre></td></tr></table></figure>
+
+<p>这就是为什么 NFS 环境中经常要求多台 Linux 主机保持一致的 UID&#x2F;GID。</p>
+<p>企业环境通常会使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">LDAP<br>Active Directory<br>FreeIPA<br>SSSD<br></code></pre></td></tr></table></figure>
+
+<p>实现统一身份。</p>
+<hr>
+<h2 id="八、rw-不等于任何人都可以写"><a href="#八、rw-不等于任何人都可以写" class="headerlink" title="八、rw 不等于任何人都可以写"></a>八、rw 不等于任何人都可以写</h2><p>假设 exports：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/srv/nfs/lab 192.168.0.0/24(rw,sync,root_squash)<br></code></pre></td></tr></table></figure>
+
+<p>这里：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">rw<br></code></pre></td></tr></table></figure>
+
+<p>只是表示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">NFS 协议层允许写<br></code></pre></td></tr></table></figure>
+
+<p>最终是否能写，还要继续经过：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">NFS rw/ro<br>    ↓<br>UID/GID<br>    ↓<br>Linux owner/group/other 权限<br>    ↓<br>ACL<br>    ↓<br>SELinux<br></code></pre></td></tr></table></figure>
+
+<p>例如目录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">drwxrwxrwx /srv/nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>但是里面有一个文件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">-rw-r--r-- 501 20 mac.txt<br></code></pre></td></tr></table></figure>
+
+<p><code>rocky</code> 用户仍然可能不能修改这个文件。</p>
+<p>因为目录权限控制的是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">能否创建/删除/遍历目录项<br></code></pre></td></tr></table></figure>
+
+<p>而文件本身的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">rw-r--r--<br></code></pre></td></tr></table></figure>
+
+<p>控制文件内容是否可以修改。</p>
+<hr>
+<h2 id="九、sudo-与-shell-重定向"><a href="#九、sudo-与-shell-重定向" class="headerlink" title="九、sudo 与 shell 重定向"></a>九、sudo 与 shell 重定向</h2><p>一个非常常见的问题：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;changed by rocky&quot;</span> &gt;&gt; /srv/nfs/lab/mac.txt<br></code></pre></td></tr></table></figure>
+
+<p>可能仍然得到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Permission denied<br></code></pre></td></tr></table></figure>
+
+<p>原因是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">sudo echo<br></code></pre></td></tr></table></figure>
+
+<p>只有 <code>echo</code> 以 root 执行。</p>
+<p>但是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">&gt;&gt;<br></code></pre></td></tr></table></figure>
+
+<p>是当前 shell 在执行。</p>
+<p>可以理解成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">当前用户 shell<br>    │<br>    ├── sudo echo ...<br>    │<br>    └── 自己负责 &gt;&gt; 文件<br></code></pre></td></tr></table></figure>
+
+<p>因此当前用户没有文件写权限时，重定向仍然失败。</p>
+<p>正确方法可以使用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;changed by rocky&quot;</span> | <span class="hljs-built_in">sudo</span> <span class="hljs-built_in">tee</span> -a /srv/nfs/lab/mac.txt &gt; /dev/null<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> sh -c <span class="hljs-string">&#x27;echo &quot;changed by rocky&quot; &gt;&gt; /srv/nfs/lab/mac.txt&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>不过如果本来的需求就是让 <code>rocky</code> 拥有文件，应该直接调整：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chown</span> rocky:rocky /srv/nfs/lab/mac.txt<br></code></pre></td></tr></table></figure>
+
+<p>而不是长期依赖 sudo。</p>
+<hr>
+<h2 id="十、NFS、SELinux-和防火墙"><a href="#十、NFS、SELinux-和防火墙" class="headerlink" title="十、NFS、SELinux 和防火墙"></a>十、NFS、SELinux 和防火墙</h2><p>NFS Server 不仅受到 <code>/etc/exports</code> 控制，还受到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">firewalld<br>SELinux<br>Linux 文件权限<br></code></pre></td></tr></table></figure>
+
+<p>控制。</p>
+<p>查看 SELinux：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">getenforce<br></code></pre></td></tr></table></figure>
+
+<p>正常应该：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Enforcing<br></code></pre></td></tr></table></figure>
+
+<p>不要因为 NFS 权限问题直接：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">setenforce 0<br></code></pre></td></tr></table></figure>
+
+<p>如果怀疑 SELinux：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> ausearch -m AVC -ts recent<br></code></pre></td></tr></table></figure>
+
+<p>查看目录 SELinux 标签：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> -Zd /srv/nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>防火墙状态：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> firewall-cmd --state<br></code></pre></td></tr></table></figure>
+
+<p>NFSv3 实验环境通常开放：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> firewall-cmd --permanent --add-service=nfs<br><span class="hljs-built_in">sudo</span> firewall-cmd --permanent --add-service=mountd<br><span class="hljs-built_in">sudo</span> firewall-cmd --permanent --add-service=rpc-bind<br><span class="hljs-built_in">sudo</span> firewall-cmd --reload<br></code></pre></td></tr></table></figure>
+
+<p>如果生产环境只使用 NFSv4，则可以进一步减少不必要的 RPC 服务。</p>
+<hr>
+<h2 id="十一、Linux-中-mount-到底在哪里看"><a href="#十一、Linux-中-mount-到底在哪里看" class="headerlink" title="十一、Linux 中 mount 到底在哪里看"></a>十一、Linux 中 mount 到底在哪里看</h2><p>如果想看系统当前已经挂载的 NFS：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt -t nfs,nfs4<br></code></pre></td></tr></table></figure>
+
+<p>这是最推荐的方式。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">TARGET       SOURCE                         FSTYPE OPTIONS<br>/mnt/nfs-lab 192.168.0.50:/srv/nfs/lab    nfs4   rw,...<br></code></pre></td></tr></table></figure>
+
+<p>也可以：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mount | grep nfs<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/mounts<br></code></pre></td></tr></table></figure>
+
+<p>不过日常排查建议优先：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt<br></code></pre></td></tr></table></figure>
+
+<p>如果想看某一个挂载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt /mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十二、fstab-自动挂载"><a href="#十二、fstab-自动挂载" class="headerlink" title="十二、fstab 自动挂载"></a>十二、fstab 自动挂载</h2><p>Linux 中传统的开机持久挂载配置文件：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/fstab<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.0.50:/srv/nfs/lab /mnt/nfs-lab nfs defaults,_netdev,nofail,vers=4.2 0 0<br></code></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">_netdev<br></code></pre></td></tr></table></figure>
+
+<p>表示这是网络文件系统。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">nofail<br></code></pre></td></tr></table></figure>
+
+<p>表示 NFS Server 无法访问时，不要让系统因此启动失败。</p>
+<p>配置以后先不要急着重启。</p>
+<p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount -a<br></code></pre></td></tr></table></figure>
+
+<p>测试配置是否正确。</p>
+<p>然后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt /mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>确认。</p>
+<hr>
+<h2 id="十三、systemd-automount"><a href="#十三、systemd-automount" class="headerlink" title="十三、systemd automount"></a>十三、systemd automount</h2><p>对于网络文件系统，比单纯 <code>/etc/fstab</code> 更推荐的方式之一是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">x-systemd.automount<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.0.50:/srv/nfs/lab /mnt/nfs-lab nfs defaults,_netdev,nofail,x-systemd.automount,vers=4.2 0 0<br></code></pre></td></tr></table></figure>
+
+<p>此时启动过程中并不会立刻访问 NFS Server。</p>
+<p>工作流程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">系统启动<br>   ↓<br>systemd 创建 automount<br>   ↓<br>系统继续正常启动<br>   ↓<br>应用访问 /mnt/nfs-lab<br>   ↓<br>systemd 自动真正挂载 NFS<br></code></pre></td></tr></table></figure>
+
+<p>修改 <code>/etc/fstab</code> 后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl daemon-reload<br></code></pre></td></tr></table></figure>
+
+<p>查看 automount：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl list-units --<span class="hljs-built_in">type</span>=automount<br></code></pre></td></tr></table></figure>
+
+<p>对于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>systemd 单元通常会编码为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">mnt-nfs\x2dlab.automount<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status <span class="hljs-string">&#x27;mnt-nfs\x2dlab.automount&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>真正挂载后还会有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">mnt-nfs\x2dlab.mount<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status <span class="hljs-string">&#x27;mnt-nfs\x2dlab.mount&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="十四、autofs"><a href="#十四、autofs" class="headerlink" title="十四、autofs"></a>十四、autofs</h2><p><code>autofs</code> 和 <code>systemd automount</code> 是两个不同机制。</p>
+<p>安装：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dnf install -y autofs<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">rpm -q autofs<br>systemctl status autofs<br></code></pre></td></tr></table></figure>
+
+<p>autofs 常见配置入口：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/auto.master<br>/etc/auto.master.d/<br></code></pre></td></tr></table></figure>
+
+<p>再由 master 文件指向具体 map。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/auto.master.d/nfs.autofs<br></code></pre></td></tr></table></figure>
+
+<p>内容：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/nfs /etc/auto.nfs --timeout=60<br></code></pre></td></tr></table></figure>
+
+<p>含义：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">/nfs<br> │<br> └── 自动挂载根目录<br><br>/etc/auto.nfs<br> │<br> └── 具体挂载规则<br><br>--timeout=60<br> │<br> └── 空闲一定时间后可自动卸载<br></code></pre></td></tr></table></figure>
+
+<p>然后：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/auto.nfs<br></code></pre></td></tr></table></figure>
+
+<p>内容：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">lab -fstype=nfs,rw,vers=4.2 192.168.0.50:/srv/nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>最终路径：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>当第一次执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> /nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>才真正触发 NFS 挂载。</p>
+<p>所以：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">fstab<br></code></pre></td></tr></table></figure>
+
+<p>适合固定挂载。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">systemd automount<br></code></pre></td></tr></table></figure>
+
+<p>适合固定目录的按需挂载。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">autofs<br></code></pre></td></tr></table></figure>
+
+<p>适合大量动态 NFS 目录和自动卸载。</p>
+<hr>
+<h2 id="十五、如何判断陌生服务器上的-NFS-是怎么挂载的"><a href="#十五、如何判断陌生服务器上的-NFS-是怎么挂载的" class="headerlink" title="十五、如何判断陌生服务器上的 NFS 是怎么挂载的"></a>十五、如何判断陌生服务器上的 NFS 是怎么挂载的</h2><p>先看当前挂载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt -t nfs,nfs4<br></code></pre></td></tr></table></figure>
+
+<p>然后看 <code>/etc/fstab</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">grep -v <span class="hljs-string">&#x27;^#&#x27;</span> /etc/fstab | grep -E <span class="hljs-string">&#x27;nfs|nfs4&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>检查 systemd automount：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl list-units --<span class="hljs-built_in">type</span>=automount<br></code></pre></td></tr></table></figure>
+
+<p>检查 autofs：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status autofs<br></code></pre></td></tr></table></figure>
+
+<p>然后查看 autofs 配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">grep -R -vE <span class="hljs-string">&#x27;^[[:space:]]*(#|$)&#x27;</span> \<br>/etc/auto.master \<br>/etc/auto.master.d/ \<br>/etc/auto.* 2&gt;/dev/null<br></code></pre></td></tr></table></figure>
+
+<p>通过这些命令通常就能确定属于：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">手工 mount<br>/etc/fstab<br>systemd automount<br>autofs<br></code></pre></td></tr></table></figure>
+
+<p>中的哪一种。</p>
+<hr>
+<h1 id="实操实验"><a href="#实操实验" class="headerlink" title="实操实验"></a>实操实验</h1><h2 id="实验一：确认实验环境"><a href="#实验一：确认实验环境" class="headerlink" title="实验一：确认实验环境"></a>实验一：确认实验环境</h2><p>登录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh rocky@192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">hostname<br>hostname -I<br>ip -4 addr<br>ip route<br><span class="hljs-built_in">cat</span> /etc/rocky-release<br></code></pre></td></tr></table></figure>
+
+<p>确认：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">hostname = rocky-pi<br>IP       = 192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验二：安装-NFS"><a href="#实验二：安装-NFS" class="headerlink" title="实验二：安装 NFS"></a>实验二：安装 NFS</h2><p>安装：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dnf install -y nfs-utils<br></code></pre></td></tr></table></figure>
+
+<p>确认：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">rpm -q nfs-utils<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验三：创建共享目录"><a href="#实验三：创建共享目录" class="headerlink" title="实验三：创建共享目录"></a>实验三：创建共享目录</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /srv/nfs/lab<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chown</span> rocky:rocky /srv/nfs/lab<br><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chmod</span> 777 /srv/nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>这里的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">777<br></code></pre></td></tr></table></figure>
+
+<p>只用于第一阶段学习，目的是暂时排除 Linux 文件权限干扰。</p>
+<p>创建文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;hello from rocky-pi&quot;</span> &gt; /srv/nfs/lab/hello.txt<br><span class="hljs-built_in">date</span> &gt; /srv/nfs/lab/server-time.txt<br><span class="hljs-built_in">mkdir</span> -p /srv/nfs/lab/test-dir<br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> -lah /srv/nfs/lab<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验四：配置-exports"><a href="#实验四：配置-exports" class="headerlink" title="实验四：配置 exports"></a>实验四：配置 exports</h2><p>创建：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /etc/exports.d<br></code></pre></td></tr></table></figure>
+
+<p>写入：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">tee</span> /etc/exports.d/lab.exports &gt; /dev/null &lt;&lt;<span class="hljs-string">&#x27;EOF&#x27;</span><br>/srv/nfs/lab 192.168.0.0/24(rw,<span class="hljs-built_in">sync</span>,root_squash)<br>EOF<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/exports.d/lab.exports<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验五：启动-NFS-Server"><a href="#实验五：启动-NFS-Server" class="headerlink" title="实验五：启动 NFS Server"></a>实验五：启动 NFS Server</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl <span class="hljs-built_in">enable</span> --now nfs-server<br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status nfs-server --no-pager<br>systemctl is-enabled nfs-server<br>systemctl is-active nfs-server<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验六：让-export-配置生效"><a href="#实验六：让-export-配置生效" class="headerlink" title="实验六：让 export 配置生效"></a>实验六：让 export 配置生效</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> exportfs -rav<br></code></pre></td></tr></table></figure>
+
+<p>查看实际导出规则：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> exportfs -v<br></code></pre></td></tr></table></figure>
+
+<p>以后每次修改：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/exports<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/exports.d/*.exports<br></code></pre></td></tr></table></figure>
+
+<p>之后，都可以执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> exportfs -rav<br></code></pre></td></tr></table></figure>
+
+<p>重新加载。</p>
+<hr>
+<h2 id="实验七：配置防火墙"><a href="#实验七：配置防火墙" class="headerlink" title="实验七：配置防火墙"></a>实验七：配置防火墙</h2><p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> firewall-cmd --state<br></code></pre></td></tr></table></figure>
+
+<p>开放实验需要的服务：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> firewall-cmd --permanent --add-service=nfs<br><span class="hljs-built_in">sudo</span> firewall-cmd --permanent --add-service=mountd<br><span class="hljs-built_in">sudo</span> firewall-cmd --permanent --add-service=rpc-bind<br><span class="hljs-built_in">sudo</span> firewall-cmd --reload<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> firewall-cmd --list-services<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验八：检查-NFS-Server"><a href="#实验八：检查-NFS-Server" class="headerlink" title="实验八：检查 NFS Server"></a>实验八：检查 NFS Server</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">showmount -e localhost<br></code></pre></td></tr></table></figure>
+
+<p>预期：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">Export list for localhost:<br>/srv/nfs/lab 192.168.0.0/24<br></code></pre></td></tr></table></figure>
+
+<p>查看 RPC：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">rpcinfo -p localhost<br></code></pre></td></tr></table></figure>
+
+<p>查看 NFS 版本：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /proc/fs/nfsd/versions<br></code></pre></td></tr></table></figure>
+
+<p>查看端口：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> ss -<span class="hljs-built_in">ln</span> | grep 2049<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验九：Linux-Client-手动挂载-NFS"><a href="#实验九：Linux-Client-手动挂载-NFS" class="headerlink" title="实验九：Linux Client 手动挂载 NFS"></a>实验九：Linux Client 手动挂载 NFS</h2><p>这里可以让 <code>rocky-pi</code> 自己挂载自己，用于学习客户端逻辑。</p>
+<p>创建：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>挂载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount -t nfs \<br>-o vers=4.2 \<br>192.168.0.50:/srv/nfs/lab \<br>/mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt /mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mount | grep nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>再：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">df</span> -hT | grep nfs<br></code></pre></td></tr></table></figure>
+
+<p>查看文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> -lah /mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>写入：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;linux client&quot;</span> &gt; /mnt/nfs-lab/linux-client.txt<br></code></pre></td></tr></table></figure>
+
+<p>检查服务端：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /srv/nfs/lab/linux-client.txt<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验十：使用-nfsstat"><a href="#实验十：使用-nfsstat" class="headerlink" title="实验十：使用 nfsstat"></a>实验十：使用 nfsstat</h2><p>查看挂载参数：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">nfsstat -m<br></code></pre></td></tr></table></figure>
+
+<p>可能看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">vers=4.2<br>rsize=1048576<br>wsize=1048576<br>hard<br>proto=tcp<br>sec=sys<br></code></pre></td></tr></table></figure>
+
+<p>查看客户端统计：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">nfsstat -c<br></code></pre></td></tr></table></figure>
+
+<p>查看服务端统计：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">nfsstat -s<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验十一：NFSv3-与-NFSv4"><a href="#实验十一：NFSv3-与-NFSv4" class="headerlink" title="实验十一：NFSv3 与 NFSv4"></a>实验十一：NFSv3 与 NFSv4</h2><p>卸载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> umount /mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>使用 NFSv3：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount -t nfs \<br>-o vers=3 \<br>192.168.0.50:/srv/nfs/lab \<br>/mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">nfsstat -m<br></code></pre></td></tr></table></figure>
+
+<p>确认：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">vers=3<br></code></pre></td></tr></table></figure>
+
+<p>卸载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> umount /mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>重新使用 NFSv4.2：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount -t nfs \<br>-o vers=4.2 \<br>192.168.0.50:/srv/nfs/lab \<br>/mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">nfsstat -m<br></code></pre></td></tr></table></figure>
+
+<p>确认：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">vers=4.2<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验十二：理解-UID-GID"><a href="#实验十二：理解-UID-GID" class="headerlink" title="实验十二：理解 UID&#x2F;GID"></a>实验十二：理解 UID&#x2F;GID</h2><p>查看 <code>rocky</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">id</span> rocky<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">uid=1000(rocky) gid=1000(rocky)<br></code></pre></td></tr></table></figure>
+
+<p>创建：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">touch</span> /srv/nfs/lab/rocky-user.txt<br></code></pre></td></tr></table></figure>
+
+<p>查看数字 UID&#x2F;GID：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> -<span class="hljs-built_in">ln</span> /srv/nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>应该能看到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">1000 1000 rocky-user.txt<br></code></pre></td></tr></table></figure>
+
+<p>如果另外一台客户端 UID 是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">501<br></code></pre></td></tr></table></figure>
+
+<p>通过 NFS 创建文件以后，Server 很可能直接显示：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">501 ...<br></code></pre></td></tr></table></figure>
+
+<p>这说明 NFS 使用的是 UID&#x2F;GID 身份模型，而不是简单通过用户名匹配。</p>
+<hr>
+<h2 id="实验十三：制造-Permission-denied"><a href="#实验十三：制造-Permission-denied" class="headerlink" title="实验十三：制造 Permission denied"></a>实验十三：制造 Permission denied</h2><p>把目录权限恢复得更合理：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chmod</span> 775 /srv/nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> -ld /srv/nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>假设从另一个 UID 不一致的客户端创建：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">mac.txt<br></code></pre></td></tr></table></figure>
+
+<p>Server 查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> -<span class="hljs-built_in">ln</span> /srv/nfs/lab/mac.txt<br></code></pre></td></tr></table></figure>
+
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">-rw-r--r-- 1 501 20 ... mac.txt<br></code></pre></td></tr></table></figure>
+
+<p>现在 <code>rocky UID=1000</code> 尝试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;changed by rocky&quot;</span> &gt;&gt; /srv/nfs/lab/mac.txt<br></code></pre></td></tr></table></figure>
+
+<p>会得到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Permission denied<br></code></pre></td></tr></table></figure>
+
+<p>原因不是 NFS <code>rw</code> 失效，而是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">rocky UID 1000<br></code></pre></td></tr></table></figure>
+
+<p>没有：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">UID 501<br></code></pre></td></tr></table></figure>
+
+<p>文件的写权限。</p>
+<hr>
+<h2 id="实验十四：理解-sudo-重定向问题"><a href="#实验十四：理解-sudo-重定向问题" class="headerlink" title="实验十四：理解 sudo 重定向问题"></a>实验十四：理解 sudo 重定向问题</h2><p>执行：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;changed by rocky&quot;</span> &gt;&gt; /srv/nfs/lab/mac.txt<br></code></pre></td></tr></table></figure>
+
+<p>仍然可能：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Permission denied<br></code></pre></td></tr></table></figure>
+
+<p>因为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">echo<br></code></pre></td></tr></table></figure>
+
+<p>由 sudo 运行，而：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">&gt;&gt;<br></code></pre></td></tr></table></figure>
+
+<p>还是当前 shell 在执行。</p>
+<p>正确：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;changed by rocky&quot;</span> | <span class="hljs-built_in">sudo</span> <span class="hljs-built_in">tee</span> -a /srv/nfs/lab/mac.txt &gt; /dev/null<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> sh -c <span class="hljs-string">&#x27;echo &quot;changed by rocky&quot; &gt;&gt; /srv/nfs/lab/mac.txt&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>如果文件本来就应该属于 <code>rocky</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">chown</span> rocky:rocky /srv/nfs/lab/mac.txt<br></code></pre></td></tr></table></figure>
+
+<p>然后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;changed by rocky&quot;</span> &gt;&gt; /srv/nfs/lab/mac.txt<br></code></pre></td></tr></table></figure>
+
+<p>即可。</p>
+<hr>
+<h2 id="实验十五：root-squash"><a href="#实验十五：root-squash" class="headerlink" title="实验十五：root_squash"></a>实验十五：root_squash</h2><p>保持 export：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/srv/nfs/lab 192.168.0.0/24(rw,sync,root_squash)<br></code></pre></td></tr></table></figure>
+
+<p>客户端使用 root 创建文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">touch</span> /mnt/nfs-lab/root-test.txt<br></code></pre></td></tr></table></figure>
+
+<p>观察：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> -<span class="hljs-built_in">ln</span> /srv/nfs/lab/root-test.txt<br></code></pre></td></tr></table></figure>
+
+<p>客户端 root 不应该简单变成 Server root。</p>
+<p>这就是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">root_squash<br></code></pre></td></tr></table></figure>
+
+<p>保护机制。</p>
+<hr>
+<h2 id="实验十六：all-squash"><a href="#实验十六：all-squash" class="headerlink" title="实验十六：all_squash"></a>实验十六：all_squash</h2><p>获取 Rocky 用户 UID&#x2F;GID：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">ROCKY_UID=$(<span class="hljs-built_in">id</span> -u rocky)<br>ROCKY_GID=$(<span class="hljs-built_in">id</span> -g rocky)<br><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;<span class="hljs-variable">$ROCKY_UID</span>&quot;</span><br><span class="hljs-built_in">echo</span> <span class="hljs-string">&quot;<span class="hljs-variable">$ROCKY_GID</span>&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>修改：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">tee</span> /etc/exports.d/lab.exports &gt; /dev/null &lt;&lt;<span class="hljs-string">EOF</span><br><span class="hljs-string">/srv/nfs/lab 192.168.0.0/24(rw,sync,all_squash,anonuid=$&#123;ROCKY_UID&#125;,anongid=$&#123;ROCKY_GID&#125;)</span><br><span class="hljs-string">EOF</span><br></code></pre></td></tr></table></figure>
+
+<p>应用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> exportfs -rav<br></code></pre></td></tr></table></figure>
+
+<p>此时所有客户端用户通过 NFS 创建文件，都映射为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">rocky:rocky<br></code></pre></td></tr></table></figure>
+
+<p>验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">touch</span> /mnt/nfs-lab/all-squash-test.txt<br><span class="hljs-built_in">ls</span> -<span class="hljs-built_in">ln</span> /srv/nfs/lab/all-squash-test.txt<br></code></pre></td></tr></table></figure>
+
+<p>实验结束后恢复：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">tee</span> /etc/exports.d/lab.exports &gt; /dev/null &lt;&lt;<span class="hljs-string">&#x27;EOF&#x27;</span><br>/srv/nfs/lab 192.168.0.0/24(rw,<span class="hljs-built_in">sync</span>,root_squash)<br>EOF<br><br><span class="hljs-built_in">sudo</span> exportfs -rav<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验十七：只读-export"><a href="#实验十七：只读-export" class="headerlink" title="实验十七：只读 export"></a>实验十七：只读 export</h2><p>修改：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">tee</span> /etc/exports.d/lab.exports &gt; /dev/null &lt;&lt;<span class="hljs-string">&#x27;EOF&#x27;</span><br>/srv/nfs/lab 192.168.0.0/24(ro,<span class="hljs-built_in">sync</span>,root_squash)<br>EOF<br></code></pre></td></tr></table></figure>
+
+<p>应用：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> exportfs -rav<br></code></pre></td></tr></table></figure>
+
+<p>读取：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /mnt/nfs-lab/hello.txt<br></code></pre></td></tr></table></figure>
+
+<p>正常。</p>
+<p>尝试写：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">touch</span> /mnt/nfs-lab/readonly-test.txt<br></code></pre></td></tr></table></figure>
+
+<p>应该得到类似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Read-only file system<br></code></pre></td></tr></table></figure>
+
+<p>这里和：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Permission denied<br></code></pre></td></tr></table></figure>
+
+<p>含义不同。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Read-only file system<br></code></pre></td></tr></table></figure>
+
+<p>优先检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">NFS export 是否 ro<br>mount 是否 ro<br></code></pre></td></tr></table></figure>
+
+<p>而：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">Permission denied<br></code></pre></td></tr></table></figure>
+
+<p>优先检查：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">UID/GID<br>chmod<br>ACL<br>root_squash<br>SELinux<br></code></pre></td></tr></table></figure>
+
+<p>恢复：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">tee</span> /etc/exports.d/lab.exports &gt; /dev/null &lt;&lt;<span class="hljs-string">&#x27;EOF&#x27;</span><br>/srv/nfs/lab 192.168.0.0/24(rw,<span class="hljs-built_in">sync</span>,root_squash)<br>EOF<br><br><span class="hljs-built_in">sudo</span> exportfs -rav<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验十八：配置-etc-fstab-开机自动挂载"><a href="#实验十八：配置-etc-fstab-开机自动挂载" class="headerlink" title="实验十八：配置 &#x2F;etc&#x2F;fstab 开机自动挂载"></a>实验十八：配置 &#x2F;etc&#x2F;fstab 开机自动挂载</h2><p>创建挂载点：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">mkdir</span> -p /mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>备份：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">cp</span> /etc/fstab /etc/fstab.bak<br></code></pre></td></tr></table></figure>
+
+<p>编辑：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> vim /etc/fstab<br></code></pre></td></tr></table></figure>
+
+<p>增加：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.0.50:/srv/nfs/lab /mnt/nfs-lab nfs defaults,_netdev,nofail,vers=4.2 0 0<br></code></pre></td></tr></table></figure>
+
+<p>测试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> mount -a<br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt /mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>如果没有错误，就说明配置有效。</p>
+<hr>
+<h2 id="实验十九：systemd-automount"><a href="#实验十九：systemd-automount" class="headerlink" title="实验十九：systemd automount"></a>实验十九：systemd automount</h2><p>把 <code>/etc/fstab</code> 改成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">192.168.0.50:/srv/nfs/lab /mnt/nfs-lab nfs defaults,_netdev,nofail,x-systemd.automount,vers=4.2 0 0<br></code></pre></td></tr></table></figure>
+
+<p>重新加载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl daemon-reload<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl list-units --<span class="hljs-built_in">type</span>=automount<br></code></pre></td></tr></table></figure>
+
+<p>访问：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> /mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>然后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt /mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>可以看到访问目录后才真正挂载。</p>
+<p>具体查看 systemd unit：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status <span class="hljs-string">&#x27;mnt-nfs\x2dlab.automount&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>以及：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status <span class="hljs-string">&#x27;mnt-nfs\x2dlab.mount&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验二十：配置-autofs"><a href="#实验二十：配置-autofs" class="headerlink" title="实验二十：配置 autofs"></a>实验二十：配置 autofs</h2><p>如果前面 <code>/etc/fstab</code> 已经挂载 <code>/mnt/nfs-lab</code>，可以保留它，autofs 使用另外一个目录：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>安装：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> dnf install -y autofs<br></code></pre></td></tr></table></figure>
+
+<p>创建 master 配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">tee</span> /etc/auto.master.d/nfs.autofs &gt; /dev/null &lt;&lt;<span class="hljs-string">&#x27;EOF&#x27;</span><br>/nfs /etc/auto.nfs --<span class="hljs-built_in">timeout</span>=60<br>EOF<br></code></pre></td></tr></table></figure>
+
+<p>创建 map：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> <span class="hljs-built_in">tee</span> /etc/auto.nfs &gt; /dev/null &lt;&lt;<span class="hljs-string">&#x27;EOF&#x27;</span><br>lab -fstype=nfs,rw,vers=4.2 192.168.0.50:/srv/nfs/lab<br>EOF<br></code></pre></td></tr></table></figure>
+
+<p>启动：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl <span class="hljs-built_in">enable</span> --now autofs<br></code></pre></td></tr></table></figure>
+
+<p>查看服务：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status autofs<br></code></pre></td></tr></table></figure>
+
+<p>访问：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> /nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt /nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>此时应该可以看到对应 NFS 挂载。</p>
+<p>查看 autofs 配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/auto.master<br></code></pre></td></tr></table></figure>
+
+<p>查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> -lah /etc/auto.master.d/<br></code></pre></td></tr></table></figure>
+
+<p>查看自定义配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/auto.master.d/nfs.autofs<br><span class="hljs-built_in">cat</span> /etc/auto.nfs<br></code></pre></td></tr></table></figure>
+
+<p>查看所有非注释配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">grep -R -vE <span class="hljs-string">&#x27;^[[:space:]]*(#|$)&#x27;</span> \<br>/etc/auto.master \<br>/etc/auto.master.d/ \<br>/etc/auto.* 2&gt;/dev/null<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验二十一：观察网络中断"><a href="#实验二十一：观察网络中断" class="headerlink" title="实验二十一：观察网络中断"></a>实验二十一：观察网络中断</h2><p>保持 NFS 已挂载。</p>
+<p>终端一：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cd</span> /mnt/nfs-lab<br><br><span class="hljs-keyword">while</span> <span class="hljs-literal">true</span>; <span class="hljs-keyword">do</span><br>    <span class="hljs-built_in">date</span><br>    <span class="hljs-built_in">ls</span><br>    <span class="hljs-built_in">sleep</span> 2<br><span class="hljs-keyword">done</span><br></code></pre></td></tr></table></figure>
+
+<p>然后停止 NFS Server：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl stop nfs-server<br></code></pre></td></tr></table></figure>
+
+<p>客户端 NFS 操作可能出现等待。</p>
+<p>重新启动：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl start nfs-server<br></code></pre></td></tr></table></figure>
+
+<p>之后访问恢复。</p>
+<p>这是默认：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">hard<br></code></pre></td></tr></table></figure>
+
+<p>挂载语义的重要表现。</p>
+<p>对于重要数据，一般不要为了避免等待就随意使用：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">soft<br></code></pre></td></tr></table></figure>
+
+<p>因为可能把暂时性的网络故障转化为应用层 I&#x2F;O 错误。</p>
+<hr>
+<h2 id="实验二十二：简单性能实验"><a href="#实验二十二：简单性能实验" class="headerlink" title="实验二十二：简单性能实验"></a>实验二十二：简单性能实验</h2><p>测试 NFS 写：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cd</span> /mnt/nfs-lab<br><br><span class="hljs-keyword">time</span> <span class="hljs-built_in">dd</span> <span class="hljs-keyword">if</span>=/dev/zero \<br>of=nfs-test.bin \<br>bs=1M \<br>count=100 \<br>conv=fdatasync<br></code></pre></td></tr></table></figure>
+
+<p>测试服务器本地：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cd</span> /srv/nfs/lab<br><br><span class="hljs-keyword">time</span> <span class="hljs-built_in">dd</span> <span class="hljs-keyword">if</span>=/dev/zero \<br>of=local-test.bin \<br>bs=1M \<br>count=100 \<br>conv=fdatasync<br></code></pre></td></tr></table></figure>
+
+<p>测试完成：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">rm</span> -f /mnt/nfs-lab/nfs-test.bin<br><span class="hljs-built_in">rm</span> -f /srv/nfs/lab/local-test.bin<br></code></pre></td></tr></table></figure>
+
+<p>这里的差异可能来自：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs text">网络延迟<br>TCP<br>NFS RPC<br>客户端缓存<br>Server 缓存<br>磁盘性能<br>sync 语义<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验二十三：NFS-文件锁"><a href="#实验二十三：NFS-文件锁" class="headerlink" title="实验二十三：NFS 文件锁"></a>实验二十三：NFS 文件锁</h2><p>创建锁：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">flock /mnt/nfs-lab/my.lock \<br>-c <span class="hljs-string">&#x27;echo &quot;I have the lock&quot;; sleep 30&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>另一个终端：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">flock -n /mnt/nfs-lab/my.lock \<br>-c <span class="hljs-string">&#x27;echo &quot;I got lock&quot;&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>第一次通常无法获得锁。</p>
+<p>等前面的：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">30 秒<br></code></pre></td></tr></table></figure>
+
+<p>结束后再次：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">flock -n /mnt/nfs-lab/my.lock \<br>-c <span class="hljs-string">&#x27;echo &quot;I got lock&quot;&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>即可获得锁。</p>
+<p>这个实验说明 NFS 不只是文件读写，还涉及：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">文件锁<br>缓存<br>一致性<br>故障恢复<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="实验二十四：查看一台服务器所有-NFS-配置"><a href="#实验二十四：查看一台服务器所有-NFS-配置" class="headerlink" title="实验二十四：查看一台服务器所有 NFS 配置"></a>实验二十四：查看一台服务器所有 NFS 配置</h2><p>查看当前实际挂载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">findmnt -t nfs,nfs4<br></code></pre></td></tr></table></figure>
+
+<p>查看 <code>/etc/fstab</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">grep -v <span class="hljs-string">&#x27;^#&#x27;</span> /etc/fstab | grep -E <span class="hljs-string">&#x27;nfs|nfs4&#x27;</span><br></code></pre></td></tr></table></figure>
+
+<p>查看 systemd mount：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl list-units --<span class="hljs-built_in">type</span>=mount | grep -i nfs<br></code></pre></td></tr></table></figure>
+
+<p>查看 automount：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl list-units --<span class="hljs-built_in">type</span>=automount<br></code></pre></td></tr></table></figure>
+
+<p>查看 autofs：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status autofs<br></code></pre></td></tr></table></figure>
+
+<p>查看 autofs 配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs bash">grep -R -vE <span class="hljs-string">&#x27;^[[:space:]]*(#|$)&#x27;</span> \<br>/etc/auto.master \<br>/etc/auto.master.d/ \<br>/etc/auto.* 2&gt;/dev/null<br></code></pre></td></tr></table></figure>
+
+<p>这样基本就可以判断 NFS 是通过：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">手工 mount<br>fstab<br>systemd automount<br>autofs<br></code></pre></td></tr></table></figure>
+
+<p>哪一种方式挂载。</p>
+<hr>
+<h1 id="NFS-常见故障排查"><a href="#NFS-常见故障排查" class="headerlink" title="NFS 常见故障排查"></a>NFS 常见故障排查</h1><h2 id="access-denied-by-server"><a href="#access-denied-by-server" class="headerlink" title="access denied by server"></a>access denied by server</h2><p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">mount.nfs: access denied by server<br></code></pre></td></tr></table></figure>
+
+<p>Server：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> exportfs -v<br></code></pre></td></tr></table></figure>
+
+<p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/exports<br></code></pre></td></tr></table></figure>
+
+<p>以及：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/exports.d/*.exports<br></code></pre></td></tr></table></figure>
+
+<p>重新加载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> exportfs -rav<br></code></pre></td></tr></table></figure>
+
+<p>重点确认客户端 IP 是否在允许范围。</p>
+<hr>
+<h2 id="Connection-refused"><a href="#Connection-refused" class="headerlink" title="Connection refused"></a>Connection refused</h2><p>检查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status nfs-server<br></code></pre></td></tr></table></figure>
+
+<p>端口：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> ss -<span class="hljs-built_in">ln</span> | grep 2049<br></code></pre></td></tr></table></figure>
+
+<p>防火墙：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> firewall-cmd --list-all<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Permission-denied"><a href="#Permission-denied" class="headerlink" title="Permission denied"></a>Permission denied</h2><p>检查客户端身份：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">id</span><br></code></pre></td></tr></table></figure>
+
+<p>检查 Server 文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">ls</span> -<span class="hljs-built_in">ln</span> /srv/nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>检查整个路径：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">namei -l /srv/nfs/lab<br></code></pre></td></tr></table></figure>
+
+<p>检查 exports：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> exportfs -v<br></code></pre></td></tr></table></figure>
+
+<p>检查 SELinux：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash">getenforce<br><span class="hljs-built_in">sudo</span> ausearch -m AVC -ts recent<br></code></pre></td></tr></table></figure>
+
+<p>排查顺序应该想到：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">UID/GID<br>  ↓<br>文件 owner/group<br>  ↓<br>chmod<br>  ↓<br>ACL<br>  ↓<br>root_squash / all_squash<br>  ↓<br>SELinux<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="Read-only-file-system"><a href="#Read-only-file-system" class="headerlink" title="Read-only file system"></a>Read-only file system</h2><p>客户端：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">nfsstat -m<br></code></pre></td></tr></table></figure>
+
+<p>Server：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> exportfs -v<br></code></pre></td></tr></table></figure>
+
+<p>重点看是不是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">ro<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="NFS-卡住"><a href="#NFS-卡住" class="headerlink" title="NFS 卡住"></a>NFS 卡住</h2><p>检查网络：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">ping 192.168.0.50<br></code></pre></td></tr></table></figure>
+
+<p>检查 NFS 端口：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">nc -vz 192.168.0.50 2049<br></code></pre></td></tr></table></figure>
+
+<p>Server：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">systemctl status nfs-server<br></code></pre></td></tr></table></figure>
+
+<p>如果使用默认 hard mount，Server 暂时不可访问时客户端操作可能等待和重试，这属于 NFS 的正常故障语义之一。</p>
+<hr>
+<h2 id="umount-提示-target-is-busy"><a href="#umount-提示-target-is-busy" class="headerlink" title="umount 提示 target is busy"></a>umount 提示 target is busy</h2><p>先离开目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cd</span> ~<br></code></pre></td></tr></table></figure>
+
+<p>然后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> umount /mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>仍然失败：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> fuser -vm /mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>或者：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> lsof +D /mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>找到正在使用挂载点的进程，再处理。</p>
+<hr>
+<h1 id="常用命令速查"><a href="#常用命令速查" class="headerlink" title="常用命令速查"></a>常用命令速查</h1><p>NFS Server：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">sudo</span> systemctl status nfs-server<br><br><span class="hljs-built_in">sudo</span> exportfs -v<br><br><span class="hljs-built_in">sudo</span> exportfs -rav<br><br>showmount -e localhost<br><br>rpcinfo -p<br><br><span class="hljs-built_in">cat</span> /proc/fs/nfsd/versions<br><br>nfsstat -s<br><br><span class="hljs-built_in">sudo</span> ss -<span class="hljs-built_in">ln</span> | grep 2049<br></code></pre></td></tr></table></figure>
+
+<p>NFS Client：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs bash">showmount -e 192.168.0.50<br><br><span class="hljs-built_in">sudo</span> mount -t nfs \<br>-o vers=4.2 \<br>192.168.0.50:/srv/nfs/lab \<br>/mnt/nfs-lab<br><br>findmnt -t nfs,nfs4<br><br>findmnt /mnt/nfs-lab<br><br>nfsstat -m<br><br>nfsstat -c<br><br><span class="hljs-built_in">df</span> -hT<br><br><span class="hljs-built_in">sudo</span> umount /mnt/nfs-lab<br></code></pre></td></tr></table></figure>
+
+<p>权限排查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">id</span><br><br><span class="hljs-built_in">ls</span> -l<br><br><span class="hljs-built_in">ls</span> -<span class="hljs-built_in">ln</span><br><br>namei -l /srv/nfs/lab<br><br>getfacl /srv/nfs/lab<br><br>getenforce<br><br><span class="hljs-built_in">sudo</span> ausearch -m AVC -ts recent<br></code></pre></td></tr></table></figure>
+
+<p>自动挂载：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">cat</span> /etc/fstab<br><br>systemctl list-units --<span class="hljs-built_in">type</span>=mount<br><br>systemctl list-units --<span class="hljs-built_in">type</span>=automount<br><br>systemctl status autofs<br><br><span class="hljs-built_in">cat</span> /etc/auto.master<br><br><span class="hljs-built_in">ls</span> -lah /etc/auto.master.d/<br></code></pre></td></tr></table></figure>
+
+<hr>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>NFS 表面上只是把远程目录挂载成本地目录，但真正需要掌握的并不是一条：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">mount -t nfs ...<br></code></pre></td></tr></table></figure>
+
+<p>而是背后的完整模型：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><code class="hljs text">Client<br>   │<br>   │ NFSv3 / NFSv4<br>   ↓<br>Network<br>   │<br>   │ TCP / RPC<br>   ↓<br>NFS Server<br>   │<br>   ↓<br>/etc/exports<br>   │<br>   ├── rw / ro<br>   ├── sync / async<br>   ├── root_squash<br>   └── all_squash<br>   │<br>   ↓<br>UID / GID<br>   │<br>   ↓<br>Linux 权限<br>   │<br>   ├── owner<br>   ├── group<br>   ├── mode<br>   └── ACL<br>   │<br>   ↓<br>SELinux<br>   │<br>   ↓<br>真实文件系统<br></code></pre></td></tr></table></figure>
+
+<p>尤其需要记住三个容易踩坑的点。</p>
+<p>第一，NFS 的普通身份模型主要依赖：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">UID/GID<br></code></pre></td></tr></table></figure>
+
+<p>而不是 SSH 用户名和密码。因此多台 Linux 主机使用 NFS 时，统一 UID&#x2F;GID 非常重要。</p>
+<p>第二：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/exports 中的 rw<br></code></pre></td></tr></table></figure>
+
+<p>只代表协议层允许写，不代表任何用户都可以修改任意文件。最终文件访问仍然受到 Linux 权限、ACL、UID&#x2F;GID、squash 和 SELinux 控制。</p>
+<p>第三，NFS 自动挂载需要区分三种机制：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">/etc/fstab<br></code></pre></td></tr></table></figure>
+
+<p>适合固定的开机挂载；</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">fstab + x-systemd.automount<br></code></pre></td></tr></table></figure>
+
+<p>适合固定目录的按需挂载，可以避免启动时 NFS Server 不可用导致的问题；</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">autofs<br></code></pre></td></tr></table></figure>
+
+<p>适合大量动态 NFS 目录，并支持按需挂载和空闲自动卸载。</p>
+<p>对于 Rocky Linux 9 环境，推荐的学习路线是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><code class="hljs text">基础 mount<br>   ↓<br>/etc/exports<br>   ↓<br>rw / ro<br>   ↓<br>UID / GID<br>   ↓<br>root_squash<br>   ↓<br>all_squash<br>   ↓<br>NFSv3 / NFSv4<br>   ↓<br>RPC / TCP 2049<br>   ↓<br>nfsstat<br>   ↓<br>fstab<br>   ↓<br>systemd automount<br>   ↓<br>autofs<br>   ↓<br>SELinux / firewalld<br>   ↓<br>故障排查<br></code></pre></td></tr></table></figure>
+
+<p>完成这些实验以后，就已经不只是“会配置一个 NFS 共享”，而是能够理解 NFS 从网络协议、Linux 身份权限、文件系统挂载、systemd 到自动挂载和故障恢复的一整套工作机制。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Linux/" class="category-chain-item">Linux</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/Linux/NFS/" class="category-chain-item">NFS</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Linux/" class="print-no-link">#Linux</a>
+      
+        <a href="/tags/systemd/" class="print-no-link">#systemd</a>
+      
+        <a href="/tags/Rocky-Linux-9/" class="print-no-link">#Rocky Linux 9</a>
+      
+        <a href="/tags/NFS/" class="print-no-link">#NFS</a>
+      
+        <a href="/tags/NFSv4/" class="print-no-link">#NFSv4</a>
+      
+        <a href="/tags/autofs/" class="print-no-link">#autofs</a>
+      
+        <a href="/tags/fstab/" class="print-no-link">#fstab</a>
+      
+        <a href="/tags/%E6%96%87%E4%BB%B6%E5%85%B1%E4%BA%AB/" class="print-no-link">#文件共享</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Rocky Linux 9 NFS 完整学习笔记：原理、配置、自动挂载与实操实验</div>
+      <div>https://allendericdalexander.github.io/2026/09/09/devops/learn/rocky-linux-9-nfs-complete-guide/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年9月9日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/09/09/devops/learn/linux-ssh-key-agent-config-rsync-hexo/" title="Linux SSH 免密登录与批量主机管理：从 Passphrase、ssh-agent 到 SSH Config">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Linux SSH 免密登录与批量主机管理：从 Passphrase、ssh-agent 到 SSH Config</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/09/08/geeker/088java100error/5java-production-engineering/" title="Java 生产级工程实践：从函数式编程到故障诊断与 Kubernetes">
+                        <span class="hidden-mobile">Java 生产级工程实践：从函数式编程到故障诊断与 Kubernetes</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
