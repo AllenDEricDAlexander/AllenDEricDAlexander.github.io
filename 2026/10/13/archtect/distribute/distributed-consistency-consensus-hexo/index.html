@@ -1,0 +1,1639 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="分布式系统将数据和计算分散到多个节点后，真正困难的并不是让节点之间发送消息，而是在网络分区、节点宕机、并发写入，甚至恶意节点参与的条件下，让系统对外呈现可理解、可恢复的行为。本文围绕这一问题，将 CAP、ACID、BASE 与二阶段提交等事务机制，与 Paxos、Multi-Paxos、Raft、ZAB、PBFT、PoW 等共识协议联系起来，同时讨论一致哈希、Gossip、反熵和 Quorum N">
+<meta property="og:type" content="article">
+<meta property="og:title" content="分布式一致性与共识协议：从 CAP、Paxos、Raft 到 PBFT、PoW 与 ZAB">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/10/13/archtect/distribute/distributed-consistency-consensus-hexo/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="分布式系统将数据和计算分散到多个节点后，真正困难的并不是让节点之间发送消息，而是在网络分区、节点宕机、并发写入，甚至恶意节点参与的条件下，让系统对外呈现可理解、可恢复的行为。本文围绕这一问题，将 CAP、ACID、BASE 与二阶段提交等事务机制，与 Paxos、Multi-Paxos、Raft、ZAB、PBFT、PoW 等共识协议联系起来，同时讨论一致哈希、Gossip、反熵和 Quorum N">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-13T03:46:41.000Z">
+<meta property="article:modified_time" content="2026-10-13T03:46:41.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="BASE">
+<meta property="article:tag" content="CAP">
+<meta property="article:tag" content="Gossip">
+<meta property="article:tag" content="PBFT">
+<meta property="article:tag" content="Paxos">
+<meta property="article:tag" content="Raft">
+<meta property="article:tag" content="ZAB">
+<meta property="article:tag" content="分布式系统">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>分布式一致性与共识协议：从 CAP、Paxos、Raft 到 PBFT、PoW 与 ZAB - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="分布式一致性与共识协议：从 CAP、Paxos、Raft 到 PBFT、PoW 与 ZAB"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-10-13 11:46" pubdate>
+          2026年10月13日 中午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          20k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          171 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">分布式一致性与共识协议：从 CAP、Paxos、Raft 到 PBFT、PoW 与 ZAB</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>分布式系统将数据和计算分散到多个节点后，真正困难的并不是让节点之间发送消息，而是在网络分区、节点宕机、并发写入，甚至恶意节点参与的条件下，让系统对外呈现可理解、可恢复的行为。本文围绕这一问题，将 CAP、ACID、BASE 与二阶段提交等事务机制，与 Paxos、Multi-Paxos、Raft、ZAB、PBFT、PoW 等共识协议联系起来，同时讨论一致哈希、Gossip、反熵和 Quorum NWR 如何解决数据分布、传播与副本读取问题。重点放在协议成立的前提、关键消息流、故障恢复、工程代价及选型边界。</p>
+<span id="more"></span>
+
+<h2 id="分布式系统究竟需要在哪些事情上达成一致"><a href="#分布式系统究竟需要在哪些事情上达成一致" class="headerlink" title="分布式系统究竟需要在哪些事情上达成一致"></a>分布式系统究竟需要在哪些事情上达成一致</h2><p>假设我们实现了一个三节点 KV 存储，最初各节点的 <code>X</code> 都是 <code>1</code>。客户端向节点 A 写入 <code>SET X = 2</code>，A 立即返回成功，但消息尚未到达 B、C。另一个客户端随后从 B 读到 <code>X = 1</code>。从单机数据库的使用经验来看，这很反直觉；但在分布式系统中，这正是最普通的故障与延迟场景。</p>
+<p>如果要求客户端在写入成功后，无论访问哪个可读节点都能看到新值，就必须设计额外的同步、协调或读协议。若允许节点暂时提供旧值，则需要回答另一组问题：什么时候收敛？冲突写入如何解决？丢掉的消息如何补发？</p>
+<p>这些问题表面上都叫“一致性”，但实际对应不同的系统职责。</p>
+<table>
+<thead>
+<tr>
+<th>需要解决的问题</th>
+<th>典型机制</th>
+<th>真正保证的事情</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>多个参与者是否一起提交业务操作</td>
+<td>2PC、XA、TCC</td>
+<td>一个分布式业务操作的提交或取消协调</td>
+</tr>
+<tr>
+<td>多节点对某个值或操作序列达成决定</td>
+<td>Paxos、Raft、ZAB</td>
+<td>共识安全性及复制状态机的一致演进</td>
+</tr>
+<tr>
+<td>有节点蓄意发送矛盾消息时如何决定</td>
+<td>PBFT 等 BFT 协议</td>
+<td>在指定恶意节点上限内达成可信决定</td>
+</tr>
+<tr>
+<td>无准入中心的网络如何竞争记账权</td>
+<td>PoW</td>
+<td>通过算力成本与累积工作量形成概率性共识</td>
+</tr>
+<tr>
+<td>数据应路由到哪个分片或集群</td>
+<td>一致哈希</td>
+<td>数据放置与扩缩容时尽量少迁移</td>
+</tr>
+<tr>
+<td>副本之间怎样传播和修复数据</td>
+<td>Gossip、反熵</td>
+<td>在满足传播与冲突处理前提下逐步收敛</td>
+</tr>
+<tr>
+<td>读几个副本、写几个副本才算完成</td>
+<td>Quorum NWR</td>
+<td>通过读写集合交集调节延迟、可用性和可见性</td>
+</tr>
+</tbody></table>
+<p><strong>共识、事务、数据路由和数据同步不是互相替代的算法。</strong> 一个真正可扩展的存储系统很可能同时使用它们：一致哈希负责选择分片，Raft 负责分片内复制，Gossip 负责传播节点状态，事务协调层负责跨分片操作。</p>
+<h3 id="故障模型决定了协议能承诺什么"><a href="#故障模型决定了协议能承诺什么" class="headerlink" title="故障模型决定了协议能承诺什么"></a>故障模型决定了协议能承诺什么</h3><p>讨论某个算法能容忍多少节点之前，必须先明确节点究竟会怎样出错。</p>
+<p><strong>崩溃故障（Crash Fault）</strong> 主要指进程或机器停止工作。通信还可能超时、丢失、重复、乱序，但节点不会故意违反协议、伪造其他节点身份，或给不同节点发送自相矛盾的“承诺”。Paxos、Raft、ZAB 通常按照非拜占庭的崩溃故障模型设计，属于 CFT（Crash Fault Tolerance）范畴。</p>
+<p><strong>拜占庭故障（Byzantine Fault）</strong> 则允许故障节点任意行动：谎报数据、对不同节点发送不同结果、故意拒绝转发消息，乃至尝试欺骗协议参与者。PBFT 面向这种问题。PoW 也用于抵御开放网络中的恶意参与者，但其安全模型以算力资源和概率性链选择为基础，不能直接套用 PBFT 的节点人数公式。</p>
+<p>另外，还需要区分协议的两项性质：</p>
+<ul>
+<li><strong>安全性（Safety）</strong>：不应该发生的事情永远不发生。例如同一个日志位置不会提交两个互相冲突的值，已提交的记录不会因选主而丢失。</li>
+<li><strong>活性（Liveness）</strong>：应该完成的事情最终能够完成。例如网络恢复、足够多节点可用后，集群能再次选主并处理请求。</li>
+</ul>
+<p>一个系统即使暂时无法写入，也可以保持安全；为了可用而让两个网络分区各自提交互相冲突的决定，则可能直接破坏安全性。多数共识算法优先保住 Safety，再依靠网络恢复、选举超时和故障转移恢复 Liveness。</p>
+<h3 id="多数派为什么如此重要"><a href="#多数派为什么如此重要" class="headerlink" title="多数派为什么如此重要"></a>多数派为什么如此重要</h3><p>对 <code>N</code> 个投票节点，严格多数派的大小为：</p>
+<p>[<br>Q&#x3D;\left\lfloor\frac{N}{2}\right\rfloor+1<br>]</p>
+<p>任意两个这样的多数派一定至少共享一个成员。以五节点集群为例，任何两个三节点集合都不可能完全不相交。这项简单的集合性质是 Paxos、Raft、ZAB 等协议中防止冲突决定的重要基础。</p>
+<p>假定故障不会作恶，采用多数派的系统通常可以在 <code>N=2f+1</code> 时容忍 <code>f</code> 个节点崩溃，并维持继续提交的能力。三节点容忍一个，五节点容忍两个；它并不意味着任何五节点系统都具有相同的存储持久性、业务可用性或读一致性。</p>
+<h2 id="CAP：发生网络分区时，系统准备保留什么"><a href="#CAP：发生网络分区时，系统准备保留什么" class="headerlink" title="CAP：发生网络分区时，系统准备保留什么"></a>CAP：发生网络分区时，系统准备保留什么</h2><p>CAP 定理抽象出一致性（Consistency）、可用性（Availability）和分区容错性（Partition Tolerance）之间的限制。它不是给某个数据库贴上“CP”或“AP”标签就结束的分类题，而是要求设计者回答：<strong>当持有同一份数据的节点无法彼此通信时，请求应当等待、失败，还是继续使用可能滞后的状态？</strong></p>
+<h3 id="C、A、P-的精确定义"><a href="#C、A、P-的精确定义" class="headerlink" title="C、A、P 的精确定义"></a>C、A、P 的精确定义</h3><p>CAP 中的 C 通常按照**线性一致性（Linearizability，又称原子一致性）**理解：每个操作都好像在发起和返回之间的某个瞬间原子生效，而且全局顺序尊重真实时间的先后关系。一次写入已经成功返回后，后续读操作不能再从系统中读到该写入之前的版本，除非发生了更新的写入。</p>
+<p>A 是定理语境下的可用性：每个送到非故障节点的请求最终都能够得到协议要求的响应。它与运维报表里的 99.99% SLA、平均延迟或“首页还能打开”不是同一个定义。</p>
+<p>P 表示即使网络在不同节点间丢弃或无限期延迟消息，系统也需要考虑如何表现。它不是可随手关闭的一项技术功能；只要节点可能被网络分开，就必须接受这种故障模型。</p>
+<pre><code class=" mermaid">flowchart LR
+    C[客户端]
+    subgraph P1[多数派分区]
+      A[副本 A: X=2]
+      Q[副本 C: X=2]
+    end
+    subgraph P2[少数派分区]
+      B[副本 B: X=1]
+    end
+    C --&gt;|已确认写入 X=2| A
+    A --- Q
+    A -.-&gt;|网络分区阻断同步| B
+    C --&gt;|随后读取 X| B
+    B --&gt; D&#123;如何响应?&#125;
+    D --&gt;|等待或拒绝| CP[保留一致性]
+    D --&gt;|返回旧值 1| AP[保留可用性]
+</code></pre>
+
+<p>当分区存在时，如果 B 无法确认 A 的最新写入情况，B 既不能保证返回新值，又不能一边坚持线性一致性一边保证每个请求都成功完成。CAP 所陈述的冲突就在这里。</p>
+<p>常见说法“CAP 三选二”容易误导。<strong>不是所有时刻都只能在 C 和 A 之间选择一个，而是在网络分区期间，不能同时满足定理所要求的 C 和 A。</strong> 网络正常时，一套协议可以同时提供很好的读取一致性和可用性，但依然有延迟、吞吐量、复制成本方面的取舍。</p>
+<h3 id="CP-与-AP-不是整个系统永久不变的身份"><a href="#CP-与-AP-不是整个系统永久不变的身份" class="headerlink" title="CP 与 AP 不是整个系统永久不变的身份"></a>CP 与 AP 不是整个系统永久不变的身份</h3><p>CP 倾向在分区期间限制无法确认最新状态的操作，例如 Raft 集群失去多数派后停止提交写入。这样牺牲了一部分请求的可用性，避免两个分区各自确认矛盾的数据。</p>
+<p>AP 倾向让彼此隔离的节点继续处理请求，之后再同步和调解冲突。读到旧值、出现并发版本甚至后续合并，是需要明确接受的语义，而不是免费获得高可用。</p>
+<p>“CA 系统”也不宜直接对应单机 MySQL 或某个产品名称。CAP 讨论的是会发生网络分区的分布式系统；在没有分区故障的运行区间，可以同时有 C 和 A，但不能因此声称分区不再需要处理。</p>
+<h3 id="同一产品可以对不同数据采用不同策略"><a href="#同一产品可以对不同数据采用不同策略" class="headerlink" title="同一产品可以对不同数据采用不同策略"></a>同一产品可以对不同数据采用不同策略</h3><p>一个时序数据库可以分为两层：</p>
+<pre><code class=" mermaid">flowchart TB
+  U[客户端]
+  M[元数据服务 META&lt;br/&gt;库、保留策略、分片分配]
+  D[数据服务 DATA&lt;br/&gt;时序记录、分片、副本]
+  U --&gt; M
+  U --&gt; D
+  M --&gt;|提供路由和配置| D
+  M --&gt; MC[多数派共识&lt;br/&gt;优先一致性]
+  D --&gt; DA[多副本异步复制&lt;br/&gt;优先写入与扩展]
+</code></pre>
+
+<p>META 存储库名、分片位置、保留策略等控制平面数据。若一个节点告诉写入客户端“数据库存在”，另一个节点却认为“数据库不存在”，就可能造成路由错误和业务失败。因此元数据适合采用多数派共识，对不确定状态采取更保守的策略。</p>
+<p>DATA 保存高吞吐时序记录，业务可能更看重写入持续性、批量查询和横向扩展。此时可以允许数据副本短时间不一致，再用副本传播与反熵修复。代价是读数据时必须处理滞后、缺失、重复和冲突。</p>
+<p>这是一种基于业务语义的架构划分，不意味着所有 InfluxDB 版本或所有时序数据库都采用相同实现。也不能由“用了 Raft”推出“整个数据库不能水平扩展”：Raft 只限定<strong>单个共识组</strong>的写入协调方式，多个独立共识组可以分片并行工作。</p>
+<h2 id="ACID-与-BASE：事务约束和可用性策略"><a href="#ACID-与-BASE：事务约束和可用性策略" class="headerlink" title="ACID 与 BASE：事务约束和可用性策略"></a>ACID 与 BASE：事务约束和可用性策略</h2><p>CAP 的 C 经常与 ACID 的 C 混为一谈，甚至把 ACID 与 BASE 说成一组非此即彼的技术。这样理解很容易让系统选型出现偏差。</p>
+<h3 id="ACID-约束的是事务"><a href="#ACID-约束的是事务" class="headerlink" title="ACID 约束的是事务"></a>ACID 约束的是事务</h3><p>ACID 描述数据库事务的四项关键性质：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>含义</th>
+<th>工程关注点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Atomicity，原子性</td>
+<td>事务包含的操作整体提交，或整体不产生已提交效果</td>
+<td>日志恢复、回滚、跨资源提交协议</td>
+</tr>
+<tr>
+<td>Consistency，一致性</td>
+<td>事务使数据从一个满足约束的状态转到另一个满足约束的状态</td>
+<td>唯一约束、外键、金额守恒、业务不变量</td>
+</tr>
+<tr>
+<td>Isolation，隔离性</td>
+<td>并发事务的相互影响符合指定隔离级别</td>
+<td>锁、MVCC、并发异常和隔离级别</td>
+</tr>
+<tr>
+<td>Durability，持久性</td>
+<td>成功提交后的结果在规定故障模型下不会丢失</td>
+<td>WAL、刷盘、备份和故障恢复</td>
+</tr>
+</tbody></table>
+<p>这里的 ACID Consistency 指<strong>事务前后保持数据库约束</strong>，不是 CAP 所要求的所有读写操作具有线性化顺序。一个系统可以在单个节点上提供 ACID 事务，但通过异步副本复制产生跨节点的旧读；也可以使用一致性共识保证日志顺序，却仍然需要单独实现事务隔离。</p>
+<h3 id="BASE-允许副本在一段时间内暂时不同"><a href="#BASE-允许副本在一段时间内暂时不同" class="headerlink" title="BASE 允许副本在一段时间内暂时不同"></a>BASE 允许副本在一段时间内暂时不同</h3><p>BASE 通常展开为 Basically Available（基本可用）、Soft State（软状态）和 Eventually Consistent（最终一致性）。其思想是：遇到故障或负载尖峰时，优先保留核心服务，并允许数据经过一段时间逐步收敛。</p>
+<p>“最终一致”包含一个常被省略的前提：<strong>停止产生新的冲突更新、网络能够恢复传播、修复机制持续推进，而且冲突有明确的收敛规则。</strong> 它不是“等一等自然就一致了”，更不是系统能够容忍数据永久丢失。</p>
+<p>业务级的基本可用也不同于 CAP 定理对 A 的严格定义。例如抢票服务排队返回“正在处理”，以排队降低核心写路径的压力，属于合理的高可用设计，却不等于对应事务已经完成。</p>
+<p>应对流量和故障的典型手段包括：</p>
+<ul>
+<li><strong>削峰</strong>：错峰开放、写入队列、异步批处理，将尖峰转化为可控吞吐。</li>
+<li><strong>延迟响应</strong>：向客户端返回任务编号和处理中状态，后续查询最终结果。</li>
+<li><strong>功能降级</strong>：舍弃非核心推荐、高清图片等能力，维持关键路径。</li>
+<li><strong>过载保护</strong>：限流、熔断、队列上限、超时预算、隔离故障依赖。</li>
+</ul>
+<p>BASE 不是放弃数据正确性，而是把“哪些数据允许短暂落后、最多落后多久、如何发现和修复”变成明确的业务约定。元数据、支付流水、实时监控曲线和社交在线状态，通常不应使用同一套一致性承诺。</p>
+<h2 id="分布式事务：2PC、XA-与-TCC-怎样协同多个资源"><a href="#分布式事务：2PC、XA-与-TCC-怎样协同多个资源" class="headerlink" title="分布式事务：2PC、XA 与 TCC 怎样协同多个资源"></a>分布式事务：2PC、XA 与 TCC 怎样协同多个资源</h2><p>当一个操作需要同时更新几个独立的数据库或服务，单节点事务无法直接把它们包成一个原子提交单元。典型例子是业务侧的资金转移：从账户 A 扣减 100 元，同时向账户 B 增加 100 元。如果两个资源的提交彼此独立，系统宕机时就可能只完成一半。</p>
+<h3 id="二阶段提交：所有参与者准备好之后再作决定"><a href="#二阶段提交：所有参与者准备好之后再作决定" class="headerlink" title="二阶段提交：所有参与者准备好之后再作决定"></a>二阶段提交：所有参与者准备好之后再作决定</h3><p>二阶段提交（Two-Phase Commit，2PC）由协调者（Coordinator）组织多个参与者（Participant），分为准备阶段与决定阶段。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant C as 事务协调者
+    participant A as 参与者 A
+    participant B as 参与者 B
+    C-&gt;&gt;A: PREPARE(txId)
+    C-&gt;&gt;B: PREPARE(txId)
+    A-&gt;&gt;A: 执行并持久化准备状态、保留资源
+    B-&gt;&gt;B: 执行并持久化准备状态、保留资源
+    A--&gt;&gt;C: VOTE YES
+    B--&gt;&gt;C: VOTE YES
+    C-&gt;&gt;C: 持久化 COMMIT 决定
+    C-&gt;&gt;A: COMMIT(txId)
+    C-&gt;&gt;B: COMMIT(txId)
+    A--&gt;&gt;C: ACK
+    B--&gt;&gt;C: ACK
+</code></pre>
+
+<p>如果准备阶段有参与者投 <code>NO</code> 或无法准备，协调者应根据协议决定中止并通知参与者回滚。一个参与者一旦投出 <code>YES</code>，必须能够在进程崩溃并重启后继续履行最终决定。因此准备记录、协调者决定等关键信息需要持久化，而不是仅存于内存。</p>
+<p>2PC 的成本不仅是多一次网络交互。参与者准备成功后往往持有锁或资源预留；如果协调者在公布结果前故障，处于 <code>PREPARED</code> 状态的参与者可能长期无法独立判断应该提交还是回滚，这就是经典的阻塞问题。</p>
+<p><strong>2PC 不等于 Paxos 的两阶段。</strong> 两者都出现“第一阶段、第二阶段”的消息结构，但 2PC 协调一个分布式事务的原子决定；Paxos 在可能有不同提议者和故障的情况下选择一个安全的值。不能因为它们都分两阶段，就认定其容错性质一样。</p>
+<h3 id="XA：数据库资源参与的分布式提交接口"><a href="#XA：数据库资源参与的分布式提交接口" class="headerlink" title="XA：数据库资源参与的分布式提交接口"></a>XA：数据库资源参与的分布式提交接口</h3><p>XA 是 X&#x2F;Open DTP 体系中用于分布式事务管理器与资源管理器协作的接口规范。支持 XA 的数据库能够参与准备、提交、回滚等过程；MySQL 的 XA 事务就是常见实例。</p>
+<p>XA 的优势是事务协调逻辑可以相对独立于具体业务操作，适合需要跨事务资源保持原子提交语义的场景。但它对资源管理器能力、日志恢复、连接管理和长时间持锁都有要求。遇到高并发或跨机房长延迟时，应评估锁等待和故障恢复的代价。</p>
+<h3 id="TCC：把资源预留、确认和取消显式放到业务层"><a href="#TCC：把资源预留、确认和取消显式放到业务层" class="headerlink" title="TCC：把资源预留、确认和取消显式放到业务层"></a>TCC：把资源预留、确认和取消显式放到业务层</h3><p>TCC 代表 Try、Confirm、Cancel。它不要求每个业务参与者长期持有同一个数据库事务，而是让业务定义三个能够独立重试的动作。</p>
+<pre><code class=" mermaid">flowchart TD
+  S[开始全局事务] --&gt; T[对各参与者执行 Try&lt;br/&gt;校验条件并预留资源]
+  T --&gt; R&#123;全部 Try 成功?&#125;
+  R --&gt;|是| C[执行 Confirm&lt;br/&gt;将预留转换为正式完成]
+  R --&gt;|否| X[执行 Cancel&lt;br/&gt;释放已预留资源]
+  C --&gt; E[记录全局成功]
+  X --&gt; F[记录取消结果]
+</code></pre>
+
+<p>例如库存扣减可以按业务状态实现：<code>Try</code> 将可售数量中的指定额度转为预留数量，<code>Confirm</code> 将预留量实际消耗，<code>Cancel</code> 则释放预留量。这里的状态变迁必须由业务自己编码，不能简单地把三次普通 SQL 更新包装为“分布式事务”就认为安全。</p>
+<p>TCC 的关键实现要求通常包括：</p>
+<ul>
+<li><strong>幂等</strong>：同一个 <code>txId</code> 的 Confirm&#x2F;Cancel 多次执行应保持一次执行的效果。</li>
+<li><strong>空回滚处理</strong>：Try 尚未成功或消息尚未到达时，Cancel 先到不能误修改不属于该事务的资源。</li>
+<li><strong>防悬挂</strong>：Cancel 已成功后，迟到的 Try 不能重新预留资源。</li>
+<li><strong>状态持久化</strong>：参与者需要能根据事务号识别 <code>TRYING</code>、<code>CONFIRMED</code>、<code>CANCELLED</code> 等状态，恢复后继续处理。</li>
+<li><strong>重试和对账</strong>：超时意味着结果未知，不等于远端一定没执行；需要能查询状态、重试补偿与发现漏单。</li>
+</ul>
+<p>TCC 对锁粒度和资源管理更灵活，但增加业务代码复杂度。如果事务天然由数据库管理且吞吐可接受，优先利用成熟事务能力通常更稳妥；跨服务且适合业务预留&#x2F;补偿的操作，再考虑 TCC。</p>
+<p>早期的三阶段提交（3PC）通过额外阶段和超时机制试图减轻阻塞，但不能简单推导出“引入超时就能在任意网络分区下安全提交”。它也并非今天分布式事务的通用替代方案。</p>
+<h2 id="拜占庭将军问题：为什么多数表决还不够"><a href="#拜占庭将军问题：为什么多数表决还不够" class="headerlink" title="拜占庭将军问题：为什么多数表决还不够"></a>拜占庭将军问题：为什么多数表决还不够</h2><p>在没有恶意行为的世界里，“收到过半节点的确认”是一个很强的基础。但如果有参与者可以向不同人撒不同的谎，同一个表决过程就不再安全。</p>
+<p>假设只有三位将军，其中齐主张撤退、燕主张进攻，楚是叛徒。楚向齐说“撤退”，却向燕说“进攻”。两位诚实将军分别计算自己看到的多数意见：齐得到“撤退 2、进攻 1”，燕却得到“撤退 1、进攻 2”。即使每个人严格按照多数规则行事，最终也会做出不同决定。</p>
+<p>这个故事抽象出拜占庭共识的本质问题：<strong>正常节点不仅要决定选哪个值，还要在恶意节点发送不一致消息时，仍然做出相同决定。</strong></p>
+<h3 id="无签名口信模型与-3f-1-门槛"><a href="#无签名口信模型与-3f-1-门槛" class="headerlink" title="无签名口信模型与 3f+1 门槛"></a>无签名口信模型与 <code>3f+1</code> 门槛</h3><p>在经典拜占庭将军问题的口信模型中，消息的来源可以识别，但不能依靠可转发、不可伪造的数字签名来证明原始内容。在同步通信、消息可按约定轮次送达等前提下，若最多有 <code>f</code> 个叛徒，要解决对应的拜占庭一致性问题，需要至少：</p>
+<p>[<br>N\geq 3f+1<br>]</p>
+<p>这个结论不是简单地“正常节点人数超过异常节点两倍”就能解释；关键是不同诚实节点得到的视图可能不同，算法必须确保递归转发后的决策仍一致。</p>
+<p>对于一名叛徒，需要至少四位将军。典型的口信消息方案通过多轮消息传递，让接收者收集其他将军对指挥官命令的转述，再用统一规则做决定。若容忍 <code>f</code> 个叛徒，需要执行 <code>f+1</code> 层的消息传播与决策过程。</p>
+<p>在这种递归构造下，消息成本会随容忍的叛徒数量急剧增加，通常可用与 <code>O(N^{f+1})</code> 同量级的上界描述。它适合说明问题为什么困难，却不适合直接作为普通生产集群的复制协议。</p>
+<h3 id="带签名的消息改善了什么"><a href="#带签名的消息改善了什么" class="headerlink" title="带签名的消息改善了什么"></a>带签名的消息改善了什么</h3><p>若所有参与者身份已知，诚实节点的签名不可伪造，消息被修改后能够检测，而且其他节点能够验证并转发带签名的原始消息，那么恶意节点就难以谎称“另一个诚实节点说过某句话”。</p>
+<p>此时可以设计签名消息算法：转发消息时携带完整签名链，所有正常节点按相同的取值规则处理收集到的有效消息。它与无签名口信模型的容错限制不同，在原始算法的特定通信与认证假设下可以处理更强的叛徒比例。</p>
+<p>但<strong>签名只证明谁签发了这条消息，并不证明消息内容为真</strong>；恶意节点完全可能用自己的合法密钥签署两条矛盾的消息。如何在出现这种分叉时保持安全，仍需要协议级处理。数字签名也不能消除网络分区、超时、密钥泄露、成员身份管理或活性问题。</p>
+<p>这就解释了为什么在工程实践中，还需要 PBFT 等完整的拜占庭容错复制协议，而不是给普通的 Raft RPC 加上一层签名就宣布获得 BFT 能力。</p>
+<h2 id="Paxos：让多个节点对一个值作出不可推翻的决定"><a href="#Paxos：让多个节点对一个值作出不可推翻的决定" class="headerlink" title="Paxos：让多个节点对一个值作出不可推翻的决定"></a>Paxos：让多个节点对一个值作出不可推翻的决定</h2><p>如果排除了恶意节点，问题可以收窄为：不同客户端可能并发提议不同的值，部分节点随时会宕机，消息可能被延迟或重传，怎样保证系统最终最多只选定一个值？</p>
+<p>Basic Paxos 对此给出了非常经典的答案。</p>
+<h3 id="Basic-Paxos-的三种角色和提案"><a href="#Basic-Paxos-的三种角色和提案" class="headerlink" title="Basic Paxos 的三种角色和提案"></a>Basic Paxos 的三种角色和提案</h3><ul>
+<li><strong>Proposer（提议者）</strong>：提出某个提案，协调投票。</li>
+<li><strong>Acceptor（接受者）</strong>：记录承诺和已接受的提案，参与多数派决定。</li>
+<li><strong>Learner（学习者）</strong>：得知已经被选定的值，用于更新本地状态。</li>
+</ul>
+<p>角色是协议职责，不一定对应三台不同机器。同一个服务节点可以同时是 Proposer、Acceptor 和 Learner。</p>
+<p>一个提案写作 <code>(n, v)</code>，其中 <code>n</code> 是全局可比较且唯一的提案编号，<code>v</code> 是希望被选定的值。对同一个 Paxos 实例，接受者需要保留至少两类持久化状态：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">promisedNumber          # 已承诺不再接受更小编号的提案<br>acceptedProposal        # 已接受的最高编号提案 (number, value)，可能为空<br></code></pre></td></tr></table></figure>
+
+<p><strong>接受（Accepted）不等于选定（Chosen）。</strong> 某个 Acceptor 接受一个值，只表示本节点记录了它；同一个提案被一个多数派接受，才意味着该值已经被选定。学习者也不应只因为收到一条接受通知就立即当作全局共识。</p>
+<h3 id="Prepare-Promise：先确认自己是否可以安全提出值"><a href="#Prepare-Promise：先确认自己是否可以安全提出值" class="headerlink" title="Prepare &#x2F; Promise：先确认自己是否可以安全提出值"></a>Prepare &#x2F; Promise：先确认自己是否可以安全提出值</h3><p>第一阶段是准备与承诺（Prepare &#x2F; Promise）。Proposer 选择一个比自己此前使用的编号更大的 <code>n</code>，向 Acceptor 发送 <code>Prepare(n)</code>。</p>
+<p>Acceptor 若尚未承诺比 <code>n</code> 更大的编号，就可以更新承诺并返回 <code>Promise</code>，同时告诉提议者：自己曾经接受过的最高编号提案是什么。之后它不能再接受编号小于自己承诺的提案。</p>
+<p>当 Proposer 从多数派收到 Promise 后，不一定能直接使用客户端新提交的值。它必须检查所有成功响应：</p>
+<ul>
+<li>如果这些 Acceptor 从未接受过任何提案，可以使用自己要提议的新值；</li>
+<li>如果已有接受记录，必须选取其中<strong>被接受编号最高</strong>的提案所携带的值，作为本轮要提议的值。</li>
+</ul>
+<p>这项看似不直观的规则正是 Paxos 保住已选定值的关键。它使更高编号的提议者能够接续先前的决定，而不是以“我的编号更大”为由覆盖它。</p>
+<h3 id="Accept-Accepted：在多数派中选定同一个值"><a href="#Accept-Accepted：在多数派中选定同一个值" class="headerlink" title="Accept &#x2F; Accepted：在多数派中选定同一个值"></a>Accept &#x2F; Accepted：在多数派中选定同一个值</h3><p>第二阶段是接受（Accept）。Proposer 发送 <code>Accept(n, v)</code>，Acceptor 如果没有承诺过更大的编号，就接受并持久化该提案，再返回确认。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant P as Proposer
+    participant A as Acceptor A
+    participant B as Acceptor B
+    participant C as Acceptor C
+    P-&gt;&gt;A: Prepare(n)
+    P-&gt;&gt;B: Prepare(n)
+    P-&gt;&gt;C: Prepare(n)
+    A--&gt;&gt;P: Promise(已接受的最高提案)
+    B--&gt;&gt;P: Promise(已接受的最高提案)
+    Note over P: 收到多数派承诺&lt;br/&gt;确定允许提议的值 v
+    P-&gt;&gt;A: Accept(n, v)
+    P-&gt;&gt;B: Accept(n, v)
+    A--&gt;&gt;P: Accepted(n, v)
+    B--&gt;&gt;P: Accepted(n, v)
+    Note over P: 同一提案得到多数派接受&lt;br/&gt;值 v 已选定
+</code></pre>
+
+<p>例如两个客户端分别想把只读变量 <code>X</code> 定为 <code>3</code> 和 <code>7</code>。并发 Prepare 可能互相抢占；假设编号为 <code>5</code> 的提议者成功取得多数派承诺，且此前无人接受过别的值，那么它可以提议 <code>(5, 7)</code>。当这个提案被多数派接受，<code>X=7</code> 被选定。此后，即使另一个 Proposer 使用编号 <code>10</code> 重新协调，也必须通过 Promise 找到可能已被选定的 <code>7</code>，并继续提议它。</p>
+<h3 id="为什么两个多数派的交集能够保住安全性"><a href="#为什么两个多数派的交集能够保住安全性" class="headerlink" title="为什么两个多数派的交集能够保住安全性"></a>为什么两个多数派的交集能够保住安全性</h3><p>假设值 <code>v</code> 已经被一个多数派接受。任何后续取得多数派 Promise 的 Proposer，都至少能联系到这个多数派中的一个节点；更高编号的提案则必须遵守“沿用最高已接受编号对应的值”的规则。结合协议不变量，可以保证后续被选定的值不会与 <code>v</code> 冲突。</p>
+<p>这里需要两件事同时成立：<strong>多数派交集</strong>和<strong>正确的提案继承规则</strong>。只拿到过半赞成票，却任意改写值，不是 Paxos。</p>
+<p>Paxos 主要保证 Safety。在异步网络中，多个 Proposer 可能不断使用更大的编号彼此抢占，迟迟无法选定值。实际系统因此通常会引入稳定领导者、退避机制以及适当的超时与失败检测，以改善活性。</p>
+<h3 id="Multi-Paxos：从“一个值”演变成“一系列操作”"><a href="#Multi-Paxos：从“一个值”演变成“一系列操作”" class="headerlink" title="Multi-Paxos：从“一个值”演变成“一系列操作”"></a>Multi-Paxos：从“一个值”演变成“一系列操作”</h3><p>单个 Basic Paxos 实例只能确定一个值。数据库和配置系统却需要不断处理写入操作，如果每一条记录都从 Prepare 重新开始，就会产生大量消息往返。</p>
+<p>Multi-Paxos 的常见实现思路是让多个 Paxos 实例分别决定日志中的不同位置，并尽量由一个稳定的 Leader 负责提议：</p>
+<ol>
+<li>通过准备阶段建立当前领导者的有效提案编号，学习并继承已有接受记录。</li>
+<li>在领导权稳定且协议条件满足时，后续日志位置通常可以省略逐条重新执行 Prepare 的步骤。</li>
+<li>Leader 为新日志位置提议值，通过接受阶段获得多数派确认。</li>
+<li>领导者变更时，新领导者恢复必要的历史状态，填补或处理未决位置，继续安全提议。</li>
+</ol>
+<p>这样稳定状态下每个操作的协商延迟可以少一个往返阶段，但领导权争夺、历史恢复、成员变更、日志空洞和提交可见性都需要额外设计。</p>
+<p>“Multi-Paxos”常用来泛指这种多实例、基于 Paxos 思想的协议族，并不是每个系统都有完全相同的消息、选举和日志实现。<strong>Raft 与 Multi-Paxos 可以在复制状态机结果上实现相近保证，但 Raft 是具有自身明确规则的协议，不应把两者直接当成同一份算法。</strong></p>
+<h3 id="Chubby：稳定主节点与租约是工程化的关键"><a href="#Chubby：稳定主节点与租约是工程化的关键" class="headerlink" title="Chubby：稳定主节点与租约是工程化的关键"></a>Chubby：稳定主节点与租约是工程化的关键</h3><p>Google Chubby 是 Paxos 思想在分布式协调服务中的经典实践。其实现围绕主节点组织请求，通过主节点租约（Lease）维持一段时间内的领导权，使用 Paxos 复制必要状态，并处理故障后的主节点变更。</p>
+<p>一个典型收益是：写请求由主节点串行协调，客户端不必理解每个 Acceptor 的内部状态。代价是主节点可能成为吞吐和处理延迟的瓶颈。</p>
+<p>但“所有读请求都送往主节点”也不是线性一致性读的充分条件。若旧主节点因网络分区没有及时得知领导权丧失，或者租约与时钟假设处理不正确，它也可能回答过期数据。可靠的线性化读取仍需要验证当前领导权，或采用适当的读屏障、读租约证明等机制。</p>
+<h2 id="Raft：把复制状态机落实为选举、日志和成员变更"><a href="#Raft：把复制状态机落实为选举、日志和成员变更" class="headerlink" title="Raft：把复制状态机落实为选举、日志和成员变更"></a>Raft：把复制状态机落实为选举、日志和成员变更</h2><p>Raft 的目标是让多个副本以相同顺序执行相同命令。相较于只描述如何选择一个值，Raft 明确规定节点角色、任期、日志匹配、提交、安全选主和配置变更等结构，因此更容易以较少的状态分支实现和验证。</p>
+<h3 id="领导者、候选人和跟随者如何转换"><a href="#领导者、候选人和跟随者如何转换" class="headerlink" title="领导者、候选人和跟随者如何转换"></a>领导者、候选人和跟随者如何转换</h3><p>Raft 节点具有三种主要角色：<code>Follower</code>、<code>Candidate</code> 和 <code>Leader</code>。刚启动时通常作为 Follower，等待领导者的心跳；如果选举超时仍没有收到有效领导者消息，就转为 Candidate。</p>
+<pre><code class=" mermaid">stateDiagram-v2
+    [*] --&gt; Follower
+    Follower --&gt; Candidate: 选举超时，任期加一并投自己
+    Candidate --&gt; Leader: 获得本任期多数票
+    Candidate --&gt; Follower: 发现更高任期或有效领导者
+    Candidate --&gt; Candidate: 选票分裂，超时重选
+    Leader --&gt; Follower: 发现更高任期
+    Leader --&gt; Leader: 发送心跳并复制日志
+</code></pre>
+
+<p>节点使用单调增加的 <code>currentTerm</code> 标识任期，通常持久化任期与该任期投给谁。在一次任期里，每个投票者最多投一票；任期 <code>T</code> 的候选人赢得多数票后，才可以成为任期 <code>T</code> 的 Leader。</p>
+<p>Candidate 发送的 <code>RequestVote</code> 不仅携带 <code>term</code> 和 <code>candidateId</code>，还携带 <code>lastLogIndex</code>、<code>lastLogTerm</code>。接收者只有在候选人的日志<strong>至少和自己一样新</strong>、且符合任期与投票规则时才会批准。</p>
+<p>日志新旧的比较顺序是先比较最后一条日志的任期；任期更大的更“新”，只有任期相同时才比较最后日志索引。不能简单认为“日志条数最多的节点一定当选”。</p>
+<p>随机化选举超时降低多个节点同时参选导致选票分裂的概率。经典论文常以 150～300ms 的超时区间举例，这只是演示或特定设置，并非所有 Raft 软件的通用默认值。生产环境应该结合节点 RTT、磁盘抖动、GC 暂停和网络条件决定超时预算。</p>
+<p>任期和多数派保证<strong>同一任期内最多一个合法 Leader</strong>。网络分区时，旧 Leader 可能尚不知道自己已经过时，因此应用层必须防止旧领导者在未重新确认权威的情况下执行不可逆外部副作用。这也是 Fencing Token、租约校验和请求重定向等机制具有工程意义的原因。</p>
+<h3 id="日志项与复制状态机"><a href="#日志项与复制状态机" class="headerlink" title="日志项与复制状态机"></a>日志项与复制状态机</h3><p>Raft 以日志项（Log Entry）作为复制的基本单位，每条通常包括：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">LogEntry &#123;<br>    index   : 顺序索引<br>    term    : 创建日志项的领导者任期<br>    command : 需要复制状态机执行的命令<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>假设客户端执行 <code>SET X = 2</code>。Leader 先将命令追加到本地日志，再通过 <code>AppendEntries</code> RPC 将其发送给 Follower。跟随者在持久化并通过一致性检查后返回响应。Leader 判断日志项是否可以被提交（Commit），之后已经提交的日志才会被按顺序应用（Apply）到状态机。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant C as Client
+    participant L as Leader A
+    participant B as Follower B
+    participant D as Follower C
+    C-&gt;&gt;L: SET X = 2
+    L-&gt;&gt;L: 追加日志(index=8, term=4)
+    L-&gt;&gt;B: AppendEntries(index=8)
+    L-&gt;&gt;D: AppendEntries(index=8)
+    B--&gt;&gt;L: success
+    Note over L: A+B 构成多数派&lt;br/&gt;满足提交条件
+    L-&gt;&gt;L: commitIndex 前移&lt;br/&gt;按序 Apply
+    L--&gt;&gt;C: success
+    L-&gt;&gt;B: 心跳 / AppendEntries(leaderCommit=8)
+    L-&gt;&gt;D: 心跳 / AppendEntries(leaderCommit=8)
+    B-&gt;&gt;B: 按序 Apply 已提交日志
+    D-&gt;&gt;D: 补齐日志后按序 Apply
+</code></pre>
+
+<p>这个过程有几个容易混淆的层次：</p>
+<ul>
+<li><strong>Appended</strong>：日志存在于本地，不代表已获得多数派确认。</li>
+<li><strong>Replicated</strong>：某条日志已复制到一个或多个副本，还要检查是否满足提交规则。</li>
+<li><strong>Committed</strong>：协议确定该日志不会被之后的合法领导者改写。</li>
+<li><strong>Applied</strong>：已提交命令被状态机执行，业务状态真正改变。</li>
+</ul>
+<p>在基本 Raft 提交规则中，Leader 不能仅凭旧任期日志条目当前位于多数派，就任意将其判定为已提交；它通过多数派复制<strong>本任期</strong>日志项推进 <code>commitIndex</code>，同时让之前的日志作为前缀间接提交。这一细节是保持 Leader Completeness 等安全性质的重要部分。</p>
+<p>Follower 不需要为“每次 Apply”单独执行一套投票。Leader 的 AppendEntries 和心跳会携带 <code>leaderCommit</code>；Follower 在确认日志已存在后推进自己的提交位置，再按序执行状态机。</p>
+<h3 id="日志不一致时，如何找到共同前缀"><a href="#日志不一致时，如何找到共同前缀" class="headerlink" title="日志不一致时，如何找到共同前缀"></a>日志不一致时，如何找到共同前缀</h3><p>在网络分区或节点故障期间，某些 Follower 可能保留尚未提交的旧日志。例如 Leader 的日志为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">Leader:    (1,1) (2,1) (3,2) (4,3) (5,3)<br>Follower:  (1,1) (2,1) (3,2) (4,2)<br>           ^ index,term<br></code></pre></td></tr></table></figure>
+
+<p>这里前三条相同，第四条的任期不同。Leader 发送 AppendEntries 时携带 <code>prevLogIndex</code> 和 <code>prevLogTerm</code>，要求 Follower 确认即将附加的日志之前，双方存在相同的日志位置与任期。</p>
+<p>如果匹配失败，Leader 调整 <code>nextIndex</code>，寻找共同前缀。找到共同位置后，Follower 删除与 Leader 后续新日志发生冲突的<strong>未提交后缀</strong>，再追加 Leader 的新记录。实际实现可以让 Follower 返回冲突任期和索引，避免简单地一次退回一个位置产生过多网络往返。</p>
+<p>这一机制不能表述为“Leader 无条件覆盖 Follower 的一切日志”。<strong>已经提交的日志不能被合法 Leader 覆盖。</strong> 选举中的日志新旧检查正是为了确保当选者包含所有已提交日志。</p>
+<h3 id="Leader-宕机后，已经返回成功的写入会怎样"><a href="#Leader-宕机后，已经返回成功的写入会怎样" class="headerlink" title="Leader 宕机后，已经返回成功的写入会怎样"></a>Leader 宕机后，已经返回成功的写入会怎样</h3><p>假设一个写入已复制到三节点集群中的两个节点，旧 Leader 提交并返回成功，随即宕机。之后能获得多数票的新 Leader 必须具有此前已提交的日志，因此这个写入不会因为重新选举而消失。它可能仍需要通过新任期日志提交规则、心跳或后续复制，使集群的提交位置和应用位置继续推进。</p>
+<p>相反，客户端请求超时或收到了错误，<strong>不意味着这次写入绝对没有生效</strong>。可能是在 Leader 已经复制成功之后、成功响应到达客户端之前发生了断连。客户端需要根据请求 ID、幂等语义或结果查询来处理这种不确定状态。</p>
+<p>例如 <code>SET X = 2</code> 在相同初始条件下重复执行通常比 <code>INCR X</code> 更易重试，但不能把所有业务操作都假定为天然幂等。对于资金转移等请求，应由业务层维护请求号与去重结果，而不能仅依赖 Raft 日志避免重复业务提交。</p>
+<h3 id="成员变更：多数派不能在两个配置之间断开"><a href="#成员变更：多数派不能在两个配置之间断开" class="headerlink" title="成员变更：多数派不能在两个配置之间断开"></a>成员变更：多数派不能在两个配置之间断开</h3><p>节点扩容不是简单地更新一份服务器地址列表。考虑从 <code>[A,B,C]</code> 一步切换到 <code>[A,B,C,D,E]</code>：旧配置中的 <code>{A,B}</code> 是多数派，而新配置中的 <code>{C,D,E}</code> 也是多数派。这两个集合没有交集，如果旧、新配置在不同节点上分别生效，就可能发生各自选主的风险。</p>
+<p>Raft 经典论文使用 <strong>Joint Consensus（联合共识）</strong>，引入同时约束新旧配置的过渡阶段，使配置切换期间不能形成彼此独立的有效多数派。Raft 后续研究及一些实现也采用受严格约束的<strong>单服务器变更</strong>：每次只增加或移除一个投票节点，完成一次成员配置变更后再进行下一次。</p>
+<p>例如从三节点扩为五节点，可以设计为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">[A, B, C]<br>    |<br>    | 同步 D 的日志，再安全变更投票配置<br>    v<br>[A, B, C, D]<br>    |<br>    | 同步 E 的日志，再安全变更投票配置<br>    v<br>[A, B, C, D, E]<br></code></pre></td></tr></table></figure>
+
+<p>在实际实现中，还应区分非投票学习节点（Learner）、正式 Voter 和配置日志的生效规则。新节点未追上日志就贸然加入投票集合，可能让暂时无法联络的慢节点影响可用性；并发提交多个成员变更，也可能破坏某些单节点变更证明所依赖的约束。</p>
+<p>成员变更必须遵循<strong>具体 Raft 实现的配置变更协议</strong>，不能仅依赖“先加一台、再加一台”的操作顺序推导绝对安全。</p>
+<h3 id="读取与快照：写入共识并没有自动解决所有工程问题"><a href="#读取与快照：写入共识并没有自动解决所有工程问题" class="headerlink" title="读取与快照：写入共识并没有自动解决所有工程问题"></a>读取与快照：写入共识并没有自动解决所有工程问题</h3><p>Raft 复制日志可以让提交写入保持一致，但并不意味着任何节点的本地读都天然是线性一致读。Follower 可能尚未应用最新日志；旧 Leader 也可能在分区期间错误地认为自己仍有领导权。</p>
+<p>需要线性一致读时，常见方案包括在 Leader 上使用 <strong>ReadIndex&#x2F;读屏障</strong>确认领导权，以及符合明确时钟与租约假设的 Lease Read；普通 Follower Read 更适合能接受短暂滞后的业务。具体可选能力取决于 etcd、Consul 或其他 Raft 实现。</p>
+<p>随着日志持续增长，系统还需使用快照（Snapshot）与日志压缩，帮助落后的节点恢复并控制存储成本。快照必须与日志索引、任期、应用进度和恢复流程一致，不能直接删除尚未安全持久化的历史记录。</p>
+<h2 id="ZAB：ZooKeeper-为什么特别在意操作顺序"><a href="#ZAB：ZooKeeper-为什么特别在意操作顺序" class="headerlink" title="ZAB：ZooKeeper 为什么特别在意操作顺序"></a>ZAB：ZooKeeper 为什么特别在意操作顺序</h2><p>Paxos 的目标是为某个位置选择安全的值，而 ZooKeeper 面临的更具体需求是：客户端持续提交一系列相互依赖的操作，系统必须让所有副本按照相同的事务顺序应用它们。</p>
+<p>例如，下面两条 ZooKeeper 命令必须按顺序执行：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">create /geekbang 123<br>create /geekbang/time 456<br></code></pre></td></tr></table></figure>
+
+<p>如果第二条命令在第一条完成之前执行，<code>/geekbang</code> 父节点还不存在，创建子节点就会失败。问题不只是“两个值分别被选定了没有”，还包括<strong>这些操作是否构成合法、相同的历史前缀</strong>。</p>
+<h3 id="ZAB-是面向主备复制的原子广播协议"><a href="#ZAB-是面向主备复制的原子广播协议" class="headerlink" title="ZAB 是面向主备复制的原子广播协议"></a>ZAB 是面向主备复制的原子广播协议</h3><p>ZAB（ZooKeeper Atomic Broadcast）围绕 Leader 组织写入：客户端可以连接任意服务器，但写请求最终由 Leader 排序并生成事务 Proposal，再将事务传播给参与复制的 Follower。得到满足协议要求的 Quorum 确认后，Leader 可以提交事务，并将提交决定传播出去。</p>
+<p>ZAB 关注两个容易被忽视的性质：</p>
+<ul>
+<li><strong>顺序性</strong>：各正常副本交付并执行事务的顺序相同，不能先提交依赖后置条件的事务。</li>
+<li><strong>前缀一致性</strong>：当新 Leader 恢复历史时，应保留安全的已提交前缀，防止先前已经提交的操作在故障切换后消失或乱序。</li>
+</ul>
+<p>稳定阶段的流程可以抽象为：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant C as Client
+    participant F as Follower B
+    participant L as Leader A
+    participant D as Follower C
+    C-&gt;&gt;F: create /geekbang/time
+    F-&gt;&gt;L: 转发写请求
+    L-&gt;&gt;L: 分配 zxid 并构造 Proposal
+    L-&gt;&gt;F: PROPOSAL(zxid, operation)
+    L-&gt;&gt;D: PROPOSAL(zxid, operation)
+    F--&gt;&gt;L: ACK(zxid)
+    D--&gt;&gt;L: ACK(zxid)
+    Note over L: 收到有效 Quorum 确认&lt;br/&gt;按顺序决定提交
+    L-&gt;&gt;F: COMMIT(zxid)
+    L-&gt;&gt;D: COMMIT(zxid)
+    L--&gt;&gt;F: 写入完成
+    F--&gt;&gt;C: success
+</code></pre>
+
+<p>实际消息发送与客户端应答细节随协议版本和具体实现而异。这张图描述的是稳定 Leader 下的关键逻辑，并不替代 ZooKeeper 完整源码时序。</p>
+<h3 id="zxid-如何表达领导任期和事务先后关系"><a href="#zxid-如何表达领导任期和事务先后关系" class="headerlink" title="zxid 如何表达领导任期和事务先后关系"></a><code>zxid</code> 如何表达领导任期和事务先后关系</h3><p>ZooKeeper 使用 64 位事务标识符 <code>zxid</code>，通常可以按高位的 Epoch 与低位的 Counter 理解：</p>
+<p>[<br>zxid&#x3D;(epoch\ll32);|;counter<br>]</p>
+<p>例如 <code>&lt;1,1&gt;</code>、<code>&lt;1,2&gt;</code> 分别表示任期 1 内的第一、第二个事务。Leader 在任期内递增事务计数；合法的新领导任期使用更大的 Epoch，确保事务标识符不会与旧任期发生冲突。</p>
+<p>单靠递增的 ID 还不够，协议必须约束提案的传输、确认和交付顺序。可靠有序的 TCP 连接可以保证<strong>同一连接上的字节流有序到达</strong>，但不能独自解决 Leader 崩溃、重新建连、不同 Follower 进度不一等情况。因此，还需要 ZAB 的提案排序、提交约束与领导者恢复协议。</p>
+<p>不能将“用了 TCP”理解为“天然达成了分布式共识”。</p>
+<h3 id="Leader-切换时，必须恢复的是一段历史"><a href="#Leader-切换时，必须恢复的是一段历史" class="headerlink" title="Leader 切换时，必须恢复的是一段历史"></a>Leader 切换时，必须恢复的是一段历史</h3><p>如果旧 Leader 已经广播了多个 Proposal，却在某些事务得到足够确认之前宕机，新 Leader 不能简单地以自己当前最大的事务编号继续写入。它必须确定安全的历史前缀，恢复或清理相关未决状态，让参与者同步到一致的起点，随后才能进入正常广播阶段。</p>
+<p>从工程角度看，ZAB 的生命周期可以概括为：</p>
+<pre><code class=" mermaid">flowchart LR
+    E[选举 Leader] --&gt; D[发现与确认当前历史]
+    D --&gt; S[同步副本历史]
+    S --&gt; B[广播新事务]
+    B --&gt;|Leader 故障| E
+</code></pre>
+
+<p>这正是 ZAB 与“对每个槽位单独跑一次 Basic Paxos”相比的重要设计关注点。需要注意：<strong>不能据此说所有 Multi-Paxos 实现都不保证日志顺序。</strong> 实际可用的 Multi-Paxos 复制状态机实现同样可以维护日志槽位、顺序应用和领导变更安全性；ZAB 是为 ZooKeeper 的主备原子广播需求专门设计的协议。</p>
+<h3 id="ZooKeeper-读请求为何可能读到旧数据"><a href="#ZooKeeper-读请求为何可能读到旧数据" class="headerlink" title="ZooKeeper 读请求为何可能读到旧数据"></a>ZooKeeper 读请求为何可能读到旧数据</h3><p>为了提高读取吞吐，ZooKeeper 允许 Follower 直接服务读取请求，而写入由 Leader 排序提交。于是写入已成功返回时，某个尚未追上最新事务进度的服务器仍可能暂时返回旧数据。</p>
+<p>ZooKeeper 主要提供顺序一致的客户端视图与线性化写入，而不是默认保证<strong>任意节点任意时刻的普通读</strong>都线性一致。</p>
+<p>课程示例使用先 <code>sync</code> 后 <code>get</code> 的模式缩小旧读问题：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">sync /geekbang/time<br>get /geekbang/time<br></code></pre></td></tr></table></figure>
+
+<p>这种方式对于需要在写后观察更新的应用很有价值，但在严格的理论保证上还须谨慎：ZooKeeper 官方说明 <code>sync</code> 本身并非 Quorum 操作，在一些非常规故障交错下不能把它视作普遍的线性化读证明。对外部系统安全性高度敏感的操作，需要根据 ZooKeeper 具体版本和客户端协议设计适当的同步与写屏障。</p>
+<h2 id="PBFT：当节点可能作恶，如何提交同一批操作"><a href="#PBFT：当节点可能作恶，如何提交同一批操作" class="headerlink" title="PBFT：当节点可能作恶，如何提交同一批操作"></a>PBFT：当节点可能作恶，如何提交同一批操作</h2><p>Raft 和 Paxos 的多数派假设投票节点不会故意伪造或互相矛盾地回复。当集群中存在恶意节点，这个前提不成立，单纯复制 Leader 的日志就有风险。</p>
+<p>PBFT（Practical Byzantine Fault Tolerance）将拜占庭将军问题与实际的状态机复制结合起来。它允许有一个 Primary 负责排序，也允许部分 Backup 恶意行动；只要故障数量与通信假设满足协议要求，诚实副本仍能按相同顺序执行请求。</p>
+<h3 id="3f-1-个副本与-2f-1-个有效确认"><a href="#3f-1-个副本与-2f-1-个有效确认" class="headerlink" title="3f+1 个副本与 2f+1 个有效确认"></a><code>3f+1</code> 个副本与 <code>2f+1</code> 个有效确认</h3><p>经典 PBFT 采用：</p>
+<p>[<br>N\geq3f+1<br>]</p>
+<p>其中 <code>f</code> 是最多可容忍的拜占庭故障副本数。以 <code>f=1</code> 为例，至少需要四个副本。PBFT 的准备、提交过程围绕 <code>2f+1</code> 规模的确认集合工作。</p>
+<p>为什么需要较大的 Quorum？对于 <code>N=3f+1</code>、每组 <code>2f+1</code> 个成员的两个确认集合，它们至少相交 <code>f+1</code> 个成员。由于最多只有 <code>f</code> 个恶意节点，所以交集中至少有一个诚实节点不会为互相矛盾的决定背书。</p>
+<p>这与 CFT 的多数派思想相通，却不是同一个阈值：CFT 只需防崩溃，BFT 还要应对消息伪造、分叉承诺和故意干扰。</p>
+<h3 id="Pre-Prepare、Prepare、Commit-三阶段"><a href="#Pre-Prepare、Prepare、Commit-三阶段" class="headerlink" title="Pre-Prepare、Prepare、Commit 三阶段"></a>Pre-Prepare、Prepare、Commit 三阶段</h3><p>PBFT 的请求通常包含视图编号 <code>view</code>、请求序号 <code>sequence</code> 和请求摘要 <code>digest</code>。Primary 为客户端操作分配序号，通过三阶段协议使诚实副本不仅知道“我看到的命令是什么”，也知道“足够多其他副本接受了同一个命令”。</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant C as Client
+    participant P as Primary
+    participant B1 as Backup 1
+    participant B2 as Backup 2
+    participant B3 as Backup 3
+    C-&gt;&gt;P: REQUEST(operation)
+    P-&gt;&gt;B1: PRE-PREPARE(view, seq, digest)
+    P-&gt;&gt;B2: PRE-PREPARE(view, seq, digest)
+    P-&gt;&gt;B3: PRE-PREPARE(view, seq, digest)
+    Note over B1,B3: 校验消息与序号，广播 PREPARE
+    B1--&gt;&gt;B2: PREPARE
+    B2--&gt;&gt;B1: PREPARE
+    B1--&gt;&gt;B3: PREPARE
+    B3--&gt;&gt;B2: PREPARE
+    Note over B1,B3: 满足 Prepared 条件后&lt;br/&gt;广播 COMMIT
+    B1--&gt;&gt;B2: COMMIT
+    B2--&gt;&gt;B3: COMMIT
+    B3--&gt;&gt;B1: COMMIT
+    Note over B1,B3: 收到 2f+1 个匹配 COMMIT&lt;br/&gt;达到 committed-local 条件
+    B1--&gt;&gt;C: REPLY(result)
+    B2--&gt;&gt;C: REPLY(result)
+</code></pre>
+
+<p>这里应严格区分各阶段的条件：</p>
+<p><strong>Pre-Prepare</strong>：Primary 提出操作、视图及序号。备份节点需要检查认证、序号范围、视图和摘要，不能无条件执行。</p>
+<p><strong>Prepare</strong>：正常备份节点交换带有相同视图、序号和摘要的消息。原始 PBFT 的 <code>prepared</code> 判定要求有效 Pre-Prepare 加上 <code>2f</code> 条匹配的、来自不同备份副本的 Prepare 消息；它不是“随便收到两个一样的文本”就算准备成功。</p>
+<p><strong>Commit</strong>：达到 Prepared 后，副本广播 Commit。收到来自不同副本的 <code>2f+1</code> 个有效且匹配的 Commit 消息（可以计入本节点）并满足相应前提，才能形成该副本的 <code>committed-local</code> 状态。之后按请求序号执行操作并返回结果。</p>
+<p>客户端通常等待 <code>f+1</code> 个不同副本返回相同的有效结果，以便至少有一个响应来自诚实副本。收到少于该数量、或在超时窗口内收不到足够一致响应时，客户端不能直接认定执行失败，因为也可能只是应答丢失，需要使用请求唯一标识与重试机制。</p>
+<h3 id="消息认证防伪造，不防恶意节点自己说谎"><a href="#消息认证防伪造，不防恶意节点自己说谎" class="headerlink" title="消息认证防伪造，不防恶意节点自己说谎"></a>消息认证防伪造，不防恶意节点自己说谎</h3><p>PBFT 可以使用数字签名、消息认证码（MAC）等认证机制，验证消息发送者及传输完整性。它们能够阻止恶意副本假冒别的节点，却不妨碍恶意副本使用自己的合法身份发送不同内容。</p>
+<p>真正防止冲突提交的是视图、序号、摘要、确认集合交集以及视图切换时继承安全历史等协议条件。</p>
+<p>如果 Primary 沉默、超时或恶意排序，PBFT 通过 View Change 机制选出新主节点。新主节点必须处理此前可能已准备或提交的操作，而不是任意丢弃旧请求。检查点（Checkpoint）等机制还用于限制日志保留和状态同步成本。</p>
+<h3 id="PBFT-的适用范围"><a href="#PBFT-的适用范围" class="headerlink" title="PBFT 的适用范围"></a>PBFT 的适用范围</h3><p>PBFT 相比指数级消息的理论拜占庭算法更接近工程可用。它在正常路径中的广播通信通常具有 <code>O(N²)</code> 的消息复杂度，节点数量扩大后，网络带宽、认证开销和慢节点都会影响提交延迟。</p>
+<p>因此它更适合成员可识别、规模相对可控、需要容忍恶意行为的复制场景，如部分联盟链和具有明确成员身份的多组织协作系统。它不依赖像比特币挖矿那样持续竞争算力，但也不意味着没有算力、存储和带宽成本。</p>
+<p>还要区分 Safety 与 Liveness：经典 PBFT 的安全性不依赖消息一定在固定时间送达，而在合适的部分同步等条件下才保证最终可以持续推进。若网络被无限期阻断，再完善的超时选主也不能强制消息穿过分区。</p>
+<h2 id="PoW：开放网络怎样把投票权变成计算成本"><a href="#PoW：开放网络怎样把投票权变成计算成本" class="headerlink" title="PoW：开放网络怎样把投票权变成计算成本"></a>PoW：开放网络怎样把投票权变成计算成本</h2><p>PBFT 依赖已知身份的副本和固定的故障比例。开放公链却允许任何人接入，攻击者可以轻易创建成千上万个虚拟身份。按账号或节点数量“一人一票”会遭遇 Sybil Attack（女巫攻击）。</p>
+<p>PoW（Proof of Work，工作量证明）提供了另一种思路：投票权不直接取决于节点身份，而取决于参与者实际投入的计算资源和由此产生的有效工作量。</p>
+<h3 id="工作量证明具有“难计算、易验证”的不对称性"><a href="#工作量证明具有“难计算、易验证”的不对称性" class="headerlink" title="工作量证明具有“难计算、易验证”的不对称性"></a>工作量证明具有“难计算、易验证”的不对称性</h3><p>Hash 函数会把任意长度输入映射为固定长度输出。对于安全的密码学哈希函数，想通过不断修改输入，找到一个符合特定稀有模式的哈希结果，通常只能反复尝试。</p>
+<p>举个可以本地复现的玩具示例：对 <code>geektime</code> 后面不断拼接整数并执行 SHA-256，直到哈希的十六进制表示以 <code>0000</code> 开头。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-built_in">printf</span> geektime | <span class="hljs-built_in">sha256sum</span><br><span class="hljs-comment"># bb2f0f297fe9d3b8669b6b4cec3bff99b9de596c46af2e4c4a504cfe1372dc52  -</span><br></code></pre></td></tr></table></figure>
+
+<p>相应的 Python 演示如下。它只用于解释“尝试计算”与“快速验证”，并不是比特币真实挖矿实现：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs python"><span class="hljs-keyword">import</span> hashlib<br><br>prefix = <span class="hljs-string">&quot;geektime&quot;</span><br>nonce = <span class="hljs-number">0</span><br><br><span class="hljs-keyword">while</span> <span class="hljs-literal">True</span>:<br>    candidate = <span class="hljs-string">f&quot;<span class="hljs-subst">&#123;prefix&#125;</span><span class="hljs-subst">&#123;nonce&#125;</span>&quot;</span>.encode(<span class="hljs-string">&quot;utf-8&quot;</span>)<br>    digest = hashlib.sha256(candidate).hexdigest()<br>    <span class="hljs-keyword">if</span> digest.startswith(<span class="hljs-string">&quot;0000&quot;</span>):<br>        <span class="hljs-built_in">print</span>(nonce, digest)<br>        <span class="hljs-keyword">break</span><br>    nonce += <span class="hljs-number">1</span><br><br><span class="hljs-comment"># 输出：</span><br><span class="hljs-comment"># 35023 0000ec5927ba10ea45a6822dcc205050ae74ae1ad2d9d41e978e1ec9762dc404</span><br></code></pre></td></tr></table></figure>
+
+<p>找到结果需要从 <code>0</code> 到 <code>35023</code> 共 35024 次尝试，验证方却只需重新哈希一次。</p>
+<p>若把目标从前四位 <code>0</code> 提高到前八位 <code>0</code>，在哈希均匀分布的理想近似下，单次命中的概率从 <code>16^-4</code> 降为 <code>16^-8</code>，平均搜索工作量增加 <code>16^4=65536</code> 倍。这里说的是<strong>十六进制字符</strong>，每一位有 16 种可能，不能将概率误写为十进制的 <code>10^-k</code>。</p>
+<h3 id="比特币实际验证的是区块头哈希与目标值"><a href="#比特币实际验证的是区块头哈希与目标值" class="headerlink" title="比特币实际验证的是区块头哈希与目标值"></a>比特币实际验证的是区块头哈希与目标值</h3><p>比特币的区块由区块头和区块体构成。80 字节区块头包含版本号、上一块哈希、Merkle Root、时间戳、难度目标的紧凑编码 <code>nBits</code> 和 Nonce 等字段。</p>
+<p>矿工对序列化后的区块头计算双重 SHA-256：</p>
+<p>[<br>h&#x3D;SHA256(SHA256(blockHeader))<br>]</p>
+<p>将所得结果按比特币协议定义的格式解释为整数，必须满足：</p>
+<p>[<br>h\leq target<br>]</p>
+<p>目标值越小，找到有效哈希的概率越低、预期计算次数越多。由于 4 字节 Nonce 空间有限，矿工还会调整时间戳、Coinbase 的附加数据及相应的 Merkle Root，以继续寻找候选区块。</p>
+<pre><code class=" mermaid">flowchart TD
+    TX[收集候选交易] --&gt; MR[计算 Merkle Root]
+    MR --&gt; H[构造 80 字节区块头]
+    H --&gt; POW[双重 SHA-256]
+    POW --&gt; OK&#123;哈希满足目标?&#125;
+    OK --&gt;|否| N[调整 Nonce 或其他可变字段]
+    N --&gt; H
+    OK --&gt;|是| BC[广播候选区块]
+    BC --&gt; V[其他节点验证 PoW 与全部共识规则]
+    V --&gt; CH[纳入有效链并继续扩展]
+</code></pre>
+
+<p>PoW 是有效性检查的一部分，绝不是“哈希足够小，交易内容就无条件合法”。全节点仍需检查交易签名、余额与花费条件、区块结构、难度规则以及其他共识约束。</p>
+<h3 id="分叉与“51-攻击”的准确含义"><a href="#分叉与“51-攻击”的准确含义" class="headerlink" title="分叉与“51% 攻击”的准确含义"></a>分叉与“51% 攻击”的准确含义</h3><p>矿工几乎同时找到有效区块时，网络里可能暂时出现多条分支。比特币节点按照<strong>累计工作量最高的有效链</strong>选择主链；在相同难度区间，经常看起来像“最长链获胜”，但准确规则不是单纯比较区块数量。</p>
+<p>攻击者若占据较大比例算力，可以尝试秘密构造另一条有效历史，再让它以更高累计工作量替换原有一部分区块。这可能导致交易重组（Reorganization）、双花或交易审查。所谓“51% 攻击”讨论的是掌握多数算力后的长期统计优势，不表示超过 51% 就能瞬间让任何攻击百分百成功，也不表示少于 51% 就绝对不可能发生短暂重组。</p>
+<p><strong>多数算力不等于获得其他用户的私钥。</strong> 攻击者不能凭空为别人的地址生成有效签名、任意拿走其他人未授权的资金，也不能让无效的交易规则被正常验证节点接受。</p>
+<p>攻击成本与网络算力、能源价格、矿机供应、经济激励和持续时间有关。早期资料中的固定人民币估算只适合其当时的假设，不应当作为今天真实攻击成本的结论。</p>
+<h3 id="PBFT-与-PoW-的区别不是“谁更高级”"><a href="#PBFT-与-PoW-的区别不是“谁更高级”" class="headerlink" title="PBFT 与 PoW 的区别不是“谁更高级”"></a>PBFT 与 PoW 的区别不是“谁更高级”</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>PBFT 及类似许可型 BFT</th>
+<th>比特币式 PoW</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>参与者身份</td>
+<td>通常有已知、受管理的验证节点集合</td>
+<td>可开放加入，无法按身份直接信任</td>
+</tr>
+<tr>
+<td>抵抗恶意参与者的依据</td>
+<td>认证、消息交集、视图切换</td>
+<td>资源成本、累计工作量及经济激励</td>
+</tr>
+<tr>
+<td>容错条件</td>
+<td>经典设置 <code>N≥3f+1</code></td>
+<td>基于攻击算力占比、网络和概率模型</td>
+</tr>
+<tr>
+<td>最终性</td>
+<td>满足协议条件后的确定性提交</td>
+<td>随后续有效区块增加而提高的概率性确认</td>
+</tr>
+<tr>
+<td>主要成本</td>
+<td>节点间大量消息与认证</td>
+<td>持续哈希计算、能源和传播</td>
+</tr>
+<tr>
+<td>常见环境</td>
+<td>已知成员的协作网络</td>
+<td>开放式工作量证明公链</td>
+</tr>
+</tbody></table>
+<p>它们共享“对抗恶意行为”的目标，但安全假设和系统接口不同，不能简单互换。</p>
+<h2 id="一致哈希：如何让多个共识组共同承担业务流量"><a href="#一致哈希：如何让多个共识组共同承担业务流量" class="headerlink" title="一致哈希：如何让多个共识组共同承担业务流量"></a>一致哈希：如何让多个共识组共同承担业务流量</h2><p>即使一个 Raft 集群有很多 Follower，同一组写操作通常仍由一个 Leader 协调。增加同一共识组的副本数可以提升冗余与故障容忍能力，但不能无限提高该组的写入吞吐。</p>
+<p>当业务已经超出一个共识组的承载能力，应该考虑把 Key 空间拆成多个分片或分区（Shard &#x2F; Partition），让不同分片分别处理读写。接下来出现的问题是：客户端如何稳定地找到负责某个 Key 的分片？</p>
+<h3 id="普通取模为什么在扩缩容时迁移成本高"><a href="#普通取模为什么在扩缩容时迁移成本高" class="headerlink" title="普通取模为什么在扩缩容时迁移成本高"></a>普通取模为什么在扩缩容时迁移成本高</h3><p>最直观的方法是：</p>
+<p>[<br>shard&#x3D;hash(key)\bmod N<br>]</p>
+<p><code>N</code> 为参与路由的节点或分片数。这个方法在分片数稳定时非常简单，但当 <code>N</code> 从 3 变成 4 时，几乎所有 Key 的取模结果都可能改变，旧存放位置与新路由结果之间出现大范围错配。</p>
+<p>对于均匀哈希的示例，三节点扩展到四节点时，普通取模可能需要重定位约 75% 的 Key。一份千万 Key 的算法演示也得到类似结果。真正生产环境中的迁移量还受 Key 分布、是否按数据量加权和分片迁移策略影响。</p>
+<p>问题不仅是多拷贝一些数据。若路由立即切换而数据尚未迁完，读取可能找不到原有 Key；如果新旧路由并存，写请求又可能落到两个不同位置。<strong>数据路由规则的变化必须与数据搬迁、读写切流和失败回滚协同处理。</strong></p>
+<h3 id="一致哈希环为什么只影响局部区间"><a href="#一致哈希环为什么只影响局部区间" class="headerlink" title="一致哈希环为什么只影响局部区间"></a>一致哈希环为什么只影响局部区间</h3><p>一致哈希（Consistent Hashing）将稳定的哈希空间首尾连接，形成逻辑环。以 32 位空间为例，位置范围从 <code>0</code> 到 <code>2^32-1</code>。</p>
+<p>节点（或分片组）通过哈希映射到环上；查询 Key 时，先计算 Key 的哈希值，然后沿顺时针方向寻找第一个节点，将该节点作为路由目标。</p>
+<pre><code class=" mermaid">flowchart LR
+    K[Key] --&gt; H[计算 Key 的哈希值]
+    H --&gt; R[映射到哈希环]
+    R --&gt; N[顺时针寻找第一个节点]
+    N --&gt; G[得到目标分片或共识组]
+    G --&gt; L[访问该组当前 Leader]
+</code></pre>
+
+<p>新加入节点 D 时，只会从其顺时针后继节点手中接管原本落在 D 前方区间内的 Key；其他区间的路由保持不变。删除节点时，也主要影响该节点负责的区间。</p>
+<p>在均匀分布、节点负载近似相同的理想条件下，由 <code>N</code> 个节点增加到 <code>N+1</code> 个节点，一致哈希期望迁移的 Key 比例大约为：</p>
+<p>[<br>\frac{1}{N+1}<br>]</p>
+<p>这只是均匀环位置下的近似分析，不是每次扩容都精确等于该比例。不同哈希函数、节点位置和虚拟节点数会造成偏差。</p>
+<p>一组千万 Key 的演示结果可以帮助体会差距：</p>
+<table>
+<thead>
+<tr>
+<th>扩容规模</th>
+<th align="right">普通取模重定位比例</th>
+<th align="right">一致哈希示例比例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>3 节点 → 4 节点</td>
+<td align="right">约 75.00%</td>
+<td align="right">约 24.30%</td>
+</tr>
+<tr>
+<td>10 节点 → 11 节点</td>
+<td align="right">约 90.91%</td>
+<td align="right">约 6.48%</td>
+</tr>
+</tbody></table>
+<p>这些数字属于特定程序、节点映射和测试样本的结果，不能作为所有实现的性能承诺。</p>
+<h3 id="虚拟节点降低负载不均"><a href="#虚拟节点降低负载不均" class="headerlink" title="虚拟节点降低负载不均"></a>虚拟节点降低负载不均</h3><p>如果环上只有三个物理节点，它们的哈希位置可能碰巧集中在一个区域，导致有的节点管理大块哈希空间，有的只管理很小一块。虚拟节点（Virtual Node）通过为一个物理节点生成多个独立位置，让环区间分配更加平滑。</p>
+<p>例如物理节点 A 可以在逻辑环中拥有 <code>A-01</code>、<code>A-02</code>、<code>A-03</code> 等虚拟节点，它们最终都映射回 A。配置更多虚拟节点通常能改善数据分布，也能通过权重分配支持异构硬件。</p>
+<p>但虚拟节点并不是自动负载均衡器：</p>
+<ul>
+<li>它主要改善 <strong>Key 空间分布</strong>，不能解决单个超级热点 Key 的所有请求都落在同一位置的问题。</li>
+<li>环位置变化仍然需要数据迁移；使用一致哈希只减少迁移范围，不会替我们复制数据。</li>
+<li>不同服务器容量、磁盘性能和机房故障域可能需要加权虚拟节点与副本放置策略。</li>
+</ul>
+<h3 id="对-Raft-分片做两级路由"><a href="#对-Raft-分片做两级路由" class="headerlink" title="对 Raft 分片做两级路由"></a>对 Raft 分片做两级路由</h3><p>将“一致哈希寻址节点”改为“一致哈希寻址共识组”，就能让客户端路由与组内选主相互解耦。</p>
+<pre><code class=" mermaid">flowchart TB
+    C[客户端] --&gt; P[Proxy / Router]
+    P --&gt; H[一致哈希或分片元数据]
+    H --&gt; G1[Raft Group 1]
+    H --&gt; G2[Raft Group 2]
+    H --&gt; G3[Raft Group 3]
+    subgraph R1[组 1 的多副本]
+      A1[Leader 1]
+      A2[Follower 1A]
+      A3[Follower 1B]
+      A1 --- A2
+      A1 --- A3
+    end
+    subgraph R2[组 2 的多副本]
+      B1[Leader 2]
+      B2[Follower 2A]
+      B3[Follower 2B]
+      B1 --- B2
+      B1 --- B3
+    end
+    G1 --&gt; A1
+    G2 --&gt; B1
+    G3 --&gt; C3[另一组多副本]
+</code></pre>
+
+<p>组 1 的 Leader 从 A 切换到 B，只改变“组 1 → 当前 Leader”的映射，不必重新计算 Key 属于哪个分片，更不必因为单台主机宕机就把整个分片迁往别的共识组。</p>
+<p>当实际增加或拆分共识组时，才涉及重新划分 Key 空间与搬迁数据。此时还需定义路由版本、迁移状态、源与目标双写或切流约束，并对跨组事务单独设计协调方案。</p>
+<h2 id="Gossip-与反熵：不要求立刻相同，怎样最终收敛"><a href="#Gossip-与反熵：不要求立刻相同，怎样最终收敛" class="headerlink" title="Gossip 与反熵：不要求立刻相同，怎样最终收敛"></a>Gossip 与反熵：不要求立刻相同，怎样最终收敛</h2><p>强一致性共识通过多数派决定日志，代价是在失去必要节点时，部分操作必须停止。如果业务愿意接受短时间的数据分歧，就可以通过传播、比较和修复来逐步实现最终一致性。</p>
+<p>Gossip 是一类模仿流行病传播的分布式信息交换方式。节点不必每次都广播给全体成员，而是定期选取若干同伴交换信息，让更新随着传播轮次覆盖更大范围。</p>
+<h3 id="Direct-Mail、Anti-Entropy-与-Rumor-Mongering"><a href="#Direct-Mail、Anti-Entropy-与-Rumor-Mongering" class="headerlink" title="Direct Mail、Anti-Entropy 与 Rumor Mongering"></a>Direct Mail、Anti-Entropy 与 Rumor Mongering</h3><p>三种常见传播与修复思路，针对的问题略有不同：</p>
+<p><strong>Direct Mail（直接邮寄）</strong>：数据发生更新时，主动向其他副本发送变化。失败时可以缓存并重试。它响应快、实现直接，但如果重试队列耗尽、数据被错误丢弃，单独依靠这种方式无法保证最终修复。</p>
+<p><strong>Anti-Entropy（反熵）</strong>：节点定期选择其他节点比较副本状态，发现差异后修复。即使某一次主动传播丢失，只要数据仍有可靠来源、修复能够持续执行，副本仍有机会逐渐收敛。</p>
+<p><strong>Rumor Mongering（谣言传播）</strong>：节点得知新消息后成为传播者，向随机选中的其他节点继续扩散消息，直到消息传播到足够多成员或满足停止条件。这种方式适合较大规模和动态成员环境中的状态通知。</p>
+<pre><code class=" mermaid">flowchart LR
+  A[节点 A&lt;br/&gt;产生新状态] --&gt; B[节点 B]
+  A --&gt; D[节点 D]
+  B --&gt; C[节点 C]
+  B --&gt; E[节点 E]
+  D --&gt; E
+  C --&gt; F[节点 F]
+  E --&gt; F
+</code></pre>
+
+<p>图中 A 不需要同时联系 B、C、D、E、F。B 和 D 在收到信息后继续传播，构成去中心化的扩散路径。传播具有随机性，不保证某条消息在精确的固定轮次到达所有节点；要真正维持最终一致，还应结合去重、状态版本和周期性修复。</p>
+<h3 id="反熵常见的推、拉、推拉方式"><a href="#反熵常见的推、拉、推拉方式" class="headerlink" title="反熵常见的推、拉、推拉方式"></a>反熵常见的推、拉、推拉方式</h3><p>假设节点 A 保存 <code>Bob</code>、<code>Alice</code>、<code>Jerry</code> 三条记录，节点 D 保存 <code>Bob</code>、<code>Tom</code>、<code>Lucy</code> 三条。两者都缺少对方的一部分数据。</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>数据交换方向</th>
+<th>修复效果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Push</td>
+<td>A → D</td>
+<td>D 补齐 A 已有且自己缺失的更新</td>
+</tr>
+<tr>
+<td>Pull</td>
+<td>A ← D</td>
+<td>A 补齐 D 已有且自己缺失的更新</td>
+</tr>
+<tr>
+<td>Push-Pull</td>
+<td>A ↔ D</td>
+<td>双方交换差异，尽量一起完成修复</td>
+</tr>
+</tbody></table>
+<p>实际存储系统不应简单地将两边记录做无条件并集。因为“某条记录不见了”可能表示它从未被同步，也可能表示它已经被合法删除。若没有版本号、删除标记（Tombstone）和冲突裁决，反熵会把已删除的数据错误地重新同步回来。</p>
+<p>同一个 Key 被不同节点并发写入时，也必须明确定义优先级或冲突解决规则。例如：</p>
+<ul>
+<li>使用版本向量等元信息识别因果先后与并发版本；</li>
+<li>允许并发版本共存，再由业务规则合并；</li>
+<li>采用 Last-Write-Wins 时明确时钟偏差及覆盖丢失更新的风险；</li>
+<li>适合可交换、可合并数据类型的场景，可以考虑相应的合并模型。</li>
+</ul>
+<p>“所有副本最终都含有相同 Key 集合”并不足以说明“所有副本最终得到正确的业务结果”。</p>
+<h3 id="大分片不能每次都全量互相比较"><a href="#大分片不能每次都全量互相比较" class="headerlink" title="大分片不能每次都全量互相比较"></a>大分片不能每次都全量互相比较</h3><p>如果每轮反熵都遍历所有记录，把全量数据传给另一个节点，网络和磁盘成本会随数据规模快速增长。工程实践通常将对比范围缩小到分片或分片组，先比较校验和、哈希摘要，必要时再深入比较具体数据块。</p>
+<p>可以借助 Merkle Tree 等分层哈希结构逐层定位差异，或先比较变更日志、版本信息，再传输最少的补偿数据。</p>
+<p>分片副本的典型修复场景有两种：</p>
+<ol>
+<li><strong>缺少整个分片</strong>：按照分片分配元数据确认目标节点，再从健康副本传输快照或完整分片。</li>
+<li><strong>分片存在但内容不一致</strong>：扫描版本或摘要，识别缺失和冲突记录，按规则修复差异并验证结果。</li>
+</ol>
+<p>对于固定的少量分片副本，还可以采用确定顺序的闭环修复，而不完全依赖随机抽样。例如按照 A → B → C → A 同步差异，并在需要时继续对 B 补齐最后一轮新获得的数据，使同一分片组在一轮受控任务中尽可能收敛。</p>
+<pre><code class=" mermaid">flowchart LR
+  A[副本 A] --&gt;|交换差异| B[副本 B]
+  B --&gt;|交换差异| C[副本 C]
+  C --&gt;|交换差异| A
+  A -.-&gt;|必要时继续补齐| B
+</code></pre>
+
+<p>周期性反熵应该支持限速、暂停、超时和重试，避免在系统已经过载时又产生大量磁盘扫描和跨机房传输。</p>
+<p>Gossip 更适合<strong>传播成员状态或更新消息</strong>，而 Raft&#x2F;ZAB 的<strong>正式成员变更</strong>仍需经过各自的共识协议。不能因为 Gossip 告诉大家“新节点已经在线”，就擅自把它算入某个 Raft 组的投票多数派。</p>
+<h2 id="Quorum-NWR：用读写副本数量调整一致性与延迟"><a href="#Quorum-NWR：用读写副本数量调整一致性与延迟" class="headerlink" title="Quorum NWR：用读写副本数量调整一致性与延迟"></a>Quorum NWR：用读写副本数量调整一致性与延迟</h2><p>Gossip 解决的是数据如何传播与收敛，而 Quorum NWR 关注的是：客户端究竟需要等待多少个副本才能认为读写操作完成。</p>
+<p>其中：</p>
+<ul>
+<li><code>N</code>：一份数据的副本数量（Replication Factor），不是整个数据库的服务器总数；</li>
+<li><code>W</code>：一次写入成功所需的副本确认数量；</li>
+<li><code>R</code>：一次读取需获取多少个副本响应，用于判断应返回的版本。</li>
+</ul>
+<h3 id="W-R-N-为什么能读到已经确认的写入"><a href="#W-R-N-为什么能读到已经确认的写入" class="headerlink" title="W+R&gt;N 为什么能读到已经确认的写入"></a><code>W+R&gt;N</code> 为什么能读到已经确认的写入</h3><p>假设一个 Key 有三个副本 A、B、C，即 <code>N=3</code>。客户端写入 <code>X=2</code>，要求 <code>W=2</code>，写入在 A、B 成功后返回。之后另一个客户端要求读取 <code>R=2</code> 个副本。</p>
+<p>即使读取选中了尚未更新的 C，另一个读取对象也必须来自 A 或 B，因为三个副本中任选两个，不可能完全避开此前成功写入的两个副本。因此有：</p>
+<p>[<br>W+R&gt;N<br>]</p>
+<p>这个条件保证固定副本集合中的成功写集合和读集合至少有一个交集。只要读协议能识别已确认的较新版本，就能够发现那次写入。</p>
+<pre><code class=" mermaid">flowchart TB
+  W[写入 X=2] --&gt; A[副本 A：新版本]
+  W --&gt; B[副本 B：新版本]
+  C[副本 C：旧版本]
+  R[读取 R=2] --&gt; B
+  R --&gt; C
+  B --&gt; V[比较版本并返回符合规则的结果]
+  C --&gt; V
+</code></pre>
+
+<p>这就是 Quorum 的交集原理。但<strong>有交集不等于自动获得线性一致性</strong>，这一点特别重要。</p>
+<p>如果有多个客户端并发写入，读期间又有新的写操作，或者使用了 Sloppy Quorum、故障代写节点、异步提交与不可靠版本比较，<code>W+R&gt;N</code> 本身并不能替我们处理这些场景。要保证真正的线性一致性，还需要合适的写入序列化、版本规则、读协议与成员集合约束。</p>
+<p>它是设计较强读写可见性的重要工具，而不是“只要设置两个整数就拥有完整共识协议”。</p>
+<h3 id="几种配置的性能取舍"><a href="#几种配置的性能取舍" class="headerlink" title="几种配置的性能取舍"></a>几种配置的性能取舍</h3><p>以 <code>N=3</code> 为例：</p>
+<table>
+<thead>
+<tr>
+<th align="right">写确认 W</th>
+<th align="right">读确认 R</th>
+<th>交集条件</th>
+<th>主要取舍</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">1</td>
+<td align="right">1</td>
+<td>不满足</td>
+<td>读写延迟较低，可能读到旧副本</td>
+</tr>
+<tr>
+<td align="right">2</td>
+<td align="right">2</td>
+<td>满足</td>
+<td>常见平衡方案，要求读写各获得两个响应</td>
+</tr>
+<tr>
+<td align="right">3</td>
+<td align="right">1</td>
+<td>满足</td>
+<td>写入等待所有副本，正常读只需一个响应</td>
+</tr>
+<tr>
+<td align="right">1</td>
+<td align="right">3</td>
+<td>满足</td>
+<td>写入等待少，读取必须联系全部副本</td>
+</tr>
+<tr>
+<td align="right">3</td>
+<td align="right">3</td>
+<td>满足</td>
+<td>对单次读写请求的副本可用性要求最高</td>
+</tr>
+</tbody></table>
+<p><code>W=N</code> 往往有利于简单的单副本快速读，但任何一个目标副本不可用都可能使写操作难以满足要求。<code>R=N</code> 可以减少写入端等待，但读取最容易被慢副本拖累。</p>
+<p>若 <code>W+R≤N</code>，并不是所有读都会得到旧数据，而是<strong>无法仅凭读写集合大小排除读到旧数据的可能性</strong>。</p>
+<p>副本越多并不意味着业务延迟一定越低。<code>N</code> 决定存储冗余和故障域选择，<code>W/R</code> 决定特定操作必须等待的节点数量。设计时还需注意：N 个副本如果集中在同一故障域，机架断电就可能同时失效，并不能提供预期的可用性。</p>
+<h3 id="InfluxDB-Enterprise-中的历史写入级别示例"><a href="#InfluxDB-Enterprise-中的历史写入级别示例" class="headerlink" title="InfluxDB Enterprise 中的历史写入级别示例"></a>InfluxDB Enterprise 中的历史写入级别示例</h3><p>某些 InfluxDB Enterprise 版本支持在保留策略中指定副本数，例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE</span> RETENTION POLICY &quot;rp_one_day&quot;<br><span class="hljs-keyword">ON</span> &quot;telegraf&quot;<br>DURATION <span class="hljs-number">1</span>d<br>REPLICATION <span class="hljs-number">3</span>;<br></code></pre></td></tr></table></figure>
+
+<p>其写入一致性级别常见为 <code>any</code>、<code>one</code>、<code>quorum</code>、<code>all</code>：</p>
+<table>
+<thead>
+<tr>
+<th>写入级别</th>
+<th>成功条件的含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>any</code></td>
+<td>某个副本写入成功，或系统按对应设计将失败写入安全记录到 Hinted Handoff 待补发机制</td>
+</tr>
+<tr>
+<td><code>one</code></td>
+<td>至少一个实际数据副本确认写入成功</td>
+</tr>
+<tr>
+<td><code>quorum</code></td>
+<td>达到该数据副本组的多数确认</td>
+</tr>
+<tr>
+<td><code>all</code></td>
+<td>该数据的全部目标副本确认写入成功</td>
+</tr>
+</tbody></table>
+<p>这组配置展示了可调写入一致性的重要性。原课程涉及的企业版实现侧重写入级别，而不是允许用户任意指定 <code>R</code>；某些查询为了降低扫描成本，并不提供同样对称的读 Quorum 接口。具体命令、配置名称和可用功能应按实际部署的 InfluxDB 产品及版本核实。</p>
+<p>即便设置 <code>all</code>，也只能推出“成功返回前等待了指定的所有副本确认”，不能不加条件地宣称系统在<strong>并发写入、故障切换、任意读取方式</strong>下天然满足线性一致性。</p>
+<h3 id="Quorum-与最终一致性可以同时存在"><a href="#Quorum-与最终一致性可以同时存在" class="headerlink" title="Quorum 与最终一致性可以同时存在"></a>Quorum 与最终一致性可以同时存在</h3><p>Quorum 控制的是一次读写需要多少副本响应。Anti-Entropy、Read Repair、Hinted Handoff 解决的是没有参与本次写入的副本未来如何补齐。两者不是互斥关系，而是分别处理请求路径和后台收敛路径。</p>
+<p>例如写入采用 <code>W=2/N=3</code>，第三个副本宕机导致没有获得该次更新。系统可以在不阻塞已成功写入的前提下记录补发任务，之后再通过重试或反熵使第三个副本追上。</p>
+<p>为了避免损失与错误合并，还必须明确：写入成功后保存了多少持久副本、重试消息是否有幂等标识、并发版本如何比较、删除如何传播、恢复后如何补齐缺口。</p>
+<h2 id="把协议组合成一个可工作的分布式架构"><a href="#把协议组合成一个可工作的分布式架构" class="headerlink" title="把协议组合成一个可工作的分布式架构"></a>把协议组合成一个可工作的分布式架构</h2><p>在真实系统里，选一种“一致性算法”通常远远不够。要先分清数据是否属于控制平面、是否需要多个资源原子提交、是否存在恶意参与者，然后将共识、路由、复制和修复机制组合起来。</p>
+<h3 id="面向不同业务数据的选择"><a href="#面向不同业务数据的选择" class="headerlink" title="面向不同业务数据的选择"></a>面向不同业务数据的选择</h3><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>主要目标</th>
+<th>更值得优先考虑的方案</th>
+<th>特别关注的边界</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>集群配置、服务发现、领导者元信息</td>
+<td>不接受相互矛盾的已提交状态</td>
+<td>Raft &#x2F; ZAB 等 CFT 复制协议</td>
+<td>多数派、读一致性、故障选主</td>
+</tr>
+<tr>
+<td>多个数据库资源的原子提交</td>
+<td>要么共同提交、要么按协议中止</td>
+<td>XA&#x2F;2PC</td>
+<td>准备阶段资源锁定、协调者恢复</td>
+</tr>
+<tr>
+<td>跨业务服务的资源预留与确认</td>
+<td>明确控制业务确认和取消</td>
+<td>TCC</td>
+<td>幂等、空回滚、防悬挂、对账</td>
+</tr>
+<tr>
+<td>海量时序记录、可容忍短暂滞后的副本</td>
+<td>优先吞吐、可用性和收敛</td>
+<td>分片 + 多副本 + 异步修复</td>
+<td>数据保留、写入重试、延迟可见</td>
+</tr>
+<tr>
+<td>需要按请求配置读写等待程度的 KV 数据</td>
+<td>在延迟与可见性之间权衡</td>
+<td>Quorum NWR + 版本&#x2F;冲突处理</td>
+<td>集合交集不等于完整线性一致性</td>
+</tr>
+<tr>
+<td>多组复制分片的动态扩缩容</td>
+<td>降低迁移量，提高并行写入能力</td>
+<td>一致哈希或其他分片映射机制</td>
+<td>路由版本、数据搬迁、热点 Key</td>
+</tr>
+<tr>
+<td>大规模动态节点的成员信息传播</td>
+<td>低中心依赖的状态扩散</td>
+<td>Gossip</td>
+<td>传播延迟、消息去重、失效误判</td>
+</tr>
+<tr>
+<td>已知身份但可能有恶意节点的系统</td>
+<td>容忍指定比例恶意副本</td>
+<td>PBFT 或相关 BFT 协议</td>
+<td><code>3f+1</code>、认证、消息规模</td>
+</tr>
+<tr>
+<td>开放式 PoW 区块链</td>
+<td>抵抗身份伪造、形成概率性链共识</td>
+<td>PoW 与累计工作量链选择</td>
+<td>算力集中、重组、确认深度</td>
+</tr>
+</tbody></table>
+<p>需要强调：这张表反映的是协议选型思路，不是产品兼容性矩阵。一个系统的实际安全属性还取决于软件实现、版本、客户端读写路径、运维过程与物理故障域。</p>
+<h3 id="以多分片-KV-服务为例串起完整链路"><a href="#以多分片-KV-服务为例串起完整链路" class="headerlink" title="以多分片 KV 服务为例串起完整链路"></a>以多分片 KV 服务为例串起完整链路</h3><p>设想我们开发一个需要横向扩展的 KV 服务，Key 分布在多个 Raft Group 中。一次写操作可以沿下面的链路执行：</p>
+<pre><code class=" mermaid">sequenceDiagram
+    participant C as Client
+    participant R as Router
+    participant M as Metadata
+    participant L as 分片 Leader
+    participant F as 分片 Followers
+    C-&gt;&gt;R: SET key=value / requestId
+    R-&gt;&gt;M: 获取最新分片路由与组信息
+    M--&gt;&gt;R: key 对应 Group 2
+    R-&gt;&gt;L: 转发写入请求
+    L-&gt;&gt;L: 追加日志并记录请求标识
+    L-&gt;&gt;F: AppendEntries
+    F--&gt;&gt;L: 达到多数确认
+    L-&gt;&gt;L: 提交并 Apply
+    L--&gt;&gt;R: 已提交的执行结果
+    R--&gt;&gt;C: success
+</code></pre>
+
+<p>这里面包含四层不同的保证：</p>
+<p><strong>定位正确性</strong> 由 Router 与 Metadata 负责。Router 必须知道 Key 属于哪个分片；如果哈希环、分片配置刚发生改变，就要能够发现路由版本过期并重新定位。</p>
+<p><strong>分片内的一致性</strong> 由 Raft 负责。该组 Leader 决定日志顺序，获得符合提交条件的多数派确认后返回结果。换了 Leader，不代表 Key 所属分片改变。</p>
+<p><strong>数据持久与恢复</strong> 由日志、持久化存储、快照以及副本追赶承担。多数派复制是协议安全性的条件；真实断电之后是否会丢失数据还依赖日志写入磁盘、文件系统和存储设备的持久性语义。</p>
+<p><strong>业务幂等性</strong> 由客户端请求号或状态机去重机制负责。网络异常后的重试可能产生相同请求的第二次投递，不能只因“使用了 Raft”就认为业务操作已经实现 Exactly-Once。</p>
+<p>若一次事务同时修改 Group 1 和 Group 2，两个组各自提供强一致复制，并不会自动把跨组写入变成一个原子事务。此时还需要额外的事务协调协议与失败恢复方案。</p>
+<h3 id="一致性保证应该落到-API-合同上"><a href="#一致性保证应该落到-API-合同上" class="headerlink" title="一致性保证应该落到 API 合同上"></a>一致性保证应该落到 API 合同上</h3><p>对开发者而言，最好不要只在架构图上写“强一致”或“高可用”，而应把语义说明到请求级别。</p>
+<p>例如：</p>
+<ul>
+<li>写接口返回 <code>success</code> 是否表示已复制到多数副本并持久化？还是只进入本地异步队列？</li>
+<li>读接口默认访问 Leader、Follower，还是执行多个副本的 Quorum 读取？</li>
+<li>写后读是否保证看到自己的更新？跨客户端写后读是否同样保证？</li>
+<li>网络超时后，客户端如何查询事务或写入请求的最终状态？</li>
+<li>分区恢复后，是否可能发生客户端已观察到的结果回退？</li>
+<li>修改成员数量、故障转移或迁移分片期间，是否需要暂停部分读写？</li>
+</ul>
+<p>API 保证越具体，业务就越容易判断什么能直接依赖，什么必须由上层补充。</p>
+<h2 id="故障排查：从现象定位到协议环节"><a href="#故障排查：从现象定位到协议环节" class="headerlink" title="故障排查：从现象定位到协议环节"></a>故障排查：从现象定位到协议环节</h2><p>共识类故障往往不是“算法失效”，而是环境中的延迟、丢包、磁盘抖动、错误配置或客户端使用方式打破了部署时的预期。排查时应该沿消息的生命周期定位失败发生在哪一段。</p>
+<h3 id="多数派丢失后，为什么不能继续提交"><a href="#多数派丢失后，为什么不能继续提交" class="headerlink" title="多数派丢失后，为什么不能继续提交"></a>多数派丢失后，为什么不能继续提交</h3><p>以三节点 Raft 为例，如果两台机器不可达，仅剩一台机器就无法获得新的多数派确认。此时旧 Leader 可能还存活、也能接收 HTTP&#x2F;RPC 请求，但它不应继续将新日志作为已提交结果返回。</p>
+<p>需要检查网络连通性、Raft Peer 端口、当前任期、有效 Leader、成员配置和 <code>commitIndex</code>。增加重试次数不会创造新的多数派；忽略共识结果而直接在少数派本地写入，会破坏复制状态机的语义。</p>
+<h3 id="频繁重新选主，可能不是选举超时太短这么简单"><a href="#频繁重新选主，可能不是选举超时太短这么简单" class="headerlink" title="频繁重新选主，可能不是选举超时太短这么简单"></a>频繁重新选主，可能不是选举超时太短这么简单</h3><p>Leader 心跳受到 JVM 长时间停顿、磁盘同步、CPU 饱和、网卡拥塞或网络延迟影响时，Follower 可能误以为 Leader 失效。结果是反复增加 Term、重新选主、写请求延迟升高。</p>
+<p>排查时应观察：</p>
+<ul>
+<li>Leader 更替次数和 Term 增长速度；</li>
+<li>心跳 RTT、RequestVote&#x2F;AppendEntries 超时及 RPC 错误类型；</li>
+<li>磁盘 <code>fsync</code> 等待与日志持久化队列积压；</li>
+<li>线程调度停顿、GC 暂停、CPU 抢占与网络重传；</li>
+<li>Follower 的日志追赶进度以及快照安装是否频繁。</li>
+</ul>
+<p>调整选举超时可能改善误判，但如果真正的问题是磁盘无法稳定写入或底层网络持续丢包，单纯拉长超时只会让真实故障时的恢复更慢。</p>
+<h3 id="写入已经成功，为什么读取还是旧值"><a href="#写入已经成功，为什么读取还是旧值" class="headerlink" title="写入已经成功，为什么读取还是旧值"></a>写入已经成功，为什么读取还是旧值</h3><p>先确认读请求到底落在哪里：</p>
+<ul>
+<li>若读的是 Raft Follower，本地 <code>lastApplied</code> 落后于 Leader 的 <code>commitIndex</code> 时，返回旧值可能符合该接口的弱一致性语义。</li>
+<li>若使用 ZooKeeper 的普通本地读，Follower 可能暂时落后于已提交写入，需区分顺序保证与实时新鲜度要求。</li>
+<li>若采用 <code>N=3, W=1, R=1</code>，下一次查询命中未更新副本就可能读取旧数据。</li>
+<li>若系统承诺最终一致性，则应追查 Hinted Handoff 队列、反熵任务、版本冲突和 Tombstone 传播情况。</li>
+</ul>
+<p>如果业务原本要求线性一致性读，就应检查读屏障、领导权确认或 Quorum 读取的实际实现，而不是简单将所有读请求强制指向一个“看起来最新”的节点。</p>
+<h3 id="操作超时后如何避免重复扣款或重复下单"><a href="#操作超时后如何避免重复扣款或重复下单" class="headerlink" title="操作超时后如何避免重复扣款或重复下单"></a>操作超时后如何避免重复扣款或重复下单</h3><p>超时只代表客户端在给定时间内没有得到确定结果。请求可能完全未到达服务，也可能已提交但回包丢失。</p>
+<p>合理的业务协议可以采用如下约定：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">requestId = 客户端生成且可重试保持不变的唯一业务请求标识<br><br>首次收到 requestId:<br>    校验并执行业务操作<br>    原子记录 requestId 与执行结果<br>    返回执行结果<br><br>再次收到相同 requestId:<br>    查询已记录结果<br>    不重复产生业务副作用<br>    返回相同的已完成结果或可查询状态<br></code></pre></td></tr></table></figure>
+
+<p>以上是幂等处理模型的伪代码，并非某个具体产品的 SDK 或 API。对 TCC 还需要结合全局事务 ID 和 Try&#x2F;Confirm&#x2F;Cancel 状态；对 Raft 状态机则要确保去重记录与业务状态具有匹配的持久性、快照与恢复行为。</p>
+<h3 id="扩容或恢复时数据路由出错"><a href="#扩容或恢复时数据路由出错" class="headerlink" title="扩容或恢复时数据路由出错"></a>扩容或恢复时数据路由出错</h3><p>在一致哈希扩容或分片迁移期间，读写突然找不到 Key，优先核查各 Router 是否采用相同的哈希算法、虚拟节点配置、分片成员列表和路由版本。还要确认 Key 在数据迁移完成前是否被过早切到新分片。</p>
+<p>如果单个 Raft 组的 Leader 改变了，不应立即删除原组映射或对全局哈希环重新洗牌。先从组成员信息中定位新 Leader，确认组内日志恢复状态，再恢复该组的服务入口。</p>
+<h3 id="防止“修复任务”成为新的故障源"><a href="#防止“修复任务”成为新的故障源" class="headerlink" title="防止“修复任务”成为新的故障源"></a>防止“修复任务”成为新的故障源</h3><p>Gossip、反熵、日志追赶和分片搬迁都可能在故障恢复期产生大量后台流量。若它们与前台请求共用完全没有限额的磁盘、网络和线程资源，故障刚开始恢复时反而可能再次引起超时和重新选主。</p>
+<p>工程上应为后台任务设置并发上限、带宽预算、失败重试退避和优先级，并持续监控修复积压与预期完成时间。正确性允许最终收敛，不等于可以无限挤占线上关键请求资源。</p>
+<h2 id="总结：分布式一致性是多个层次的共同约束"><a href="#总结：分布式一致性是多个层次的共同约束" class="headerlink" title="总结：分布式一致性是多个层次的共同约束"></a>总结：分布式一致性是多个层次的共同约束</h2><p>这套知识可以串成一条连续的技术脉络：网络分区和节点故障迫使系统明确一致性与可用性的取舍；ACID、2PC、XA、TCC 解决跨业务资源协调；Paxos、Multi-Paxos、Raft、ZAB 让非恶意故障条件下的副本就操作序列形成稳定决定；PBFT 与 PoW 将讨论推进到存在恶意参与者的环境。</p>
+<p>而当系统规模超过单个复制组的能力，一致哈希和分片负责把请求分散到不同组；若数据不必立刻在每份副本上相同，Gossip、反熵和 Quorum NWR 则提供传播、修复与可调读写等待机制。</p>
+<p>最重要的工程判断不是记住多少算法名称，而是<strong>先明确故障模型、业务允许的旧读窗口、提交成功的含义和恢复成本，再选择能够严格兑现这些承诺的协议组合</strong>。这样才能真正回答分布式架构设计中最关键的问题：故障发生时，哪些事情必须仍然正确，哪些事情可以暂时变慢，哪些事情允许稍后再一致。</p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/Architecture/" class="category-chain-item">Architecture</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/" class="print-no-link">#分布式系统</a>
+      
+        <a href="/tags/CAP/" class="print-no-link">#CAP</a>
+      
+        <a href="/tags/BASE/" class="print-no-link">#BASE</a>
+      
+        <a href="/tags/Paxos/" class="print-no-link">#Paxos</a>
+      
+        <a href="/tags/Raft/" class="print-no-link">#Raft</a>
+      
+        <a href="/tags/Gossip/" class="print-no-link">#Gossip</a>
+      
+        <a href="/tags/PBFT/" class="print-no-link">#PBFT</a>
+      
+        <a href="/tags/ZAB/" class="print-no-link">#ZAB</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>分布式一致性与共识协议：从 CAP、Paxos、Raft 到 PBFT、PoW 与 ZAB</div>
+      <div>https://allendericdalexander.github.io/2026/10/13/archtect/distribute/distributed-consistency-consensus-hexo/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年10月13日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/10/13/archtect/distribute/Distributed-Consensus-Protocols-And-Algorithmic-Engineering-Practice/" title="分布式一致性协议与算法工程实践：从 Raft、ZAB 到 PBFT、XA 与 TCC">
+                        <span class="hidden-mobile">分布式一致性协议与算法工程实践：从 Raft、ZAB 到 PBFT、XA 与 TCC</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
