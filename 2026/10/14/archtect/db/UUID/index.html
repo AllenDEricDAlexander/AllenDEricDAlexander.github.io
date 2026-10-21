@@ -1,0 +1,1650 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="AtLuoFu">
+  <meta name="keywords" content="二次元，宅属性，编程，全栈（后端-ing;前端-pass;网安-pass;运维-pass;产品-pass）">
+  
+    <meta name="description" content="系统梳理 UUID 的 128 位编码、Variant 与 Version、v1～v8 的字段结构和生成规则，讨论时间有序性、冲突概率、数据库索引、Java 实现及版本选型。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="UUID 完全指南：从 RFC 4122 到 RFC 9562，理解 v1～v8 的结构、生成算法与工程选型">
+<meta property="og:url" content="https://allendericdalexander.github.io/2026/10/14/archtect/db/UUID/index.html">
+<meta property="og:site_name" content="德刑君">
+<meta property="og:description" content="系统梳理 UUID 的 128 位编码、Variant 与 Version、v1～v8 的字段结构和生成规则，讨论时间有序性、冲突概率、数据库索引、Java 实现及版本选型。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-14T03:50:00.000Z">
+<meta property="article:modified_time" content="2026-10-14T03:50:00.000Z">
+<meta property="article:author" content="AtLuoFu">
+<meta property="article:tag" content="GUID">
+<meta property="article:tag" content="Java">
+<meta property="article:tag" content="MySQL">
+<meta property="article:tag" content="RFC 4122">
+<meta property="article:tag" content="RFC 9562">
+<meta property="article:tag" content="UUID">
+<meta property="article:tag" content="UUIDv7">
+<meta property="article:tag" content="分布式 ID">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>UUID 完全指南：从 RFC 4122 到 RFC 9562，理解 v1～v8 的结构、生成算法与工程选型 - 德刑君</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"allendericdalexander.github.io","root":"/","version":"1.9.7","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"LaTeX"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":true,"follow_dnt":false,"baidu":{"enable":true,"id":"c76560edc451f0c6f297b2d80c3e5dcd"},"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+  
+    <!-- Baidu Analytics -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        var _hmt = _hmt || [];
+        (function() {
+          var hm = document.createElement("script");
+          hm.src = "https://hm.baidu.com/hm.js?[object Object]";
+          var s = document.getElementsByTagName("script")[0];
+          s.parentNode.insertBefore(hm, s);
+        })();
+      }
+    </script>
+  
+
+  
+    <!-- Google tag (gtag.js) -->
+    <script async>
+      if (!Fluid.ctx.dnt) {
+        Fluid.utils.createScript("https://www.googletagmanager.com/gtag/js?id=", function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag() {
+            dataLayer.push(arguments);
+          }
+          gtag('js', new Date());
+          gtag('config', '');
+        });
+      }
+    </script>
+  
+
+  
+
+  
+
+  
+
+  
+
+
+
+  
+<meta name="generator" content="Hexo 8.1.2"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>德刑君</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/" target="_self">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/" target="_self">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/" target="_self">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/" target="_self">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/" target="_self">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="UUID 完全指南：从 RFC 4122 到 RFC 9562，理解 v1～v8 的结构、生成算法与工程选型"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2026-10-14 11:50" pubdate>
+          2026年10月14日 中午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          9.3k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          78 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">UUID 完全指南：从 RFC 4122 到 RFC 9562，理解 v1～v8 的结构、生成算法与工程选型</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>在分布式系统中，生成 ID 看起来是一件很小的事，却涉及两个完全不同的问题：<strong>如何在不依赖中心节点的情况下避免标识冲突，以及这个 ID 在数据库和业务中是否好用。</strong></p>
+<p>MySQL 自增主键解决了单库内的编号问题，却很难直接满足多服务独立生成、离线创建、跨库合并等需求。UUID（Universally Unique Identifier，通用唯一标识符）提供了另一种思路：每个节点独立按照约定的算法生成 128 位标识符，不必先向统一的发号器申请号码。</p>
+<p>不过，<strong>UUID 不等于随机字符串，UUID 的不同 Version 也并非单纯的软件版本升级。</strong> 有的 UUID 依赖时间和节点信息，有的依赖哈希，有的完全依赖随机数，还有的专门针对数据库的时间有序写入进行了设计。</p>
+<p>本文结合 RFC 4122、RFC 9562 以及相关技术资料，把 UUID v1～v8 的结构、生成规则、适用场景和工程实践放在同一套框架中说明。</p>
+<blockquote>
+<p><strong>标准版本说明</strong>：2005 年发布的 <a target="_blank" rel="noopener" href="https://www.rfc-editor.org/info/rfc4122/">RFC 4122</a> 已被 2024 年发布的 <a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc9562.html">RFC 9562</a> 取代。本文以 RFC 9562 为当前规范，回溯 RFC 4122 对 v1～v5 的定义，并说明新增的 v6、v7、v8。UUIDv2 的具体生成格式源自 DCE Security 规范，RFC 9562 仅保留其编号，不重新定义其细节。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="一、先给出结论：应该选哪个-UUID？"><a href="#一、先给出结论：应该选哪个-UUID？" class="headerlink" title="一、先给出结论：应该选哪个 UUID？"></a>一、先给出结论：应该选哪个 UUID？</h2><table>
+<thead>
+<tr>
+<th>需求</th>
+<th>优先考虑</th>
+<th>原因与注意点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>只需要分布式生成、不可预测性较好的普通标识符</td>
+<td><strong>UUIDv4</strong></td>
+<td>122 位随机空间，成熟且广泛支持；用于 B-Tree 主键时插入局部性通常较差</td>
+</tr>
+<tr>
+<td>新系统使用 UUID 作为数据库主键，希望大致按时间排列</td>
+<td><strong>UUIDv7</strong></td>
+<td>48 位 Unix 毫秒时间戳位于高位，通常更利于索引写入</td>
+</tr>
+<tr>
+<td>同一命名空间、同一名称必须得到相同 ID</td>
+<td><strong>UUIDv5</strong></td>
+<td>基于 Namespace + Name 的 SHA-1 确定性生成；不等于加密或签名</td>
+</tr>
+<tr>
+<td>与既有 UUIDv1 系统兼容，但希望改善排序和索引局部性</td>
+<td><strong>UUIDv6</strong></td>
+<td>重新排列 v1 的时间字段；纯新系统通常优先考虑 v7</td>
+</tr>
+<tr>
+<td>维护历史上依赖 MAC&#x2F;时间戳格式的系统</td>
+<td>UUIDv1</td>
+<td>兼容优先；新系统一般不主动选择</td>
+</tr>
+<tr>
+<td>维护 DCE Security &#x2F; POSIX 身份编码系统</td>
+<td>UUIDv2</td>
+<td>专用、少见、支持有限，不适合普通业务 ID</td>
+</tr>
+<tr>
+<td>兼容既有 MD5 名称型标识</td>
+<td>UUIDv3</td>
+<td>新的名称型需求通常采用 v5</td>
+</tr>
+<tr>
+<td>必须设计企业私有 UUID 位布局或 SHA-256 名称型标识</td>
+<td>UUIDv8</td>
+<td>需要自行约定字段含义、唯一性和跨系统互操作规则</td>
+</tr>
+</tbody></table>
+<p>简化成一句话：<strong>不需要排序用 v4；需要时间有序的 UUID 优先看 v7；需要确定性映射用 v5；其他版本通常因为历史兼容或特殊协议约束才使用。</strong></p>
+<p>这只是选型起点，不意味着 v7 总能取代自增 BIGINT 或雪花 ID。数据库规模、索引组织方式与 ID 的使用边界依然需要一起考虑。</p>
+<h2 id="二、UUID-的-128-位究竟怎么组织？"><a href="#二、UUID-的-128-位究竟怎么组织？" class="headerlink" title="二、UUID 的 128 位究竟怎么组织？"></a>二、UUID 的 128 位究竟怎么组织？</h2><h3 id="2-1-UUID-的基本表示"><a href="#2-1-UUID-的基本表示" class="headerlink" title="2.1 UUID 的基本表示"></a>2.1 UUID 的基本表示</h3><p>一个 UUID 占用 <strong>128 bit &#x3D; 16 byte</strong>，通常显示为 32 个十六进制数字，按照 <code>8-4-4-4-12</code> 分为五组，加上四个连字符后总长为 36 个字符：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs text">f81d4fae-7dec-11d0-a765-00a0c91e6bf6<br>|------| |--| |--| |--| |----------|<br>   8      4    4    4        12     （十六进制字符数）<br><br>16 字节 = 128 位<br>32 个十六进制字符 × 4 位 = 128 位<br></code></pre></td></tr></table></figure>
+
+<p>其二进制值也可以存成连续的 16 字节，而不必保留字符串中的连字符。</p>
+<p><code>UUID</code> 是通用技术名称；<code>GUID</code>（Globally Unique Identifier）常见于 Microsoft 生态，两者在日常工程中通常指兼容的 128 位标识符。但是，<strong>Windows COM GUID 的部分二进制序列化方式存在小端字节序历史差异</strong>，不能不加区分地直接交换原始字节数组。</p>
+<h3 id="2-2-Version-与-Variant-不是一回事"><a href="#2-2-Version-与-Variant-不是一回事" class="headerlink" title="2.2 Version 与 Variant 不是一回事"></a>2.2 Version 与 Variant 不是一回事</h3><p>UUID 的两个固定标识字段是：</p>
+<ul>
+<li><strong>Version（版本）</strong>：整个 UUID 的 <strong>bit 48～51</strong>，即第 7 个字节（从 0 开始）的高 4 位，显示在第三组十六进制数字的第一个位置。它决定 UUID 的生成算法。</li>
+<li><strong>Variant（变体）</strong>：RFC 9562 格式中的 <strong>bit 64～65</strong>，即第 9 个字节的高 2 位，固定为 <code>10</code>。它决定其余位应按哪类 UUID 布局解释。</li>
+</ul>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">xxxxxxxx-xxxx-7xxx-8xxx-xxxxxxxxxxxx<br>              ^    ^<br>              |    └── Variant：8、9、a、b 之一（高两位均为 10）<br>              └─────── Version：7<br><br>xxxxxxxx-xxxx-4xxx-axxx-xxxxxxxxxxxx<br>              ^    ^<br>              |    └── Variant：a = 1010，属于 RFC 9562 变体<br>              └─────── Version：4<br></code></pre></td></tr></table></figure>
+
+<p><strong>不要把 Variant 误认为 Version。</strong> 同样是符合 RFC 9562 的 UUID，v1～v8 都使用 <code>10</code> 这一变体；差异体现在四位 Version 以及剩余字段的含义上。</p>
+<table>
+<thead>
+<tr>
+<th>Variant 的前导位</th>
+<th>第四组首个十六进制字符范围</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>0xxx</code></td>
+<td><code>0</code>～<code>7</code></td>
+<td>兼容历史 NCS 格式</td>
+</tr>
+<tr>
+<td><code>10xx</code></td>
+<td><code>8</code>～<code>b</code></td>
+<td>RFC 4122 &#x2F; RFC 9562 格式，本文的主要对象</td>
+</tr>
+<tr>
+<td><code>110x</code></td>
+<td><code>c</code>～<code>d</code></td>
+<td>保留给 Microsoft 历史兼容格式</td>
+</tr>
+<tr>
+<td><code>111x</code></td>
+<td><code>e</code>～<code>f</code></td>
+<td>保留供将来定义</td>
+</tr>
+</tbody></table>
+<p>上面的 Variant 有不同长度的前缀，不能简单理解为始终存在一个独立的 4 位 Variant 字段。对于本文讨论的 RFC 格式，其固定高两位是 <code>10</code>。</p>
+<h3 id="2-3-早期六字段布局，不能直接套到所有版本"><a href="#2-3-早期六字段布局，不能直接套到所有版本" class="headerlink" title="2.3 早期六字段布局，不能直接套到所有版本"></a>2.3 早期六字段布局，不能直接套到所有版本</h3><p>RFC 4122 的经典 UUIDv1 布局可以写成：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">最高位                                                          最低位<br>┌──────────────────┬──────────┬──────┬──────────┬─────┬──────────────┬────────────────────┐<br>│ time_low         │ time_mid │ ver  │ time_hi  │ var │ clock_seq    │ node               │<br>│ 32 bit           │ 16 bit   │ 4bit │ 12 bit   │ 2bit│ 14 bit       │ 48 bit             │<br>└──────────────────┴──────────┴──────┴──────────┴─────┴──────────────┴────────────────────┘<br></code></pre></td></tr></table></figure>
+
+<p>历史名称 <code>time_low</code>、<code>time_mid</code>、<code>time_hi_and_version</code> 等来自 v1 的设计。</p>
+<p><strong>但对于 v3、v4、v5，这些位置根本不存放时间；对于 v6、v7、v8，相应字段的名字和语义也发生了变化。</strong> 因此阅读新版标准时，应根据各版本对应的位布局理解数据，而不是把 v1 的六字段解释强加给所有 UUID。</p>
+<h3 id="2-4-两种时间纪元"><a href="#2-4-两种时间纪元" class="headerlink" title="2.4 两种时间纪元"></a>2.4 两种时间纪元</h3><table>
+<thead>
+<tr>
+<th>时间体系</th>
+<th>使用版本</th>
+<th>起点</th>
+<th>时间单位</th>
+<th>时间位数</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Gregorian Epoch</td>
+<td>v1、v6；v2 继承部分字段</td>
+<td>1582-10-15 00:00:00 UTC</td>
+<td>100 纳秒 tick</td>
+<td>60 位（v2 部分被覆盖）</td>
+</tr>
+<tr>
+<td>Unix Epoch</td>
+<td>v7</td>
+<td>1970-01-01 00:00:00 UTC</td>
+<td>毫秒</td>
+<td>48 位</td>
+</tr>
+</tbody></table>
+<p>v1&#x2F;v6 的时间计数大致按下式构造：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">uuid_ticks = unix_milliseconds × 10_000 + 122_192_928_000_000_000<br></code></pre></td></tr></table></figure>
+
+<p>其中常量表示两个纪元之间相差的 100 纳秒计数。<strong>格式具有 100 纳秒刻度，不代表操作系统时钟真的能达到 100 纳秒精度</strong>；生成器可以借助计数器处理同一时钟刻度中的多次生成。</p>
+<h2 id="三、UUID-v1～v8：总览比较"><a href="#三、UUID-v1～v8：总览比较" class="headerlink" title="三、UUID v1～v8：总览比较"></a>三、UUID v1～v8：总览比较</h2><table>
+<thead>
+<tr>
+<th>版本</th>
+<th>核心材料</th>
+<th>主要数据字段</th>
+<th>是否确定性</th>
+<th>时间可排序性</th>
+<th>典型使用场景</th>
+<th>新项目建议</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>v1</strong></td>
+<td>Gregorian 时间 + 时钟序列 + 节点标识</td>
+<td>时间 60 位、Clock Sequence 14 位、Node 48 位</td>
+<td>否</td>
+<td>时间字段顺序不理想</td>
+<td>历史 RPC、兼容系统</td>
+<td>一般不推荐</td>
+</tr>
+<tr>
+<td><strong>v2</strong></td>
+<td>v1 派生 + 本地身份 ID、Domain</td>
+<td>Local ID 32 位、Domain 8 位，保留部分时间与节点字段</td>
+<td>否</td>
+<td>不适合通用时间排序</td>
+<td>DCE Security &#x2F; POSIX 身份映射</td>
+<td>专用场景</td>
+</tr>
+<tr>
+<td><strong>v3</strong></td>
+<td>Namespace + Name → MD5</td>
+<td>MD5 摘要有效位共 122 位</td>
+<td><strong>是</strong></td>
+<td>否</td>
+<td>兼容历史名称映射</td>
+<td>优先替换为 v5（兼容除外）</td>
+</tr>
+<tr>
+<td><strong>v4</strong></td>
+<td>加密安全随机数</td>
+<td>随机位 122 位</td>
+<td>否</td>
+<td>否</td>
+<td>普通随机 ID、跨系统对象 ID</td>
+<td><strong>推荐</strong></td>
+</tr>
+<tr>
+<td><strong>v5</strong></td>
+<td>Namespace + Name → SHA-1</td>
+<td>SHA-1 摘要截取并覆盖控制位，122 位有效位</td>
+<td><strong>是</strong></td>
+<td>否</td>
+<td>DNS、资源名称、可复现标识</td>
+<td><strong>推荐</strong></td>
+</tr>
+<tr>
+<td><strong>v6</strong></td>
+<td>v1 时间字段高位前置</td>
+<td>时间 60 位、Clock Sequence 14 位、Node 48 位</td>
+<td>否</td>
+<td>跨时间刻度基本有序</td>
+<td>v1 演进、兼容型数据库系统</td>
+<td>特定场景</td>
+</tr>
+<tr>
+<td><strong>v7</strong></td>
+<td>Unix 毫秒时间 + 随机值&#x2F;可选计数器</td>
+<td>时间 48 位、剩余 74 位</td>
+<td>否</td>
+<td><strong>按毫秒时间有序</strong></td>
+<td>分布式数据库主键、事件 ID</td>
+<td><strong>推荐</strong></td>
+</tr>
+<tr>
+<td><strong>v8</strong></td>
+<td>自定义算法</td>
+<td>自定义 122 位</td>
+<td>由实现决定</td>
+<td>由实现决定</td>
+<td>厂商私有协议、SHA-256 名称型 ID</td>
+<td>充分约束后使用</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>表中的“有效位”均指扣除 4 位 Version 和 2 位 Variant 之后的 122 位。名称型 UUID 的有效位来自摘要，不代表拥有与 122 位均匀随机数完全相同的对抗碰撞性质。</p>
+</blockquote>
+<h2 id="四、UUIDv1：时间、时钟序列与节点-ID"><a href="#四、UUIDv1：时间、时钟序列与节点-ID" class="headerlink" title="四、UUIDv1：时间、时钟序列与节点 ID"></a>四、UUIDv1：时间、时钟序列与节点 ID</h2><h3 id="4-1-位结构"><a href="#4-1-位结构" class="headerlink" title="4.1 位结构"></a>4.1 位结构</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs text">UUIDv1（总计 128 bit）<br>[time_low:32][time_mid:16][ver=0001:4][time_high:12][var=10:2][clock_seq:14][node:48]<br><br>时间戳实际拼接顺序：<br>T(60bit) = [time_high:12][time_mid:16][time_low:32]<br><br>但 UUID 的存储/文本顺序：<br>          [time_low:32][time_mid:16][time_high:12]  ← 低位在前<br></code></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th align="right">位数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>time_low</code></td>
+<td align="right">32</td>
+<td>60 位时间戳的最低 32 位</td>
+</tr>
+<tr>
+<td><code>time_mid</code></td>
+<td align="right">16</td>
+<td>时间戳中间 16 位</td>
+</tr>
+<tr>
+<td><code>time_high</code></td>
+<td align="right">12</td>
+<td>时间戳最高 12 位</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td align="right">4</td>
+<td>固定 <code>0001</code></td>
+</tr>
+<tr>
+<td><code>variant</code></td>
+<td align="right">2</td>
+<td>固定 <code>10</code></td>
+</tr>
+<tr>
+<td><code>clock_seq</code></td>
+<td align="right">14</td>
+<td>处理时钟回拨、节点状态变化等冲突风险</td>
+</tr>
+<tr>
+<td><code>node</code></td>
+<td align="right">48</td>
+<td>通常来自 MAC，也允许使用随机节点标识</td>
+</tr>
+</tbody></table>
+<h3 id="4-2-生成规则"><a href="#4-2-生成规则" class="headerlink" title="4.2 生成规则"></a>4.2 生成规则</h3><ol>
+<li>获取当前时间，将其转换为从 1582-10-15 开始的 100 纳秒单位计数。</li>
+<li>根据规范维护时钟序列及必要状态，降低时间回拨、节点 ID 变化、重复时间刻度带来的冲突风险。</li>
+<li>选择 48 位节点标识，可以使用 MAC，也可以依据规范使用随机节点值。</li>
+<li>把时间戳分别拆成 <code>32 + 16 + 12</code> 位，连同时钟序列、节点标识打包。</li>
+<li>将 Version 固定为 1、Variant 固定为 <code>10</code>。</li>
+</ol>
+<p>v1 的唯一性依赖时间、节点标识、时钟序列与实现状态管理的共同约束，<strong>不是只要把当前时间和 MAC 拼接起来就绝对不会重复。</strong></p>
+<h3 id="4-3-问题与推荐场景"><a href="#4-3-问题与推荐场景" class="headerlink" title="4.3 问题与推荐场景"></a>4.3 问题与推荐场景</h3><p>v1 把不断变化最快的时间低 32 位放在最前端，因此按照标准字节序进行比较时，不能在整个时间范围内维持自然的递增顺序。这也是 v6 要调整字段顺序的直接动机。</p>
+<p>另外，部分实现会嵌入真实 MAC，泄露生成环境相关信息；通过随机节点标识可以减少这一问题。</p>
+<p><strong>适合</strong>：读取和兼容历史 v1 数据、必须与旧 RPC 或 UUID 生成器保持一致的系统。</p>
+<p><strong>不建议</strong>：新设计的通用数据库主键、期望隐藏生成环境的公开标识。</p>
+<h2 id="五、UUIDv2：DCE-Security-身份型-UUID"><a href="#五、UUIDv2：DCE-Security-身份型-UUID" class="headerlink" title="五、UUIDv2：DCE Security 身份型 UUID"></a>五、UUIDv2：DCE Security 身份型 UUID</h2><p>UUIDv2 是最容易被误解的版本。RFC 4122 记录其用途是 DCE Security，RFC 9562 继续保留编号，但<strong>明确指出 v2 的定义不在该 RFC 的范围内</strong>。它不是一个等待未来发明的神秘算法，其详细规则可以追溯到 DCE Security 规范。</p>
+<h3 id="5-1-位结构"><a href="#5-1-位结构" class="headerlink" title="5.1 位结构"></a>5.1 位结构</h3><p>v2 以 v1 为基础，将 <code>time_low</code> 替换为本地标识符，将 <code>clock_seq_low</code> 替换为 Domain：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs text">UUIDv2 / DCE Security（总计 128 bit）<br>[local_id:32][time_mid:16][ver=0010:4][time_high:12]<br>[var=10:2][clock_seq_high:6][local_domain:8][node:48]<br></code></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th align="right">位数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>local_id</code></td>
+<td align="right">32</td>
+<td>指定 Domain 内的本地 ID，例如 POSIX UID、GID</td>
+</tr>
+<tr>
+<td><code>time_mid</code></td>
+<td align="right">16</td>
+<td>保留的 Gregorian 时间中间字段</td>
+</tr>
+<tr>
+<td><code>time_high</code></td>
+<td align="right">12</td>
+<td>保留的 Gregorian 时间高位字段</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td align="right">4</td>
+<td>固定为 2</td>
+</tr>
+<tr>
+<td><code>variant</code></td>
+<td align="right">2</td>
+<td>固定 <code>10</code></td>
+</tr>
+<tr>
+<td><code>clock_seq_high</code></td>
+<td align="right">6</td>
+<td>时钟序列的剩余部分</td>
+</tr>
+<tr>
+<td><code>local_domain</code></td>
+<td align="right">8</td>
+<td>标识本地 ID 的类别</td>
+</tr>
+<tr>
+<td><code>node</code></td>
+<td align="right">48</td>
+<td>节点标识</td>
+</tr>
+</tbody></table>
+<p>常见的本地 Domain 包括：</p>
+<table>
+<thead>
+<tr>
+<th>Domain</th>
+<th>含义</th>
+<th>本地 ID 的例子</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>0</code></td>
+<td>Person</td>
+<td>POSIX 用户 UID</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>Group</td>
+<td>POSIX 用户组 GID</td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td>Organization</td>
+<td>组织或站点定义的标识</td>
+</tr>
+</tbody></table>
+<h3 id="5-2-生成规则"><a href="#5-2-生成规则" class="headerlink" title="5.2 生成规则"></a>5.2 生成规则</h3><p>在 v1 时间型 UUID 的基础上，选择 Local Domain 和对应的 32 位 Local ID，覆盖原先的 <code>time_low</code>，再把 Domain 编码进 <code>clock_seq_low</code>，Version 设置为 2。由于时间戳最低 32 位被覆盖，v2 不再保有 v1 的精细时间信息；按原时间刻度估算，被覆盖的范围相当于约 <strong>429.5 秒</strong>。</p>
+<p>这也解释了为什么 v2 不适合被视作普通的高精度时间型 ID。</p>
+<p><strong>适合</strong>：确实需要 DCE Security 身份语义的历史&#x2F;专用系统。</p>
+<p><strong>不建议</strong>：普通用户主键、权限系统中的真实授权凭据、业务订单 ID。UUIDv2 中含有 UID&#x2F;GID 信息并不代表持有该 UUID 就经过身份认证。</p>
+<h2 id="六、UUIDv3：基于-MD5-的名称型-UUID"><a href="#六、UUIDv3：基于-MD5-的名称型-UUID" class="headerlink" title="六、UUIDv3：基于 MD5 的名称型 UUID"></a>六、UUIDv3：基于 MD5 的名称型 UUID</h2><h3 id="6-1-位结构"><a href="#6-1-位结构" class="headerlink" title="6.1 位结构"></a>6.1 位结构</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">UUIDv3（总计 128 bit）<br>[md5_high:48][ver=0011:4][md5_mid:12][var=10:2][md5_low:62]<br></code></pre></td></tr></table></figure>
+
+<p>v3 与 v1 看起来一样长，但其余 122 位是从摘要中得到的，不再对应时间、时钟序列和 MAC。</p>
+<h3 id="6-2-生成规则"><a href="#6-2-生成规则" class="headerlink" title="6.2 生成规则"></a>6.2 生成规则</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs text">Namespace UUID（16 字节）<br>        +<br>Name（按命名空间规则编码为字节）<br>        │<br>        ▼<br>  MD5(NamespaceBytes || NameBytes)<br>        │<br>        ▼<br>  16 字节摘要<br>        │<br>        ├── 覆盖 Version = 3<br>        └── 覆盖 Variant = 10<br>        │<br>        ▼<br>      UUIDv3<br></code></pre></td></tr></table></figure>
+
+<p>同一个 Namespace、同一个规范化后的 Name，会稳定得到同一个 UUID；改动任一输入，结果一般会完全变化。RFC 定义了 DNS、URL、OID、X.500 DN 等命名空间标识。</p>
+<p>例如，按标准 DNS Namespace 生成 <code>example.com</code> 的 v3 UUID：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">9073926b-929f-31c2-abc9-fad77ae3e8eb<br></code></pre></td></tr></table></figure>
+
+<p><strong>适合</strong>：必须兼容历史 v3 生成结果的系统、既有 MD5 命名空间数据。</p>
+<p><strong>不建议</strong>：新项目中的默认名称型算法。MD5 已不适合抵抗有意构造的碰撞，更不能把名称型 UUID 当作签名或认证结果。</p>
+<h2 id="七、UUIDv4：最常见的随机型-UUID"><a href="#七、UUIDv4：最常见的随机型-UUID" class="headerlink" title="七、UUIDv4：最常见的随机型 UUID"></a>七、UUIDv4：最常见的随机型 UUID</h2><h3 id="7-1-位结构"><a href="#7-1-位结构" class="headerlink" title="7.1 位结构"></a>7.1 位结构</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">UUIDv4（总计 128 bit）<br>[random_a:48][ver=0100:4][random_b:12][var=10:2][random_c:62]<br><br>可使用的随机位数 = 128 - 4 - 2 = 122 位<br></code></pre></td></tr></table></figure>
+
+<h3 id="7-2-生成规则"><a href="#7-2-生成规则" class="headerlink" title="7.2 生成规则"></a>7.2 生成规则</h3><ol>
+<li>从加密安全随机数生成器（CSPRNG）取得随机字节。</li>
+<li>将版本所在 4 位覆写为 <code>0100</code>。</li>
+<li>将变体高两位覆写为 <code>10</code>。</li>
+<li>将最终 128 位按标准格式输出。</li>
+</ol>
+<p>UUIDv4 的核心是 <strong>122 位随机空间</strong>，而非依赖 MAC、机器编号或时间戳。其碰撞概率可用生日悖论近似：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">P(至少一次碰撞) ≈ n(n - 1) / (2 × 2^122)<br></code></pre></td></tr></table></figure>
+
+<p>其中 <code>n</code> 是生成次数，并假设随机数独立、均匀。如果累计生成 <code>10^12</code> 个 v4 UUID，理论近似碰撞概率约为 <code>9.4 × 10^-14</code>。这个概率非常低，但<strong>不是零</strong>；随机数质量不佳或错误复用种子会让实际风险远高于该估算。</p>
+<h3 id="7-3-推荐场景"><a href="#7-3-推荐场景" class="headerlink" title="7.3 推荐场景"></a>7.3 推荐场景</h3><p>v4 适用于应用对象 ID、跨服务关联 ID、普通分布式标识等无需时间顺序的场景，尤其是在生成端之间没有协调机制时。</p>
+<p>其主要弱点不是全局冲突风险，而是<strong>无序写入数据库索引</strong>：当它被用作 InnoDB 聚簇主键时，插入位置散布在索引树的不同叶子页，容易带来额外页读取、页分裂与缓存压力。</p>
+<p><strong>推荐</strong>：普通随机标识；不以 UUID 为聚簇主键的系统。</p>
+<p><strong>审慎使用</strong>：超大表、高写入压力的 InnoDB 主键。需要主键插入局部性时，更应评估 v7、BIGINT 或其他有序方案。</p>
+<blockquote>
+<p>v4 采用 CSPRNG 时可能具有不错的不可猜测性，但 UUID 仍只是标识符，不应直接代替认证令牌、访问控制或服务端权限检查。</p>
+</blockquote>
+<h2 id="八、UUIDv5：基于-SHA-1-的名称型-UUID"><a href="#八、UUIDv5：基于-SHA-1-的名称型-UUID" class="headerlink" title="八、UUIDv5：基于 SHA-1 的名称型 UUID"></a>八、UUIDv5：基于 SHA-1 的名称型 UUID</h2><h3 id="8-1-位结构"><a href="#8-1-位结构" class="headerlink" title="8.1 位结构"></a>8.1 位结构</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">UUIDv5（总计 128 bit）<br>[sha1_high:48][ver=0101:4][sha1_mid:12][var=10:2][sha1_low:62]<br></code></pre></td></tr></table></figure>
+
+<p>v5 与 v3 的字段形状相同，主要区别是哈希算法。</p>
+<h3 id="8-2-生成规则"><a href="#8-2-生成规则" class="headerlink" title="8.2 生成规则"></a>8.2 生成规则</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs text">NamespaceBytes || NameBytes<br>             │<br>             ▼<br>          SHA-1<br>             │<br>             ▼<br>     160 位哈希结果<br>             │<br>             ▼<br>     取最左边 128 位<br>             │<br>             ├── 覆写 Version = 5<br>             └── 覆写 Variant = 10<br>             │<br>             ▼<br>           UUIDv5<br></code></pre></td></tr></table></figure>
+
+<p>仍以 DNS Namespace 下的 <code>example.com</code> 为例，标准 v5 结果是：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs text">cfbff0d1-9375-5685-968c-48ce8b15ae17<br></code></pre></td></tr></table></figure>
+
+<p>名称型算法最大的价值是<strong>可复现性</strong>：不依赖中心发号器，只要参与方采用同一个 Namespace 和完全一致的名称字节序列，就能得到同一个 ID。</p>
+<p>实际应用中需要特别约定名称的编码、大小写、Unicode 归一化、URL 格式与是否去除尾部斜杠。即使两个字符串在业务上表示同一对象，只要参与哈希的字节不同，通常就会生成不同 UUID。</p>
+<h3 id="8-3-推荐场景"><a href="#8-3-推荐场景" class="headerlink" title="8.3 推荐场景"></a>8.3 推荐场景</h3><p><strong>适合</strong>：稳定的外部资源映射、DNS&#x2F;URL 名称映射、跨环境同步时可重算的对象标识、数据导入去重键（前提是业务名称规则稳定且唯一）。</p>
+<p><strong>不适合</strong>：本来就允许同名的不同对象、需要真正随机且不可推断的标识、对抗性碰撞安全要求严格的摘要身份机制。</p>
+<p>RFC 9562 推荐在 v3&#x2F;v5 之间优先使用 v5；但 SHA-1 也已经不适合新的密码学安全需求。如果必须采用 SHA-256 等更新的哈希算法，<strong>不要把 SHA-256 的结果伪装成 v5</strong>，而应遵循自定义 UUIDv8 的约定。</p>
+<h2 id="九、UUIDv6：给-v1-重新排列时间字段"><a href="#九、UUIDv6：给-v1-重新排列时间字段" class="headerlink" title="九、UUIDv6：给 v1 重新排列时间字段"></a>九、UUIDv6：给 v1 重新排列时间字段</h2><p>v6 是为了改善 v1 的数据库局部性而设计的时间型格式，可以理解为“<strong>保留 v1 语义，调整时间字段排序</strong>”。</p>
+<h3 id="9-1-位结构"><a href="#9-1-位结构" class="headerlink" title="9.1 位结构"></a>9.1 位结构</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">UUIDv6（总计 128 bit）<br>[time_high:32][time_mid:16][ver=0110:4][time_low:12][var=10:2][clock_seq:14][node:48]<br><br>时间戳按从高位到低位排列：<br>T(60bit) = [time_high:32][time_mid:16][time_low:12]<br></code></pre></td></tr></table></figure>
+
+<p>与 v1 放在一起看：</p>
+<table>
+<thead>
+<tr>
+<th>版本</th>
+<th>60 位时间戳在 UUID 中的排列</th>
+<th>索引特点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>v1</strong></td>
+<td><code>低 32 → 中 16 → 高 12</code></td>
+<td>时间低位先变化，跨时间范围排序不自然</td>
+</tr>
+<tr>
+<td><strong>v6</strong></td>
+<td><code>高 32 → 中 16 → 低 12</code></td>
+<td>高位在前，比较结果更接近生成时间</td>
+</tr>
+</tbody></table>
+<h3 id="9-2-生成规则"><a href="#9-2-生成规则" class="headerlink" title="9.2 生成规则"></a>9.2 生成规则</h3><ol>
+<li>获取 v1 同源的 60 位 Gregorian 时间戳。</li>
+<li>按 <strong>高 32 位 + 中 16 位 + 低 12 位</strong> 的顺序放入 UUID。</li>
+<li>保留 14 位时钟序列与 48 位节点标识字段的位置。</li>
+<li>固定 Version 为 6，Variant 为 <code>10</code>。</li>
+</ol>
+<p>RFC 9562 建议新生成的 v6 对 Clock Sequence 与 Node 使用伪随机值，但为了兼容已有系统，也允许沿用 v1 的时钟序列&#x2F;MAC 使用模式。</p>
+<h3 id="9-3-推荐场景"><a href="#9-3-推荐场景" class="headerlink" title="9.3 推荐场景"></a>9.3 推荐场景</h3><p><strong>适合</strong>：既有 v1 时间体系的改造、需要使用 Gregorian 时间结构且希望更好排序的旧系统。</p>
+<p><strong>不建议</strong>：没有 v1 历史包袱的新业务。RFC 9562 明确提出，不涉及历史 v1 的系统通常应优先采用 v7。</p>
+<h2 id="十、UUIDv7：面向现代分布式数据库的时间有序-UUID"><a href="#十、UUIDv7：面向现代分布式数据库的时间有序-UUID" class="headerlink" title="十、UUIDv7：面向现代分布式数据库的时间有序 UUID"></a>十、UUIDv7：面向现代分布式数据库的时间有序 UUID</h2><p>v7 是本次标准演进中最值得工程实践关注的版本。它直接采用 Unix 毫秒时间戳，并把该时间戳放在 UUID 的<strong>最高 48 位</strong>。</p>
+<h3 id="10-1-位结构"><a href="#10-1-位结构" class="headerlink" title="10.1 位结构"></a>10.1 位结构</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs text">UUIDv7（总计 128 bit）<br>[unix_ts_ms:48][ver=0111:4][rand_a:12][var=10:2][rand_b:62]<br><br>┌──────────────────────┬────────┬────────────┬───────┬──────────────────────┐<br>│ Unix 毫秒时间戳       │ Version│ rand_a     │Variant│ rand_b               │<br>│ 48 bit               │ 4 bit  │ 12 bit     │ 2 bit │ 62 bit               │<br>└──────────────────────┴────────┴────────────┴───────┴──────────────────────┘<br><br>除时间/版本/变体外，剩余共 74 位：rand_a 12 + rand_b 62。<br></code></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th align="right">位数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>unix_ts_ms</code></td>
+<td align="right">48</td>
+<td>Unix Epoch 之后经过的毫秒数，网络字节序</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td align="right">4</td>
+<td>固定 <code>0111</code></td>
+</tr>
+<tr>
+<td><code>rand_a</code></td>
+<td align="right">12</td>
+<td>随机值，或单毫秒内的可选子毫秒信息&#x2F;计数器的一部分</td>
+</tr>
+<tr>
+<td><code>variant</code></td>
+<td align="right">2</td>
+<td>固定 <code>10</code></td>
+</tr>
+<tr>
+<td><code>rand_b</code></td>
+<td align="right">62</td>
+<td>随机值或可选单调计数器的剩余部分</td>
+</tr>
+</tbody></table>
+<p>可以把 v7 的前 48 位看作可直接读取的时间前缀。按规范的字节序对 UUID 排序时，不同毫秒产生的 UUID 通常自然聚集在一起。</p>
+<h3 id="10-2-生成规则：纯随机型与单调增强型"><a href="#10-2-生成规则：纯随机型与单调增强型" class="headerlink" title="10.2 生成规则：纯随机型与单调增强型"></a>10.2 生成规则：纯随机型与单调增强型</h3><p><strong>规范允许至少两类实现策略，而不是要求大家使用完全相同的计数器算法。</strong></p>
+<p><strong>策略 A：74 位全部用随机数据填充。</strong></p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><code class="hljs text">读取当前 Unix 毫秒时间戳<br>       │<br>       ▼<br>写入高 48 位时间戳<br>       │<br>       ├── Version = 7<br>       ├── Variant = 10<br>       └── 剩余 74 位填入 CSPRNG 随机数<br>       │<br>       ▼<br>输出 UUIDv7<br></code></pre></td></tr></table></figure>
+
+<p>这个方案简单、分布式节点之间不用协商。但同一毫秒内生成多个 UUID 时，低位是随机的，<strong>不能保证同一毫秒内按生成先后严格递增</strong>。</p>
+<p><strong>策略 B：使用可选的子毫秒精度或计数器增强单调性。</strong></p>
+<p>RFC 9562 允许按顺序在剩余 74 位中放置：</p>
+<ol>
+<li>可选的子毫秒时间分数（最多 12 位）；</li>
+<li>可选的、正确初始化和维护的计数器；</li>
+<li>仍未使用的位填入随机数据。</li>
+</ol>
+<p>生成器可以在同一毫秒内让计数器递增，以满足<strong>单个生成器</strong>内部的更强排序要求；同时必须考虑时钟回拨、计数器溢出、并发同步和跨进程状态。</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>纯随机型 v7</th>
+<th>单调增强型 v7</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>跨毫秒排序</td>
+<td>通常有序</td>
+<td>通常有序</td>
+</tr>
+<tr>
+<td>同毫秒内严格递增</td>
+<td>不保证</td>
+<td>实现正确时，可在单个生成器范围内保证</td>
+</tr>
+<tr>
+<td>分布式节点协调</td>
+<td>不需要</td>
+<td>不需要统一发号，但各节点不能天然共享全局次序</td>
+</tr>
+<tr>
+<td>随机性</td>
+<td>74 位随机</td>
+<td>部分位用于计数&#x2F;精度，随机熵减少</td>
+</tr>
+<tr>
+<td>实现复杂度</td>
+<td>低</td>
+<td>更高，需要处理回拨与溢出</td>
+</tr>
+</tbody></table>
+<h3 id="10-3-v7-为什么更适合数据库索引？"><a href="#10-3-v7-为什么更适合数据库索引？" class="headerlink" title="10.3 v7 为什么更适合数据库索引？"></a>10.3 v7 为什么更适合数据库索引？</h3><p>B-Tree&#x2F;B+Tree 按键值组织叶子页。随机 v4 主键可能持续向很多不同的叶子页插入；v7 把时间放在前面，让新数据更可能落到相邻的键范围。</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs text">UUIDv4（随机主键）<br>新插入记录 → [页 3]、[页 81]、[页 11]、[页 46] ...<br><br>UUIDv7（时间有序主键）<br>新插入记录 → [近期时间段的页] → [相邻页] → ...<br></code></pre></td></tr></table></figure>
+
+<p>这种局部性通常意味着较少的随机页面访问、较好的缓存命中率，以及可能更低的页分裂成本。实际收益取决于写入速率、索引组织、并发热点、页大小与数据库实现，需要基准测试验证。</p>
+<p>但必须区分三个容易混淆的结论：</p>
+<ul>
+<li><strong>v7 是时间有序的，不是严格全局单调的。</strong> 多节点时钟偏差、同毫秒随机排序、消息延迟都可能让 ID 顺序与真实业务发生顺序不同。</li>
+<li><strong>v7 自带时间，并不意味着可以删掉 <code>created_at</code>。</strong> 审计、业务生效时间、延迟写入、回填数据、更新排序、时间修正依旧需要独立时间字段。</li>
+<li><strong>v7 并不保证绝对不碰撞。</strong> 规范要求依赖足够质量的随机源或正确设计的计数状态，数据库仍然应设置主键&#x2F;唯一约束。</li>
+</ul>
+<h3 id="10-4-推荐场景"><a href="#10-4-推荐场景" class="headerlink" title="10.4 推荐场景"></a>10.4 推荐场景</h3><p><strong>优先考虑</strong>：分布式订单主键、支付流水标识、异步事件 ID、日志事件 ID、大量新增写入的数据库表（在业务需要使用 UUID 的前提下）。</p>
+<p><strong>不一定适合</strong>：要求隐藏大致创建时间的公开 ID、必须有跨节点全序的业务序列号、对主键存储成本极敏感且可使用 BIGINT 的表。</p>
+<p>若排序本身就是业务规则，应另外使用可信的时间列、数据库提交顺序、消息偏移量或专门的序列机制，不能仅依赖 v7 的字典序。</p>
+<h2 id="十一、UUIDv8：自定义的-122-位空间"><a href="#十一、UUIDv8：自定义的-122-位空间" class="headerlink" title="十一、UUIDv8：自定义的 122 位空间"></a>十一、UUIDv8：自定义的 122 位空间</h2><p>v8 是标准预留的<strong>实验性&#x2F;厂商专用 UUID 格式</strong>，不是 v7 的功能升级版。</p>
+<h3 id="11-1-位结构"><a href="#11-1-位结构" class="headerlink" title="11.1 位结构"></a>11.1 位结构</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs text">UUIDv8（总计 128 bit）<br>[custom_a:48][ver=1000:4][custom_b:12][var=10:2][custom_c:62]<br><br>可由应用自行定义的字段合计：48 + 12 + 62 = 122 位<br></code></pre></td></tr></table></figure>
+
+<p>唯一强制遵守的结构性要求是：Version 必须为 8，Variant 必须为 <code>10</code>。其余 122 位由应用自定义，标准<strong>不保证</strong>这些自定义内容的唯一性、时间顺序或安全性。</p>
+<h3 id="11-2-生成规则与一个设计例子"><a href="#11-2-生成规则与一个设计例子" class="headerlink" title="11.2 生成规则与一个设计例子"></a>11.2 生成规则与一个设计例子</h3><p>假设某企业需要按以下逻辑生成标识：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><code class="hljs text">业务 Namespace + 规范化后的业务编码<br>                │<br>                ▼<br>             SHA-256<br>                │<br>                ▼<br>            取 128 位<br>                │<br>                ├── Version = 8<br>                └── Variant = 10<br>                │<br>                ▼<br>              UUIDv8<br></code></pre></td></tr></table></figure>
+
+<p>这是一个<strong>可以设计</strong>的 v8 方案方向，并非所有 v8 UUID 都使用 SHA-256，也不代表只写这几行就完成了一个安全协议。生产使用时还需要固定域分离、编码方式、取位规则、版本管理、碰撞处理和测试向量。RFC 9562 附录 B 也提供了 SHA-256 名称型 UUIDv8 的说明性样例。</p>
+<p><strong>适合</strong>：已有明确位布局协议约束、跨企业约定的自定义 ID、需要比 SHA-1 更新的名称型 UUID 算法。</p>
+<p><strong>不建议</strong>：只是为了“以后扩展方便”就自创一个 UUID 方案。自定义格式会增加 SDK、数据库和其他团队的互操作成本。</p>
+<h2 id="十二、Nil-UUID、Max-UUID-和常见边界"><a href="#十二、Nil-UUID、Max-UUID-和常见边界" class="headerlink" title="十二、Nil UUID、Max UUID 和常见边界"></a>十二、Nil UUID、Max UUID 和常见边界</h2><p>除了 v1～v8，RFC 9562 还明确了两个特殊值：</p>
+<table>
+<thead>
+<tr>
+<th>特殊 UUID</th>
+<th>内容</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Nil UUID</td>
+<td><code>00000000-0000-0000-0000-000000000000</code></td>
+<td>表示空、缺省或不存在的 UUID 值</td>
+</tr>
+<tr>
+<td>Max UUID</td>
+<td><code>ffffffff-ffff-ffff-ffff-ffffffffffff</code></td>
+<td>作为最大值哨兵、范围边界等，取决于应用约定</td>
+</tr>
+</tbody></table>
+<p>它们<strong>不是 UUIDv0 和 UUIDv15</strong>。其 Variant 也不属于前述普通 RFC <code>10</code> 格式，不能拿“第三组是否是 1～8、第四组是否是 8～b”的普通 UUID 检查规则否定它们的存在。</p>
+<p>Nil&#x2F;Max 可以作为约定的哨兵值，但要明确语义。业务中通常更推荐数据库 <code>NULL</code> 表示真正的缺失值，避免哨兵值与有效数据混淆。</p>
+<h2 id="十三、Java-实战：v3、v4、v5、v7-怎么生成？"><a href="#十三、Java-实战：v3、v4、v5、v7-怎么生成？" class="headerlink" title="十三、Java 实战：v3、v4、v5、v7 怎么生成？"></a>十三、Java 实战：v3、v4、v5、v7 怎么生成？</h2><h3 id="13-1-JDK-自带能力与局限"><a href="#13-1-JDK-自带能力与局限" class="headerlink" title="13.1 JDK 自带能力与局限"></a>13.1 JDK 自带能力与局限</h3><p>截至 JDK 25，<code>java.util.UUID</code> 的常用静态工厂方法是：</p>
+<table>
+<thead>
+<tr>
+<th>Java API</th>
+<th>生成版本</th>
+<th>注意点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>UUID.randomUUID()</code></td>
+<td>v4</td>
+<td>使用加密强度较高的伪随机数生成器</td>
+</tr>
+<tr>
+<td><code>UUID.nameUUIDFromBytes(bytes)</code></td>
+<td>v3</td>
+<td>基于传入字节的 MD5；不会自动帮你加入 RFC Namespace</td>
+</tr>
+<tr>
+<td><code>UUID.fromString(text)</code></td>
+<td>解析</td>
+<td>只解析表示形式，不生成新 ID</td>
+</tr>
+<tr>
+<td><code>uuid.version()</code></td>
+<td>检测</td>
+<td>返回 Version，Nil&#x2F;Max 等特殊值不可按普通生成版本解读</td>
+</tr>
+<tr>
+<td><code>uuid.variant()</code></td>
+<td>检测</td>
+<td>RFC <code>10</code> 变体在 Java 中返回 <code>2</code></td>
+</tr>
+</tbody></table>
+<p>JDK 自带的 <code>UUID.randomUUID()</code> <strong>不会因为项目升级到 JDK 21 或 JDK 25 就自动生成 v7</strong>。</p>
+<h3 id="13-2-使用-JDK-生成-v3、v4、v5，并演示-v7-位布局"><a href="#13-2-使用-JDK-生成-v3、v4、v5，并演示-v7-位布局" class="headerlink" title="13.2 使用 JDK 生成 v3、v4、v5，并演示 v7 位布局"></a>13.2 使用 JDK 生成 v3、v4、v5，并演示 v7 位布局</h3><p>下面是一份可独立编译运行的 Java 示例。v3&#x2F;v5 显式将标准 Namespace UUID 的 16 字节与 UTF-8 名称拼接；v7 以纯随机方案展示 RFC 9562 的字段填充。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> java.nio.ByteBuffer;<br><span class="hljs-keyword">import</span> java.nio.charset.StandardCharsets;<br><span class="hljs-keyword">import</span> java.security.MessageDigest;<br><span class="hljs-keyword">import</span> java.security.NoSuchAlgorithmException;<br><span class="hljs-keyword">import</span> java.security.SecureRandom;<br><span class="hljs-keyword">import</span> java.time.Instant;<br><span class="hljs-keyword">import</span> java.util.UUID;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">UuidExamples</span> &#123;<br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> <span class="hljs-type">SecureRandom</span> <span class="hljs-variable">RANDOM</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">SecureRandom</span>();<br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> <span class="hljs-type">UUID</span> <span class="hljs-variable">NS_DNS</span> <span class="hljs-operator">=</span> UUID.fromString(<br>            <span class="hljs-string">&quot;6ba7b810-9dad-11d1-80b4-00c04fd430c8&quot;</span>);<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> UUID <span class="hljs-title function_">v3</span><span class="hljs-params">(UUID namespace, String name)</span> &#123;<br>        <span class="hljs-keyword">return</span> UUID.nameUUIDFromBytes(namespacedBytes(namespace, name));<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> UUID <span class="hljs-title function_">v5</span><span class="hljs-params">(UUID namespace, String name)</span> &#123;<br>        <span class="hljs-type">byte</span>[] hash;<br>        <span class="hljs-keyword">try</span> &#123;<br>            hash = MessageDigest.getInstance(<span class="hljs-string">&quot;SHA-1&quot;</span>)<br>                    .digest(namespacedBytes(namespace, name));<br>        &#125; <span class="hljs-keyword">catch</span> (NoSuchAlgorithmException e) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalStateException</span>(<span class="hljs-string">&quot;JDK SHA-1 unavailable&quot;</span>, e);<br>        &#125;<br>        <span class="hljs-comment">// SHA-1 的前 16 字节构成 UUID 的基础，再覆盖版本/变体位。</span><br>        hash[<span class="hljs-number">6</span>] = (<span class="hljs-type">byte</span>) ((hash[<span class="hljs-number">6</span>] &amp; <span class="hljs-number">0x0f</span>) | <span class="hljs-number">0x50</span>);<br>        hash[<span class="hljs-number">8</span>] = (<span class="hljs-type">byte</span>) ((hash[<span class="hljs-number">8</span>] &amp; <span class="hljs-number">0x3f</span>) | <span class="hljs-number">0x80</span>);<br>        <span class="hljs-type">ByteBuffer</span> <span class="hljs-variable">bytes</span> <span class="hljs-operator">=</span> ByteBuffer.wrap(hash, <span class="hljs-number">0</span>, <span class="hljs-number">16</span>);<br>        <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">UUID</span>(bytes.getLong(), bytes.getLong());<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> <span class="hljs-type">byte</span>[] namespacedBytes(UUID namespace, String name) &#123;<br>        <span class="hljs-type">byte</span>[] nameBytes = name.getBytes(StandardCharsets.UTF_8);<br>        <span class="hljs-type">ByteBuffer</span> <span class="hljs-variable">bytes</span> <span class="hljs-operator">=</span> ByteBuffer.allocate(<span class="hljs-number">16</span> + nameBytes.length);<br>        bytes.putLong(namespace.getMostSignificantBits());<br>        bytes.putLong(namespace.getLeastSignificantBits());<br>        bytes.put(nameBytes);<br>        <span class="hljs-keyword">return</span> bytes.array();<br>    &#125;<br><br>    <span class="hljs-comment">// 教学版：合法的纯随机型 UUIDv7；不保证同一毫秒严格递增。</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> UUID <span class="hljs-title function_">v7Demo</span><span class="hljs-params">()</span> &#123;<br>        <span class="hljs-type">long</span> <span class="hljs-variable">millis</span> <span class="hljs-operator">=</span> System.currentTimeMillis();<br>        <span class="hljs-type">long</span> <span class="hljs-variable">msb</span> <span class="hljs-operator">=</span> ((millis &amp; <span class="hljs-number">0xFFFFFFFFFFFFL</span>) &lt;&lt; <span class="hljs-number">16</span>)<br>                 | <span class="hljs-number">0x7000L</span> | RANDOM.nextInt(<span class="hljs-number">1</span> &lt;&lt; <span class="hljs-number">12</span>);<br>        <span class="hljs-type">long</span> <span class="hljs-variable">lsb</span> <span class="hljs-operator">=</span> (RANDOM.nextLong() &amp; <span class="hljs-number">0x3FFFFFFFFFFFFFFFL</span>)<br>                 | <span class="hljs-number">0x8000000000000000L</span>;<br>        <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">UUID</span>(msb, lsb);<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> Instant <span class="hljs-title function_">v7Timestamp</span><span class="hljs-params">(UUID uuid)</span> &#123;<br>        <span class="hljs-keyword">if</span> (uuid.variant() != <span class="hljs-number">2</span> || uuid.version() != <span class="hljs-number">7</span>) &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">IllegalArgumentException</span>(<span class="hljs-string">&quot;Not an RFC UUIDv7&quot;</span>);<br>        &#125;<br>        <span class="hljs-keyword">return</span> Instant.ofEpochMilli(uuid.getMostSignificantBits() &gt;&gt;&gt; <span class="hljs-number">16</span>);<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> &#123;<br>        System.out.println(<span class="hljs-string">&quot;v3 = &quot;</span> + v3(NS_DNS, <span class="hljs-string">&quot;example.com&quot;</span>));<br>        System.out.println(<span class="hljs-string">&quot;v5 = &quot;</span> + v5(NS_DNS, <span class="hljs-string">&quot;example.com&quot;</span>));<br>        System.out.println(<span class="hljs-string">&quot;v4 = &quot;</span> + UUID.randomUUID());<br>        <span class="hljs-type">UUID</span> <span class="hljs-variable">id</span> <span class="hljs-operator">=</span> v7Demo();<br>        System.out.println(<span class="hljs-string">&quot;v7 = &quot;</span> + id);<br>        System.out.println(<span class="hljs-string">&quot;version = &quot;</span> + id.version());<br>        System.out.println(<span class="hljs-string">&quot;variant = &quot;</span> + id.variant());<br>        System.out.println(<span class="hljs-string">&quot;createdAt = &quot;</span> + v7Timestamp(id));<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>前两个确定性 UUID 的输出应为：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs text">v3 = 9073926b-929f-31c2-abc9-fad77ae3e8eb<br>v5 = cfbff0d1-9375-5685-968c-48ce8b15ae17<br></code></pre></td></tr></table></figure>
+
+<p>这个 v7 方法适用于理解位布局与验证算法，<strong>不建议把教学代码直接作为高并发生产级 ID 组件</strong>。例如，它没有加入单毫秒计数器、回拨保护、持久化状态或吞吐压测。生产环境宜使用经过测试的 UUIDv7 实现，并根据业务选择随机型或单调型生成策略。</p>
+<h3 id="13-3-Java-工程中使用-uuid-creator"><a href="#13-3-Java-工程中使用-uuid-creator" class="headerlink" title="13.3 Java 工程中使用 uuid-creator"></a>13.3 Java 工程中使用 uuid-creator</h3><p>开源项目 <a target="_blank" rel="noopener" href="https://github.com/f4b6a3/uuid-creator">uuid-creator</a> 提供了各版本的生成方法。以下 Maven 版本按本文编写时核对的项目文档固定为 <code>6.1.1</code>：</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>com.github.f4b6a3<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>uuid-creator<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>    <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>6.1.1<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br><span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br></code></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">import</span> com.github.f4b6a3.uuid.UuidCreator;<br><span class="hljs-keyword">import</span> com.github.f4b6a3.uuid.enums.UuidLocalDomain;<br><span class="hljs-keyword">import</span> com.github.f4b6a3.uuid.enums.UuidNamespace;<br><span class="hljs-keyword">import</span> java.util.UUID;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">UuidCreatorDemo</span> &#123;<br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> &#123;<br>        <span class="hljs-type">UUID</span> <span class="hljs-variable">v1</span> <span class="hljs-operator">=</span> UuidCreator.getTimeBased();<br>        <span class="hljs-type">UUID</span> <span class="hljs-variable">v2</span> <span class="hljs-operator">=</span> UuidCreator.getDceSecurity(<br>                UuidLocalDomain.LOCAL_DOMAIN_PERSON, <span class="hljs-number">1001</span>);<br>        <span class="hljs-type">UUID</span> <span class="hljs-variable">v3</span> <span class="hljs-operator">=</span> UuidCreator.getNameBasedMd5(<br>                UuidNamespace.NAMESPACE_DNS, <span class="hljs-string">&quot;example.com&quot;</span>);<br>        <span class="hljs-type">UUID</span> <span class="hljs-variable">v4</span> <span class="hljs-operator">=</span> UuidCreator.getRandomBased();<br>        <span class="hljs-type">UUID</span> <span class="hljs-variable">v5</span> <span class="hljs-operator">=</span> UuidCreator.getNameBasedSha1(<br>                UuidNamespace.NAMESPACE_DNS, <span class="hljs-string">&quot;example.com&quot;</span>);<br>        <span class="hljs-type">UUID</span> <span class="hljs-variable">v6</span> <span class="hljs-operator">=</span> UuidCreator.getTimeOrdered();<br>        <span class="hljs-type">UUID</span> <span class="hljs-variable">v7</span> <span class="hljs-operator">=</span> UuidCreator.getTimeOrderedEpoch();<br><br>        System.out.println(v1);<br>        System.out.println(v2);<br>        System.out.println(v3);<br>        System.out.println(v4);<br>        System.out.println(v5);<br>        System.out.println(v6);<br>        System.out.println(v7);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里的 v7 方法在当前库中有自己的计数器策略，可按项目文档进一步选用其他单调生成方法。需要注意，“对生成器内部有序”不意味着跨机器严格排序。</p>
+<h2 id="十四、数据库实战：MySQL-与-PostgreSQL"><a href="#十四、数据库实战：MySQL-与-PostgreSQL" class="headerlink" title="十四、数据库实战：MySQL 与 PostgreSQL"></a>十四、数据库实战：MySQL 与 PostgreSQL</h2><h3 id="14-1-为什么不建议直接把-UUID-主键定义为-CHAR-36-？"><a href="#14-1-为什么不建议直接把-UUID-主键定义为-CHAR-36-？" class="headerlink" title="14.1 为什么不建议直接把 UUID 主键定义为 CHAR(36)？"></a>14.1 为什么不建议直接把 UUID 主键定义为 <code>CHAR(36)</code>？</h3><p>UUID 的本体只有 <strong>16 字节</strong>，但规范文本形式包含 36 个字符。两者相比：</p>
+<table>
+<thead>
+<tr>
+<th>列类型</th>
+<th>表达 UUID 的方式</th>
+<th align="right">标识本体所需字节数</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CHAR(36)</code></td>
+<td>36 字符（包含连字符）</td>
+<td align="right">ASCII&#x2F;UTF-8 文本约 36 字节</td>
+<td>肉眼可读，但索引键更宽；实际存储还受字符集和行格式影响</td>
+</tr>
+<tr>
+<td><code>BINARY(16)</code></td>
+<td>16 字节原始值</td>
+<td align="right"><strong>16 字节</strong></td>
+<td>MySQL 中通常更适合建立索引，需做显示格式转换</td>
+</tr>
+<tr>
+<td>PostgreSQL <code>uuid</code></td>
+<td>原生 UUID 类型</td>
+<td align="right"><strong>16 字节数据</strong></td>
+<td>数据库原生解析、比较与索引支持</td>
+</tr>
+<tr>
+<td><code>BIGINT</code></td>
+<td>64 位整数</td>
+<td align="right"><strong>8 字节</strong></td>
+<td>更紧凑，但不是 UUID，分布式唯一性需要额外算法约束</td>
+</tr>
+</tbody></table>
+<p>尤其在 InnoDB 中，<strong>二级索引记录会携带聚簇主键列</strong>。较宽的主键不只影响主键索引，还会增加相关二级索引的存储成本。所以是否采用 UUID，不应只看“省掉发号器”这一项收益。</p>
+<h3 id="14-2-MySQL：v7-建议按原始顺序存入-BINARY-16"><a href="#14-2-MySQL：v7-建议按原始顺序存入-BINARY-16" class="headerlink" title="14.2 MySQL：v7 建议按原始顺序存入 BINARY(16)"></a>14.2 MySQL：v7 建议按原始顺序存入 BINARY(16)</h3><p>下面以一个业务订单表为例：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> order_record (<br>    id          <span class="hljs-type">BINARY</span>(<span class="hljs-number">16</span>) <span class="hljs-keyword">NOT NULL</span> COMMENT <span class="hljs-string">&#x27;UUIDv7，按标准字节序存放&#x27;</span>,<br>    order_no    <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">32</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    amount      <span class="hljs-type">DECIMAL</span>(<span class="hljs-number">18</span>, <span class="hljs-number">2</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    gmt_create  DATETIME(<span class="hljs-number">3</span>) <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-built_in">CURRENT_TIMESTAMP</span>(<span class="hljs-number">3</span>),<br>    <span class="hljs-keyword">PRIMARY KEY</span> (id),<br>    <span class="hljs-keyword">UNIQUE</span> KEY uk_order_no (order_no),<br>    KEY idx_gmt_create (gmt_create)<br>) ENGINE <span class="hljs-operator">=</span> InnoDB;<br></code></pre></td></tr></table></figure>
+
+<p>应用层生成 UUIDv7 后，将字符串按顺序转换为 16 字节：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-comment">-- ? 参数由应用传入合法 UUIDv7 字符串</span><br><span class="hljs-keyword">INSERT INTO</span> order_record (id, order_no, amount)<br><span class="hljs-keyword">VALUES</span> (UUID_TO_BIN(?, <span class="hljs-number">0</span>), ?, ?);<br><br><span class="hljs-comment">-- 查询时转回规范字符串</span><br><span class="hljs-keyword">SELECT</span> BIN_TO_UUID(id, <span class="hljs-number">0</span>) <span class="hljs-keyword">AS</span> id,<br>       order_no,<br>       amount,<br>       gmt_create<br><span class="hljs-keyword">FROM</span> order_record<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> id <span class="hljs-keyword">DESC</span><br>LIMIT <span class="hljs-number">20</span>;<br></code></pre></td></tr></table></figure>
+
+<p>这里 <code>UUID_TO_BIN(uuid, 0)</code> 的 <code>0</code> 表示<strong>不交换字节顺序</strong>。</p>
+<h4 id="一个很容易踩的坑：UUID-TO-BIN-uuid-1-不是给-v7-用的"><a href="#一个很容易踩的坑：UUID-TO-BIN-uuid-1-不是给-v7-用的" class="headerlink" title="一个很容易踩的坑：UUID_TO_BIN(uuid, 1) 不是给 v7 用的"></a>一个很容易踩的坑：<code>UUID_TO_BIN(uuid, 1)</code> 不是给 v7 用的</h4><p>MySQL 的 <code>UUID_TO_BIN(value, 1)</code> 会交换 UUID 的时间字段，以改善 <strong>v1</strong> 值在索引中的排列。官方文档明确指出该优化假定输入是 UUIDv1。</p>
+<table>
+<thead>
+<tr>
+<th>输入版本</th>
+<th>建议转换方式</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>v1</td>
+<td><code>UUID_TO_BIN(id, 1)</code></td>
+<td>通过 MySQL 特定交换方式改善其时间部分的顺序；读取时要对应使用 <code>BIN_TO_UUID(id, 1)</code></td>
+</tr>
+<tr>
+<td>v4</td>
+<td><code>UUID_TO_BIN(id, 0)</code></td>
+<td>无时间字段可交换，保持标准顺序</td>
+</tr>
+<tr>
+<td>v6</td>
+<td><code>UUID_TO_BIN(id, 0)</code></td>
+<td>本来就是高位时间在前，不要再按 v1 规则交换</td>
+</tr>
+<tr>
+<td><strong>v7</strong></td>
+<td><strong><code>UUID_TO_BIN(id, 0)</code></strong></td>
+<td><strong>时间已经位于最前 48 位，交换会破坏预期时间顺序</strong></td>
+</tr>
+<tr>
+<td>v3&#x2F;v5&#x2F;v8</td>
+<td><code>UUID_TO_BIN(id, 0)</code></td>
+<td>通常保留规范字节序，自定义 v8 另按协议约定</td>
+</tr>
+</tbody></table>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-comment">-- 这是 v1 风格的做法，不能机械搬到 v7：</span><br><span class="hljs-keyword">SELECT</span> UUID_TO_BIN(UUID(), <span class="hljs-number">1</span>);<br><br><span class="hljs-comment">-- 对于应用生成的 v7，应保留标准顺序：</span><br><span class="hljs-keyword">SELECT</span> UUID_TO_BIN(<span class="hljs-string">&#x27;019535d9-3df7-79fb-b466-fa907fa17f9e&#x27;</span>, <span class="hljs-number">0</span>);<br></code></pre></td></tr></table></figure>
+
+<p>还需要注意，MySQL 的 <code>UUID()</code> 本身产生的是 <strong>v1</strong> UUID，不是 v4，更不是 v7。不要因为用了 <code>UUID_TO_BIN()</code> 就误以为数据库函数会自动升级 UUID 版本。</p>
+<h3 id="14-3-PostgreSQL-18：原生生成-v7"><a href="#14-3-PostgreSQL-18：原生生成-v7" class="headerlink" title="14.3 PostgreSQL 18：原生生成 v7"></a>14.3 PostgreSQL 18：原生生成 v7</h3><p>从 <strong>PostgreSQL 18</strong> 开始，数据库官方提供了 <code>uuidv7()</code>：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><code class="hljs sql"><span class="hljs-keyword">CREATE TABLE</span> order_record (<br>    id UUID <span class="hljs-keyword">PRIMARY KEY</span> <span class="hljs-keyword">DEFAULT</span> uuidv7(),<br>    order_no TEXT <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">UNIQUE</span>,<br>    amount <span class="hljs-type">NUMERIC</span>(<span class="hljs-number">18</span>, <span class="hljs-number">2</span>) <span class="hljs-keyword">NOT NULL</span>,<br>    gmt_create TIMESTAMPTZ <span class="hljs-keyword">NOT NULL</span> <span class="hljs-keyword">DEFAULT</span> now()<br>);<br><br><span class="hljs-keyword">INSERT INTO</span> order_record(order_no, amount)<br><span class="hljs-keyword">VALUES</span> (<span class="hljs-string">&#x27;SO202610140001&#x27;</span>, <span class="hljs-number">99.00</span>);<br><br><span class="hljs-keyword">SELECT</span> id, order_no, gmt_create<br><span class="hljs-keyword">FROM</span> order_record<br><span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> id <span class="hljs-keyword">DESC</span><br>LIMIT <span class="hljs-number">20</span>;<br></code></pre></td></tr></table></figure>
+
+<p>PostgreSQL 的 <code>uuid</code> 类型本身可以存放多种 UUID 版本；但 <code>uuidv7()</code> 的内建生成能力是 PostgreSQL 18 才引入的，不能照搬到 16&#x2F;17 并期待内建函数存在。旧版本可以在应用层或经审查的扩展中生成 v7，再写入 <code>uuid</code> 列。</p>
+<h3 id="14-4-是否应该用-v7-替换所有自增主键？"><a href="#14-4-是否应该用-v7-替换所有自增主键？" class="headerlink" title="14.4 是否应该用 v7 替换所有自增主键？"></a>14.4 是否应该用 v7 替换所有自增主键？</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>BIGINT 自增</th>
+<th>UUIDv4</th>
+<th>UUIDv7</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>主键宽度</td>
+<td>8 字节</td>
+<td>16 字节</td>
+<td>16 字节</td>
+</tr>
+<tr>
+<td>多节点无协调生成</td>
+<td>通常不具备</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>大致按生成时间排列</td>
+<td>单实例序列递增，但不直接代表时间</td>
+<td>不支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>B-Tree 插入局部性</td>
+<td>通常很好</td>
+<td>通常较差</td>
+<td>通常较好</td>
+</tr>
+<tr>
+<td>是否暴露大致生成时间</td>
+<td>ID 本身未显式编码时间</td>
+<td>不暴露</td>
+<td><strong>暴露</strong></td>
+</tr>
+<tr>
+<td>依赖中心数据库发号</td>
+<td>常见</td>
+<td>否</td>
+<td>否</td>
+</tr>
+<tr>
+<td>典型场景</td>
+<td>单库&#x2F;紧凑内部主键</td>
+<td>普通随机标识</td>
+<td>分布式可排序 UUID 主键</td>
+</tr>
+</tbody></table>
+<p>如果所有写入都走同一个 MySQL 实例，自增 BIGINT 的简单、紧凑和成熟仍有价值；如果多服务必须独立生成主键，UUIDv7 是有吸引力的替代方案。两者的取舍必须把<strong>网络协调成本、索引成本、主键大小、数据迁移成本和业务暴露要求</strong>一起衡量。</p>
+<h2 id="十五、工程设计中容易忽略的六个问题"><a href="#十五、工程设计中容易忽略的六个问题" class="headerlink" title="十五、工程设计中容易忽略的六个问题"></a>十五、工程设计中容易忽略的六个问题</h2><table>
+<thead>
+<tr>
+<th>误区</th>
+<th>更准确的理解</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>“UUID 一定不会重复”</td>
+<td>UUID 的唯一性依赖版本算法、节点状态或随机质量；应用仍须维护唯一约束和冲突处理策略</td>
+</tr>
+<tr>
+<td>“Version 数字越大就越好”</td>
+<td>Version 是不同生成算法的编号；v8 不会天然优于 v7，v7 也不适合所有场景</td>
+</tr>
+<tr>
+<td>“UUIDv7 严格全局递增”</td>
+<td>标准只提供时间高位布局；单调性与跨节点有序性取决于实现、时间同步和范围</td>
+</tr>
+<tr>
+<td>“UUIDv7 有时间戳，可以删掉创建时间列”</td>
+<td>ID 时间是生成时刻线索，无法代替审计、业务创建&#x2F;提交时间或校正后的时间字段</td>
+</tr>
+<tr>
+<td>“名称型 UUID 可以作为摘要签名”</td>
+<td>v3&#x2F;v5 的主要目标是确定性命名，而不是密码学身份认证；对抗性散列场景需单独设计安全方案</td>
+</tr>
+<tr>
+<td>“MySQL UUID_TO_BIN 的 swap&#x3D;1 永远更快”</td>
+<td>swap&#x3D;1 针对 v1 时间字段优化；v6&#x2F;v7 应按原始网络字节序存放</td>
+</tr>
+</tbody></table>
+<p>还有一些具体工程边界值得提前确定：</p>
+<ul>
+<li><strong>时钟与多节点</strong>：v7 依赖系统时间。节点时钟明显回拨或时钟不同步时，业务上“后写入”未必对应“更大的 UUID”。</li>
+<li><strong>容量与索引</strong>：UUID 的 128 位不会因为改用 <code>BINARY(16)</code> 而变成 64 位；二级索引依旧受到较宽主键影响。</li>
+<li><strong>安全与隐私</strong>：v1&#x2F;v2&#x2F;v6 的 Node 可能携带设备信息，v7 公开了生成时间；v4、v5 的用途也不等于安全令牌。</li>
+<li><strong>跨语言序列化</strong>：Java、Go、Python、SQL、Windows GUID 等生态之间交换 16 字节时，要统一规范字节序，不能只保证文本看起来一致。</li>
+<li><strong>业务去重</strong>：订单号、请求幂等键、业务自然键与 UUID 主键是不同概念。UUID 本身不能阻止重复下单。</li>
+<li><strong>版本升级</strong>：旧表从 v4 迁到 v7 不一定要重写全部历史 ID，但混合版本的全列排序不再等价于时间排序；迁移前应评估主键与外键约束。</li>
+</ul>
+<h2 id="十六、版本选型决策图与学习路线"><a href="#十六、版本选型决策图与学习路线" class="headerlink" title="十六、版本选型决策图与学习路线"></a>十六、版本选型决策图与学习路线</h2><p>下图用于快速判断生成方式，而不是声称所有系统都必须使用 UUID。Hexo 主题若未启用 Mermaid 渲染插件，图形代码块会按普通代码展示，下面的对比表仍可独立阅读：</p>
+<pre><code class=" mermaid">flowchart TD
+    A[需要生成一个标识符] --&gt; B&#123;必须采用 UUID 吗?&#125;
+    B --&gt;|否| C[评估 BIGINT / 序列 / Snowflake 等]
+    B --&gt;|是| D&#123;相同名称是否必须生成相同 ID?&#125;
+    D --&gt;|是| E&#123;需要自定义哈希或字段吗?&#125;
+    E --&gt;|否| F[UUIDv5]
+    E --&gt;|是| G[UUIDv8 + 明确协议]
+    D --&gt;|否| H&#123;是否需要时间有序/索引局部性?&#125;
+    H --&gt;|否| I[UUIDv4]
+    H --&gt;|是| J&#123;需要兼容历史 v1 格式吗?&#125;
+    J --&gt;|是| K[UUIDv6]
+    J --&gt;|否| L[UUIDv7]
+</code></pre>
+
+<p>学习时可以按照下面的顺序建立理解，不必机械按 v1、v2、v3……依次死记：</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>重点</th>
+<th>应该掌握什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>入门</td>
+<td>UUID 128 位格式、Version、Variant</td>
+<td>会读一个 UUID，知道 <code>8-4-4-4-12</code> 和固定控制位</td>
+</tr>
+<tr>
+<td>基础</td>
+<td>v4 与 v5</td>
+<td>理解<strong>随机唯一性</strong>和<strong>名称确定性</strong>是两种不同需求</td>
+</tr>
+<tr>
+<td>原理</td>
+<td>v1 与 v6</td>
+<td>理解 Gregorian 时间、Clock Sequence、Node、时间字段重排</td>
+</tr>
+<tr>
+<td>工程重点</td>
+<td>v7</td>
+<td>理解 48 位时间戳、74 位剩余数据、同毫秒单调性与数据库局部性</td>
+</tr>
+<tr>
+<td>历史兼容</td>
+<td>v2 与 v3</td>
+<td>了解 DCE 身份场景和 MD5 名称生成的兼容价值</td>
+</tr>
+<tr>
+<td>高级扩展</td>
+<td>v8</td>
+<td>能设计并评审自定义位布局、碰撞模型和跨语言协议</td>
+</tr>
+<tr>
+<td>落地</td>
+<td>Java + MySQL&#x2F;PostgreSQL</td>
+<td>正确生成、序列化、存储、索引与压测</td>
+</tr>
+</tbody></table>
+<h3 id="最后再用一张表记住结构"><a href="#最后再用一张表记住结构" class="headerlink" title="最后再用一张表记住结构"></a>最后再用一张表记住结构</h3><figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs text">所有行都共 128 位；下列写法按从最高位到最低位排列：<br><br>v1 : [时间低32] [时间中16] [ver1|时间高12] [var|时钟序列14] [节点48]<br>v2 : [本地ID32] [时间中16] [ver2|时间高12] [var|时钟序列6|Domain8] [节点48]<br>v3 : [MD5高48] [ver3|MD5中12] [var|MD5低62]<br>v4 : [随机48] [ver4|随机12] [var|随机62]<br>v5 : [SHA1高48] [ver5|SHA1中12] [var|SHA1低62]<br>v6 : [时间高32] [时间中16] [ver6|时间低12] [var|时钟序列14] [节点48]<br>v7 : [Unix毫秒48] [ver7|随机/计数12] [var|随机/计数62]<br>v8 : [自定义48] [ver8|自定义12] [var|自定义62]<br><br>ver = 4 bit       var = 2 bit（RFC 标准变体，固定为 10）<br></code></pre></td></tr></table></figure>
+
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>UUID 解决的首先是“<strong>不依赖中心发号器，如何生成低冲突概率、可跨系统使用的标识</strong>”；不同版本又针对可复现性、时间结构、索引局部性和自定义协议给出了不同答案。</p>
+<p>从工程选择来看，最常用的并不是八种版本各取一点，而是围绕三个问题做取舍：<strong>是否需要随机标识、是否需要名称确定性、是否需要时间有序。</strong> 对应的默认选项分别是 <strong>v4、v5 和 v7</strong>。v1&#x2F;v6 解决历史时间型格式及兼容问题，v2 是 DCE 专用身份格式，v3 留给老系统，v8 则为真正有协议设计需求的场景保留空间。</p>
+<p>对于新的 Java 分布式服务，如果需要使用 UUID 作为 MySQL 主键，我会优先评估 <strong>UUIDv7 + <code>BINARY(16)</code> 标准字节序存储 + 唯一约束 + 独立创建时间列</strong>。它不一定比 BIGINT 更轻，但相较无序 v4 主键，通常是更符合数据库写入特性的 UUID 选择。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p><strong>本次提供的四篇资料</strong></p>
+<ol>
+<li>Nicole Tietz-Sokolskaya, <em>TIL: 8 versions of UUID and when to use them</em>. <a target="_blank" rel="noopener" href="https://ntietz.com/blog/til-uses-for-the-different-uuid-versions/">原文</a></li>
+<li>IETF, <em>RFC 4122: A Universally Unique IDentifier (UUID) URN Namespace</em>（2005；已由 RFC 9562 取代）. <a target="_blank" rel="noopener" href="https://www.rfc-editor.org/info/rfc4122/">RFC Editor</a></li>
+<li>博客园 -云-，<em>深度解读 UUID：结构、原理以及生成机制</em>. <a target="_blank" rel="noopener" href="https://www.cnblogs.com/cloud-/p/18086034">原文</a></li>
+<li>CSDN，<em>UUID 的 8 个版本以及何时使用它们</em>. <a target="_blank" rel="noopener" href="https://blog.csdn.net/xuejianxinokok/article/details/141550075">原文</a></li>
+</ol>
+<p><strong>补充核对的规范与官方文档</strong></p>
+<ol start="5">
+<li>IETF, <em>RFC 9562: Universally Unique IDentifiers (UUIDs)</em>（2024，现行标准）. <a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc9562.html">RFC 原文</a></li>
+<li>The Open Group, <em>DCE 1.1 &#x2F; DCE Security</em>（UUIDv2 的历史规范背景）. <a target="_blank" rel="noopener" href="https://www.opengroup.org/onlinepubs/9629399/apdxa.htm">DCE UUID 规范入口</a></li>
+<li>Oracle, <em>MySQL Reference Manual — <code>UUID()</code>, <code>UUID_TO_BIN()</code>, <code>BIN_TO_UUID()</code></em>. <a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/8.4/en/miscellaneous-functions.html">官方手册</a></li>
+<li>PostgreSQL, <em>UUID Functions (PostgreSQL 18)</em>. <a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/18/functions-uuid.html">官方手册</a></li>
+<li>Oracle, <em>Java SE 25 — java.util.UUID</em>. <a target="_blank" rel="noopener" href="https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/UUID.html">JDK API</a></li>
+<li>Fabio Lima, <em>uuid-creator</em>. <a target="_blank" rel="noopener" href="https://github.com/f4b6a3/uuid-creator">项目仓库及示例</a></li>
+</ol>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/" class="category-chain-item">分布式系统</a>
+  
+  
+    <span>></span>
+    
+  <a href="/categories/%E5%88%86%E5%B8%83%E5%BC%8F%E7%B3%BB%E7%BB%9F/%E5%9F%BA%E7%A1%80%E6%8A%80%E6%9C%AF/" class="category-chain-item">基础技术</a>
+  
+  
+
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/Java/" class="print-no-link">#Java</a>
+      
+        <a href="/tags/MySQL/" class="print-no-link">#MySQL</a>
+      
+        <a href="/tags/UUID/" class="print-no-link">#UUID</a>
+      
+        <a href="/tags/GUID/" class="print-no-link">#GUID</a>
+      
+        <a href="/tags/RFC-4122/" class="print-no-link">#RFC 4122</a>
+      
+        <a href="/tags/RFC-9562/" class="print-no-link">#RFC 9562</a>
+      
+        <a href="/tags/UUIDv7/" class="print-no-link">#UUIDv7</a>
+      
+        <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F-ID/" class="print-no-link">#分布式 ID</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>UUID 完全指南：从 RFC 4122 到 RFC 9562，理解 v1～v8 的结构、生成算法与工程选型</div>
+      <div>https://allendericdalexander.github.io/2026/10/14/archtect/db/UUID/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>AtLuoFu</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2026年10月14日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="NC - 非商业性使用">
+                    <i class="iconfont icon-nc"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2026/10/15/java/spring/spring-boot-configuration-and-maven-integration/" title="Spring Boot 配置体系详解：YAML、加载顺序、Profile、属性注入与 Maven POM 整合">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Spring Boot 配置体系详解：YAML、加载顺序、Profile、属性注入与 Maven POM 整合</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2026/10/13/archtect/distribute/distributed-consistency-consensus-hexo/" title="分布式一致性与共识协议：从 CAP、Paxos、Raft 到 PBFT、PoW 与 ZAB">
+                        <span class="hidden-mobile">分布式一致性与共识协议：从 CAP、Paxos、Raft 到 PBFT、PoW 与 ZAB</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  <script>
+  Fluid.utils.createScript('https://lib.baomitu.com/mermaid/8.14.0/mermaid.min.js', function() {
+    mermaid.initialize({"theme":"default"});
+
+    Fluid.utils.listenDOMLoaded(function() {
+      Fluid.events.registerRefreshCallback(function() {
+        if ('mermaid' in window) {
+          mermaid.init();
+        }
+      });
+    });
+  });
+</script>
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://allendericdalexander.github.io/" target="_blank" rel="nofollow noopener"><span>德刑君</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/AllenDEricDAlexander" target="_blank" rel="nofollow noopener"><span>GitHub</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
